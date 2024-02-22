@@ -77,7 +77,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
                               sco2_auxvar%m_salt(TWO_INTEGER) * &
                               volume_over_dt
 
-  if (.not. sco2_isothermal) then
+  if (sco2_thermal) then
     do iphase = 1, option%nphase
       ! Res[MJ/s] =    sat[m^3 phase/m^3 void] *
       !                    den_kg[kg phase/m^3 phase] * U[MJ/kg phase] *
@@ -271,7 +271,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
           Res(icomp) = Res(icomp) + component_mass_flux
 
         enddo
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           ! Energy flux
           Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
                                             tot_mass_flux * uH
@@ -472,7 +472,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   ! Conduction
   ! MAN: Need to extend the thermal conductivity functionality to include
   !      salt
-  if (.not. sco2_isothermal) then
+  if (sco2_thermal) then
     sat_up = sco2_auxvar_up%sat(lid)
     sat_dn = sco2_auxvar_dn%sat(lid)
 
@@ -765,7 +765,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           component_mass_flux = tot_mass_flux * xmass(icomp)
           Res(icomp) = Res(icomp) + component_mass_flux
         enddo
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           ! Energy flux
           Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
                                           tot_mass_flux * uH
@@ -892,7 +892,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   enddo
 
   ! Conduction
-  if (.not. sco2_isothermal) then
+  if (sco2_thermal) then
     heat_flux = 0.d0
     select case(ibndtype(SCO2_ENERGY_EQUATION_INDEX))
     case(DIRICHLET_BC)
@@ -1008,7 +1008,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar%pres(gid)
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar%m_salt(1)
     end select
-    if (.not. sco2_isothermal) then
+    if (sco2_thermal) then
       xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar%temp
     endif
     global_auxvar_ss%istate = global_auxvar%istate
@@ -1032,7 +1032,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         xxss(SCO2_CO2_EQUATION_INDEX) = sco2_auxvar_ss%pres(gid)
         xxss(SCO2_SALT_EQUATION_INDEX) = sco2_auxvar_ss%m_salt(1)
     end select
-    if (.not. sco2_isothermal) then
+    if (sco2_thermal) then
       xxss(SCO2_ENERGY_EQUATION_INDEX) = sco2_auxvar_ss%temp
     endif
   endif
@@ -1054,7 +1054,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
                                        sco2_auxvar%xmass(co2_id,lid)
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%xmass(sid,lid)
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(lid)
         endif
       elseif (sco2_auxvar%sat(lid) <= 0.d0) then
@@ -1063,7 +1063,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
                                        sco2_auxvar%xmass(co2_id,gid)
         Res(SCO2_SALT_EQUATION_INDEX) = 0.d0
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(gid)
         endif
       else
@@ -1084,7 +1084,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * &
                                          (sco2_auxvar%mobility(lid)/mob_tot * &
                                           sco2_auxvar%xmass(sid,lid)) 
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           ! Energy                                  
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * &
                                          (sco2_auxvar%mobility(lid)/mob_tot * &
@@ -1099,7 +1099,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid)
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id)
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid)
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(wid) * &
                   sco2_auxvar_ss%H(lid) + qsrc(gid) * &
                   sco2_auxvar_ss%H(gid)
@@ -1108,7 +1108,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * scale
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * scale
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * scale
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = scale * (qsrc(wid) * &
                   sco2_auxvar_ss%H(lid) + qsrc(gid) * &
                   sco2_auxvar_ss%H(gid))
@@ -1119,7 +1119,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
                                      sco2_auxvar%den_kg(gid)
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
                    sco2_auxvar%den_kg(lid) * sco2_auxvar%H(lid) + qsrc(gid) * &
                    sco2_auxvar%den_kg(gid)) * sco2_auxvar%H(gid)
@@ -1133,7 +1133,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG * &
                                       scale
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
                                         sco2_auxvar%H(lid) + qsrc(gid) * &
                                         sco2_auxvar%H(gid)) * scale
@@ -1141,7 +1141,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   end select
 
   ! If there's a heater
-  if (.not. sco2_isothermal) Res(SCO2_ENERGY_EQUATION_INDEX) = &
+  if (sco2_thermal) Res(SCO2_ENERGY_EQUATION_INDEX) = &
                              Res(SCO2_ENERGY_EQUATION_INDEX) + qsrc(4)
 
 end subroutine SCO2AuxVarComputeAndSrcSink

@@ -1095,7 +1095,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
             end select
-            if (.not. sco2_isothermal .and. .not. &
+            if (sco2_thermal .and. .not. &
                 (sco2%temperature%itype == DIRICHLET_BC .or. &
                   sco2%temperature%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Temperature ' // trim(string)
@@ -1165,7 +1165,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                  
               end select
 
-              if (.not. sco2_isothermal) then
+              if (sco2_thermal) then
                 xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
                     sco2%temperature%dataset%rarray(1)
               endif

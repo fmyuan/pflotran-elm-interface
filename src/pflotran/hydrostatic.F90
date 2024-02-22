@@ -235,7 +235,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                                        condition%name,option)
       call HydrostaticHDF5DatasetError(condition%sco2%gas_pressure, &
                                        condition%name,option)
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         if (associated(condition%sco2%temperature)) then
           temperature_at_datum = &
             condition%sco2%temperature%dataset%rarray(1)
@@ -271,7 +271,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(SCO2_LIQUID_PRESSURE_DOF) = 1
       coupler%flow_aux_mapping(SCO2_CO2_MASS_FRAC_DOF) = 2
       coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 3
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         coupler%flow_aux_mapping(SCO2_TEMPERATURE_DOF) = 4
       endif
 
@@ -761,7 +761,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             endif
         end select
       case(SCO2_MODE)
-        if (.not. sco2_isothermal) then
+        if (sco2_thermal) then
           temperature = temperature_at_datum + &
                       ! gradient in K/m
                       temperature_gradient(X_DIRECTION)*dist_x + &

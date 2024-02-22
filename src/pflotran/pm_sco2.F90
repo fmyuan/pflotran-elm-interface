@@ -123,7 +123,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
                               LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
                               TEMPERATURE, LIQUID_SATURATION, GAS_SATURATION, &
                               PRECIPITATE_SATURATION, POROSITY
-  use SCO2_Aux_module, only : sco2_isothermal
+  use SCO2_Aux_module, only : sco2_thermal
 
   implicit none
 
@@ -206,10 +206,10 @@ subroutine PMSCO2SetFlowMode(pm,option)
   option%trapped_gas_phase = 4
 
   ! Water, CO2, Salt, Energy
-  if (sco2_isothermal) then
-    option%nflowdof = 3
-  else
+  if (sco2_thermal) then
     option%nflowdof = 4
+  else
+    option%nflowdof = 3
   endif
 
   ! Components: water, co2, salt
@@ -307,7 +307,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
       case('TEMPERATURE', 'ISOTHERMAL_TEMPERATURE')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        sco2_isothermal = PETSC_TRUE
+        sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
@@ -893,7 +893,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
       !MAN: need to decide how to truncate temperature updates.
-      if (.not. sco2_isothermal) temperature_index = offset + FOUR_INTEGER
+      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1123,7 +1123,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           ! endif
       end select
 
-      if (.not. sco2_isothermal) then
+      if (sco2_thermal) then
         !Limit temperature changes
         dX_p(temperature_index) = sign(min(1.d0, &
                                   dabs(dX_p(temperature_index))), &

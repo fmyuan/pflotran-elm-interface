@@ -117,7 +117,7 @@ module SCO2_Aux_module
   PetscInt, parameter, public :: SCO2_UPDATE_FOR_SS = 3
 
   ! Physics Options
-  PetscBool, public :: sco2_isothermal = PETSC_FALSE
+  PetscBool, public :: sco2_thermal = PETSC_TRUE
   PetscBool, public :: sco2_update_permeability = PETSC_FALSE
   PetscReal, public :: permeability_func_porosity_exp = 1.d0
   PetscInt, public :: permeability_reduction_model = TWO_INTEGER
@@ -557,7 +557,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
 
   end select
 
-  if (.not. sco2_isothermal) then
+  if (sco2_thermal) then
     x(SCO2_TEMPERATURE_DOF) = sco2_auxvar(ZERO_INTEGER)%temp
     pert(SCO2_TEMPERATURE_DOF) = dt
   endif
@@ -970,7 +970,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
 
     end select
 
-    if (.not. sco2_isothermal) then
+    if (sco2_thermal) then
       x(SCO2_TEMPERATURE_DOF) = sco2_auxvar%temp
     endif
 
@@ -1099,10 +1099,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       ! Primary Variables
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
       sco2_auxvar%xmass(co2_id,lid) = x(SCO2_CO2_MASS_FRAC_DOF)
-      if (sco2_isothermal) then
-        sco2_auxvar%temp = sco2_isothermal_temperature
-      else
+      if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
+      else
+        sco2_auxvar%temp = sco2_isothermal_temperature
       endif
       ! This is the total salt mass fraction including precipitate phase,
       ! neglecting the mass of dissolved CO2.
@@ -1179,10 +1179,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%pres(co2_pressure_id) = x(SCO2_CO2_PRESSURE_DOF)
       ! This PV is now total salt mass, not salt mass fraction in brine
       sco2_auxvar%m_salt(2) = x(SCO2_SALT_MASS_FRAC_DOF)
-      if (sco2_isothermal) then
-        sco2_auxvar%temp = sco2_isothermal_temperature
-      else
+      if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
+      else
+        sco2_auxvar%temp = sco2_isothermal_temperature
       endif
 
       ! Secondary Variables
@@ -1270,10 +1270,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
       sco2_auxvar%sat(gid) = x(SCO2_GAS_SATURATION_DOF)
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
-      if (sco2_isothermal) then
-        sco2_auxvar%temp = sco2_isothermal_temperature
-      else
+      if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
+      else
+        sco2_auxvar%temp = sco2_isothermal_temperature
       endif
 
       ! Starting guess for Equilibrate
@@ -1334,10 +1334,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
       sco2_auxvar%pres(gid) = x(SCO2_TWO_PHASE_GAS_PRES_DOF)
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
-      if (sco2_isothermal) then
-        sco2_auxvar%temp = sco2_isothermal_temperature
-      else
+      if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
+      else
+        sco2_auxvar%temp = sco2_isothermal_temperature
       endif
 
       
@@ -1543,7 +1543,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%mobility(lid) = sco2_auxvar%kr(lid) / sco2_auxvar%visc(lid)
   sco2_auxvar%mobility(gid) = sco2_auxvar%kr(gid) / sco2_auxvar%visc(gid)
 
-  if (.not. sco2_isothermal) then
+  if (sco2_thermal) then
     ! Energy calculations
 
     ! Brine enthalpy

@@ -188,10 +188,6 @@ subroutine SCO2Setup(realization)
   endif
   patch%aux%SCO2%num_aux_ss = sum_connection
 
-  ! if (sco2_isothermal ) then
-  !   call MatrixZeroingInitRowZeroing(patch%aux%SCO2%matrix_zeroing, &
-  !                                    grid%nlmax)
-  ! endif
 
   ! initialize parameters
   ! MAN: Need to check this holds diffusion coefficient for salt.
@@ -1372,15 +1368,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
-  ! if (sco2_isothermal) then
-  !   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  !   ! zero energy residual
-  !   do local_id = 1, grid%nlmax
-  !     r_p((local_id-1)*option%nflowdof+SCO2_ENERGY_EQUATION_INDEX) =  0.d0
-  !   enddo
-  !   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  ! endif
-
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Sresidual','', &
                             sco2_ts_count,sco2_ts_cut_count, &
@@ -1722,19 +1709,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
-
-  ! if (sco2_isothermal) then
-  !   qsrc = 1.d0 ! solely a temporary variable in this conditional
-  !   zeros => patch%aux%SCO2%matrix_zeroing%row_zeroing_array
-  !   ! zero energy residual
-  !   do local_id = 1, grid%nlmax
-  !     ghosted_id = grid%nL2G(local_id)
-  !     zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
-  !                       SCO2_ENERGY_EQUATION_INDEX - 1 ! zero-based
-  !   enddo
-  !   call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
-  !                         PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
-  ! endif
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Sjacobian','', &

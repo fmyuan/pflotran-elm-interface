@@ -2788,15 +2788,15 @@ subroutine FlowConditionSCO2Read(condition,input,option)
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
-            if (sco2_isothermal) then
-              internal_units = trim(rate_string) // ',' // &
-                             trim(rate_string) // ',' // &
-                             trim(rate_string)
-            else
+            if (sco2_thermal) then
               internal_units = trim(rate_string) // ',' // &
                              trim(rate_string) // ',' // &
                              trim(rate_string) // ',' // &
                              'MJ/sec|MW'
+            else
+              internal_units = trim(rate_string) // ',' // &
+                             trim(rate_string) // ',' // &
+                             trim(rate_string)
             endif
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
@@ -2855,7 +2855,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
             &gas pressure, or gas/liquid saturation.'
         call PrintErrMsg(option)
       endif
-      if (.not. sco2_isothermal .and. .not.associated(sco2%temperature)) then
+      if (sco2_thermal .and. .not.associated(sco2%temperature)) then
           option%io_buffer = 'SCO2 Mode non-rate condition must include &
             &a temperature'
         call PrintErrMsg(option)
@@ -2965,13 +2965,13 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
   if (associated(sco2%salt_mass)) &
     i = i + 1
-  if (.not. sco2_isothermal .and. associated(sco2%temperature)) &
+  if (sco2_thermal .and. associated(sco2%temperature)) &
     i = i + 1
   if (associated(sco2%liquid_flux)) &
     i = i + 1
   if (associated(sco2%gas_flux)) &
     i = i + 1
-  if (.not. sco2_isothermal .and. associated(sco2%energy_flux)) &
+  if (sco2_thermal .and. associated(sco2%energy_flux)) &
     i = i + 1
   if (associated(sco2%rate)) &
     i = i + 1
@@ -3005,7 +3005,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%salt_mass
   endif
-  if (.not. sco2_isothermal .and. associated(sco2%temperature)) then
+  if (sco2_thermal .and. associated(sco2%temperature)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%temperature
   endif
@@ -3017,7 +3017,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%gas_flux
   endif
-  if (.not. sco2_isothermal .and. associated(sco2%energy_flux)) then
+  if (sco2_thermal .and. associated(sco2%energy_flux)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%energy_flux
   endif

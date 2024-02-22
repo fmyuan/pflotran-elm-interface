@@ -4527,7 +4527,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
   dof3 = PETSC_FALSE
   dof4 = PETSC_FALSE
   !Disable check on DOF4 in isothermal mode
-  if (sco2_isothermal) dof4 = PETSC_TRUE
+  if (.not. sco2_thermal) dof4 = PETSC_TRUE
   real_count = 0
 
   ! mapping of flow_aux_mapping to the flow_aux_real_var array:
@@ -4622,7 +4622,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             '" requires a CO2 mass fraction BC of type DIRICHLET.'
           call PrintErrMsg(option)
         endif
-        if (.not. sco2_isothermal .and. &
+        if (sco2_thermal .and. &
             sco2%temperature%itype /= DIRICHLET_BC) then
           option%io_buffer = 'Hydrostatic liquid state pressure BC for &
             &flow condition "' // trim(flow_condition%name) // &
@@ -4665,7 +4665,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             '" requires a CO2 trapped gas saturation BC of type DIRICHLET.'
           call PrintErrMsg(option)
         endif
-        if (.not. sco2_isothermal .and. &
+        if (sco2_thermal .and. &
             sco2%temperature%itype /= DIRICHLET_BC) then
           option%io_buffer = 'Hydrostatic liquid state pressure BC for &
             &flow condition "' // trim(flow_condition%name) // &
@@ -4779,7 +4779,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
           end select
           ! With energy
           ! temperature; 4th dof ------------------------- !
-          if (.not. sco2_isothermal) then
+          if (sco2_thermal) then
             select case(sco2%temperature%itype)
               case(DIRICHLET_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -4805,7 +4805,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                 '" requires a CO2 mass fraction BC of type DIRICHLET.'
               call PrintErrMsg(option)
             endif
-            if (.not. sco2_isothermal .and. &
+            if (sco2_thermal .and. &
                 sco2%temperature%itype /= DIRICHLET_BC) then
               option%io_buffer = 'Hydrostatic liquid state pressure BC for &
                 &flow condition "' // trim(flow_condition%name) // &
@@ -4815,7 +4815,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
 
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC
             coupler%flow_bc_type(SCO2_CO2_MASS_FRAC_DOF) = DIRICHLET_BC
-            if (.not. sco2_isothermal) then
+            if (sco2_thermal) then
               coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
             endif
 
@@ -4889,7 +4889,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
 
             ! With energy
             ! temperature; 4th dof ------------------------- !
-            if (.not. sco2_isothermal) then
+            if (sco2_thermal) then
               select case(sco2%temperature%itype)
                 case(DIRICHLET_BC)
                   call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -4963,7 +4963,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
 
           ! With energy
           ! temperature; 4th dof ------------------------- !
-          if (.not. sco2_isothermal) then
+          if (sco2_thermal) then
             select case(sco2%temperature%itype)
               case(DIRICHLET_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -4990,7 +4990,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                 '" requires a CO2 mass fraction BC of type DIRICHLET.'
               call PrintErrMsg(option)
             endif
-            if (.not. sco2_isothermal .and. &
+            if (sco2_thermal .and. &
                 sco2%temperature%itype /= DIRICHLET_BC) then
               option%io_buffer = 'Hydrostatic liquid state pressure BC for &
                 &flow condition "' // trim(flow_condition%name) // &
@@ -5000,7 +5000,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             ! ---> see code that just prints error
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC
             coupler%flow_bc_type(SCO2_CO2_MASS_FRAC_DOF) = DIRICHLET_BC
-            if (.not. sco2_isothermal) then
+            if (sco2_thermal) then
               coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
             endif
 
@@ -5077,7 +5077,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             end select
             ! With energy
             ! temperature; 4th dof ------------------------- !
-            if (.not. sco2_isothermal) then
+            if (sco2_thermal) then
               select case(sco2%temperature%itype)
                 case(DIRICHLET_BC)
                   call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -5159,7 +5159,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
     end select
   endif
 
-  if (.not. sco2_isothermal .and. associated(sco2%energy_flux)) then
+  if (sco2_thermal .and. associated(sco2%energy_flux)) then
     coupler%flow_bc_type(SCO2_ENERGY_FLUX_INDEX) = NEUMANN_BC
     select type(selector => sco2%energy_flux%dataset)
       class is(dataset_ascii_type)
@@ -5210,14 +5210,14 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
   if (dof1) dof_count_local(1) = 1
   if (dof2) dof_count_local(2) = 1
   if (dof3) dof_count_local(3) = 1
-  if (sco2_isothermal) then
-    call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
-           MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-  else
+  if (sco2_thermal) then
     if (dof4) dof_count_local(4) = 1
     call MPI_Allreduce(dof_count_local,dof_count_global,FOUR_INTEGER_MPI, &
            MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     if (dof_count_global(4) > 0) dof4 = PETSC_TRUE
+  else
+    call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
+           MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   endif
   
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
