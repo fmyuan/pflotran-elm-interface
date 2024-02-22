@@ -235,12 +235,16 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                                        condition%name,option)
       call HydrostaticHDF5DatasetError(condition%sco2%gas_pressure, &
                                        condition%name,option)
-      ! temperature_at_datum = &
-      !   condition%sco2%temperature%dataset%rarray(1)
-      ! if (associated(condition%sco2%temperature%gradient)) then
-      !   temperature_gradient(1:3) = &
-      !     condition%sco2%temperature%gradient%rarray(1:3)
-      ! endif
+      if (.not. sco2_isothermal) then
+        if (associated(condition%sco2%temperature)) then
+          temperature_at_datum = &
+            condition%sco2%temperature%dataset%rarray(1)
+          if (associated(condition%sco2%temperature%gradient)) then
+            temperature_gradient(1:3) = &
+              condition%sco2%temperature%gradient%rarray(1:3)
+          endif
+        endif
+      endif
       concentration_at_datum = &
         condition%sco2%co2_mass_fraction%dataset%rarray(1)
       if (associated(condition%sco2%co2_mass_fraction%gradient)) then
@@ -267,8 +271,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(SCO2_LIQUID_PRESSURE_DOF) = 1
       coupler%flow_aux_mapping(SCO2_CO2_MASS_FRAC_DOF) = 2
       coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 3
-      ! coupler%flow_aux_mapping(SCO2_TEMPERATURE_DOF) = 3
-      ! coupler%flow_aux_mapping(SCO2_SALT_MASS_FRAC_DOF) = 4
+      if (.not. sco2_isothermal) then
+        coupler%flow_aux_mapping(SCO2_TEMPERATURE_DOF) = 4
+      endif
 
       ! for two-phase state
       coupler%flow_aux_mapping(SCO2_TWO_PHASE_GAS_PRES_DOF) = 2
@@ -756,14 +761,15 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             endif
         end select
       case(SCO2_MODE)
-        ! temperature = temperature_at_datum + &
-        !             ! gradient in K/m
-        !             temperature_gradient(X_DIRECTION)*dist_x + &
-        !             temperature_gradient(Y_DIRECTION)*dist_y + &
-        !             temperature_gradient(Z_DIRECTION)*dist_z
-        ! coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF,iconn) = temperature
+        if (.not. sco2_isothermal) then
+          temperature = temperature_at_datum + &
+                      ! gradient in K/m
+                      temperature_gradient(X_DIRECTION)*dist_x + &
+                      temperature_gradient(Y_DIRECTION)*dist_y + &
+                      temperature_gradient(Z_DIRECTION)*dist_z
+          coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF,iconn) = temperature
+        endif
         ! switch to two-phase if liquid pressure drops below gas pressure
-        ! MAN: need to test how this works
         if (pressure < gas_pressure) then
           coupler%flow_aux_real_var(SCO2_LIQUID_PRESSURE_DOF,iconn) = &
                                                        gas_pressure

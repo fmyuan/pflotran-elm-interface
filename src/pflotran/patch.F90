@@ -4526,6 +4526,8 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
   dof4 = PETSC_FALSE
+  !Disable check on DOF4 in isothermal mode
+  if (sco2_isothermal) dof4 = PETSC_TRUE
   real_count = 0
 
   ! mapping of flow_aux_mapping to the flow_aux_real_var array:
@@ -4775,6 +4777,25 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                   'SCO2_MODE two phase state salt mass fraction',string)
             call PrintErrMsg(option)
           end select
+          ! With energy
+          ! temperature; 4th dof ------------------------- !
+          if (.not. sco2_isothermal) then
+            select case(sco2%temperature%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,sco2%temperature%dataset,iconn,temperature)
+                coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF, &
+                     iconn) = temperature
+                dof4 = PETSC_TRUE
+                coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+              case default
+                string = GetSubConditionType(sco2%temperature%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                    'SCO2_MODE two phase state temperature ',string)
+                call PrintErrMsg(option)
+            end select
+          endif
       ! ----------------------------------------------------------------------!
         case(SCO2_LIQUID_STATE)
           if (sco2%liquid_pressure%itype == HYDROSTATIC_BC) then
@@ -4794,6 +4815,9 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
 
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC
             coupler%flow_bc_type(SCO2_CO2_MASS_FRAC_DOF) = DIRICHLET_BC
+            if (.not. sco2_isothermal) then
+              coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+            endif
 
             select case(sco2%salt_mass%itype)
               case(DIRICHLET_BC)
@@ -4862,6 +4886,26 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                        'SCO2_MODE liquid state salt mass fraction ',string)
                  call PrintErrMsg(option)
             end select
+
+            ! With energy
+            ! temperature; 4th dof ------------------------- !
+            if (.not. sco2_isothermal) then
+              select case(sco2%temperature%itype)
+                case(DIRICHLET_BC)
+                  call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,sco2%temperature%dataset,iconn,temperature)
+                  coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF, &
+                       iconn) = temperature
+                  dof4 = PETSC_TRUE
+                  coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+                case default
+                  string = GetSubConditionType(sco2%temperature%itype)
+                  option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition, &
+                      'SCO2_MODE two phase state temperature ',string)
+                  call PrintErrMsg(option)
+              end select
+            endif
           endif
       ! ---------------------------------------------------------------------- !
         case(SCO2_GAS_STATE)
@@ -4917,6 +4961,26 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
               call PrintErrMsg(option)
           end select
 
+          ! With energy
+          ! temperature; 4th dof ------------------------- !
+          if (.not. sco2_isothermal) then
+            select case(sco2%temperature%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,sco2%temperature%dataset,iconn,temperature)
+                coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF, &
+                     iconn) = temperature
+                dof4 = PETSC_TRUE
+                coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+              case default
+                string = GetSubConditionType(sco2%temperature%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                    'SCO2_MODE two phase state temperature ',string)
+                call PrintErrMsg(option)
+            end select
+          endif
+
       ! ---------------------------------------------------------------------- !
         case(SCO2_TRAPPED_GAS_STATE)
           if (sco2%liquid_pressure%itype == HYDROSTATIC_BC) then
@@ -4936,6 +5000,9 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             ! ---> see code that just prints error
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC
             coupler%flow_bc_type(SCO2_CO2_MASS_FRAC_DOF) = DIRICHLET_BC
+            if (.not. sco2_isothermal) then
+              coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+            endif
 
             ! salt mass fraction; 3rd dof ----------------------- !
             select case(sco2%salt_mass%itype)
@@ -5008,32 +5075,31 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                        'SCO2_MODE liquid state salt mass fraction ',string)
                  call PrintErrMsg(option)
             end select
+            ! With energy
+            ! temperature; 4th dof ------------------------- !
+            if (.not. sco2_isothermal) then
+              select case(sco2%temperature%itype)
+                case(DIRICHLET_BC)
+                  call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,sco2%temperature%dataset,iconn,temperature)
+                  coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF, &
+                       iconn) = temperature
+                  dof4 = PETSC_TRUE
+                  coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
+                case default
+                  string = GetSubConditionType(sco2%temperature%itype)
+                  option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition, &
+                      'SCO2_MODE two phase state temperature ',string)
+                  call PrintErrMsg(option)
+              end select
+            endif
           endif
       ! ---------------------------------------------------------------------- !
         case(SCO2_ANY_STATE)
             ! MAN: need to decide what goes here
       ! ---------------------------------------------------------------------- !
       end select
-
-      ! With energy
-      ! temperature; 4th dof ------------------------- !
-      if (.not. sco2_isothermal) then
-        select case(sco2%temperature%itype)
-          case(DIRICHLET_BC)
-            call PatchGetCouplerValueFromDataset(coupler,option, &
-                     patch%grid,sco2%temperature%dataset,iconn,temperature)
-            coupler%flow_aux_real_var(SCO2_TEMPERATURE_DOF, &
-                     iconn) = temperature
-            dof4 = PETSC_TRUE
-            coupler%flow_bc_type(SCO2_TEMPERATURE_DOF) = DIRICHLET_BC
-          case default
-            string = GetSubConditionType(sco2%temperature%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'SCO2_MODE two phase state temperature ',string)
-            call PrintErrMsg(option)
-        end select
-      endif
 
     enddo
   endif
