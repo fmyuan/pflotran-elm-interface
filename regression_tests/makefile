@@ -161,6 +161,7 @@ GEOMECHANICS_CFG = \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
+	geomech/uniaxial_strain_tets/uniaxial_strain_tets.cfg \
 	geomech/terzaghi/terzaghi.cfg
 
 FLOW_CFG = \
