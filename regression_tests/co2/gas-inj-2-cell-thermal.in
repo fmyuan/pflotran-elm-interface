@@ -3,9 +3,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE SCO2
-      OPTIONS
-        ISOTHERMAL_TEMPERATURE 20.d0  
-      /
     /
   /
 END
@@ -17,7 +14,6 @@ REGRESSION
     1
   /
 END
-
 
 NUMERICAL_METHODS flow
 
@@ -32,7 +28,7 @@ NUMERICAL_METHODS flow
   END
 
   TIMESTEPPER FLOW
-    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.15
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.75
   END
 
 END
@@ -40,9 +36,9 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED CARTESIAN
-  NXYZ 1 1 1 
+  NXYZ 2 1 1 
   DXYZ
-    1@10.d0
+    15.d0 15.d0
     10.d0
     10.d0
   /
@@ -69,10 +65,9 @@ EOS WATER
 END
 
 EOS GAS
-  CO2_DATABASE co2_sw-20C-50MPa-small.dat
+  CO2_DATABASE co2_sw.dat
   HENRYS_CONSTANT DEFAULT
 END
-
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
@@ -82,7 +77,7 @@ MATERIAL_PROPERTY soil1
   TORTUOSITY 1.d0
   ROCK_DENSITY 2650.d0
   THERMAL_CONDUCTIVITY_DRY 2.d0 
-  THERMAL_CONDUCTIVITY_WET 2.18d0
+  THERMAL_CONDUCTIVITY_WET 2.18d0 
   HEAT_CAPACITY 1000 J/kg-C
   PERMEABILITY
     PERM_ISO 1.d-13
@@ -117,29 +112,36 @@ END
 #=========================== times ============================================
 TIME
   FINAL_TIME 8.64000E+07 s
-  INITIAL_TIMESTEP_SIZE 1.d-3 s
+  INITIAL_TIMESTEP_SIZE 1.d5 s
   MAXIMUM_TIMESTEP_SIZE 8.64000E+07 s
 END
-
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    1.d1 1.d1 1.d1
+    3.d1 1.d1 1.d1
   /
-END
-
-REGION well
-  COORDINATE 5.d0 5.d0 5.d0
 END
 
 REGION east
   FACE EAST
   COORDINATES
-    10.d0  0.d0  0.d0 
-    10.d0  10.d0  10.d0 
+    30.d0  0.d0  0.d0 
+    30.d0  10.d0  10.d0 
   /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0  0.d0  0.d0
+    0.d0  10.d0  10.d0
+  /
+END
+
+REGION center
+  COORDINATE 15.d0 5.d0 5.d0
 END
 
 #=========================== flow conditions ==================================
@@ -149,10 +151,12 @@ FLOW_CONDITION initial
     LIQUID_PRESSURE DIRICHLET
     CO2_MASS_FRACTION DIRICHLET
     SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  LIQUID_PRESSURE 1.2d7
+  LIQUID_PRESSURE 1.d7
   CO2_MASS_FRACTION 0.d0 
   SALT_MASS_FRACTION 1.5d-1
+  TEMPERATURE 20.d0
 END
 
 FLOW_CONDITION boundary
@@ -160,34 +164,39 @@ FLOW_CONDITION boundary
     LIQUID_PRESSURE DIRICHLET
     CO2_MASS_FRACTION DIRICHLET
     SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  LIQUID_PRESSURE 1.2d7
-  CO2_MASS_FRACTION 0.d0 
-  SALT_MASS_FRACTION 2.2d-1
+  LIQUID_PRESSURE 1.d7
+  CO2_MASS_FRACTION 0.d0
+  SALT_MASS_FRACTION 1.5d-1
+  TEMPERATURE 25.d0
 END
 
-
 FLOW_CONDITION injection
+  SYNC_TIMESTEP_WITH_UPDATE
   TYPE
     RATE MASS_RATE
+    TEMPERATURE DIRICHLET
   /
-  RATE 0.d0 12.5d0 0.d0 kg/s kg/s kg/s
+  RATE 0.d0 5.d-1 0.d0 0.d0 kg/s kg/s kg/s MW
+  TEMPERATURE 25.d0
 END
 
 
 #=========================== condition couplers ===============================
+# initial condition
 INITIAL_CONDITION all
   FLOW_CONDITION initial
   REGION all
 END
 
-SOURCE_SINK well
+SOURCE_SINK west
   FLOW_CONDITION injection
-  REGION well
+  REGION west
 END
 
 BOUNDARY_CONDITION east
-  FLOW_CONDITION boundary
+  FLOW_CONDITION boundary #initial
   REGION east
 END
 

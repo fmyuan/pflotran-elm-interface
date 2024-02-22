@@ -1095,12 +1095,12 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
             end select
-            ! if (.not. &
-            !     (sco2%temperature%itype == DIRICHLET_BC .or. &
-            !       sco2%temperature%itype == HYDROSTATIC_BC)) then
-            !   option%io_buffer = 'Temperature ' // trim(string)
-            !   call PrintErrMsg(option)
-            ! endif
+            if (sco2_thermal .and. .not. &
+                (sco2%temperature%itype == DIRICHLET_BC .or. &
+                  sco2%temperature%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Temperature ' // trim(string)
+              call PrintErrMsg(option)
+            endif
 
             ! Salt mass is either total mass or total mass fraction
             if (.not. &
@@ -1125,16 +1125,6 @@ subroutine CondControlAssignFlowInitCond(realization)
               ! decrement ibegin to give a local offset of 0
               ibegin = ibegin - 1
               select case(initial_condition%flow_condition%iphase)
-                case(SCO2_LIQUID_GAS_STATE)
-
-                  xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
-                    sco2%liquid_pressure%dataset%rarray(1)
-                  xx_p(ibegin + SCO2_TWO_PHASE_GAS_PRES_DOF) = &
-                    sco2%gas_pressure%dataset%rarray(1)
-                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
-                  !   sco2%temperature%dataset%rarray(1)
-                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
-                         sco2%salt_mass%dataset%rarray(1)
 
                 case(SCO2_LIQUID_STATE)
                   
@@ -1142,8 +1132,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                     sco2%liquid_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_CO2_MASS_FRAC_DOF) = &
                     sco2%co2_mass_fraction%dataset%rarray(1)
-                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
-                  !   sco2%temperature%dataset%rarray(1)
                   xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
                       sco2%salt_mass%dataset%rarray(1)
 
@@ -1153,8 +1141,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                     sco2%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_CO2_PRESSURE_DOF) = &
                     sco2%co2_pressure%dataset%rarray(1)
-                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
-                  !   sco2%temperature%dataset%rarray(1)
                   xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
                       sco2%salt_mass%dataset%rarray(1)
                   
@@ -1165,12 +1151,24 @@ subroutine CondControlAssignFlowInitCond(realization)
                     sco2%liquid_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_GAS_SATURATION_DOF) = &
                     sco2%gas_saturation%dataset%rarray(1)
-                  ! xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
-                  !   sco2%temperature%dataset%rarray(1)
                   xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
                       sco2%salt_mass%dataset%rarray(1)
+
+                case(SCO2_LIQUID_GAS_STATE)
+
+                  xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
+                    sco2%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_TWO_PHASE_GAS_PRES_DOF) = &
+                    sco2%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
+                         sco2%salt_mass%dataset%rarray(1)
                  
               end select
+
+              if (sco2_thermal) then
+                xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
+                    sco2%temperature%dataset%rarray(1)
+              endif
               patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo

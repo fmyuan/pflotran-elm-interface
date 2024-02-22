@@ -94,7 +94,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: rate
     type(flow_sub_condition_type), pointer :: liquid_flux
     type(flow_sub_condition_type), pointer :: gas_flux
-    ! type(flow_sub_condition_type), pointer :: energy_flux
+    type(flow_sub_condition_type), pointer :: energy_flux
   end type flow_sco2_condition_type
 
 
@@ -412,7 +412,7 @@ function FlowSCO2ConditionCreate(option)
   nullify(sco2_condition%temperature)
   nullify(sco2_condition%liquid_flux)
   nullify(sco2_condition%gas_flux)
-  ! nullify(sco2_condition%energy_flux)
+  nullify(sco2_condition%energy_flux)
   nullify(sco2_condition%rate)
 
   FlowSCO2ConditionCreate => sco2_condition
@@ -752,13 +752,13 @@ function FlowSCO2SubConditionPtr(input,sub_condition_name,sco2, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         sco2%gas_flux => sub_condition_ptr
       endif
-    ! case('ENERGY_FLUX')
-    !   if (associated(sco2%energy_flux)) then
-    !     sub_condition_ptr => sco2%energy_flux
-    !   else
-    !     sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-    !     sco2%energy_flux => sub_condition_ptr
-    !   endif
+    case('ENERGY_FLUX')
+      if (associated(sco2%energy_flux)) then
+        sub_condition_ptr => sco2%energy_flux
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        sco2%energy_flux => sub_condition_ptr
+      endif
     case('RATE')
       if (associated(sco2%rate)) then
         sub_condition_ptr => sco2%rate
@@ -2536,7 +2536,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   use Time_Storage_module
   use Dataset_module
 
-  ! needed for STATES
+  ! needed for STATES and isothermal
   use SCO2_Aux_module
 
   implicit none
@@ -2771,8 +2771,8 @@ subroutine FlowConditionSCO2Read(condition,input,option)
            'CO2_PARTIAL_PRESSURE','LIQUID_SATURATION', &
            'GAS_SATURATION','CO2_MASS_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX', &
-           'SALT_MASS_FRACTION','SALT_MASS', 'TEMPERATURE') !, &
-          !  'ENERGY_FLUX')
+           'SALT_MASS_FRACTION','SALT_MASS', 'TEMPERATURE', &
+           'ENERGY_FLUX')
         sub_condition_ptr => &
                 FlowSCO2SubConditionPtr(input,word,sco2,option)
         internal_units = 'not_assigned'
@@ -2788,16 +2788,22 @@ subroutine FlowConditionSCO2Read(condition,input,option)
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
-            internal_units = trim(rate_string) // ',' // &
+            if (sco2_thermal) then
+              internal_units = trim(rate_string) // ',' // &
                              trim(rate_string) // ',' // &
-                             trim(rate_string) // ','
-                            !  trim(rate_string) // ',MJ/sec|MW'
+                             trim(rate_string) // ',' // &
+                             'MJ/sec|MW'
+            else
+              internal_units = trim(rate_string) // ',' // &
+                             trim(rate_string) // ',' // &
+                             trim(rate_string)
+            endif
           case('LIQUID_FLUX','GAS_FLUX')
             internal_units = 'meter/sec'
-          ! case('ENERGY_FLUX')
-          !   input%force_units = PETSC_TRUE
-          !   input%err_buf = word
-          !   internal_units = 'MW/m^2|MJ/m^2-sec'
+          case('ENERGY_FLUX')
+            input%force_units = PETSC_TRUE
+            input%err_buf = word
+            internal_units = 'MW/m^2|MJ/m^2-sec'
         end select
         call ConditionReadValues(input,option,word, &
                                  sub_condition_ptr%dataset, &
@@ -2828,9 +2834,9 @@ subroutine FlowConditionSCO2Read(condition,input,option)
       ! State for rates/fluxes
       condition%iphase = SCO2_ANY_STATE
     elseif (associated(sco2%liquid_flux) .and. &
-            associated(sco2%gas_flux)) then !.and. &
-            ! (associated(sco2%energy_flux) .or. &
-            !  associated(sco2%temperature))) then
+            associated(sco2%gas_flux) .and. &
+            (associated(sco2%energy_flux) .or. &
+             associated(sco2%temperature))) then
       condition%iphase = SCO2_ANY_STATE
     else
       ! some sort of dirichlet-based pressure, etc.
@@ -2849,11 +2855,11 @@ subroutine FlowConditionSCO2Read(condition,input,option)
             &gas pressure, or gas/liquid saturation.'
         call PrintErrMsg(option)
       endif
-      ! if (.not.associated(sco2%temperature)) then
-      !     option%io_buffer = 'SCO2 Mode non-rate condition must include &
-      !       &a temperature'
-      !   call PrintErrMsg(option)
-      ! endif
+      if (sco2_thermal .and. .not.associated(sco2%temperature)) then
+          option%io_buffer = 'SCO2 Mode non-rate condition must include &
+            &a temperature'
+        call PrintErrMsg(option)
+      endif
       if (.not.associated(sco2%salt_mass)) then
         option%io_buffer = 'SCO2 Mode non-rate condition must include &
           &a salt mass or mass fraction.'
@@ -2924,10 +2930,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,sco2%salt_mass, &
                               default_time_storage, &
                               PETSC_TRUE)
-  ! word = 'temperature'
-  ! call FlowSubConditionVerify(option,condition,word,sco2%temperature, &
-  !                             default_time_storage, &
-  !                             PETSC_TRUE)
+  word = 'temperature'
+  call FlowSubConditionVerify(option,condition,word,sco2%temperature, &
+                              default_time_storage, &
+                              PETSC_TRUE)
   word = 'liquid flux'
   call FlowSubConditionVerify(option,condition,word,sco2%liquid_flux, &
                               default_time_storage, &
@@ -2936,10 +2942,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,sco2%gas_flux, &
                               default_time_storage, &
                               PETSC_TRUE)
-  ! word = 'energy flux'
-  ! call FlowSubConditionVerify(option,condition,word,sco2%energy_flux, &
-  !                             default_time_storage, &
-  !                             PETSC_TRUE)
+  word = 'energy flux'
+  call FlowSubConditionVerify(option,condition,word,sco2%energy_flux, &
+                              default_time_storage, &
+                              PETSC_TRUE)
   word = 'rate'
   call FlowSubConditionVerify(option,condition,word,sco2%rate, &
                               default_time_storage, &
@@ -2959,14 +2965,14 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
   if (associated(sco2%salt_mass)) &
     i = i + 1
-  ! if (associated(sco2%temperature)) &
-  !   i = i + 1
+  if (sco2_thermal .and. associated(sco2%temperature)) &
+    i = i + 1
   if (associated(sco2%liquid_flux)) &
     i = i + 1
   if (associated(sco2%gas_flux)) &
     i = i + 1
-  ! if (associated(sco2%energy_flux)) &
-  !   i = i + 1
+  if (sco2_thermal .and. associated(sco2%energy_flux)) &
+    i = i + 1
   if (associated(sco2%rate)) &
     i = i + 1
   condition%num_sub_conditions = i
@@ -2999,10 +3005,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%salt_mass
   endif
-  ! if (associated(sco2%temperature)) then
-  !   i = i + 1
-  !   condition%sub_condition_ptr(i)%ptr => sco2%temperature
-  ! endif
+  if (sco2_thermal .and. associated(sco2%temperature)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => sco2%temperature
+  endif
   if (associated(sco2%liquid_flux)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%liquid_flux
@@ -3011,10 +3017,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%gas_flux
   endif
-  ! if (associated(sco2%energy_flux)) then
-  !   i = i + 1
-  !   condition%sub_condition_ptr(i)%ptr => sco2%energy_flux
-  ! endif
+  if (sco2_thermal .and. associated(sco2%energy_flux)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => sco2%energy_flux
+  endif
   if (associated(sco2%rate)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%rate
@@ -4987,9 +4993,9 @@ function FlowConditionSCO2IsTransient(condition)
       FlowSubConditionIsTransient(condition%salt_mass) .or. &
       FlowSubConditionIsTransient(condition%rate) .or. &
       FlowSubConditionIsTransient(condition%liquid_flux) .or. &
-      FlowSubConditionIsTransient(condition%gas_flux)) then !.or. &
-      ! FlowSubConditionIsTransient(condition%temperature) .or. &
-      ! FlowSubConditionIsTransient(condition%energy_flux)) then
+      FlowSubConditionIsTransient(condition%gas_flux).or. &
+      FlowSubConditionIsTransient(condition%temperature) .or. &
+      FlowSubConditionIsTransient(condition%energy_flux)) then
     FlowConditionSCO2IsTransient = PETSC_TRUE
   endif
 
@@ -5452,10 +5458,10 @@ subroutine FlowSCO2ConditionDestroy(sco2_condition)
   call FlowSubConditionDestroy(sco2_condition%gas_saturation)
   call FlowSubConditionDestroy(sco2_condition%co2_mass_fraction)
   call FlowSubConditionDestroy(sco2_condition%salt_mass)
-  ! call FlowSubConditionDestroy(sco2_condition%temperature)
+  call FlowSubConditionDestroy(sco2_condition%temperature)
   call FlowSubConditionDestroy(sco2_condition%liquid_flux)
   call FlowSubConditionDestroy(sco2_condition%gas_flux)
-  ! call FlowSubConditionDestroy(sco2_condition%energy_flux)
+  call FlowSubConditionDestroy(sco2_condition%energy_flux)
   call FlowSubConditionDestroy(sco2_condition%rate)
 
   deallocate(sco2_condition)
