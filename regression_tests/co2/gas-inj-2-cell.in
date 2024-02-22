@@ -4,7 +4,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE SCO2
       OPTIONS
-        TEMPERATURE 20.d0
+        ISOTHERMAL_TEMPERATURE 20.d0
       /
     /
   /
