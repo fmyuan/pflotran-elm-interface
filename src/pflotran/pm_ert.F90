@@ -771,6 +771,7 @@ subroutine PMERTPreSolve(this)
   use Variables_module
   use ERT_module
   use ZFlow_Aux_module
+  use Parameter_module
 
   implicit none
 
@@ -788,6 +789,7 @@ subroutine PMERTPreSolve(this)
   PetscInt :: ghosted_id,local_id
   PetscInt :: species_id
   PetscInt :: empirical_law
+  PetscInt :: parameter_index
   PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
   PetscReal :: dcond_dsat,dcond_dconc,dcond_dpor
@@ -796,6 +798,8 @@ subroutine PMERTPreSolve(this)
   PetscReal :: cond_w_no_tracer
   PetscReal :: diff_water_cond
   PetscReal :: relative_tracer_concentration
+  PetscReal :: dstress,drho_geomech,rho_geomech,cond_geomech
+  PetscReal :: cond_surface
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
   PetscBool :: cementation_cell_by_cell
@@ -920,7 +924,25 @@ subroutine PMERTPreSolve(this)
       cond_c = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                       WAXMAN_SMITS_CLAY_CONDUCTIVITY)
     endif
-    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+
+    cond_surface = cond_s
+
+    if (option%geomech_subsurf_coupling == GEOMECH_ERT_COUPLING) then
+      parameter_index = ParameterGetIDFromName('geomechanics_stress',option)
+      dstress = patch%aux% &
+              Global%auxvars(ghosted_id)%parameters(parameter_index)
+      drho_geomech = 0.d0
+      ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
+      drho_geomech = 21054.d0 * dstress * 1.0d-8
+      if (cond_s /= 0.d0) then
+        rho_geomech = 1.d0/cond_s + drho_geomech
+        cond_geomech = 1.d0/rho_geomech
+      endif
+      cond_w = 0.d0
+      cond_surface = cond_geomech
+    endif
+
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_surface, &
                                          cond_c,empirical_law,cond, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
                                          dcond_dpor)
