@@ -4131,54 +4131,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
         write(option%io_buffer,'("Reading of HDF5 datasets for flow ", &
                                  &"conditions not currently supported.")')
         call PrintErrMsg(option)
-#if 0
-        if (len_trim(hdf5_path) < 1) then
-          option%io_buffer = 'No hdf5 path listed under Flow_Condition: ' // &
-                             trim(keyword)
-          call PrintErrMsg(option)
-        endif
-
-        option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-        call PrintMsg(option)
-        call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
-
-        hdf5_path = trim(hdf5_path) // trim(realization_word)
-        call HDF5ReadNDimRealArray(option,file_id,hdf5_path,ndims,dims, &
-                                   real_buffer)
-        option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-        call PrintMsg(option)
-        call HDF5FileClose(file_id,option)
-
-        ! dims(1) = size of array
-        ! dims(2) = number of data point in time
-        if (dims(1)-1 == flow_dataset%time_series%rank) then
-          ! alright, the 2d data is layed out in C-style.  now place it in
-          ! the appropriate arrays
-          allocate(flow_dataset%time_series%times(dims(2)))
-          flow_dataset%time_series%times = UNINITIALIZED_DOUBLE
-          allocate(flow_dataset%time_series%values(flow_dataset% &
-                                                     time_series%rank,dims(2)))
-          flow_dataset%time_series%values = UNINITIALIZED_DOUBLE
-          icount = 1
-          do i = 1, dims(2)
-            flow_dataset%time_series%times(i) = real_buffer(icount)
-            icount = icount + 1
-            do icol = 1, flow_dataset%time_series%rank
-              flow_dataset%time_series%values(icol,i) = real_buffer(icount)
-              icount = icount + 1
-            enddo
-          enddo
-        else
-          option%io_buffer = 'HDF condition data set rank does not match &
-            &rank of internal data set.  Email Glenn for additions'
-          call PrintErrMsg(option)
-        endif
-        if (associated(dims)) deallocate(dims)
-        nullify(dims)
-        if (associated(real_buffer)) deallocate(real_buffer)
-        nullify(real_buffer)
-#endif
-! if 0
       else
         i = index(filename,'.',PETSC_TRUE)
         if (i > 2) then
