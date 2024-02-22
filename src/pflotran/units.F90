@@ -376,7 +376,7 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'temperature'
         error_msg = 'Kelvin temperature units are not supported. Use Celcius.'
         error = PETSC_TRUE
-      case('Pa','kPa','MPa','Bar','psi')
+      case('Pa','kPa','MPa','Bar','psi','atm')
         unit_category(k) = 'pressure'
       case('M','mM')
         unit_category(k) = 'concentration'
@@ -521,6 +521,8 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d5
     case('psi')
       conversion_factor = 6894.757
+    case('atm')
+      conversion_factor = 101325.d0
   ! ---> CONCENTRATION ---> (M)
     case('M')
       conversion_factor = 1.d0
