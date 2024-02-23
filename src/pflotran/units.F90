@@ -417,11 +417,16 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
   conversion_factor = 1.d0
   error = PETSC_FALSE
 
+  ! units not covered by regression tests
+  ! dm^3, gal, gallon, cf, Mcf, bbl, km^2, km, dm, second, minute, hour
+  ! week, month, Pa.s, cP, P, Poise, kcal, mole, moles, ug, Celsius, kPa
+  ! psi, N
+
   select case(trim(unit))
   !---> VOLUME ---> (meter^3)
-    case('cm^3','ml','mL')
+    case('cm^3','mL')
       conversion_factor = 1.d-6
-    case('l','L','dm^3')
+    case('L','dm^3')
       conversion_factor = 1.d-3
     case('m^3')
       conversion_factor = 1.d0
@@ -446,7 +451,7 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
   ! ---> LENGTH ---> (meter)
     case('km')
       conversion_factor = 1000.d0
-    case('m','met','meter')
+    case('m','meter')
       conversion_factor = 1.d0
     case('dm')
       conversion_factor = 1.d-1
@@ -469,6 +474,7 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = DAYS_PER_YEAR/12.d0*24.d0*3600.d0
     case('y','yr','year')
       conversion_factor = DAYS_PER_YEAR*24.d0*3600.d0
+  ! ---> VISCOSITY ---> (Pascal-second)
     case('Pa.s')
       conversion_factor = 1.0
     case('cP','centiPoise')
@@ -493,12 +499,12 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d3
     case('MW')
       conversion_factor = 1.d6
-  ! ---> MOLAR MASS ---> (kilogram, mole)
+  ! ---> MOLAR MASS ---> (mole)
     case('mol','mole','moles')
       conversion_factor = 1.d0
     case('kmol')
       conversion_factor = 1.d3
-  ! ---> MASS ---> (kilogram, mole)
+  ! ---> MASS ---> (kilogram)
     case('ug')
       conversion_factor = 1.d-9
     case('mg')
