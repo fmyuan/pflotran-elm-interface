@@ -1,4 +1,4 @@
-#Description: Enhanced Rock Weathering reactions
+›#Description: Enhanced Rock Weathering reactions
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -84,10 +84,12 @@ END
 #=========================== useful transport parameters =======================
 SPECIFIED_VELOCITY
   UNIFORM? YES
-  DATASET 0.d0 0.d0 0.d0
+  DATASET 0.d0 0.d0 1.d-8
 END
 
 REFERENCE_LIQUID_DENSITY 1.d3
+
+REFERENCE_TEMPERATURE 15.d0
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -163,12 +165,42 @@ CHEMISTRY
     NH3(g)
   /
   
+  ## mineral precipitation-disolution
   MINERAL_KINETICS
+    #Anorthite
+    #  RATE_CONSTANT -9.12d0
+    #  ACTIVATION_ENERGY 17.8d3    ! unit: J mol-1
+    #/
+    
     Calcite
-      RATE_CONSTANT 1.d-18
+      #RATE_CONSTANT 1.d-18        ! unit: moles m-2 s-1, if negative, it's in logK
+      RATE_CONSTANT -5.81d0
+      ACTIVATION_ENERGY 23.5d3    ! unit: J mol-1
     /
+    
+    #Diopside
+    #  RATE_CONSTANT -11.11d0
+    #  ACTIVATION_ENERGY 40.6d3    ! unit: J mol-1
+    #/
+        
+    #Enstatite
+    #  RATE_CONSTANT -12.72d0
+    #  ACTIVATION_ENERGY 80.0d3    ! unit: J mol-1
+    #/
+    
+    #Forsterite
+    #  RATE_CONSTANT -10.64d0
+    #  ACTIVATION_ENERGY 94.4d3    ! unit: J mol-1
+    #/
+    
+    #Tremolite
+    #  RATE_CONSTANT -10.6d0
+    #  ACTIVATION_ENERGY 94.4d3    ! unit: J mol-1
+    #/
+
     Wollastonite
-      RATE_CONSTANT 1.d-10
+      RATE_CONSTANT -8.88d0
+      ACTIVATION_ENERGY 54.7d3    ! unit: J mol-1
     /
   /
 
@@ -221,7 +253,7 @@ CONSTRAINT initial
        
   MINERALS
     #Anorthite    0.d0      1. cm^2/cm^3
-    Calcite       1.d-15    1. cm^2/cm^3
+    Calcite       0.d0      1. cm^2/cm^3
     #Diopside     0.d0      1. cm^2/cm^3
     #Enstatite    0.d0      1. cm^2/cm^3
     #Forsterite   0.d0      1. cm^2/cm^3
@@ -255,12 +287,12 @@ CONSTRAINT rocky_app
        
   MINERALS
     #Anorthite    0.d0      1. cm^2/cm^3
-    Calcite       1.d-15    1. cm^2/cm^3
+    Calcite       0.d-15    1. cm^2/cm^3
     #Diopside     0.d0      1. cm^2/cm^3
     #Enstatite    0.d0      1. cm^2/cm^3
     #Forsterite   0.d0      1. cm^2/cm^3
     #Tremolite    0.d0      1. cm^2/cm^3
-    Wollastonite  1.d2      1. cm^2/cm^3
+    Wollastonite  1.d0      1. cm^2/cm^3
     /
 END
 
@@ -320,12 +352,12 @@ END
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   PHASE LIQUID
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 1.0d-9
 END
 
 FLUID_PROPERTY
   PHASE gas
-  DIFFUSION_COEFFICIENT 1.000d-05
+  DIFFUSION_COEFFICIENT 1.0d-05
 END
 
 #=========================== material properties ==============================
@@ -350,11 +382,18 @@ OUTPUT
   SCREEN PERIODIC 10
   PERIODIC TIMESTEP 1
   FORMAT HDF5
+  MASS_BALANCE_FILE
+    PERIODIC TIME 1.0 yr
+      TOTAL_MASS_REGIONS
+        top
+      /
+  /
+  
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 3650.d0 d
+  FINAL_TIME 365.d1 d
   INITIAL_TIMESTEP_SIZE 0.5d0 h
   MAXIMUM_TIMESTEP_SIZE 24.d0 h
 END
@@ -386,7 +425,6 @@ TRANSPORT_CONDITION air_water_interface
     0.d0 air_water
   /
 END
-
 
 #=========================== condition couplers ===============================
 # initial condition
