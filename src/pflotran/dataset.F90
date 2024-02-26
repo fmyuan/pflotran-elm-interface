@@ -338,6 +338,7 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: dataset_name
+  PetscBool :: found
   PetscReal, parameter :: time = 0.d0
 
   ! check for dataset in flow_dataset
@@ -361,9 +362,26 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
         ! may not have been properly set during the load! Force the update.
         if (associated(dataset_base%time_storage)) then
           dataset_base%time_storage%force_update = PETSC_TRUE
+          call DatasetUpdate(dataset_base,option)
+          found = PETSC_FALSE
+          select type (dataset_base)
+            class is (dataset_global_hdf5_type)
+              found = PETSC_TRUE
+            class is (dataset_gridded_hdf5_type)
+              found = PETSC_TRUE
+            class is (dataset_map_hdf5_type)
+              found = PETSC_TRUE
+            class is (dataset_common_hdf5_type)
+              found = PETSC_TRUE
+          end select
+          ! prevent cyclic option for HDF5 until updated to handle such
+          if (found .and. dataset_base%time_storage%is_cyclic) then
+            option%io_buffer = 'CYCLIC times currently not permitted with &
+              &HDF5 datasets.'
+            call PrintErrMsg(option)
+          endif
         endif
         option%time = time
-        call DatasetUpdate(dataset_base,option)
     end select
   endif
 
