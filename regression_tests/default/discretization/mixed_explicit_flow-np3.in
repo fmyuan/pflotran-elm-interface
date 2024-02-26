@@ -161,7 +161,7 @@ FLOW_CONDITION well
   TYPE
     RATE volumetric_rate
   /
-  RATE 0.1 l/min
+  RATE 0.1 L/min
 END
 
 FLOW_CONDITION sandbox
