@@ -1440,7 +1440,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_global(option%nflowdof)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
   PetscBool :: soluble
-  
+
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
@@ -4565,7 +4565,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
         class is(dataset_ascii_type)
           gas_sat = sco2%gas_saturation%dataset%rarray(1)
           if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-            ! MAN: start in trapped gas, then we should transition 
+            ! MAN: start in trapped gas, then we should transition
             !      to mobile gas if necessary. This might get weird.
             coupler%flow_aux_int_var(ONE_INTEGER,1:num_connections) = &
                 SCO2_TRAPPED_GAS_STATE
@@ -4598,7 +4598,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             call PatchGetCouplerValueFromDataset(coupler,option,patch%grid, &
                                     sco2%gas_saturation%dataset,iconn,gas_sat)
             if (gas_sat > 0.d0 .and. gas_sat < 1.d0) then
-              ! MAN: start in trapped gas, then we should transition 
+              ! MAN: start in trapped gas, then we should transition
               !      to mobile gas if necessary. This might get weird.
               coupler%flow_aux_int_var(ONE_INTEGER,iconn) = &
                 SCO2_TRAPPED_GAS_STATE
@@ -5225,7 +5225,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
     call MPI_Allreduce(dof_count_local,dof_count_global,THREE_INTEGER_MPI, &
            MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   endif
-  
+
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
@@ -6170,7 +6170,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Reactive_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
-                                 GAS_STATE, LIQUID_STATE 
+                                 GAS_STATE, LIQUID_STATE
   use Hydrate_Aux_module, only : hydrate_fmw => hydrate_fmw_comp, &
                                  G_STATE, L_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
@@ -11339,10 +11339,10 @@ subroutine PatchVerifyDatasetGriddedForFlux(dataset,coupler,option)
     call PrintErrMsg(option)
   endif
   ! check if the interpolation method is STEP:
-  if (.not.dataset%interpolation_method == INTERPOLATION_STEP) then
+  if (.not.dataset%space_interpolation_method == INTERPOLATION_STEP) then
     option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
-      " must be assigned the STEP interpolation method for fluxes. You &
-      &must set attribute: h5grp.attrs['Interpolation Method'] = &
+      " must be assigned the STEP space interpolation method for fluxes. &
+      &You must set attribute: h5grp.attrs['Space Interpolation Method'] = &
       &np.string_('STEP')."
     call PrintErrMsg(option)
   endif

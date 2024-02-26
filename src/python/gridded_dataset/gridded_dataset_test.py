@@ -8,7 +8,7 @@ def createGroup(h5file,cell_centered,step_interpolation,
   if cell_centered:
     h5grp.attrs['Cell Centered'] = True
   if step_interpolation:
-    h5grp.attrs['Interpolation Method'] = numpy.string_('STEP')
+    h5grp.attrs['Space Interpolation Method'] = numpy.string_('STEP')
   h5grp.attrs['Dimension'] = numpy.string_(dimension)
   h5grp.attrs['Discretization'] = discretization
   h5grp.attrs['Origin'] = origin
