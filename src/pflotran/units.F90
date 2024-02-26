@@ -418,9 +418,8 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
   error = PETSC_FALSE
 
   ! units not covered by regression tests
-  ! dm^3, gal, gallon, cf, Mcf, bbl, km^2, km, dm, second, minute, hour
-  ! week, month, Pa.s, cP, P, Poise, kcal, mole, moles, ug, Celsius, kPa
-  ! psi, N
+  ! gal, gallon, cf, Mcf, bbl, km^2,
+  ! month, Pa.s, cP, P, Poise, kcal, mole, moles, ug, Celsius, N
 
   select case(trim(unit))
   !---> VOLUME ---> (meter^3)

@@ -292,14 +292,14 @@ FLOW_CONDITION recharge
   TYPE
     LIQUID_FLUX neumann
   /
-  LIQUID_FLUX 5.d0 cm/yr
+  LIQUID_FLUX 0.5d0 dm/yr
 END
 
 FLOW_CONDITION injection_well
   TYPE
     RATE scaled_volumetric_rate neighbor_perm
   /
-  RATE 1 m^3/hr
+  RATE 1.d3 dm^3/hour
 END
 
 INITIALIZE_FLOW_FROM_FILE 543_initial_pressure.h5
