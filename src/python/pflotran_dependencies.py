@@ -133,7 +133,7 @@ for root in source_file_roots:
         if not module.startswith(module_skip_list):
           print('ERROR: Module "%s" not found in dictionary.\n' % module)
           print(root, module)
-          sys.exit()
+          sys.exit(1)
 #      print(key)
       file_list.append(key)
     # remove duplicates first as it will destroy an sorting
