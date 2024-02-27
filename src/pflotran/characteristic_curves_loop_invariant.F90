@@ -1583,11 +1583,11 @@ pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
   f = 1d0 - Se_mrt_comp_m
 
   Kr = sqrt(Se)*f*f
-  if (f < spacing(0.d0)) then
-    dKr_dSl = 0.d0
-  else
+  if (f > 0.d0) then
     dKr_dSl = this%dSe_dSl * Kr / Se * &
              (0.5d0 + 2d0*Se_mrt*Se_mrt_comp_m/(f*Se_mrt_comp))
+  else
+    dKr_dSl = 0.d0
   endif
 end subroutine RPFMVGliqKrInline
 
