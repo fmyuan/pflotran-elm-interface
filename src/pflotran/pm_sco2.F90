@@ -309,6 +309,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
+      case('UPWIND_VISCOSITY')
+        sco2_harmonic_viscosity = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
     end select
@@ -372,6 +374,8 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
+    case('NO_UPDATE_TRUNCATION')
+      sco2_truncate_updates = PETSC_FALSE
     ! Tolerances
 
     ! All Residual
@@ -878,7 +882,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   changed = PETSC_TRUE
 
-  if (this%check_post_convergence) then
+  if (this%check_post_convergence .and. sco2_truncate_updates) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -892,7 +896,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       co2_frac_index = offset + TWO_INTEGER
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
-      !MAN: need to decide how to truncate temperature updates.
+
       if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
 
       select case(global_auxvars(ghosted_id)%istate)
@@ -1036,14 +1040,17 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
         case(SCO2_LIQUID_GAS_STATE)
           Pc_entry = 0.d0
           !select type(sf => characteristic_curves%saturation_function)
-          !  class is (sat_func_vg_type)
-          !    Pc_entry = (1.d0 / characteristic_curves% &
-          !                saturation_function%GetAlpha_())
-          !  class is (sat_func_VG_STOMP_type)
-          !    Pc_entry = characteristic_curves% &
-          !               saturation_function%GetAlpha_() * &
-          !               LIQUID_REFERENCE_DENSITY * gravity
-          !  class default
+          ! class is (sat_func_vg_type)
+          !   Pc_entry = (1.d0 / characteristic_curves% &
+          !               saturation_function%GetAlpha_())
+          ! class is (sat_func_VG_STOMP_type)
+          !   Pc_entry = characteristic_curves% &
+          !              saturation_function%GetAlpha_() * !&
+          !              LIQUID_REFERENCE_DENSITY * EARTH_GRAVITY
+          ! class is (sat_func_BC_SPE11_type)
+          !   Pc_entry = (1.d0 / characteristic_curves% &
+          !        saturation_function%GetAlpha_())
+          ! class default
           !end select
 
           !Limit changes in pressure
@@ -1072,6 +1079,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               Pc_max = characteristic_curves%saturation_function%Pcmax * &
                          LIQUID_REFERENCE_DENSITY * gravity
             class default
+              Pc_max = characteristic_curves%saturation_function%Pcmax
           end select
           if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) < &
             ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
@@ -1147,6 +1155,131 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       dX_p = dX_p*this%damping_factor
       changed = PETSC_TRUE
     endif
+  elseif (this%check_post_convergence) then
+    ! Just impose bounds to prevent nonphysical values.
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset = (local_id-1)*option%nflowdof
+      sco2_auxvar = sco2_auxvars(ZERO_INTEGER,ghosted_id)
+      characteristic_curves => patch%characteristic_curves_array( &
+                               patch%cc_id(ghosted_id))%ptr
+      liq_pressure_index = offset + ONE_INTEGER
+      gas_pressure_index = offset + TWO_INTEGER
+      co2_pressure_index = offset + TWO_INTEGER
+      co2_frac_index = offset + TWO_INTEGER
+      gas_sat_index = offset + TWO_INTEGER
+      salt_index = offset + THREE_INTEGER
+
+      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
+
+      select case(global_auxvars(ghosted_id)%istate)
+
+        case(SCO2_LIQUID_STATE)
+          ! Bound pressure change
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) > 5.d8) &
+            dX_p(liq_pressure_index) = 5.d8 - X_p(liq_pressure_index)
+          ! Bound CO2 mass fraction change
+          if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) < 0.d0) &
+             dX_p(co2_frac_index) = - X_p(co2_frac_index)
+          ! Bound salt mass fraction change
+          if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
+             dX_p(salt_index) = - X_p(salt_index)
+
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+              &SCO2 mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
+
+
+        case(SCO2_GAS_STATE)
+          ! Bound changes in CO2 pressure  ---
+          if ((X_p(co2_pressure_index) + dX_p(co2_pressure_index)) > &
+            (1.d0 - 1.d-6) * X_p(gas_pressure_index)) &
+            dX_p(co2_pressure_index) = X_p(gas_pressure_index) - &
+            X_p(co2_pressure_index)
+
+          ! Bound changes in salt mass 
+          if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
+              dX_p(salt_index) = - X_p(salt_index)
+
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
+
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
+            option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
+             &mode: less than (or equal to) 0 Pa.'
+            call PrintErrMsg(option)
+          endif
+
+
+        case(SCO2_TRAPPED_GAS_STATE)
+          ! Bound changes in liquid pressure  ---
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) > &
+            5.d8) dX_p(liq_pressure_index) = 5.d8 - X_p(liq_pressure_index)
+
+          ! Bound changes in trapped gas  ---
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < epsilon) &
+              dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+          ! Bound changes in salt mass fraction
+          if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
+             dX_p(salt_index) = - X_p(salt_index)
+
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
+            option%io_buffer = 'Error: Liquid pressure is out of bounds for &
+               &SCO2 mode: greater than (or equal to) 500 MPa.'
+            call PrintErrMsg(option)
+          endif
+
+        case(SCO2_LIQUID_GAS_STATE)
+          !Maintain the gas pressure above or at the water vapor
+          !pressure
+          call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
+          xsl = min(X_p(salt_index),xsl)
+          call SCO2BrineSaturationPressure(sco2_auxvar%temp, &
+                                         xsl,Psb)
+          call SCO2BrineDensity(sco2_auxvar%temp,Psb,xsl,rho_b,option)
+          Pc = max(Psb-X_p(liq_pressure_index),0.d0)
+          call SCO2VaporPressureBrine(sco2_auxvar%temp, Psb, &
+                                      Pc,rho_b,xsl,Pvb)
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+              Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
+          ! Bound changes in gas pressure
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) > &
+             5.d8) dX_p(gas_pressure_index) = 5.d8 - X_p(gas_pressure_index)
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+             epsilon) dX_p(gas_pressure_index) = epsilon - X_p(gas_pressure_index)
+          ! Bound changes in salt mass fraction
+          if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
+             dX_p(salt_index) = - X_p(salt_index)
+
+      end select
+
+      if (sco2_thermal) then
+        if ((X_p(temperature_index) + dX_p(temperature_index)) + 273.15 >= &
+           H2O_CRITICAL_TEMPERATURE) then
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+           &greater than (or equal to) the critical temperature of water.'
+          call PrintErrMsg(option)
+        endif
+        if ((X_p(temperature_index) + dX_p(temperature_index)) <= 0.d0) then
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
+           &less than (or equal to) the freezing temperature of water.'
+          call PrintErrMsg(option)
+        endif
+      endif
+    enddo
+
+    if (this%damping_factor > 0.d0) then
+      dX_p = dX_p*this%damping_factor
+      changed = PETSC_TRUE
+    endif
+
   endif
 
   dX_p = -1.d0 * dX_p
@@ -2000,32 +2133,37 @@ subroutine PMSCO2MaxChange(this)
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);&
                       CHKERRQ(ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
-  endif
+  if (sco2_thermal) then
+    if (OptionPrintToScreen(option)) then
+      write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
+        & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
 
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
-    & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
-    & " dsg= ",1pe12.4)') &
-      max_change_global(1:max_change_index)
-  endif
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-      & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
+    if (OptionPrintToFile(option)) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
+      & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
       & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
       max_change_global(1:max_change_index)
-  endif
+    endif
+  else
+    if (OptionPrintToScreen(option)) then
+      write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
+        & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4,&
+        & " dsg= ",1pe12.4)') &
+        max_change_global(1:max_change_index)
+    endif
 
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
-    & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
-    & "dt= ",1pe12.4," dsg= ",1pe12.4)') &
+    if (OptionPrintToFile(option)) then
+      write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4," dpg= ",1pe12.4,&
+      & " dpco2= ",1pe12.4,/,15x," dxco2= ",1pe12.4," dxs= ",1pe12.4, &
+      & " dsg= ",1pe12.4)') &
       max_change_global(1:max_change_index)
+    endif
   endif
+  
+  
 
   ! MAN: check these
   this%max_pressure_change = maxval(max_change_global(1:3))
