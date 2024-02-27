@@ -1580,8 +1580,8 @@ pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
   Se_mrt  = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
   Se_mrt_comp_m = Se_mrt_comp**this%m
-  f = 1d0 - Se_mrt_comp_m
-
+  f = max(1d0 - Se_mrt_comp_m,0.d0)
+  
   Kr = sqrt(Se)*f*f
   if (f > 0.d0) then
     dKr_dSl = this%dSe_dSl * Kr / Se * &
