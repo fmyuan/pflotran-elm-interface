@@ -1105,6 +1105,8 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   call RealizUpdateAllCouplerAuxVars(this%realization,force_update_flag)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
+  else if (associated(this%realization%nonuniform_velocity_dataset)) then
+    call RealizUpdateNonuniformVelocity(this%realization)
   endif
   if (this%option%flow%store_fluxes) then
     call IntegralFluxUpdate(this%realization%patch%integral_flux_list, &

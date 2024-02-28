@@ -5191,6 +5191,9 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       global_auxvar => cur_constraint_coupler%global_auxvar
+
+print *, 'flow_condition ?', associated(cur_coupler%flow_condition)
+
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
@@ -5210,11 +5213,15 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
         else
           global_auxvar%pres = option%reference_pressure
         endif
+
+print *, 'dataset for flow_condition%temperature ? ', associated(cur_coupler%flow_condition%temperature)
+
         if (associated(cur_coupler%flow_condition%temperature)) then
           if (associated(cur_coupler%flow_condition%temperature%dataset)) then
             ! only use dataset value if the dataset is of type ascii
             select type(dataset=>cur_coupler%flow_condition%temperature%dataset)
               class is(dataset_ascii_type)
+                print *, 'YES ascii dataset !'
                 global_auxvar%temp = dataset%rarray(1)
               class default
                 ! otherwise, we don't know which temperature to use at this 

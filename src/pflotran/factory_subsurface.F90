@@ -2284,6 +2284,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
+  class(data_global_hdf5_type), pointer :: dataset_global_hdf5
   type(time_storage_type), pointer :: default_time_storage
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
@@ -2454,11 +2455,49 @@ subroutine SubsurfaceReadInput(simulation,input)
                 dataset => dataset_ascii
                 call DatasetVerify(dataset,default_time_storage,string,option)
               else
-! Add interface for non-uniform dataset
-                call InputReadFilename(input,option, &
+                ! Add interface for non-uniform dataset
+                input%buf = string
+                input%ierr = 0
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(word)
+                  case('GLOBAL_HDF5_LIST')
+                    ! dynamic (time varied)
+                    error_string = 'SPECIFIED_VELOCITY,NONUNIFORM,DATASET,GLOBAL_HDF5_LIST'
+
+                    call InputPushBlock(input,option)
+                    do
+                      call InputReadPflotranString(input,option)
+                      if (InputCheckExit(input,option)) exit
+                      call InputReadCard(input,option,word)
+                      call InputErrorMsg(input,option,'keyword',error_string)
+                      call StringToUpper(word)
+                      select case(word)
+                        case('INTERNAL_VELOCITY')
+                          dataset_global_hdf5_list => DatasetGlobalHdf5ListCreate()
+                          call InputReadWord(input,option,dataset_global_hdf5_list%name,PETSC_TRUE)
+                          call InputDefaultMsg(input,option,word)
+                          call DatasetGlobalHdf5ListRead(dataset_global_hdf5_list,input,option)
+                          call dataset_global_hdf5_list%AddToList(realization%nonuniform_velocity_dataset)
+                          nullify(dataset_global_hdf5)
+
+                        case default
+                          call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
+                      end select
+                    end do
+                    call InputPopBlock(input,option)
+
+                  case default
+                    ! static DATASET
+                    call InputReadFilename(input,option, &
                                        realization%nonuniform_velocity_filename)
-                call InputErrorMsg(input,option,'filename', &
+                    call InputErrorMsg(input,option,'filename', &
                                    'SPECIFIED_VELOCITY,NONUNIFORM,DATASET')
+                end select
+                !
+
               endif
           end select
         enddo
