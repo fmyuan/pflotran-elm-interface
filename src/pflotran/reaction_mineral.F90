@@ -741,6 +741,9 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 
   do imnrl = 1, mineral%nkinmnrl ! for each mineral
 
+
+print *, 'temp checking: ', global_auxvar%temp, imnrl
+
 #ifdef SOLID_SOLUTION
     call RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
                       QK,Im,Im_const,sum_prefactor_rate,affinity_factor, &

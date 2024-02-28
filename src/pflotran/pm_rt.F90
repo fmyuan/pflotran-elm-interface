@@ -1163,6 +1163,8 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
                            this%realization%option)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
+  else if (associated(this%realization%nonuniform_velocity_dataset)) then
+    call RealizUpdateNonuniformVelocity(this%realization)
   endif  
   ! end from RealizationUpdate()
   ! The update of status must be in this order!

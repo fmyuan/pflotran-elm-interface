@@ -45,6 +45,7 @@ private
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
+    class(dataset_global_hdf5_list_type), pointer :: nonuniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
 
     class(reaction_rt_type), pointer :: reaction
@@ -69,6 +70,7 @@ private
             RealizationAddCoupler, &
             RealizationAddStrata, &
             RealizUpdateUniformVelocity, &
+            RealizUpdateNonuniformVelocity, &
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
 !            RealizationGetVariable, &
@@ -161,6 +163,7 @@ function RealizationCreate2(option)
   nullify(realization%characteristic_curves_thermal)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
+  nullify(realization%nonuniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
@@ -1763,6 +1766,30 @@ subroutine RealizUpdateUniformVelocity(realization)
  
 end subroutine RealizUpdateUniformVelocity
 
+subroutine RealizUpdatenNonuniformVelocity(realization)
+  !
+  ! Assigns nonuniform velocity for transport
+  !
+  ! Author: Fengming Yuan @ ornl-ccsi
+  ! Date: 02/28/2024
+  !
+
+  use Option_module
+  use Dataset_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  call DatasetLoad(realization%nonuniform_velocity_dataset, &
+                     realization%option)
+  call PatchUpdateNonuniformVelocity(realization%patch, &
+                            realization%nonuniform_velocity_dataset%rarray, &
+                            realization%option)
+
+end subroutine RealizUpdateNonuniformVelocity
+
+
 ! ************************************************************************** !
 
 subroutine RealizationAddWaypointsToList(realization,waypoint_list)
@@ -1878,6 +1905,20 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   ! add update of velocity fields
   if (associated(realization%uniform_velocity_dataset)) then
     time_storage_ptr => realization%uniform_velocity_dataset%time_storage
+    if (associated(time_storage_ptr)) then
+      if (time_storage_ptr%times(1) > 1.d-40 .or. &
+          time_storage_ptr%max_time_index > 1) then
+        do itime = 1, size(time_storage_ptr%times)
+          waypoint => WaypointCreate()
+          waypoint%time = time_storage_ptr%times(itime)
+          waypoint%update_conditions = PETSC_TRUE
+          call WaypointInsertInList(waypoint,waypoint_list)
+        enddo
+      endif
+    endif
+  endif
+  if (associated(realization%nonuniform_velocity_dataset)) then
+    time_storage_ptr => realization%nonuniform_velocity_dataset%time_storage
     if (associated(time_storage_ptr)) then
       if (time_storage_ptr%times(1) > 1.d-40 .or. &
           time_storage_ptr%max_time_index > 1) then
