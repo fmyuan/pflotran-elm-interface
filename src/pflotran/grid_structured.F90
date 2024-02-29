@@ -488,13 +488,6 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
     endif
   endif
 
-  option%io_buffer = 'Domain Bounds (x y z):'
-  call PrintMsg(option)
-  write(option%io_buffer,'(2x,3es18.10)') structured_grid%bounds(:,LOWER)
-  call PrintMsg(option)
-  write(option%io_buffer,'(2x,3es18.10)') structured_grid%bounds(:,UPPER)
-  call PrintMsg(option)
-
   structured_grid%dxg_local(1:structured_grid%ngx) = &
     structured_grid%dx_global(structured_grid%gxs+1:structured_grid%gxe)
   structured_grid%dyg_local(1:structured_grid%ngy) = &
@@ -1315,6 +1308,7 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
+  use String_module
 
   implicit none
 
@@ -1363,14 +1357,25 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   call VecRestoreArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
   if (option%comm%size > 1 .and. option%comm%size <= 16) then
-    write(option%io_buffer,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
-      & ", nxs,e = ",2i4,", nys,e = ",2i4,", nzs,e = ",2i4)') &
-      option%myrank,structured_grid%nlmax,structured_grid%nlx, &
-        structured_grid%nly,structured_grid%nlz,structured_grid%lxs, &
-        structured_grid%lxe,structured_grid%lys,structured_grid%lye, &
-        structured_grid%lzs,structured_grid%lze
+    call PrintMsg(option,new_line('a')//'Process Decomposition')
+    option%io_buffer = 'rank=' // StringWrite(option%myrank) // &
+      ', nlmax= ' // StringWrite(structured_grid%nlmax) // &
+      ', nlxyz= ' // &
+      StringWrite(structured_grid%nlx) // ' ' // &
+      StringWrite(structured_grid%nly) // ' ' // &
+      StringWrite(structured_grid%nlz) // ', ' // &
+      'xs/e= ' // &
+      StringWrite(structured_grid%lxs) // ' ' // &
+      StringWrite(structured_grid%lxe) // ', ' // &
+      'ys/e= ' // &
+      StringWrite(structured_grid%lys) // ' ' // &
+      StringWrite(structured_grid%lye) // ', ' // &
+      'zs/e= ' // &
+      StringWrite(structured_grid%lzs) // ' ' // &
+      StringWrite(structured_grid%lze)
     call PrintMsgAnyRank(option)
   endif
+  call MPI_Barrier(option%mycomm,ierr);CHKERRQ(ierr)
 
 end subroutine StructGridComputeVolumes
 

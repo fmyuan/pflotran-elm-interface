@@ -116,6 +116,7 @@ module Grid_module
             GridMapCellsInPolVol, &
             GridRestrictRegionalConnect, &
             GridPrintExtents, &
+            GridPrintSize, &
             GridSetupCellNeighbors, &
             GridMapCellsToConnections
 
@@ -2384,50 +2385,65 @@ subroutine GridPrintExtents(grid,option)
   ! Prints the extents of the gridded domain.
   !
   ! Author: Glenn Hammond
-  ! Date: 02/20/18
-  !
+  ! Date: 02/29/24
+
   use Option_module
+  use String_module
 
   implicit none
 
   type(grid_type) :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word1, word2
-
-  write(word1,*) grid%x_min_global
-  write(word2,*) grid%x_max_global
-  write(string,*) 'X: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 'Extent of Gridded Domain'
-    write(*,*) trim(string)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) 'Extent of Gridded Domain'
-    write(option%fid_out,*) trim(string)
-  endif
-  write(word1,*) grid%y_min_global
-  write(word2,*) grid%y_max_global
-  write(string,*) 'Y: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) trim(string)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) trim(string)
-  endif
-  write(word1,*) grid%z_min_global
-  write(word2,*) grid%z_max_global
-  write(string,*) 'Z: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) trim(string)
-    write(*,*)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) trim(string)
-    write(option%fid_out,*)
-  endif
+  call PrintMsg(option,new_line('a')//'Extent of Gridded Domain')
+  option%io_buffer = ' X: ' // StringWrite(grid%x_min_global) // ' - ' // &
+                               StringWrite(grid%x_max_global)
+  call PrintMsg(option)
+  option%io_buffer = ' Y: ' // StringWrite(grid%y_min_global) // ' - ' // &
+                               StringWrite(grid%y_max_global)
+  call PrintMsg(option)
+  option%io_buffer = ' Z: ' // StringWrite(grid%z_min_global) // ' - ' // &
+                               StringWrite(grid%z_max_global)
+  call PrintMsg(option)
 
 end subroutine GridPrintExtents
+
+! ************************************************************************** !
+
+subroutine GridPrintSize(grid,option)
+  !
+  ! Prints the size of the gridded domain.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/29/24
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  PetscInt :: int_array(2)
+  PetscErrorCode :: ierr
+
+  call PrintMsg(option,new_line('a')//'Size of Gridded Domain')
+  option%io_buffer = ' Number of grid cells: ' // StringWrite(grid%nmax)
+  call PrintMsg(option)
+  if (option%comm%size > 1) then
+    int_array(1) = grid%nlmax
+    int_array(2) = -grid%nlmax
+    call MPI_Allreduce(MPI_IN_PLACE,int_array,TWO_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    option%io_buffer = ' Maximum number of grid cells per process: ' // &
+                       StringWrite(int_array(1))
+    call PrintMsg(option)
+    option%io_buffer = ' Minimum number of grid cells per process: ' // &
+                       StringWrite(-int_array(2))
+    call PrintMsg(option)
+  endif
+
+end subroutine GridPrintSize
 
 end module Grid_module
