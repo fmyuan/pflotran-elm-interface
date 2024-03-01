@@ -2734,7 +2734,7 @@ subroutine UGridComputeQuality(unstructured_grid,option)
             & /,"   Mean Quality: ",es10.2, &
             & /,"   Max Quality : ",es10.2, &
             & /,"   Min Quality : ",es10.2, &
-            & /," ----------------------------------",/)') &
+            & /," ----------------------------------")') &
               mean_quality, max_quality, min_quality
   endif
 

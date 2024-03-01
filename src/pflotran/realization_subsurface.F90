@@ -394,6 +394,7 @@ subroutine RealizationCreateDiscretization(realization)
       call GridComputeVolumes(grid,field%volume0,option)
   end select
   call GridPrintExtents(grid,option)
+  call GridPrintSize(grid,option)
 
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
