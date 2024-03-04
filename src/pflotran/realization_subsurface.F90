@@ -847,18 +847,18 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select
     endif
-    if (associated(cur_material_property%electrical_conductivity_dataset)) then
+    if (associated(cur_material_property%material_elec_cond_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),ELECTRICAL_CONDUCTIVITY'
       dataset => &
         DatasetBaseGetPointer(realization%datasets, &
                               cur_material_property% &
-                                electrical_conductivity_dataset%name, &
+                                material_elec_cond_dataset%name, &
                               string,option)
-      call DatasetDestroy(cur_material_property%electrical_conductivity_dataset)
+      call DatasetDestroy(cur_material_property%material_elec_cond_dataset)
       select type(dataset)
         class is (dataset_common_hdf5_type)
-          cur_material_property%electrical_conductivity_dataset => dataset
+          cur_material_property%material_elec_cond_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for electrical &
                              &conductivity.'
@@ -2969,7 +2969,7 @@ subroutine RealizationProcessOutputVarList(output_variable_list,realization)
 
   use Material_Aux_module, only : soil_compressibility_index, &
                                   soil_reference_pressure_index, &
-                                  electrical_conductivity_index, &
+                                  material_elec_conduct_index, &
                                   archie_cementation_exp_index, &
                                   archie_saturation_exp_index, &
                                   archie_tortuosity_index, &
@@ -3008,8 +3008,8 @@ subroutine RealizationProcessOutputVarList(output_variable_list,realization)
         if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
       case(SOIL_REFERENCE_PRESSURE)
         if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
-      case(ELECTRICAL_CONDUCTIVITY)
-        if (electrical_conductivity_index == 0 .and. &
+      case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
+        if (material_elec_conduct_index == 0 .and. &
             (option%iflowmode == NULL_MODE .and. &
              option%itranmode == NULL_MODE)) then
           error_flag = PETSC_TRUE
