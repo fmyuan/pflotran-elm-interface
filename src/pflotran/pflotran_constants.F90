@@ -45,7 +45,7 @@ module PFLOTRAN_Constants_module
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_OUT_UNIT = 17
   PetscInt, parameter, public :: OUTPUT_UNIT = 18 ! for output data files
-  PetscInt, parameter, public :: IN_UNIT = 19 
+  PetscInt, parameter, public :: IN_UNIT = 19
   ! Before you add file UNITS between IN_UNIT and MAX_IN_UNIT, read
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_IN_UNIT = 27
@@ -145,6 +145,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: FLOW_CLASS = 1
   PetscInt, parameter, public :: TRANSPORT_CLASS = 2
   PetscInt, parameter, public :: GEOPHYSICS_CLASS = 3
+  PetscInt, parameter, public :: GEOMECHANICS_CLASS = 4
 
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
@@ -181,6 +182,9 @@ module PFLOTRAN_Constants_module
   ! geophysics modes
   PetscInt, parameter, public :: ERT_MODE = 1
   PetscInt, parameter, public :: SIP_MODE = 2
+
+  ! geomechanics modes
+  PetscInt, parameter, public :: LINEAR_ELASTICITY_MODE = 1
 
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0

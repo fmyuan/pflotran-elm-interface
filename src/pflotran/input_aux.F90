@@ -134,6 +134,7 @@ module Input_Aux_module
             InputReadToBuffer, &
             InputReadASCIIDbase, &
             InputKeywordUnrecognized, &
+            InputCheckSupported, &
             InputCheckMandatoryUnits, &
             InputDbaseDestroy, &
             InputPushExternalFile, &
@@ -2645,7 +2646,7 @@ end subroutine DbaseLookupWord
 
 subroutine InputKeywordUnrecognized1(input,keyword,string,option)
   !
-  ! Looks up double precision value in database
+  ! Reports an unrecognized keyword in input deck
   !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
@@ -2670,7 +2671,7 @@ end subroutine InputKeywordUnrecognized1
 
 subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   !
-  ! Looks up double precision value in database
+  ! Reports an unrecognized keyword in input deck
   !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
@@ -2698,6 +2699,36 @@ subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   call PrintErrMsg(option)
 
 end subroutine InputKeywordUnrecognized2
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported(input,option,keyword,pm_class,string)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  PetscInt :: pm_class
+  character(len=*) :: string
+
+  if (OptionCheckSupportedClass(pm_class,option)) return
+
+  call InputPrintKeywordLog(input,option,PETSC_TRUE)
+  option%io_buffer = 'Keyword "' // &
+                     trim(keyword) // &
+                     '" in ' // trim(string) // &
+                     ' not supported for the current set of process models.'
+  call PrintErrMsg(option)
+
+end subroutine InputCheckSupported
 
 ! ************************************************************************** !
 
@@ -2994,7 +3025,7 @@ function InputCountWordsInBuffer(input,option)
 
   InputCountWordsInBuffer = 0
   do
-    call InputReadWord(input,option,word,PETSC_TRUE) 
+    call InputReadWord(input,option,word,PETSC_TRUE)
     if (InputError(input)) exit
     InputCountWordsInBuffer = InputCountWordsInBuffer + 1
   enddo

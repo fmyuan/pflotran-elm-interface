@@ -52,6 +52,8 @@ module Option_module
     PetscInt :: itranmode
     character(len=MAXWORDLENGTH) :: geopmode
     PetscInt :: igeopmode
+    character(len=MAXWORDLENGTH) :: geommode
+    PetscInt :: igeommode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
@@ -251,6 +253,7 @@ module Option_module
             OptionCheckNonBlockingError, &
             OptionIsIORank, &
             OptionCreatePrintHandler, &
+            OptionCheckSupportedClass, &
             OptionDestroy
 
 contains
@@ -488,6 +491,8 @@ subroutine OptionInitRealization(option)
   option%geomech_subsurf_coupling = 0
   option%geomech_gravity(:) = 0.d0
   option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
+  option%geommode = ""
+  option%igeommode = NULL_MODE
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
@@ -1404,6 +1409,36 @@ function OptionCreatePrintHandler(option)
                        PETSC_FALSE)  ! byrank
 
 end function OptionCreatePrintHandler
+
+! ************************************************************************** !
+
+function OptionCheckSupportedClass(pm_class,option)
+  !
+  ! Returns true if the process model class is being used
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/13/23
+  !
+  implicit none
+
+  PetscInt :: pm_class
+  type(option_type) :: option
+
+  PetscBool :: OptionCheckSupportedClass
+
+  OptionCheckSupportedClass = PETSC_FALSE
+  select case(pm_class)
+    case(FLOW_CLASS)
+      OptionCheckSupportedClass = (option%iflowmode /= NULL_MODE)
+    case(TRANSPORT_CLASS)
+      OptionCheckSupportedClass = (option%itranmode /= NULL_MODE)
+    case(GEOPHYSICS_CLASS)
+      OptionCheckSupportedClass = (option%igeopmode /= NULL_MODE)
+    case(GEOMECHANICS_CLASS)
+      OptionCheckSupportedClass = (option%igeommode /= NULL_MODE)
+  end select
+
+end function OptionCheckSupportedClass
 
 ! ************************************************************************** !
 
