@@ -358,7 +358,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('INACTIVE')
         material_property%active = PETSC_FALSE
       case('SATURATION_FUNCTION','CHARACTERISTIC_CURVES')
-        call InputCheckSupported(input,option,keyword,error_str,FLOW_CLASS)
         call InputReadCardDbaseCompatible(input,option, &
                            material_property%saturation_function_name)
         call InputErrorMsg(input,option,keyword,error_str)
@@ -531,7 +530,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            material_property%creep_closure_name)
         call InputErrorMsg(input,option,keyword,error_str)
       case('PERMEABILITY')
-        call InputCheckSupported(input,option,keyword,error_str,FLOW_CLASS)
         error_str = trim(error_str)//',PERMEABILITY'
         ! if PERM_ISO is read, we cannot assign anisotropy
         perm_iso_read = PETSC_FALSE
@@ -986,19 +984,27 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%archie_cementation_exponent)
         call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_SATURATION_EXPONENT')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%archie_saturation_exponent)
         call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_TORTUOSITY_CONSTANT')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%archie_tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_str)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call DatasetReadDoubleOrDataset(input, &
                       material_property%surface_electrical_conductivity, &
                       material_property%surf_elec_cond_dataset, &
                       keyword,error_str,option)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%waxman_smits_clay_conductivity)
         call InputErrorMsg(input,option,keyword,error_str)
