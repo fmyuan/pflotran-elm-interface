@@ -254,6 +254,8 @@ module Option_module
             OptionIsIORank, &
             OptionCreatePrintHandler, &
             OptionCheckSupportedClass, &
+            OptionListClassesString, &
+            OptionGetEmployedClassesString, &
             OptionDestroy
 
 contains
@@ -1417,8 +1419,8 @@ function OptionCheckSupportedClass(pm_class,option)
   ! Returns true if the process model class is being used
   !
   ! Author: Glenn Hammond
-  ! Date: 04/13/23
-  !
+  ! Date: 03/04/24
+
   implicit none
 
   PetscInt :: pm_class
@@ -1439,6 +1441,94 @@ function OptionCheckSupportedClass(pm_class,option)
   end select
 
 end function OptionCheckSupportedClass
+
+! ************************************************************************** !
+
+function OptionListClassesString(pm_classes,option)
+  !
+  ! Returns a string version of a list of process models defined by a list
+  ! of class integers
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use String_module
+
+  implicit none
+
+  PetscInt :: pm_classes(:)
+  type(option_type) :: option
+
+  character(len=:), allocatable :: OptionListClassesString
+
+  character(len=MAXWORDLENGTH) :: strings(4)
+  PetscInt :: i
+
+  strings(:) = ''
+  i = 0
+  do i = 1, size(pm_classes)
+    select case(pm_classes(i))
+      case(FLOW_CLASS)
+        strings(i) = 'FLOW'
+      case(TRANSPORT_CLASS)
+        strings(i) = 'TRANSPORT'
+      case(GEOPHYSICS_CLASS)
+        strings(i) = 'GEOPHYSICS'
+      case(GEOMECHANICS_CLASS)
+        strings(i) = 'GEOMECHANICS'
+      case default
+        option%io_buffer = 'Process model class (' // &
+          StringWrite(pm_classes(i)) // ') not recoginzed in &
+          &OptionGetRequestedClassesString().'
+        call PrintErrMsg(option)
+    end select
+  enddo
+  OptionListClassesString = StringsMerge(strings,',')
+
+end function OptionListClassesString
+
+! ************************************************************************** !
+
+function OptionGetEmployedClassesString(option)
+  !
+  ! Returns a string version of a list of process models defined by the
+  ! process models invoked by option flags
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use String_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  character(len=:), allocatable :: OptionGetEmployedClassesString
+
+  character(len=MAXWORDLENGTH) :: strings(8)
+  PetscInt :: i
+
+  strings(:) = ''
+  i = 0
+  if (option%iflowmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'FLOW'
+  endif
+  if (option%itranmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'TRANSPORT'
+  endif
+  if (option%igeopmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'GEOPHYSICS'
+  endif
+  if (option%igeommode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'GEOMECHANICS'
+  endif
+  OptionGetEmployedClassesString = StringsMerge(strings,',')
+
+end function OptionGetEmployedClassesString
 
 ! ************************************************************************** !
 

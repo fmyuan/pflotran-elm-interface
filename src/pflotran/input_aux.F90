@@ -112,6 +112,12 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized2
   end interface
 
+  interface InputCheckSupported
+    module procedure InputCheckSupported1
+    module procedure InputCheckSupported2
+    module procedure InputCheckSupported3
+  end interface
+
   interface InputPushBlock
     module procedure InputPushBlock1
     module procedure InputPushBlock2
@@ -2702,7 +2708,7 @@ end subroutine InputKeywordUnrecognized2
 
 ! ************************************************************************** !
 
-subroutine InputCheckSupported(input,option,keyword,pm_class,string)
+subroutine InputCheckSupported1(input,option,keyword,error_string,pm_class)
   !
   ! Reports an unsupported keyword for set of process models in input deck
   !
@@ -2716,19 +2722,76 @@ subroutine InputCheckSupported(input,option,keyword,pm_class,string)
   type(input_type) :: input
   type(option_type) :: option
   character(len=*) :: keyword
+  character(len=*) :: error_string
   PetscInt :: pm_class
-  character(len=*) :: string
+
+  call InputCheckSupported(input,option,keyword,error_string, &
+                           pm_class,[pm_class])
+
+end subroutine InputCheckSupported1
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported2(input,option,keyword,error_string,pm_classes)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  character(len=*) :: error_string
+  PetscInt :: pm_classes(:)
+
+  PetscInt :: i
+
+  do i = 1, size(pm_classes)
+    call InputCheckSupported(input,option,keyword,error_string, &
+                             pm_classes(i),pm_classes)
+  enddo
+
+end subroutine InputCheckSupported2
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported3(input,option,keyword,error_string, &
+                                pm_class,required_classes)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  character(len=*) :: error_string
+  PetscInt :: pm_class
+  PetscInt :: required_classes(:)
 
   if (OptionCheckSupportedClass(pm_class,option)) return
 
   call InputPrintKeywordLog(input,option,PETSC_TRUE)
-  option%io_buffer = 'Keyword "' // &
-                     trim(keyword) // &
-                     '" in ' // trim(string) // &
-                     ' not supported for the current set of process models.'
+  option%io_buffer = 'Keyword "' // trim(keyword) // '" in ' // &
+    trim(error_string) // &
+    ' not supported for the current combination of process models.' // &
+    new_line('a') // '  Process models in simulation: ' // &
+    OptionGetEmployedClassesString(option) // &
+    new_line('a') // '  Required process model(s): ' // &
+    OptionListClassesString(required_classes,option)
   call PrintErrMsg(option)
 
-end subroutine InputCheckSupported
+end subroutine InputCheckSupported3
 
 ! ************************************************************************** !
 
