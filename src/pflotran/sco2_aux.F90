@@ -41,7 +41,8 @@ module SCO2_Aux_module
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
 
-
+  ! Well model
+  PetscBool, public :: sco2_well_implicit_coupling = PETSC_FALSE
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
 
@@ -125,6 +126,17 @@ module SCO2_Aux_module
   ! DOF map
   PetscInt, public, pointer :: dof_to_primary_variable(:,:)
 
+  type, public :: sco2_well_aux_type
+    PetscReal :: pl   ! liquid pressure
+    PetscReal :: pg   ! gas pressure
+    PetscReal :: sl
+    PetscReal :: sg
+    PetscReal :: dpl
+    PetscReal :: dpg
+    PetscReal :: Ql   ! liquid exchange flux
+    PetscReal :: Qg   ! gas exchange flux
+  end type sco2_well_aux_type
+
   type, public :: sco2_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
     PetscBool :: istatechng
@@ -151,7 +163,10 @@ module SCO2_Aux_module
     PetscReal, pointer :: tortuosity(:) ! (iphase)
     PetscReal :: perm_base
     PetscReal :: pert
+    type(sco2_well_aux_type) :: well
   end type sco2_auxvar_type
+
+  
 
   type, public :: sco2_parameter_type
     PetscReal, pointer :: diffusion_coefficient(:,:) ! (icomp,iphase)
@@ -325,6 +340,15 @@ subroutine SCO2AuxVarInit(auxvar,option)
   allocate(auxvar%tortuosity(option%nphase))
   auxvar%tortuosity = 1.d0
 
+  ! Well model variables
+  auxvar%well%pl = UNINITIALIZED_DOUBLE
+  auxvar%well%pg = UNINITIALIZED_DOUBLE
+  auxvar%well%sl = UNINITIALIZED_DOUBLE
+  auxvar%well%sg = UNINITIALIZED_DOUBLE
+  auxvar%well%dpl = UNINITIALIZED_DOUBLE
+  auxvar%well%dpg = UNINITIALIZED_DOUBLE
+  auxvar%well%Ql = UNINITIALIZED_DOUBLE
+  auxvar%well%Qg = UNINITIALIZED_DOUBLE
 
 end subroutine SCO2AuxVarInit
 
@@ -367,6 +391,7 @@ subroutine SCO2AuxVarCopy(auxvar,auxvar2,option)
   auxvar2%effective_permeability = auxvar%effective_permeability
   auxvar2%tortuosity = auxvar%tortuosity
   auxvar2%pert = auxvar%pert
+  auxvar2%well = auxvar%well
 
 end subroutine SCO2AuxVarCopy
 

@@ -1017,11 +1017,16 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   call InputFindStringErrorMsg(input,option,string)
   call pm_well%ReadPMBlock(input)
 
-  if (option%iflowmode /= WF_MODE) then
-     option%io_buffer = 'The WELLBORE_MODEL process model can only be &
-                        &used with WIPP_FLOW mode at the moment.'
-     call PrintErrMsg(option)
-  endif
+  select case(option%iflowmode)
+
+    case (WF_MODE, SCO2_MODE)
+
+    case default
+      option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
+               &only be used with WIPP_FLOW mode and SCO2 mode.'
+      call PrintErrMsg(option)
+  end select
+
   if ( (option%itranmode /= NULL_MODE) .and. &
        (option%itranmode /= NWT_MODE) ) then
        option%io_buffer = 'The WELLBORE_MODEL process model can only be &

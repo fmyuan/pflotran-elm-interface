@@ -819,7 +819,8 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0 .or. &
+          associated(source_sink%flow_condition%well)) cycle
 
       flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
 
@@ -1300,7 +1301,8 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0 .or. &
+          associated(source_sink%flow_condition%well)) cycle
 
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
@@ -1659,7 +1661,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0 .or. &
+          associated(source_sink%flow_condition%well)) cycle
 
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
