@@ -335,12 +335,15 @@ subroutine SCO2UpdateSolution(realization)
 
     endif
 
-    global_auxvars(ghosted_id)%sat(:) = &
-                                sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(:)
-    global_auxvars(ghosted_id)%den(:) = &
-                                sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(:)
-    global_auxvars(ghosted_id)%den_kg(:) = &
-                                sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(:)
+    global_auxvars(ghosted_id)%sat(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                sat(1:option%nphase)
+    global_auxvars(ghosted_id)%den(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                den(1:option%nphase)
+    global_auxvars(ghosted_id)%den_kg(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                den_kg(1:option%nphase)
 
   enddo
 
