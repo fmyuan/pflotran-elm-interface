@@ -29,6 +29,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_spycher_simple = PETSC_FALSE !PETSC_TRUE
   PetscBool, public :: sco2_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: sco2_harmonic_diff_density = PETSC_TRUE
+  PetscBool, public :: sco2_harmonic_viscosity = PETSC_TRUE
   ! PetscBool, public :: sco2_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: sco2_allow_state_change = PETSC_TRUE
   PetscBool, public :: sco2_state_changed = PETSC_FALSE
@@ -38,6 +39,7 @@ module SCO2_Aux_module
   PetscInt, public :: sco2_sub_newton_iter_num = 0
   PetscInt, public :: sco2_newtontrdc_prev_iter_num = 0
   PetscInt, public :: sco2_max_it_before_damping = UNINITIALIZED_INTEGER
+  PetscBool, public :: sco2_truncate_updates = PETSC_TRUE
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
 
@@ -726,13 +728,26 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   !This also probably does not need to be computed over and over
   sg_min = 1.d-3
   Pc_entry = 0.d0
-  select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_vg_type)
-      sg_min = 1.0d1**(-3.d0+log10(1.d0/ &
-               characteristic_curves%saturation_function%GetAlpha_()))
-      sg_min = min(max(sg_min,1.d-4),1.d-3)
-    class default
-  end select
+  !select type(sf => characteristic_curves%saturation_function)
+  !  class is (sat_func_vg_type)
+  !    Pc_entry = (1.d0 / characteristic_curves% &
+  !                       saturation_function%GetAlpha_())
+  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
+  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
+  !  class is (sat_func_VG_STOMP_type)
+  !    Pc_entry = characteristic_curves% &
+  !                      saturation_function%GetAlpha_() * &
+  !                      LIQUID_REFERENCE_DENSITY * EARTH_GRAVITY
+  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
+  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
+  !  class is (sat_func_BC_SPE11_type)
+  !    Pc_entry = (1.d0 / characteristic_curves% &
+  !                saturation_function%GetAlpha_())
+  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
+  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
+  !  class default
+  !end select
+
 
   old_state = global_auxvar%istate
 
@@ -936,7 +951,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
       case(SCO2_TRAPPED_GAS_STATE)
         state_change_string = 'Trapped Gas --> '
       case(SCO2_LIQUID_GAS_STATE)
-        state_change_string = 'Liquid & Mobile Gas -->'
+        state_change_string = 'Liquid & Free Gas -->'
     end select
 
     select case(new_state)
@@ -948,7 +963,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
         state_change_string = trim(state_change_string) // ' Trapped Gas'
       case(SCO2_LIQUID_GAS_STATE)
         state_change_string = trim(state_change_string) // &
-                              ' Liquid & Mobile Gas'
+                              ' Liquid & Free Gas'
     end select
 
     if (option%iflag == SCO2_UPDATE_FOR_ACCUM) then
@@ -1501,7 +1516,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                     sl_temp, &
                                     sco2_auxvar%sat(tgid), &
                                     option)
-    sco2_auxvar%sat(lid) = sl_temp
+    sco2_auxvar%sat(lid) = min(max(0.d0,sl_temp),1.d0)
     sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid)
   endif
   ! sco2_auxvar%sat(gid) is always mobile gas + trapped gas
@@ -1620,13 +1635,14 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                       den_steam_kg, &
                                       den_steam, &
                                       H_steam,ierr)
+      ! J/kmol -> MJ/kg
+      H_steam = H_steam / fmw_comp(wid) * 1.d-6                                  
+      U_steam = H_steam - sco2_auxvar%pres(vpid) / den_steam_kg
     else
       den_steam = 0.d0
       H_steam = 0.d0
+      U_steam = 0.d0
     endif
-    ! J/kmol -> MJ/kg
-    H_steam = H_steam / fmw_comp(wid) * 1.d-6                                  
-    U_steam = H_steam - sco2_auxvar%pres(vpid) / den_steam_kg
 
     ! Gas phase enthalpy
     sco2_auxvar%H(gid) = sco2_auxvar%xmass(wid,gid) * H_steam + &
