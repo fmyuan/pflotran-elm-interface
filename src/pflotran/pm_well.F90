@@ -4028,7 +4028,8 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
   use NW_Transport_Aux_module
   use Transport_Constraint_NWT_module
   use Option_module
-  use SCO2_Aux_module, only: sco2_well_implicit_coupling
+  use SCO2_Aux_module, only: sco2_wellbore_coupling, &
+                             SCO2_FULLY_IMPLICIT_WELL
 
   implicit none
 
@@ -4106,7 +4107,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
             pm_well%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
                  well%Qg = pm_well%well%gas%Q(k)
           case(SCO2_MODE)
-            if (sco2_well_implicit_coupling) then
+            if (sco2_wellbore_coupling == SCO2_FULLY_IMPLICIT_WELL) then
               source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
                 0.d0 ! [kmol/s]
               source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &

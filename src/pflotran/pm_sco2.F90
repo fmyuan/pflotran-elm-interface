@@ -258,7 +258,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
 
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: keyword, word
   class(pm_sco2_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
@@ -309,6 +309,19 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
+      case('WELLBORE_COUPLING')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case (trim(word))
+          case('FULLY_IMPLICIT')
+            sco2_wellbore_coupling = SCO2_FULLY_IMPLICIT_WELL
+          case('QUASI_IMPLICIT')
+            sco2_wellbore_coupling = SCO2_QUASI_IMPLICIT_WELL
+          case('SEQUENTIAL')
+            sco2_wellbore_coupling = SCO2_SEQUENTIAL_WELL
+        end select
+
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
     end select

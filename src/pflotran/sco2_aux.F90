@@ -42,7 +42,11 @@ module SCO2_Aux_module
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
 
   ! Well model
-  PetscBool, public :: sco2_well_implicit_coupling = PETSC_FALSE
+  PetscInt, public :: sco2_wellbore_coupling = UNINITIALIZED_INTEGER
+  PetscInt, parameter, public :: SCO2_FULLY_IMPLICIT_WELL = 1
+  PetscInt, parameter, public :: SCO2_QUASI_IMPLICIT_WELL = 2
+  PetscInt, parameter, public :: SCO2_SEQUENTIAL_WELL = 3
+
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
 
