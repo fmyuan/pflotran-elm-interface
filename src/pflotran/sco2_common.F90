@@ -200,14 +200,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
   do iphase = 1 , option%nphase - 1 ! No advection or diffusion through salt phase
 
-    if (sco2_auxvar_up%sat(iphase) == 0.d0 .and. &
-        sco2_auxvar_dn%sat(iphase) == 0.d0) cycle
-
-    ! Harmonic mean on viscosity
-    visc_mean = (sco2_auxvar_up%visc(iphase) * sco2_auxvar_dn%visc(iphase) * &
-               (dist_up + dist_dn)) / (sco2_auxvar_up%visc(iphase) * dist_up + &
-                sco2_auxvar_dn%visc(iphase) * dist_dn)
-    ! STOMP takes harmonic mean on density when old velocity is 0
+    if (sco2_auxvar_up%sat(iphase) + sco2_auxvar_dn%sat(iphase) <= 0.d0) cycle
 
     ! Advection
 
@@ -250,7 +243,15 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         !perm_ave_over_dist = perm_dn / (dist_up + dist_dn)
       endif
 
-      mobility = kr / visc_mean
+      if (sco2_harmonic_viscosity) then
+      ! Harmonic mean on viscosity
+        visc_mean = (sco2_auxvar_up%visc(iphase) * sco2_auxvar_dn%visc(iphase) * &
+                 (dist_up + dist_dn)) / (sco2_auxvar_up%visc(iphase) * dist_up + &
+                  sco2_auxvar_dn%visc(iphase) * dist_dn)
+    
+        ! STOMP takes harmonic mean on density when old velocity is 0
+        mobility = kr / visc_mean
+      endif
 
       if (mobility > floweps .and. dabs(delta_pressure) > 0.d0 ) then
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
@@ -626,13 +627,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
       if (sco2_auxvar_up%mobility(iphase) + &
           sco2_auxvar_dn%mobility(iphase) > eps) then
 
-      ! Harmonic mean on viscosity
-      visc_mean = 2.d0 * (sco2_auxvar_up%visc(iphase) * &
-                          sco2_auxvar_dn%visc(iphase)) / &
-                         (sco2_auxvar_up%visc(iphase) + &
-                          sco2_auxvar_dn%visc(iphase))
-
-      ! STOMP takes harmonic mean on density when old velocity is 0
+      
 
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
         if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
@@ -704,7 +699,16 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           density_kg_ave = sco2_auxvar_dn%den_kg(iphase)
         endif
 
-        mobility = kr / visc_mean
+        if (sco2_harmonic_viscosity) then
+          ! Harmonic mean on viscosity
+          visc_mean = 2.d0 * (sco2_auxvar_up%visc(iphase) * &
+                      sco2_auxvar_dn%visc(iphase)) / &
+                      (sco2_auxvar_up%visc(iphase) + &
+                      sco2_auxvar_dn%visc(iphase))
+
+          ! STOMP takes harmonic mean on density when old velocity is 0
+          mobility = kr / visc_mean
+        endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
@@ -729,9 +733,6 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
         idof = auxvar_mapping(SCO2_GAS_FLUX_INDEX)
       end select
 
-      ! MAN: might need to change how enthalpy is moved
-      !      across the boundary, since this is a phase
-      !      property and Neumann BC's are component-by-component
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(iphase) = auxvars(idof)
         if (v_darcy(iphase) > 0.d0) then
