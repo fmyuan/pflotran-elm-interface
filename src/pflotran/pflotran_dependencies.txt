@@ -979,6 +979,7 @@ grid_structured.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o
 grid_unstructured.o : \
   connection.o \
@@ -2190,6 +2191,7 @@ pm_sco2.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   saturation_function.o \
@@ -2373,6 +2375,7 @@ pm_well.o : \
   pflotran_constants.o \
   pm_base.o \
   realization_subsurface.o \
+  sco2_aux.o \
   strata.o \
   string.o \
   transport_constraint.o \
@@ -3307,6 +3310,7 @@ sco2.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_subsurface.o \
   saturation_function.o \
   sco2_aux.o \

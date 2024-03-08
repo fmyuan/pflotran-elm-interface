@@ -43,12 +43,6 @@ module SCO2_Aux_module
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
 
-  ! Well model
-  PetscInt, public :: sco2_wellbore_coupling = UNINITIALIZED_INTEGER
-  PetscInt, parameter, public :: SCO2_FULLY_IMPLICIT_WELL = 1
-  PetscInt, parameter, public :: SCO2_QUASI_IMPLICIT_WELL = 2
-  PetscInt, parameter, public :: SCO2_SEQUENTIAL_WELL = 3
-
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
 
@@ -132,6 +126,12 @@ module SCO2_Aux_module
   ! DOF map
   PetscInt, public, pointer :: dof_to_primary_variable(:,:)
 
+  ! Well
+  PetscInt, public :: sco2_well_coupling = UNINITIALIZED_INTEGER
+  PetscInt, parameter, public :: SCO2_FULLY_IMPLICIT_WELL = ONE_INTEGER
+  PetscInt, parameter, public :: SCO2_QUASI_IMPLICIT_WELL = TWO_INTEGER
+  PetscInt, parameter, public :: SCO2_SEQUENTIAL_WELL = THREE_INTEGER
+
   type, public :: sco2_well_aux_type
     PetscReal :: pl   ! liquid pressure
     PetscReal :: pg   ! gas pressure
@@ -141,6 +141,7 @@ module SCO2_Aux_module
     PetscReal :: dpg
     PetscReal :: Ql   ! liquid exchange flux
     PetscReal :: Qg   ! gas exchange flux
+    PetscBool :: isbottom
   end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
@@ -169,7 +170,7 @@ module SCO2_Aux_module
     PetscReal, pointer :: tortuosity(:) ! (iphase)
     PetscReal :: perm_base
     PetscReal :: pert
-    type(sco2_well_aux_type) :: well
+    type(sco2_well_aux_type), pointer :: well
   end type sco2_auxvar_type
 
   
@@ -347,14 +348,18 @@ subroutine SCO2AuxVarInit(auxvar,option)
   auxvar%tortuosity = 1.d0
 
   ! Well model variables
-  auxvar%well%pl = UNINITIALIZED_DOUBLE
-  auxvar%well%pg = UNINITIALIZED_DOUBLE
-  auxvar%well%sl = UNINITIALIZED_DOUBLE
-  auxvar%well%sg = UNINITIALIZED_DOUBLE
-  auxvar%well%dpl = UNINITIALIZED_DOUBLE
-  auxvar%well%dpg = UNINITIALIZED_DOUBLE
-  auxvar%well%Ql = UNINITIALIZED_DOUBLE
-  auxvar%well%Qg = UNINITIALIZED_DOUBLE
+  if (sco2_well_coupling > ZERO_INTEGER) then
+    allocate(auxvar%well)
+    auxvar%well%pl = UNINITIALIZED_DOUBLE
+    auxvar%well%pg = UNINITIALIZED_DOUBLE
+    auxvar%well%sl = UNINITIALIZED_DOUBLE
+    auxvar%well%sg = UNINITIALIZED_DOUBLE
+    auxvar%well%dpl = UNINITIALIZED_DOUBLE
+    auxvar%well%dpg = UNINITIALIZED_DOUBLE
+    auxvar%well%Ql = UNINITIALIZED_DOUBLE
+    auxvar%well%Qg = UNINITIALIZED_DOUBLE
+    auxvar%well%isbottom = PETSC_FALSE
+  endif
 
 end subroutine SCO2AuxVarInit
 
@@ -397,7 +402,7 @@ subroutine SCO2AuxVarCopy(auxvar,auxvar2,option)
   auxvar2%effective_permeability = auxvar%effective_permeability
   auxvar2%tortuosity = auxvar%tortuosity
   auxvar2%pert = auxvar%pert
-  auxvar2%well = auxvar%well
+  if (sco2_well_coupling > ZERO_INTEGER) auxvar2%well = auxvar%well
 
 end subroutine SCO2AuxVarCopy
 

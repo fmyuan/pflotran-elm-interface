@@ -110,7 +110,7 @@ end function PMSCO2Create
 
 ! ************************************************************************** !
 
-subroutine PMSCO2SetFlowMode(pm,option)
+subroutine PMSCO2SetFlowMode(pm,pm_well,option)
   !
   ! Sets the flow mode to SCO2 mode
   !
@@ -123,11 +123,14 @@ subroutine PMSCO2SetFlowMode(pm,option)
                               LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
                               TEMPERATURE, LIQUID_SATURATION, GAS_SATURATION, &
                               PRECIPITATE_SATURATION, POROSITY
-  use SCO2_Aux_module, only : sco2_thermal
+  use SCO2_Aux_module, only : sco2_thermal, sco2_well_coupling, &
+                              SCO2_FULLY_IMPLICIT_WELL
+  use PM_Well_class
 
   implicit none
 
   class(pm_sco2_type) :: pm
+  class(pm_well_type), pointer :: pm_well
   type(option_type) :: option
 
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
@@ -210,6 +213,18 @@ subroutine PMSCO2SetFlowMode(pm,option)
     option%nflowdof = 4
   else
     option%nflowdof = 3
+  endif
+
+  if (associated(pm_well)) then
+    
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
+      option%nflowdof = option%nflowdof + 1
+    else
+      option%io_buffer = 'Currently, only FULLY_IMPLICIT &
+                  &wellbore coupling is implemented for SCO2 Mode.'
+      call PrintErrMsg(option)
+    endif
   endif
 
   ! Components: water, co2, salt
@@ -309,18 +324,6 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
-      case('WELLBORE_COUPLING')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case (trim(word))
-          case('FULLY_IMPLICIT')
-            sco2_wellbore_coupling = SCO2_FULLY_IMPLICIT_WELL
-          case('QUASI_IMPLICIT')
-            sco2_wellbore_coupling = SCO2_QUASI_IMPLICIT_WELL
-          case('SEQUENTIAL')
-            sco2_wellbore_coupling = SCO2_SEQUENTIAL_WELL
-        end select
       case('UPWIND_VISCOSITY')
         sco2_harmonic_viscosity = PETSC_FALSE
       case default
@@ -866,7 +869,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   class(characteristic_curves_type), pointer :: characteristic_curves
   PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
   PetscInt :: liq_pressure_index, gas_pressure_index, co2_frac_index, &
-              gas_sat_index, co2_pressure_index, salt_index, temperature_index
+              gas_sat_index, co2_pressure_index, salt_index, &
+              temperature_index, well_index
   PetscInt :: local_id, ghosted_id, offset
   PetscInt :: lid
   PetscReal :: dP, dsg, Pc_max, Psb, Pvb, rho_b, Pc, Pc_entry
@@ -909,7 +913,14 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
 
-      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
+      if (sco2_thermal) then
+        temperature_index = offset + FOUR_INTEGER
+        if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FIVE_INTEGER
+        endif
+      elseif (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FOUR_INTEGER
+      endif
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1161,6 +1172,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call PrintErrMsg(option)
         endif
       endif
+
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        ! MAN: Add in update truncation for fully implicit well
+      endif
+
     enddo
 
     if (this%damping_factor > 0.d0) then
@@ -1183,7 +1199,14 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
 
-      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
+      if (sco2_thermal) then
+        temperature_index = offset + FOUR_INTEGER
+        if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FIVE_INTEGER
+        endif
+      elseif (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        well_index = offset + FOUR_INTEGER
+      endif
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1285,6 +1308,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call PrintErrMsg(option)
         endif
       endif
+
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        ! MAN: Add in update truncation for fully implicit well
+      endif
+      
     enddo
 
     if (this%damping_factor > 0.d0) then

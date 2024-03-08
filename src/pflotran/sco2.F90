@@ -1113,6 +1113,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_module
   use Upwind_Direction_module
+  use PM_Well_class
 
   implicit none
 
@@ -1436,6 +1437,20 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+
+  ! Source/sink terms -------------------------------------
+
+  ! Compute well source/sink terms and add them to the residual
+  ! if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+  !   if (associated(pmwell_ptr)) then
+  !     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+  !       call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+  !       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
+  !         call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
+  !       endif
+  !     endif
+  !   endif
+  ! endif
 
   if (patch%aux%SCO2%inactive_cells_exist) then
     do i=1,patch%aux%SCO2%matrix_zeroing%n_inactive_rows
@@ -1770,6 +1785,22 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+
+  ! Well derivative: Need to update all well source/sink terms wrt
+  ! perturbation in bottom pressure 
+  ! if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
+  !   if (associated(pmwell_ptr)) then
+  !     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+  !       call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
+  !       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
+  !         call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,ierr)
+  !         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
+  !           call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+  !         endif
+  !       endif
+  !     endif
+  !   endif
+  ! endif  
 
   if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
