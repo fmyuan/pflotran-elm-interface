@@ -93,6 +93,8 @@ module Option_module
 
     PetscInt :: ngeopdof ! geophysics # of dof
 
+    PetscBool :: coupled_well
+
     PetscInt :: iflag
     PetscInt :: ierror
     PetscInt :: status
@@ -593,6 +595,8 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+
+  option%coupled_well = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

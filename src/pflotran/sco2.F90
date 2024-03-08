@@ -1378,6 +1378,11 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
+
     cur_connection_set => source_sink%connection_set
 
     do iconn = 1, cur_connection_set%num_connections
@@ -1749,6 +1754,10 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     cur_connection_set => source_sink%connection_set
 

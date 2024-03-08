@@ -104,6 +104,9 @@ module SCO2_Aux_module
   ! Temperature is always DOF 4
   PetscInt, parameter, public :: SCO2_TEMPERATURE_DOF = 4
 
+  ! Well DOF
+  PetscInt, public :: SCO2_WELL_DOF = UNINITIALIZED_INTEGER
+
   ! Indexing the equations/residuals
   PetscInt, parameter, public :: SCO2_WATER_EQUATION_INDEX = 1
   PetscInt, parameter, public :: SCO2_CO2_EQUATION_INDEX = 2
@@ -598,6 +601,15 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     pert(SCO2_TEMPERATURE_DOF) = dt
   endif
 
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    if (sco2_auxvar(ZERO_INTEGER)%well%isbottom) then
+      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%pl
+      pert(SCO2_WELL_DOF) = dpl
+    else
+      x(SCO2_WELL_DOF) = 0.d0
+      pert(SCO2_WELL_DOF) = 1.d-10
+    endif
+  endif
 
   ! SCO2_UPDATE_FOR_DERIVATIVE indicates call from perturbation
 

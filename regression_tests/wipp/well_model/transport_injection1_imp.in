@@ -27,6 +27,9 @@ SIMULATION
     END
 
     WELL_MODEL well01
+      OPTIONS
+        TYPE WIPP_DARCY
+      /
     END
     
   END
@@ -179,10 +182,6 @@ WELLBORE_MODEL
   
   # Uncommenting PRINT_WELL_FILE will create the .well file at each time step
   #PRINT_WELL_FILE
-
-  WELL_MODEL_TYPE
-    WIPP_DARCY
-  /
 
   # Note the SEGMENT_CENTER_Z_VALUES must be provided in ascending order!
   WELL_GRID

@@ -532,6 +532,8 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
+      case('OPTIONS')
+        call pm%ReadSimulationOptionsBlock(input)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'

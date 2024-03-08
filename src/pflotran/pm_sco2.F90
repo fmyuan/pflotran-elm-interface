@@ -124,7 +124,7 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
                               TEMPERATURE, LIQUID_SATURATION, GAS_SATURATION, &
                               PRECIPITATE_SATURATION, POROSITY
   use SCO2_Aux_module, only : sco2_thermal, sco2_well_coupling, &
-                              SCO2_FULLY_IMPLICIT_WELL
+                              SCO2_FULLY_IMPLICIT_WELL, SCO2_WELL_DOF
   use PM_Well_class
 
   implicit none
@@ -216,10 +216,16 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
   endif
 
   if (associated(pm_well)) then
-    
     if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_STEADY_STATE) then
+        option%io_buffer = 'Currently, SCO2 mode can only be &
+                  &used with the STEADY_STATE well model.'
+        call PrintErrMsg(option)
+      endif
       sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
       option%nflowdof = option%nflowdof + 1
+      option%coupled_well = PETSC_TRUE
+      SCO2_WELL_DOF = option%nflowdof
     else
       option%io_buffer = 'Currently, only FULLY_IMPLICIT &
                   &wellbore coupling is implemented for SCO2 Mode.'
@@ -273,7 +279,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
 
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
   class(pm_sco2_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal

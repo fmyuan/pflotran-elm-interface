@@ -50,9 +50,9 @@ module PM_Well_class
   PetscInt, parameter :: PERT_WRT_SG = 2
 
   ! Well model types
-  PetscInt, parameter :: STEADY_STATE = 1
-  PetscInt, parameter :: WIPP_DARCY = 2
-  PetscInt, parameter :: FULL_MOMENTUM = 3
+  PetscInt, parameter, public :: WELL_MODEL_STEADY_STATE = 1
+  PetscInt, parameter, public :: WELL_MODEL_WIPP_DARCY = 2
+  PetscInt, parameter, public :: WELL_MODEL_FULL_MOMENTUM = 3
 
   ! Well constraint types
   PetscInt, parameter :: CONSTANT_PRESSURE = 1
@@ -404,6 +404,8 @@ module PM_Well_class
     PetscBool :: print_output
   contains
     procedure, public :: Setup => PMWellSetup
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMWellReadSimOptionsBlock
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
     procedure, public :: SetRealization => PMWellSetRealization
     procedure, public :: InitializeRun => PMWellInitializeRun
@@ -1557,7 +1559,14 @@ subroutine PMWellSetup(this)
     end select
 
     source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
-    source_sink%flow_condition%well%ctype = 'liq_average_density_kg/m3'
+
+    ! Bottom of hole is special for fully implicit coupling with steady
+    ! state well model.
+    if (k==1) then
+      source_sink%flow_condition%well%ctype = 'well-bottom'
+    else
+      source_sink%flow_condition%well%ctype = 'well'
+    endif
 
     ! ----- transport -------------
     if (this%transport) then
@@ -1585,6 +1594,86 @@ subroutine PMWellSetup(this)
   enddo
 
 end subroutine PMWellSetup
+
+! ************************************************************************** !
+
+subroutine PMWellReadSimOptionsBlock(this,input)
+  !
+  ! Read simulation options for the well model
+  !
+  ! Author: Michael Nole
+  ! Date: 03/08/24
+  !
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+
+  character(len=MAXWORDLENGTH) :: keyword, word
+  class(pm_well_type) :: this
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  option => this%option
+
+  error_string = 'Well Model Options'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      case('FLOW_COUPLING')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,word,error_string)
+        call StringToUpper(word)
+        select case (trim(word))
+          case('FULLY_IMPLICIT')
+            this%flow_coupling = FULLY_IMPLICIT_WELL
+          case('QUASI_IMPLICIT')
+            this%flow_coupling = QUASI_IMPLICIT_WELL
+          case('SEQUENTIAL')
+            this%flow_coupling = SEQUENTIAL_WELL
+        end select
+      case('WELL_MODEL_TYPE','TYPE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('STEADY_STATE')
+            this%well%well_model_type = WELL_MODEL_STEADY_STATE
+        !-----------------------------
+          case('WIPP_DARCY')
+            this%well%well_model_type = WELL_MODEL_WIPP_DARCY
+        !-----------------------------
+          case('FULL_MOMENTUM')
+            this%well%well_model_type = WELL_MODEL_FULL_MOMENTUM
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      case default
+          call InputKeywordUnrecognized(input,keyword,'Well Model',option)
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMWellReadSimOptionsBlock
 
 ! ************************************************************************** !
 
@@ -1630,18 +1719,6 @@ subroutine PMWellReadPMBlock(this,input)
 
     ! Read keywords within WELLBORE_MODEL block:
     select case(trim(word))
-      case('FLOW_COUPLING')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,word,error_string)
-        call StringToUpper(word)
-        select case (trim(word))
-          case('FULLY_IMPLICIT')
-            this%flow_coupling = FULLY_IMPLICIT_WELL
-          case('QUASI_IMPLICIT')
-            this%flow_coupling = QUASI_IMPLICIT_WELL
-          case('SEQUENTIAL')
-            this%flow_coupling = SEQUENTIAL_WELL
-        end select
     !-------------------------------------
       case('SKIP_RESTART')
         this%skip_restart = PETSC_TRUE
@@ -2261,7 +2338,7 @@ subroutine PMWellReadWellBCs(pm_well,input,option,keyword,error_string,found)
                     (Initialized(pm_well%well%bh_sg) .or. &
                      pm_well%well%bh_sg_set_by_reservoir))) then
 
-          option%io_buffer ='WIPP_DARCY well model needs both Dirichlet &
+          option%io_buffer ='WELL_MODEL_WIPP_DARCY well model needs both Dirichlet &
              &LIQUID_PRESSURE and GAS_SATURATION set in the ' &
              // trim(error_string) // ' block.'
           call PrintErrMsg(option)
@@ -2573,13 +2650,13 @@ subroutine PMWellReadWellModelType(pm_well,input,option,keyword,error_string, &
         select case(trim(word))
         !-----------------------------
           case('STEADY_STATE')
-            pm_well%well%well_model_type = STEADY_STATE
+            pm_well%well%well_model_type = WELL_MODEL_STEADY_STATE
         !-----------------------------
           case('WIPP_DARCY')
-            pm_well%well%well_model_type = WIPP_DARCY
+            pm_well%well%well_model_type = WELL_MODEL_WIPP_DARCY
         !-----------------------------
           case('FULL_MOMENTUM')
-            pm_well%well%well_model_type = FULL_MOMENTUM
+            pm_well%well%well_model_type = WELL_MODEL_FULL_MOMENTUM
         !-----------------------------
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -4564,7 +4641,7 @@ subroutine PMWellResidualFlow(pm_well)
 
   select case(pm_well%well%well_model_type)
     !-------------------------------------------------------------------------
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
 
       call PMWellBCFlux(pm_well,pm_well%well,res_flux_bc,PETSC_TRUE)
 
@@ -4658,7 +4735,7 @@ subroutine PMWellResidualFlow(pm_well)
       enddo
       pm_well%flow_soln%residual(:) = res_temp(:)
     !-------------------------------------------------------------------------
-    case(FULL_MOMENTUM)
+    case(WELL_MODEL_FULL_MOMENTUM)
     !-------------------------------------------------------------------------
   end select
 
@@ -5102,7 +5179,7 @@ subroutine PMWellJacobianFlow(pm_well)
   Jtmp = 0.d0
 
   select case(pm_well%well%well_model_type)
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! Not expecting ghosting at this time (1D model)
       !if (.not. well_analytical_derivatives) then
       !  call PMWellPerturb(pm_well)
@@ -5156,7 +5233,7 @@ subroutine PMWellJacobianFlow(pm_well)
 
       !pm_well_ni_count = pm_well_ni_count + 1
 
-    case(FULL_MOMENTUM)
+    case(WELL_MODEL_FULL_MOMENTUM)
 
   end select
 
@@ -5688,7 +5765,7 @@ subroutine PMWellSolveFlow(pm_well,ierr)
   ! update well index
   call PMWellComputeWellIndex(pm_well)
 
-  if (pm_well%well%well_model_type == STEADY_STATE) then
+  if (pm_well%well%well_model_type == WELL_MODEL_STEADY_STATE) then
     ! Compute hydrostatic pressure relative to bottom-hole pressure,
     ! then compute well fluxes from those pressures.
 
@@ -6049,7 +6126,7 @@ subroutine PMWellUpdateSolutionFlow(pm_well)
   PetscReal, parameter :: MAX_SAT = 0.99999
 
   select case(pm_well%well%well_model_type)
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       do i = 1,pm_well%well_grid%nsegments
         idof = pm_well%flow_soln%ndof*(i-1)
         pm_well%well%pl(i) = pm_well%well%pl(i) +  &
@@ -6127,7 +6204,7 @@ subroutine PMWellCutTimestepFlow(pm_well)
   class(pm_well_type) :: pm_well
 
   select case(pm_well%well%well_model_type)
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! could make this smarter or call smarter timestepping routines
       pm_well%dt_flow = pm_well%dt_flow / pm_well%flow_soln%ts_cut_factor
       pm_well%dt_flow = max(pm_well%dt_flow,pm_well%min_dt_flow)
@@ -6187,12 +6264,12 @@ subroutine PMWellNewtonFlow(pm_well)
 
   select case (pm_well%well%well_model_type)
   !--------------------------------------
-  case(STEADY_STATE)
+  case(WELL_MODEL_STEADY_STATE)
     ! No capillarity yet
     ! pm_well%well%pl(:) = pm_well%well%bh_p
     ! pm_well%well%pg(:) = pm_well%well%bh_p
   !--------------------------------------
-  case(WIPP_DARCY)
+  case(WELL_MODEL_WIPP_DARCY)
 
     do i = 1,pm_well%nphase*pm_well%well_grid%nsegments
       do j = 1,pm_well%nphase*pm_well%well_grid%nsegments
@@ -6793,7 +6870,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
 
   select case (well%well_model_type)
     !------------------------------------------------------------------------
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       do i = 1,nsegments
         if (dabs((reservoir%p_l(i)-well%pl(i)))/well%pl(i) > threshold_p) then
           upwind = reservoir%p_l(i) > well%pl(i)
@@ -6933,7 +7010,7 @@ subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
 
   select case(well%well_model_type)
     !---------------------------------------------
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! liquid accumulation term
       Res(1) = Res(1) + well%liq%s(id) * well%liq%den(id) / FMWH2O * &
                 well%phi(id) * well%volume(id) / pm_well%dt_flow
@@ -6972,7 +7049,7 @@ subroutine PMWellSrcSink(pm_well,well,id,Res)
 
   select case(well%well_model_type)
     !---------------------------------------------
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! kmol/s
       Res(1) = Res(1) - well%liq%Q(id)
       ! kmol/s
@@ -7124,7 +7201,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   Res(:) = 0.d0
 
   select case(pm_well%well%well_model_type)
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! Vertical well, no Klinkenberg
 
         perm_up = well_up%permeability(iup)
@@ -7337,7 +7414,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
   Res(:) = 0.d0
 
   select case(well%well_model_type)
-    case(WIPP_DARCY)
+    case(WELL_MODEL_WIPP_DARCY)
       ! Vertical well, no Klinkenberg.
       itop = pm_well%well_grid%nsegments
       if (pm_well%flow_soln%bh_p) then
