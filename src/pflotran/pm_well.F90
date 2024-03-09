@@ -839,11 +839,16 @@ subroutine PMWellSetup(this)
   PetscBool :: res_grid_cell_within_well_y
   PetscBool :: res_grid_cell_within_well_x
   PetscErrorCode :: ierr
+  PetscInt :: well_bottom_local, well_bottom_ghosted
+  PetscInt, allocatable :: temp(:), temp2(:)
 
   option => this%option
   realization => this%realization
   res_grid => realization%patch%grid
   well_grid => this%well_grid
+
+  well_bottom_local = ZERO_INTEGER
+  well_bottom_ghosted = ZERO_INTEGER
 
   num_entries = 10000
   allocate(dz_list(num_entries))
@@ -1541,6 +1546,8 @@ subroutine PMWellSetup(this)
       allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
       source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
 
+      source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
+
     case(SCO2_MODE)
       source_sink%flow_condition%sco2 => FlowSCO2ConditionCreate(option)
       string = 'RATE'
@@ -1556,17 +1563,56 @@ subroutine PMWellSetup(this)
       allocate(source_sink%flow_condition%sco2%rate%dataset%rarray(2))
       source_sink%flow_condition%sco2%rate%dataset%rarray(:) = 0.d0
 
+      source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
+      
+      ! Bottom of hole is special for fully implicit coupling with steady
+      ! state well model.
+      if (k==1) then
+        source_sink%flow_condition%well%ctype = 'well-bottom'
+        well_bottom_ghosted = well_grid%h_ghosted_id(k)
+        well_bottom_local = well_grid%h_local_id(k)
+      else
+        source_sink%flow_condition%well%ctype = 'well'
+      endif
+      
+      if (well_bottom_ghosted > 0 .and. &
+          realization%patch%aux%sco2%inactive_cells_exist ) then
+        if (size(realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local) &
+            == 1) then
+          deallocate(realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local)
+          deallocate(realization%patch%aux%sco2%matrix_zeroing%&
+                     inactive_rows_local_ghosted)
+          realization%patch%aux%sco2%inactive_cells_exist = PETSC_FALSE
+          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = 0
+        else
+          allocate(temp(size(realization%patch%aux%sco2% &
+               matrix_zeroing%inactive_rows_local)))
+          allocate(temp2(size(realization%patch%aux%sco2% &
+               matrix_zeroing%inactive_rows_local)-1))
+          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = &
+                  realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows - 1
+          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
+                    inactive_rows_local(:)
+          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
+          deallocate(realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local)
+          allocate(realization%patch%aux%sco2%matrix_zeroing% &
+                   inactive_rows_local(size(temp2)))
+          realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local(:) = temp2(:)
+          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
+                    inactive_rows_local_ghosted(:)
+          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
+          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
+                     inactive_rows_local_ghosted)
+          allocate(realization%patch%aux%sco2%matrix_zeroing% &
+                   inactive_rows_local_ghosted(size(temp2)))
+          realization%patch%aux%sco2%matrix_zeroing% &
+                     inactive_rows_local_ghosted(:) = temp2(:)
+        endif
+      endif
+
+      
+
     end select
-
-    source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
-
-    ! Bottom of hole is special for fully implicit coupling with steady
-    ! state well model.
-    if (k==1) then
-      source_sink%flow_condition%well%ctype = 'well-bottom'
-    else
-      source_sink%flow_condition%well%ctype = 'well'
-    endif
 
     ! ----- transport -------------
     if (this%transport) then

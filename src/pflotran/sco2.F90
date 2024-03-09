@@ -1164,7 +1164,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
 
-
   discretization => realization%discretization
   option => realization%option
   patch => realization%patch
@@ -1389,34 +1388,44 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0 .or. &
-          associated(source_sink%flow_condition%well)) cycle
+      if (patch%imat(ghosted_id) <= 0) cycle
 
+      
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
 
-      if (associated(source_sink%flow_aux_real_var)) then
-        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-      else
-        scale = 1.d0
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        ! nflowdof is padded with an extra dof for potential wells
+        local_end = local_end - 1
       endif
 
-      qsrc=source_sink%flow_condition%sco2%rate%dataset%rarray(:)
-      flow_src_sink_type=source_sink%flow_condition%sco2%rate%itype
+      if (associated(source_sink%flow_condition%well)) then
 
-      ! Index 0 contains user-specified conditions
-      ! Index 1 contains auxvars to be used in src/sink calculations
-      call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                          sco2_auxvars_ss(ZERO_INTEGER,sum_connection), &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          global_auxvars_ss(sum_connection), &
-                          material_auxvars(ghosted_id), &
-                          patch%characteristic_curves_array( &
-                          patch%cc_id(ghosted_id))%ptr, &
-                          sco2_parameter, &
-                          grid%nG2A(ghosted_id), &
-                          scale,Res,PETSC_FALSE)
+      else
+
+        if (associated(source_sink%flow_aux_real_var)) then
+          scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+        else
+          scale = 1.d0
+        endif
+
+        qsrc=source_sink%flow_condition%sco2%rate%dataset%rarray(:)
+        flow_src_sink_type=source_sink%flow_condition%sco2%rate%itype
+
+        ! Index 0 contains user-specified conditions
+        ! Index 1 contains auxvars to be used in src/sink calculations
+        call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            sco2_auxvars_ss(ZERO_INTEGER,sum_connection), &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id), &
+                            global_auxvars(ghosted_id), &
+                            global_auxvars_ss(sum_connection), &
+                            material_auxvars(ghosted_id), &
+                            patch%characteristic_curves_array( &
+                            patch%cc_id(ghosted_id))%ptr, &
+                            sco2_parameter, &
+                            grid%nG2A(ghosted_id), &
+                            scale,Res,PETSC_FALSE)
+      endif
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -1443,8 +1452,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! Source/sink terms -------------------------------------
-
   ! Compute well source/sink terms and add them to the residual
   ! if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
   !   if (associated(pmwell_ptr)) then
@@ -1456,6 +1463,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   !     endif
   !   endif
   ! endif
+  
 
   if (patch%aux%SCO2%inactive_cells_exist) then
     do i=1,patch%aux%SCO2%matrix_zeroing%n_inactive_rows
