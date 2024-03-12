@@ -273,6 +273,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_Material_Transform_class
   use PM_WIPP_Flow_class
   use PM_NWT_class
+  use PM_SCO2_class
   use PM_Parameter_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
@@ -345,6 +346,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
       select type(pm_flow)
         class is (pm_wippflo_type)
           ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
+          pm_flow%pmwell_ptr => pm_well
+        class is (pm_sco2_type)
           pm_flow%pmwell_ptr => pm_well
       end select
     endif

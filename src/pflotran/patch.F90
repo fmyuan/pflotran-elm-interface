@@ -4628,12 +4628,13 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
             '" requires a CO2 mass fraction BC of type DIRICHLET.'
           call PrintErrMsg(option)
         endif
-        if (sco2_thermal .and. &
-            sco2%temperature%itype /= DIRICHLET_BC) then
-          option%io_buffer = 'Hydrostatic liquid state pressure BC for &
-            &flow condition "' // trim(flow_condition%name) // &
-            '" requires a temperature BC of type DIRICHLET.'
-          call PrintErrMsg(option)
+        if (sco2_thermal) then
+          if(sco2%temperature%itype /= DIRICHLET_BC) then
+            option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+              &flow condition "' // trim(flow_condition%name) // &
+              '" requires a temperature BC of type DIRICHLET.'
+            call PrintErrMsg(option)
+          endif
         endif
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
         do iconn = 1, num_connections
@@ -4811,12 +4812,13 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                 '" requires a CO2 mass fraction BC of type DIRICHLET.'
               call PrintErrMsg(option)
             endif
-            if (sco2_thermal .and. &
-                sco2%temperature%itype /= DIRICHLET_BC) then
-              option%io_buffer = 'Hydrostatic liquid state pressure BC for &
-                &flow condition "' // trim(flow_condition%name) // &
-                '" requires a temperature BC of type DIRICHLET.'
-              call PrintErrMsg(option)
+            if (sco2_thermal) then
+              if(sco2%temperature%itype /= DIRICHLET_BC) then
+                option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+                  &flow condition "' // trim(flow_condition%name) // &
+                  '" requires a temperature BC of type DIRICHLET.'
+                call PrintErrMsg(option)
+              endif
             endif
 
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC
@@ -4996,12 +4998,13 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                 '" requires a CO2 mass fraction BC of type DIRICHLET.'
               call PrintErrMsg(option)
             endif
-            if (sco2_thermal .and. &
-                sco2%temperature%itype /= DIRICHLET_BC) then
-              option%io_buffer = 'Hydrostatic liquid state pressure BC for &
-                &flow condition "' // trim(flow_condition%name) // &
-                '" requires a temperature BC of type DIRICHLET.'
-              call PrintErrMsg(option)
+            if (sco2_thermal) then 
+              if(sco2%temperature%itype /= DIRICHLET_BC) then
+                option%io_buffer = 'Hydrostatic liquid state pressure BC for &
+                  &flow condition "' // trim(flow_condition%name) // &
+                  '" requires a temperature BC of type DIRICHLET.'
+                call PrintErrMsg(option)
+              endif
             endif
             ! ---> see code that just prints error
             coupler%flow_bc_type(SCO2_LIQUID_PRESSURE_DOF) = HYDROSTATIC_BC

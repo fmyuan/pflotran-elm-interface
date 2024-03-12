@@ -553,6 +553,7 @@ factory_subsurface_linkage.o : \
   pm_pnf.o \
   pm_richards_ts.o \
   pm_rt.o \
+  pm_sco2.o \
   pm_subsurface_flow.o \
   pm_th_ts.o \
   pm_ufd_biosphere.o \

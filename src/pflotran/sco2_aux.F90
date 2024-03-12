@@ -144,7 +144,6 @@ module SCO2_Aux_module
     PetscReal :: dpg
     PetscReal :: Ql   ! liquid exchange flux
     PetscReal :: Qg   ! gas exchange flux
-    PetscBool :: isbottom
   end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
@@ -361,7 +360,6 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%dpg = UNINITIALIZED_DOUBLE
     auxvar%well%Ql = UNINITIALIZED_DOUBLE
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
-    auxvar%well%isbottom = PETSC_FALSE
   endif
 
 end subroutine SCO2AuxVarInit
@@ -602,7 +600,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   endif
 
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-    if (sco2_auxvar(ZERO_INTEGER)%well%isbottom) then
+    if (associated(sco2_auxvar(ZERO_INTEGER)%well)) then
       x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%pl
       pert(SCO2_WELL_DOF) = dpl
     else

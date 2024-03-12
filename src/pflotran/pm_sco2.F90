@@ -4,7 +4,7 @@ module PM_SCO2_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-
+  use PM_Well_class
   use PFLOTRAN_Constants_module
 
   private
@@ -40,6 +40,7 @@ module PM_SCO2_class
     PetscReal :: abs_update_inf_tol(MAX_DOF,MAX_STATE)
     PetscReal :: rel_update_inf_tol(MAX_DOF,MAX_STATE)
     PetscReal :: damping_factor
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMSCO2ReadSimOptionsBlock
@@ -217,9 +218,9 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
 
   if (associated(pm_well)) then
     if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
-      if (pm_well%well%well_model_type /= WELL_MODEL_STEADY_STATE) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
         option%io_buffer = 'Currently, SCO2 mode can only be &
-                  &used with the STEADY_STATE well model.'
+                  &used with the HYDROSTATIC well model.'
         call PrintErrMsg(option)
       endif
       sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
@@ -249,6 +250,7 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
   pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, CO2_PRESSURE, &
                         LIQUID_MASS_FRACTION, GAS_SATURATION,TEMPERATURE]
   pm%damping_factor = -1.d0
+  nullify(pm%pmwell_ptr)
 
   pm%residual_abs_inf_tol = residual_abs_inf_tol
   pm%residual_scaled_inf_tol = residual_scaled_inf_tol
@@ -624,6 +626,11 @@ subroutine PMSCO2InitializeTimestep(this)
                                  ZERO_INTEGER)
 
   call SCO2InitializeTimestep(this%realization)
+  if (associated(this%pmwell_ptr)) then
+    call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,this%option%ierror)
+    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
+    call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
+  endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMSCO2InitializeTimestep
@@ -810,7 +817,7 @@ subroutine PMSCO2Residual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  call SCO2Residual(snes,xx,r,this%realization,ierr)
+  call SCO2Residual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMSCO2Residual
 
@@ -832,7 +839,7 @@ subroutine PMSCO2Jacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call SCO2Jacobian(snes,xx,A,B,this%realization,ierr)
+  call SCO2Jacobian(snes,xx,A,B,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMSCO2Jacobian
 
@@ -1565,18 +1572,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   state_string = &
     ['Liquid State        ','Gas State           ', &
      'Trapped Gas State   ','Liquid-Gas State    ']
-  !    !Without Energy
-  !    dof_string = &
-  !    reshape(['Liquid Pressure  ','CO2 Fraction     ', &
-  !             'Salt Mass Frac   ', &
-	!       'Gas Pressure     ','CO2 Partial Pres ', &
-  !             'Salt Mass Frac   ', &
-  !             'Gas Pressure     ','Gas Saturation   ', &
-  !             'Salt Mass Frac   ', &
-  !             'Gas Pressure     ','Liquid Pressure  ', &
-  !             'Salt Mass Frac   '], &
-  !            shape(dof_string))
-  ! With Energy
   dof_string = &
     reshape(['Liquid Pressure  ','CO2 Fraction     ', &
              'Salt Mass Frac   ', 'Temperature      ', &
@@ -1627,20 +1622,43 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           accumulation = accum2_p(ival)
           update = dX_p(ival)
 
-          ! STOMP convergence criteria
-          if (idof == FOUR_INTEGER) then
-            res_scaled = 1.d-1 * min(dabs(update) / &
-                         (sco2_auxvar%temp + 237.15d0), &
-                         dabs(residual/(accumulation + epsilon)))
-            ! find max value regardless of convergence
+          if (sco2_thermal) then
+            if (idof == FOUR_INTEGER) then
+              res_scaled = 1.d-1 * min(dabs(update) / &
+                           (sco2_auxvar%temp + 237.15d0), &
+                           dabs(residual/(accumulation + epsilon)))
+              ! find max value regardless of convergence
+              if (converged_scaled_residual_real(idof,istate) < &
+                  res_scaled) then
+                converged_scaled_residual_real(idof,istate) = res_scaled
+                converged_scaled_residual_cell(idof,istate) = natural_id
+              endif
+            elseif (idof == FIVE_INTEGER) then
+              ! There is a fully implicit well, in DOF 5
+              res_scaled = min(dabs(update) / &
+                           dabs(sco2_auxvar%well%pg), &
+                           dabs(residual))
+              ! find max value regardless of convergence
+              if (converged_scaled_residual_real(idof,istate) < &
+                  res_scaled) then
+                converged_scaled_residual_real(idof,istate) = res_scaled
+                converged_scaled_residual_cell(idof,istate) = natural_id
+              endif
+            endif
+          elseif (idof == FOUR_INTEGER) then
+              ! There is a fully implicit well, in DOF 4
+            res_scaled = min(dabs(update) / &
+                           dabs(sco2_auxvar%well%pg), &
+                           dabs(residual))
+              ! find max value regardless of convergence
             if (converged_scaled_residual_real(idof,istate) < &
                 res_scaled) then
               converged_scaled_residual_real(idof,istate) = res_scaled
               converged_scaled_residual_cell(idof,istate) = natural_id
             endif
+          endif
 
-          else
-
+          ! STOMP convergence criteria
           select case (istate)
             case(SCO2_LIQUID_STATE)
 
@@ -1825,8 +1843,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 endif
               endif
           end select
-
-          endif
 
           if (res_scaled > this%residual_scaled_inf_tol(idof)) then
             converged_scaled = PETSC_FALSE

@@ -1094,7 +1094,7 @@ end subroutine SCO2UpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine SCO2Residual(snes,xx,r,realization,ierr)
+subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
   !
   ! Computes the residual
   !
@@ -1121,6 +1121,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1371,6 +1372,18 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
+  
+  ! Update well source/sink terms
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    if (associated(pmwell_ptr)) then
+      if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+        if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
+          call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
+        endif
+      endif
+    endif
+  endif
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -1452,19 +1465,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! Compute well source/sink terms and add them to the residual
-  ! if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-  !   if (associated(pmwell_ptr)) then
-  !     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-  !       call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
-  !       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-  !         call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
-  !       endif
-  !     endif
-  !   endif
-  ! endif
-  
-
   if (patch%aux%SCO2%inactive_cells_exist) then
     do i=1,patch%aux%SCO2%matrix_zeroing%n_inactive_rows
       r_p(patch%aux%SCO2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
@@ -1503,7 +1503,7 @@ end subroutine SCO2Residual
 
 ! ************************************************************************** !
 
-subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
+subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
   !
   ! Computes the Jacobian
   !
@@ -1521,6 +1521,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Material_Aux_module
   use Upwind_Direction_module
+  use PM_Well_class
 
   implicit none
 
@@ -1528,6 +1529,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1539,7 +1541,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn, nsegment
   Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
@@ -1610,7 +1612,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                            patch%characteristic_curves_array( &
                            patch%cc_id(ghosted_id))%ptr, &
                            sco2_parameter,natural_id,option)
-
   enddo
 
   ! Accumulation terms ------------------------------------
@@ -1805,19 +1806,30 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
 
   ! Well derivative: Need to update all well source/sink terms wrt
   ! perturbation in bottom pressure 
-  ! if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
-  !   if (associated(pmwell_ptr)) then
-  !     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-  !       call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
-  !       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-  !         call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,ierr)
-  !         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-  !           call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
-  !         endif
-  !       endif
-  !     endif
-  !   endif
-  ! endif  
+  if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
+    if (associated(pmwell_ptr)) then
+      if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+        ! All procs with a well need to perturb the BHP and compute new
+        ! source/sink terms
+        do nsegment = 1,pmwell_ptr%well_grid%nsegments
+          if (pmwell_ptr%well_grid%h_ghosted_id(nsegment) > 0) then
+            ! Doesn't matter right now which cell in the well, just
+            ! need one that is on process.
+            ghosted_id = pmwell_ptr%well_grid%h_ghosted_id(nsegment)
+            exit
+          endif
+        enddo
+        pmwell_ptr%well_pert(ONE_INTEGER)%pl(ONE_INTEGER) = &
+                        pmwell_ptr%well_pert(ONE_INTEGER)%pl(ONE_INTEGER) + &
+                        sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+        ! Perturbed rates
+        call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
+        ! Go through and update the well contributions to the Jacobian:
+        ! dR/d(P_well)
+        call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+      endif
+    endif
+  endif  
 
   if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
