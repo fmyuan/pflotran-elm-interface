@@ -27,6 +27,7 @@ def PointInPolygon(point,polygon,orientation='XY',debug=False):
     else:
         sys.exit('Unrecognized orientation in PointInPolygon(): {}'.
                  format(orientation))
+    in_polygon = False
     if num_points_in_polygon == 2:
         x0 = min(polygon[0][0],polygon[1][0])
         x1 = max(polygon[0][0],polygon[1][0])
@@ -34,7 +35,6 @@ def PointInPolygon(point,polygon,orientation='XY',debug=False):
         y1 = max(polygon[0][1],polygon[1][1])
         in_polygon = (x >= x0 and x <= x1 and y >= y0 and y <= y1)
     else:
-        in_polygon = False
         i = num_points_in_polygon - 1
         for j in range(num_points_in_polygon):
             if (polygon[j][1] < y and polygon[i][1] >= y) or \
