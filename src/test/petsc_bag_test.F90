@@ -2,9 +2,9 @@ program test
 
   implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscbag.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
 
   type :: header_type
     PetscInt :: int1

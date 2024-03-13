@@ -65,8 +65,9 @@ CHEMISTRY
     /
     INHIBITION
       SPECIES_NAME C(aq)
-      TYPE INVERSE_MONOD
-      INHIBITION_CONSTANT 6.d-4   ! C is the product and inhibits when too high
+      TYPE MONOD
+      INHIBIT_BELOW_THRESHOLD
+      THRESHOLD_CONCENTRATION 6.d-4
     /
     BIOMASS
       SPECIES_NAME D(aq)
@@ -79,7 +80,6 @@ CHEMISTRY
     FORWARD_RATE 60.d-9 1/min
     BACKWARD_RATE 0.d0
   /
-  DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

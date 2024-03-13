@@ -1118,6 +1118,9 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
                                              pm_grp_id, H5T_NATIVE_DOUBLE)
 
+    ! MAN: For SCO2 mode, we need to checkpoint min liquid saturation for 
+    !      hysteresis.
+
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
@@ -1170,7 +1173,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
                                     natural_vec, NATURAL, option)
-
     dataset_name = "Primary_Variables" // CHAR(0)
     call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
          pm_grp_id, H5T_NATIVE_DOUBLE)
@@ -1247,6 +1249,9 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                      ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
                                  field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
+
+    !MAN: For SCO2 mode, we need to read in min liquid saturation for 
+    !     hysteresis.
 
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)

@@ -13,14 +13,14 @@ module Reaction_Solid_Solution_module
 
   private
 
-  public :: SolidSolutionReadFromInputFile, &
-            SolidSolutionLinkNamesToIDs
+  public :: ReactionSolidSolnReadSolidSoln, &
+            ReactionSolidSolnLinkNamesToIDs
 
 contains
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
+subroutine ReactionSolidSolnReadSolidSoln(solid_solution_list,input, &
                                           option)
   !
   ! Reads solid solution from the input file
@@ -53,7 +53,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
     if (InputCheckExit(input,option)) exit
 
     ! name of solid solution
-    solid_solution => SolidSolutionCreate()
+    solid_solution => ReactionSolidSolnCreateAux()
     if (associated(prev_solid_solution)) then
       prev_solid_solution%next => solid_solution
       prev_solid_solution => solid_solution
@@ -80,7 +80,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
         option%io_buffer = '# stoichmetric solids exceeds max (' // &
           trim(adjustl(string)) // ').  ' // &
           'Increase variable "max_stoich_solid_names" in ' // &
-          'SolidSolutionReadFromInputFile.'
+          'ReactionSolidSolnReadSolidSoln.'
         call PrintErrMsg(option)
       endif
       call InputReadCard(input,option, &
@@ -111,7 +111,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
         call InputErrorMsg(input,option,'keyword', &
                            'CHEMISTRY,SOLID_SOLUTIONS,DATABASE FILENAME')
       case default
-        solid_solution => SolidSolutionCreate()
+        solid_solution => ReactionSolidSolnCreateAux()
         call InputReadWord(input,option,solid_solution%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','CHEMISTRY,SOLID_SOLUTIONS')
         if (.not.associated(solid_solution_rxn%list)) then
@@ -127,15 +127,14 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SolidSolutionReadFromInputFile
+end subroutine ReactionSolidSolnReadSolidSoln
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionLinkNamesToIDs(solid_solution_list, &
-                                       mineral_reaction, &
-                                       option)
+subroutine ReactionSolidSolnLinkNamesToIDs(solid_solution_list, &
+                                           mineral_reaction,option)
   !
-  ! SolidSolutionReadFromDatabase: Reads solid solution from the database
+  ! ReactionSolidSolnReadFromDatabas: Reads solid solution from the database
   !
   ! Author: Glenn Hammond
   ! Date: 08/20/12
@@ -170,13 +169,13 @@ subroutine SolidSolutionLinkNamesToIDs(solid_solution_list, &
     cur_solid_soln => cur_solid_soln%next
   enddo
 
-end subroutine SolidSolutionLinkNamesToIDs
+end subroutine ReactionSolidSolnLinkNamesToIDs
 
 #if 0
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
+subroutine ReactionSolidSolnReadFromDatabas(solid_solution_rxn,option)
   !
   ! Reads solid solution from the database
   !
@@ -214,7 +213,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   call InputPushBlock(input,option)
   do ! loop over every entry in the database
     call InputReadPflotranString(input,option)
-    call InputReadStringErrorMsg(input,option,'SolidSolutionReadFromDatabase')
+    call InputReadStringErrorMsg(input,option,'ReactionSolidSolnReadFromDatabas')
 
     call InputReadWord(input,option,card,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,SOLID_SOLUTIONS')
@@ -249,12 +248,12 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         nullify(prev_stoich_solid)
         nullify(prev_end_member)
       case('STOICHIOMETRIC_SOLID','END_MEMBER')
-        mineral => MineralRxnCreate()
+        mineral => ReactionMnrlCreateMineralRxn()
         call InputReadWord(input,option,mineral%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','CHEMISTRY,MINERALS')
-        call MineralReadFromDatabase(mineral, &
-                                   solid_solution_rxn%num_dbase_temperatures, &
-                                   input,option)
+        call ReactionMnrlReadFromDatabase(mineral, &
+                              solid_solution_rxn%num_dbase_temperatures, &
+                              input,option)
         ! assign mineral to stoichiometric solid or end member list
         select case(card)
           case('STOICHIOMETRIC_SOLID')
@@ -281,7 +280,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         end select
         nullify(mineral)
       case('TEMPERATURES')
-        string = 'Temperatures in SolidSolutionReadFromDatabase'
+        string = 'Temperatures in ReactionSolidSolnReadFromDatabas'
         call UtilityReadRealArray(solid_solution_rxn%dbase_temperatures, &
                                   ZERO_INTEGER,string,input,option)
         solid_solution_rxn%num_dbase_temperatures = &
@@ -293,7 +292,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SolidSolutionReadFromDatabase
+end subroutine ReactionSolidSolnReadFromDatabas
 #endif
 
 end module Reaction_Solid_Solution_module

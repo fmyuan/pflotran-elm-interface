@@ -95,34 +95,23 @@ subroutine InitCommonVerifyAllCouplers(realization)
   !
 
   use Realization_Subsurface_class
-  use Patch_module
-  use Coupler_module
 
   implicit none
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-      call InitCommonVerifyCoupler(realization,cur_patch, &
-                                   cur_patch%initial_condition_list)
-      call InitCommonVerifyCoupler(realization,cur_patch, &
-                                   cur_patch%boundary_condition_list)
-      call InitCommonVerifyCoupler(realization,cur_patch, &
-                                   cur_patch%source_sink_list)
-
-    cur_patch => cur_patch%next
-  enddo
+  call InitCommonVerifyCoupler(realization, &
+                               realization%patch%initial_condition_list)
+  call InitCommonVerifyCoupler(realization, &
+                               realization%patch%boundary_condition_list)
+  call InitCommonVerifyCoupler(realization, &
+                               realization%patch%source_sink_list)
 
 end subroutine InitCommonVerifyAllCouplers
 
 ! ************************************************************************** !
 
-subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
+subroutine InitCommonVerifyCoupler(realization,coupler_list)
   !
   ! Verifies the connectivity of a coupler
   !

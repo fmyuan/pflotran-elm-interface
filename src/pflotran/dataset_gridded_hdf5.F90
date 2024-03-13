@@ -14,7 +14,7 @@ module Dataset_Gridded_HDF5_class
   type, public, extends(dataset_common_hdf5_type) :: dataset_gridded_hdf5_type
     PetscBool :: is_cell_centered
     PetscInt :: data_dim
-    PetscInt :: interpolation_method
+    PetscInt :: space_interpolation_method
     PetscReal, pointer :: origin(:)
     PetscReal, pointer :: extent(:)
     PetscReal, pointer :: discretization(:)
@@ -84,7 +84,7 @@ subroutine DatasetGriddedHDF5Init(this)
 
   call DatasetCommonHDF5Init(this)
   this%is_cell_centered = PETSC_FALSE
-  this%interpolation_method = INTERPOLATION_LINEAR
+  this%space_interpolation_method = INTERPOLATION_LINEAR
   this%data_dim = DIM_NULL
   nullify(this%origin)
   nullify(this%extent)
@@ -291,6 +291,16 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     attribute_name = "Interpolation Method"
     call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
     if (attribute_exists) then
+      option%io_buffer = '"Interpolation Method" in HDF5 gridded datasets &
+        &has been changed to "Space Interpolation Method" to better &
+        &differentiate between interpolation in time and space. Please &
+        &update dataset "' // trim(this%hdf5_dataset_name) // '" in ' // &
+        trim(this%filename) // '.'
+      call PrintErrMsg(option)
+    endif
+    attribute_name = "Space Interpolation Method"
+    call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
+    if (attribute_exists) then
       call h5tcopy_f(H5T_NATIVE_CHARACTER,atype_id,hdf5_err)
       size_t_int = MAXWORDLENGTH
       call h5tset_size_f(atype_id,size_t_int,hdf5_err)
@@ -301,9 +311,9 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
       call StringToUpper(word)
       select case(trim(word))
         case('STEP')
-          this%interpolation_method = INTERPOLATION_STEP
+          this%space_interpolation_method = INTERPOLATION_STEP
         case('LINEAR')
-          this%interpolation_method = INTERPOLATION_LINEAR
+          this%space_interpolation_method = INTERPOLATION_LINEAR
         case default
           option%io_buffer = 'Interpolation method "' // &
             trim(adjustl(word)) // '" not recognized in &
@@ -325,7 +335,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     else if (this%max_buffer_size < 0) then
       this%max_buffer_size = default_max_buffer_size
     endif
-    if (this%interpolation_method /= INTERPOLATION_STEP .and. &
+    if (this%space_interpolation_method /= INTERPOLATION_STEP .and. &
         this%max_buffer_size < 2) then
       option%io_buffer = 'Dataset "Max Buffer Size" is set to ' // &
         trim(StringWrite(this%max_buffer_size)) // &
@@ -704,7 +714,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
   ! coordinates of the problem domain in 3D.  They
   ! are transfored to the dimensions of the dataset
   lerr = PETSC_FALSE
-  select case(this%interpolation_method)
+  select case(this%space_interpolation_method)
     case(INTERPOLATION_STEP)
       select case(this%data_dim)
         case(DIM_X,DIM_Y,DIM_Z)
@@ -1121,7 +1131,7 @@ subroutine DatasetGriddedHDF5GetIndices(this,xx,yy,zz,i,j,k,x,y,z)
 
   upper_index_offset = 1
   if (this%is_cell_centered) then
-    select case(this%interpolation_method)
+    select case(this%space_interpolation_method)
       case(INTERPOLATION_STEP)
         discretization_offset = 1.d0
         upper_index_offset = 0
@@ -1142,7 +1152,7 @@ subroutine DatasetGriddedHDF5GetIndices(this,xx,yy,zz,i,j,k,x,y,z)
 !      k = max(1,min(k,this%dims(3)-1))
     endif
   else
-    select case(this%interpolation_method)
+    select case(this%space_interpolation_method)
       case(INTERPOLATION_STEP)
         discretization_offset = 1.5d0
       case(INTERPOLATION_LINEAR)

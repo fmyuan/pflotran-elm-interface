@@ -62,7 +62,6 @@ CHEMISTRY
       /
     /
   /
-  DATABASE ../../../database/hanford.dat
   OUTPUT
     ALL
     TOTAL

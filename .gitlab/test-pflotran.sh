@@ -22,9 +22,14 @@ fi
 
 # Run unit tests
 UTEST_LOG='utest.log'
-make gnu_code_coverage=1 utest 2>&1 | tee $UTEST_LOG
+make gnu_code_coverage=1 gnu_runtime_checks=1 catch_warnings_as_errors=1 \
+  utest 2>&1 | tee $UTEST_LOG
+# catch failed tests
 if [ $(grep -c " FAILURES!!!\|failed" "$UTEST_LOG") -ne 0 ]; then
   echo "\n----- Unit tests failed -----\n" >&2
+  UNIT_EXIT_CODE=1
+elif [ $(grep -c " Error 1\|Error: \|undefined reference" "$UTEST_LOG") -ne 0 ]; then
+  echo "\n----- Unit test code failed to compile -----\n" >&2
   UNIT_EXIT_CODE=1
 elif [ $(grep -c " OK" "$UTEST_LOG") -ne 0 ]; then
   echo "\n----- Unit tests succeeded -----\n" >&2
@@ -52,12 +57,29 @@ cd $SRC_DIR
 lcov --capture --directory . --output-file pflotran_coverage.info
 genhtml pflotran_coverage.info --output-directory coverage
 
+# Ensure that dependencies are updatable. This catches errors is module labels
+# in use statements.
+cd $SRC_DIR
+echo "\n----- Running dependency update to ensure it is functioning properly -----\n" >&2
+DEPENDENCY_UPDATE_LOG='dependency_update.log'
+python3 ../python/pflotran_dependencies.py 2>&1 | tee $DEPENDENCY_UPDATE_LOG
+DEPENDENCY_UPDATE_EXIT_CODE=$?
+if [ $DEPENDENCY_UPDATE_EXIT_CODE -ne 0 ]; then
+  echo "\n----- Dependency update failing -----\n" >&2
+else
+  echo "\n----- Dependency update running properly -----\n" >&2
+fi
+
 rm -Rf $ARTIFACT_DIR
-mkdir -p $ARTIFACT_DIR
+mkdir -p $ARTIFACT_DIR/logs
+cp -R $SRC_DIR/$UTEST_LOG $ARTIFACT_DIR/logs
+cp -R $SRC_DIR/$RTEST_LOG $ARTIFACT_DIR/logs
+cp -R $SRC_DIR/$DEPENDENCY_UPDATE_LOG $ARTIFACT_DIR/logs
 cp -R $PFLOTRAN_DIR/regression_tests $ARTIFACT_DIR
 cp -R $SRC_DIR/coverage $ARTIFACT_DIR
 
-if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ]; then
+if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ] && \
+   [ $DEPENDENCY_UPDATE_EXIT_CODE -eq 0 ]; then
   echo 'success' > $ARTIFACT_DIR/status
 else
   echo 'failed' > $ARTIFACT_DIR/status

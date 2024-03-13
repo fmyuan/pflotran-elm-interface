@@ -80,16 +80,9 @@ subroutine THSetup(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
   type(output_variable_list_type), pointer :: list
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THSetupPatch(realization)
-    cur_patch => cur_patch%next
-  enddo
+  call THSetupPatch(realization)
 
   list => realization%output_option%output_snap_variable_list
   call THSetPlotVariables(realization,list)
@@ -418,17 +411,9 @@ subroutine THComputeMassBalance(realization, mass_balance)
   class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
-  type(patch_type), pointer :: cur_patch
-
   mass_balance = 0.d0
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THComputeMassBalancePatch(realization, mass_balance)
-    cur_patch => cur_patch%next
-  enddo
+  call THComputeMassBalancePatch(realization, mass_balance)
 
 end subroutine THComputeMassBalance
 
@@ -627,15 +612,7 @@ subroutine THUpdateAuxVars(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THUpdateAuxVarsPatch(realization)
-    cur_patch => cur_patch%next
-  enddo
+  call THUpdateAuxVarsPatch(realization)
 
 end subroutine THUpdateAuxVars
 
@@ -913,18 +890,7 @@ subroutine THUpdateSolution(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
-
-  field => realization%field
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THUpdateSolutionPatch(realization)
-    cur_patch => cur_patch%next
-  enddo
+  call THUpdateSolutionPatch(realization)
 
 end subroutine THUpdateSolution
 
@@ -1024,15 +990,7 @@ subroutine THUpdateFixedAccumulation(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THUpdateFixedAccumPatch(realization)
-    cur_patch => cur_patch%next
-  enddo
+  call THUpdateFixedAccumPatch(realization)
 
 end subroutine THUpdateFixedAccumulation
 
@@ -4073,7 +4031,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
       if (Equal((material_auxvars(ghosted_id)% &
           secondary_prop%epsilon),1.d0)) cycle
       iend = local_id*option%nflowdof
-      
+
       ! secondary rho*c_p same as primary for now
       icct = patch%cct_id(ghosted_id)
       sec_dencpr = th_parameter%dencpr(icct)
@@ -5188,7 +5146,7 @@ subroutine THResidualToMass(realization)
   class(realization_subsurface_type) :: realization
 
   type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
 
@@ -5201,32 +5159,26 @@ subroutine THResidualToMass(realization)
 
   option => realization%option
   field => realization%field
+  patch => realization%patch
+  grid => patch%grid
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
+  auxvars => patch%aux%TH%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
+                      ierr);CHKERRQ(ierr)
 
-    grid => cur_patch%grid
-    auxvars => cur_patch%aux%TH%auxvars
-    global_auxvars => cur_patch%aux%Global%auxvars
-    call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
-                        ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
 
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (cur_patch%imat(ghosted_id) <= 0) cycle
-
-      istart = (ghosted_id-1)*option%nflowdof+1
-      mass_balance_p(istart) = mass_balance_p(istart)/ &
-                                global_auxvars(ghosted_id)%den(1)* &
-                                global_auxvars(ghosted_id)%den_kg(1)
-    enddo
-
-    call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
-                            ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
+    istart = (ghosted_id-1)*option%nflowdof+1
+    mass_balance_p(istart) = mass_balance_p(istart)/ &
+                              global_auxvars(ghosted_id)%den(1)* &
+                              global_auxvars(ghosted_id)%den_kg(1)
   enddo
+
+  call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
+                          ierr);CHKERRQ(ierr)
 
 end subroutine THResidualToMass
 

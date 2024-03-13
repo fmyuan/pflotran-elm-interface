@@ -97,6 +97,7 @@ module Utility_module
             Kron, &
             Transposer, &
             Determinant, &
+            MatInv3, &
             InterfaceApproxWithDeriv, &
             InterfaceApproxWithoutDeriv, &
             PrintProgressBarInt, &
@@ -109,7 +110,8 @@ module Utility_module
             expm1, &
             PrintHeader, &
             UtilityTensorToScalar, &
-            ThrowRuntimeError
+            ThrowRuntimeError, &
+            Smoothstep
 
 contains
 
@@ -1222,7 +1224,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
 
   type(option_type) :: option
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
   PetscInt :: array_size
   PetscInt, pointer :: array(:)
 
@@ -1388,7 +1390,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
 
   type(option_type) :: option
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
   PetscInt :: array_size
   PetscReal, pointer :: array(:)
 
@@ -1424,7 +1426,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
       call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
-      input%err_buf2 = comment
+      input%err_buf2 = trim(comment)
       call InputErrorMsg(input,option)
       input2 => InputCreate(input,string2,option)
     else
@@ -1553,7 +1555,7 @@ subroutine UtilityEnforceUseOfContinuation(input,option,comment)
 
   type(input_type) :: input
   type(option_type) :: option
-  character(len=MAXSTRINGLENGTH) :: comment
+  character(len=*) :: comment
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt, parameter :: max_char_in_line = 480
@@ -2250,6 +2252,36 @@ subroutine Determinant(A,detA)
 end subroutine Determinant
 
 ! ************************************************************************** !
+
+subroutine MatInv3(A,invA)
+  !
+  ! Inverse of a 3x3 matrix
+  !
+  ! Author: Satish Karra, PNNL
+  ! Date: 11/28/2023
+  !
+
+  PetscReal, intent(in) :: A(3,3)
+  PetscReal :: invA(3,3)
+  PetscReal :: detA
+
+  detA = A(1,1)*(A(2,2)*A(3,3) - A(3,2)*A(2,3)) &
+       + A(1,2)*(A(3,1)*A(2,3) - A(2,1)*A(3,3))  &
+       + A(1,3)*(A(2,1)*A(3,2) - A(3,1)*A(2,2))
+
+  invA(1,1) = +1.0/detA * (A(2,2)*A(3,3) - A(2,3)*A(3,2))
+  invA(2,1) = -1.0/detA * (A(2,1)*A(3,3) - A(2,3)*A(3,1))
+  invA(3,1) = +1.0/detA * (A(2,1)*A(3,2) - A(2,2)*A(3,1))
+  invA(1,2) = -1.0/detA * (A(1,2)*A(3,3) - A(1,3)*A(3,2))
+  invA(2,2) = +1.0/detA * (A(1,1)*A(3,3) - A(1,3)*A(3,1))
+  invA(3,2) = -1.0/detA * (A(1,1)*A(3,2) - A(1,2)*A(3,1))
+  invA(1,3) = +1.0/detA * (A(1,2)*A(2,3) - A(1,3)*A(2,2))
+  invA(2,3) = -1.0/detA * (A(1,1)*A(2,3) - A(1,3)*A(2,1))
+  invA(3,3) = +1.0/detA * (A(1,1)*A(2,2) - A(1,2)*A(2,1))
+
+end subroutine MatInv3
+
+! ************************************************************************** !
 subroutine InterfaceApproxWithDeriv(v_up, v_dn, dv_up, dv_dn, dv_up2dn, &
                                     approx_type, v_interf, &
                                     dv_interf_dv_up, dv_interf_dv_dn)
@@ -2767,6 +2799,7 @@ subroutine ThrowRuntimeError(error_name,option)
   PetscReal, allocatable, target :: array(:)
   PetscReal, pointer :: array2(:)
 
+  nullify(array2)
   select case(trim(error_name))
     case('array_bounds')
       call PrintMsg(option,'Checking array bounds errors:')
@@ -2775,6 +2808,11 @@ subroutine ThrowRuntimeError(error_name,option)
     case('pointer')
       call PrintMsg(option,'Checking pointer:')
       allocate(array(10))
+      ! this following three lines work around uninitialized warning for array2
+      allocate(array2(0))
+      deallocate(array2)
+      nullify(array2)
+      ! the actual test (setting an unallocated pointer equal to an array)
       array2 = array(:)
     case default
       option%io_buffer = 'Unrecognized error "' // trim(error_name) // &
@@ -2789,5 +2827,40 @@ subroutine ThrowRuntimeError(error_name,option)
   call PrintDestroyHandler(print_handler)
 
 end subroutine ThrowRuntimeError
+
+! ************************************************************************** !
+
+subroutine Smoothstep(x,xmin,xmax,y,derivative)
+  !
+  ! Calculates the smoothstep sigmoid-like function
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/15/23
+  !
+  implicit none
+
+  PetscReal :: x
+  PetscReal :: xmin
+  PetscReal :: xmax
+  PetscReal :: y
+  PetscReal :: derivative
+
+  PetscReal :: z
+  PetscReal :: denominator
+
+  denominator = 1.d0 / (xmax - xmin)
+  z = (x - xmin) * denominator
+  if (z < 0.d0) then
+    y = 0.d0
+    derivative = 0.d0
+  else if (z > 1.d0) then
+    y = 1.d0
+    derivative = 0.d0
+  else
+    y = 3.d0 * z ** 2 - 2.d0 * z ** 3
+    derivative = (6.d0*z - 6.d0*z**2) * denominator
+  endif
+
+end subroutine Smoothstep
 
 end module Utility_module

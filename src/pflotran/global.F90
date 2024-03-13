@@ -26,14 +26,13 @@ subroutine GlobalSetup(realization)
   !
   ! Author: Glenn Hammond
   ! Date: 02/22/08
-  !
 
-  use Realization_Subsurface_class
-  use Patch_module
-  use Option_module
-  use Coupler_module
   use Connection_module
+  use Coupler_module
   use Grid_module
+  use Option_module
+  use Patch_module
+  use Realization_Subsurface_class
 
   implicit none
 
@@ -68,6 +67,8 @@ subroutine GlobalSetup(realization)
   enddo
   patch%aux%Global%auxvars => auxvars
   patch%aux%Global%num_aux = grid%ngmax
+
+  call GlobalUpdateParameterArray(realization)
 
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
@@ -509,6 +510,128 @@ end subroutine GlobalGetAuxVarVecLoc
 
 ! ************************************************************************** !
 
+subroutine GlobalUpdateParameterArray(realization)
+  !
+  ! Updates values in the parameter array
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/05/24
+  !
+  use Dataset_Base_class
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Discretization_module
+  use Grid_module
+  use HDF5_module
+  use Option_module
+  use Parameter_module
+  use Realization_Subsurface_class
+
+  class(realization_subsurface_type) :: realization
+
+  class(dataset_base_type), pointer :: dataset
+  type(parameter_type), pointer :: cur_parameter
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(global_auxvar_type), pointer :: auxvars(:)
+  character(len=:), allocatable :: err_string
+  character(len=MAXSTRINGLENGTH) :: string, string2
+
+  PetscInt :: ghosted_id
+  PetscReal :: tempreal
+
+  grid => realization%patch%grid
+  option => realization%option
+
+  auxvars => realization%patch%aux%Global%auxvars
+
+  ! at this point, field%work and field%work_loc are available to perform
+  ! operations such as reading datasets
+  cur_parameter => realization%parameter_list
+  do
+    if (.not.associated(cur_parameter)) exit
+    if (len_trim(cur_parameter%dataset_name) > 0) then
+      err_string = 'PARAMETER "' // trim(cur_parameter%name) // '"'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_parameter%dataset_name,err_string,option)
+      select type(dataset)
+        class is(dataset_gridded_hdf5_type)
+          call DatasetGriddedHDF5Load(dataset,option)
+          do ghosted_id = 1, grid%ngmax
+            call DatasetGriddedHDF5InterpolateReal(dataset, &
+                                                   grid%x(ghosted_id), &
+                                                   grid%y(ghosted_id), &
+                                                   grid%z(ghosted_id), &
+                                                   tempreal,option)
+            auxvars(ghosted_id)%parameters(cur_parameter%id) = tempreal
+          enddo
+        class is(dataset_common_hdf5_type)
+          string = ''
+          string2 = dataset%hdf5_dataset_name
+          call HDF5ReadCellIndexedRealArray(realization, &
+                                            realization%field%work, &
+                                            dataset%filename, &
+                                            string,string2, &
+                                            dataset%realization_dependent)
+          call DiscretizationGlobalToLocal(realization%discretization, &
+                                           realization%field%work, &
+                                           realization%field%work_loc,ONEDOF)
+          call GlobalSetParameterVecLoc(realization, &
+                                        realization%field%work_loc, &
+                                        cur_parameter%id)
+        class default
+          option%io_buffer = 'Unrecognized dataset type in &
+            &GlobalSetup() for ' // trim(err_string)
+          call PrintErrMsg(option)
+      end select
+    else
+      do ghosted_id = 1, grid%ngmax
+        auxvars(ghosted_id)%parameters(cur_parameter%id) = cur_parameter%value
+      enddo
+    endif
+    cur_parameter => cur_parameter%next
+  enddo
+
+end subroutine GlobalUpdateParameterArray
+
+! ************************************************************************** !
+
+subroutine GlobalSetParameterVecLoc(realization,vec_loc,iparameter)
+  !
+  ! Sets values in parameter array using a vector.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/05/24
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Realization_Subsurface_class
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  Vec :: vec_loc
+  PetscInt :: iparameter
+
+  type(global_auxvar_type), pointer :: auxvars(:)
+
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  PetscErrorCode :: ierr
+
+  auxvars => realization%patch%aux%Global%auxvars
+
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  do ghosted_id = 1, realization%patch%grid%ngmax
+    auxvars(ghosted_id)%parameters(iparameter) = vec_loc_p(ghosted_id)
+  enddo
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+end subroutine GlobalSetParameterVecLoc
+
+! ************************************************************************** !
+
 subroutine GlobalWeightAuxVars(realization,weight)
   !
   ! Updates the densities and saturations in auxiliary
@@ -552,7 +675,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
   end select
 
   select case(option%iflowmode)
-    case(G_MODE,H_MODE)
+    case(G_MODE,H_MODE,SCO2_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
@@ -717,10 +840,10 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
 
       ! temperature
       call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
-    case(G_MODE,WF_MODE)
+    case(G_MODE,WF_MODE,SCO2_MODE)
       ! pressure
       call GlobalUpdateSingleAuxVar(realization,LIQUID_DENSITY,time_level)
-      if (option%iflowmode == G_MODE) then
+      if (option%iflowmode == G_MODE .or. option%iflowmode == SCO2_MODE) then
         ! temperature
         call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
       endif

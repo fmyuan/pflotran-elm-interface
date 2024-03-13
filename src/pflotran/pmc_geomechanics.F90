@@ -333,14 +333,16 @@ subroutine PMCGeomechanicsSetAuxData(this)
   use petscvec
   use Option_module
   use Grid_module
+  use Discretization_module
   use Geomechanics_Subsurface_Properties_module
+  use Parameter_module
 
   implicit none
 
   class(pmc_geomechanics_type) :: this
 
   type(grid_type), pointer :: grid
-  PetscInt :: local_id
+  PetscInt :: local_id, ghosted_id
   PetscScalar, pointer :: por0_p(:)
   PetscScalar, pointer :: por_p(:)
   PetscScalar, pointer :: perm0_p(:)
@@ -348,16 +350,19 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscScalar, pointer :: strain_p(:)
   PetscScalar, pointer :: stress_p(:)
   PetscScalar, pointer :: press_p(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscReal :: local_stress(6), local_strain(6), local_pressure
   PetscErrorCode :: ierr
   PetscReal :: por_new
   PetscReal :: perm_new
   PetscInt :: i
+  PetscInt :: parameter_index
   Vec :: geomech_vec
   Vec :: subsurf_vec
 
 #if GEOMECH_DEBUG
-print *, 'PMCGeomechSetAuxData'
+  PetscViewer :: viewer
+  print *, 'PMCGeomechSetAuxData'
 #endif
 
 
@@ -366,7 +371,9 @@ print *, 'PMCGeomechSetAuxData'
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)
-      if (this%option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
+      if (this%option%geomech_subsurf_coupling == &
+            GEOMECH_TWO_WAY_COUPLED .or. &
+          this%option%geomech_subsurf_coupling == GEOMECH_ERT_COUPLING) then
 
         grid => pmc%subsurf_realization%patch%grid
 
@@ -458,68 +465,133 @@ print *, 'PMCGeomechSetAuxData'
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-
-        ! Update porosity dataset in sim_aux%subsurf_por
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
-                            ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,ierr);CHKERRQ(ierr)
-        ! Perm
-        call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
-                            ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
-                            ierr);CHKERRQ(ierr)
         ! Strain
         call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p, &
                             ierr);CHKERRQ(ierr)
         ! Stress
         call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
                             ierr);CHKERRQ(ierr)
-        ! Flow
-        call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
-                            ierr);CHKERRQ(ierr)
 
-        do local_id = 1, grid%nlmax
-          do i = 1, SIX_INTEGER
-            local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
-            local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+        if (this%option%geomech_subsurf_coupling == GEOMECH_ERT_COUPLING) then
+          ! stress
+          call VecGetArrayF90(pmc%subsurf_realization%field%work, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
+          do local_id = 1, grid%nlmax
+            vec_ptr(local_id) = 0.d0
+            do i = 1, 3
+              vec_ptr(local_id) = vec_ptr(local_id) + &
+                              stress_p((local_id - 1)*SIX_INTEGER + i)
+            enddo
+            vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
-            local_pressure = press_p(local_id)
-          ! Update porosity based on stress/strain
-          call GeomechanicsSubsurfacePropsPoroEvaluate( &
-                 grid, &
-                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
-                 por0_p(local_id),local_stress,local_strain,local_pressure, &
-                 por_new,this%option)
-          por_p(local_id) = por_new
-          ! Update permeability based on stress/strain
-          call GeomechanicsSubsurfacePropsPermEvaluate( &
-                 grid, &
-                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
-                 perm0_p(local_id),local_stress,local_strain,local_pressure, &
-                 perm_new,this%option)
-          perm_p(local_id) = perm_new
-        enddo
+          call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
+                                  vec_ptr,ierr);CHKERRQ(ierr)
+          call DiscretizationGlobalToLocal( &
+                 pmc%subsurf_realization%discretization, &
+                 pmc%subsurf_realization%field%work, &
+                 pmc%subsurf_realization%field%work_loc,ONEDOF)
+          call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
+          parameter_index = ParameterGetIDFromName('geomechanics_stress', &
+                                             pmc%subsurf_realization%option)
+          do ghosted_id = 1, grid%ngmax
+            pmc%subsurf_realization%patch%aux% &
+              Global%auxvars(ghosted_id)%parameters(parameter_index) = &
+                vec_ptr(ghosted_id)
+          enddo
+          call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
+                                  vec_ptr,ierr);CHKERRQ(ierr)
+          ! strain
+          call VecGetArrayF90(pmc%subsurf_realization%field%work, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
+          do local_id = 1, grid%nlmax
+            vec_ptr(local_id) = 0.d0
+            do i = 1, 3
+              vec_ptr(local_id) = vec_ptr(local_id) + &
+                              strain_p((local_id - 1)*SIX_INTEGER + i)
+            enddo
+            !vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
+          enddo
+          call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
+                                  vec_ptr,ierr);CHKERRQ(ierr)
+          call DiscretizationGlobalToLocal( &
+                 pmc%subsurf_realization%discretization, &
+                 pmc%subsurf_realization%field%work, &
+                 pmc%subsurf_realization%field%work_loc,ONEDOF)
+          call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
+                              vec_ptr,ierr);CHKERRQ(ierr)
+          parameter_index = ParameterGetIDFromName('geomechanics_strain', &
+                                             pmc%subsurf_realization%option)
+          do ghosted_id = 1, grid%ngmax
+            pmc%subsurf_realization%patch%aux% &
+              Global%auxvars(ghosted_id)%parameters(parameter_index) = &
+                vec_ptr(ghosted_id)
+          enddo
+          call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
+                                  vec_ptr,ierr);CHKERRQ(ierr)
+        endif
 
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
-                                ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p, &
-                                ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
-                                ierr);CHKERRQ(ierr)
+        if (this%option%geomech_subsurf_coupling == &
+            GEOMECH_TWO_WAY_COUPLED) then
+
+          ! Update porosity dataset in sim_aux%subsurf_por
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
+                              ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,ierr);CHKERRQ(ierr)
+          ! Perm
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
+                              ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
+                              ierr);CHKERRQ(ierr)
+          ! Flow
+          call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
+                              ierr);CHKERRQ(ierr)
+
+
+          do local_id = 1, grid%nlmax
+            do i = 1, SIX_INTEGER
+              local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
+              local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+            enddo
+              local_pressure = press_p(local_id)
+            ! Update porosity based on stress/strain
+            call GeomechanicsSubsurfacePropsPoroEvaluate( &
+                  grid, &
+                  pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                  por0_p(local_id),local_stress,local_strain,local_pressure, &
+                  por_new,this%option)
+            por_p(local_id) = por_new
+            ! Update permeability based on stress/strain
+            call GeomechanicsSubsurfacePropsPermEvaluate( &
+                  grid, &
+                  pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                  perm0_p(local_id),local_stress,local_strain,local_pressure, &
+                  perm_new,this%option)
+            perm_p(local_id) = perm_new
+          enddo
+
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
+                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
+                                  ierr);CHKERRQ(ierr)
+
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
+                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
+                                  ierr);CHKERRQ(ierr)
+        endif
+
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
-                                ierr);CHKERRQ(ierr)
-
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
-                                ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p, &
                                 ierr);CHKERRQ(ierr)
 
         call VecDestroy(geomech_vec,ierr);CHKERRQ(ierr)
         call VecDestroy(subsurf_vec,ierr);CHKERRQ(ierr)
 
-    endif
+      endif
 
   end select
 

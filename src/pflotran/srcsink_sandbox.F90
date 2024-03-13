@@ -7,6 +7,7 @@ module SrcSink_Sandbox_module
   use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
   use SrcSink_Sandbox_Downreg_class
+  use SrcSink_Sandbox_Pressure_class
   use SrcSink_Sandbox_WIPP_Well_class
   use PFLOTRAN_Constants_module
 
@@ -38,16 +39,14 @@ contains
 
 ! ************************************************************************** !
 
-subroutine SSSandboxInit(option)
+subroutine SSSandboxInit()
   !
   ! Initializes the sandbox list
   !
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   !
-  use Option_module
   implicit none
-  type(option_type) :: option
 
   if (associated(ss_sandbox_list)) then
     call SSSandboxDestroyList()
@@ -77,6 +76,11 @@ subroutine SSSandboxRead1(input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  if (associated(ss_sandbox_list)) then
+    option%io_buffer = 'All source/sink sandboxes must be placed in &
+      &a single SOURCE_SINK_SANDBOX block.'
+    call PrintErrMsg(option)
+  endif
   call SSSandboxRead(ss_sandbox_list,input,option)
 
 end subroutine SSSandboxRead1
@@ -136,6 +140,8 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => MassRateCreate()
       case('MASS_RATE_DOWNREGULATED')
         new_sandbox => DownregCreate()
+      case('PRESSURE')
+        new_sandbox => PressureCreate()
       case('MASS_BALANCE')
         print_mass_balance = PETSC_TRUE
       case default
@@ -164,7 +170,8 @@ end subroutine SSSandboxRead2
 
 ! ************************************************************************** !
 
-subroutine SSSandboxSetup(grid,option,output_option)
+subroutine SSSandboxSetup(grid,region_list,material_auxvars,option, &
+                          output_option)
   !
   ! Calls all the initialization routines for all source/sinks in
   ! the sandbox list
@@ -176,10 +183,14 @@ subroutine SSSandboxSetup(grid,option,output_option)
   use Option_module
   use Output_Aux_module
   use Grid_module
+  use Material_Aux_module, only: material_auxvar_type
+  use Region_module
 
   implicit none
 
   type(grid_type) :: grid
+  type(region_list_type) :: region_list
+  type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
   type(output_option_type) :: output_option
 
@@ -193,9 +204,9 @@ subroutine SSSandboxSetup(grid,option,output_option)
   do
     if (.not.associated(cur_sandbox)) exit
     next_sandbox => cur_sandbox%next
-    call cur_sandbox%Setup(grid,option)
+    call cur_sandbox%Setup(grid,region_list,material_auxvars,option)
     ! destory if not on process
-    if (.not.Initialized(cur_sandbox%local_cell_id)) then
+    if (.not.associated(cur_sandbox%local_cell_ids)) then
       if (associated(prev_sandbox)) then
         prev_sandbox%next => next_sandbox
       else
@@ -243,7 +254,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type) :: material_auxvars(:)
   type(grid_type) :: grid
   type(option_type) :: option
 
@@ -251,9 +262,13 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   PetscReal :: res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: local_id, ghosted_id, istart, iend
+  PetscInt :: local_id, ghosted_id, istart, iend, icell
   PetscReal :: aux_real(0)
   PetscErrorCode :: ierr
+
+  option%io_buffer = 'SSSandbox() must be implemented separately for each &
+    &flow mode.'
+  call PrintErrMsg(option)
 
   if (.not.compute_derivative) then
     call VecGetArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
@@ -262,21 +277,23 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   cur_srcsink => ss_sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
-    local_id = cur_srcsink%local_cell_id
-    ghosted_id = grid%nL2G(local_id)
-    res = 0.d0
-    Jac = 0.d0
-    call cur_srcsink%Evaluate(res,Jac,compute_derivative, &
-                              material_auxvars(ghosted_id), &
-                              aux_real,option)
-    if (compute_derivative) then
-      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
-                                    Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
-    else
-      iend = local_id*option%nflowdof
-      istart = iend - option%nflowdof + 1
-      r_p(istart:iend) = r_p(istart:iend) + res
-    endif
+    do icell = 1, size(cur_srcsink%local_cell_ids)
+      local_id = cur_srcsink%local_cell_ids(icell)
+      ghosted_id = grid%nL2G(local_id)
+      res = 0.d0
+      Jac = 0.d0
+      call cur_srcsink%Evaluate(res,Jac,compute_derivative, &
+                                material_auxvars(ghosted_id), &
+                                aux_real,option)
+      if (compute_derivative) then
+        call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+                                      Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
+      else
+        iend = local_id*option%nflowdof
+        istart = iend - option%nflowdof + 1
+        r_p(istart:iend) = r_p(istart:iend) + res
+      endif
+    enddo
     cur_srcsink => cur_srcsink%next
   enddo
 
@@ -371,6 +388,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: icolumn
   PetscInt :: local_id, ghosted_id
+  PetscInt :: icell
 
   filename = SSSandboxOutputFilename(option)
   open(unit=IUNIT_TEMP,file=filename,action="write",status="replace")
@@ -387,57 +405,59 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
   cur_srcsink => sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
-    local_id = cur_srcsink%local_cell_id
-    ghosted_id = grid%nL2G(local_id)
+    do icell = 1, size(cur_srcsink%local_cell_ids)
+      local_id = cur_srcsink%local_cell_ids(icell)
+      ghosted_id = grid%nL2G(local_id)
 
-    ! cell natural id
-    write(cell_string,*) grid%nG2A(ghosted_id)
-    cell_string = ' (' // trim(adjustl(cell_string)) // ')'
-    ! coordinate of cell
-    x_string = BestFloat(grid%x(ghosted_id),1.d4,1.d-2)
-    y_string = BestFloat(grid%y(ghosted_id),1.d4,1.d-2)
-    z_string = BestFloat(grid%z(ghosted_id),1.d4,1.d-2)
-    cell_string = trim(cell_string) // &
-             ' (' // trim(adjustl(x_string)) // &
-             ' ' // trim(adjustl(y_string)) // &
-             ' ' // trim(adjustl(z_string)) // ')'
-    select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE,H_MODE,WF_MODE)
-        variable_string = ' Water'
-        ! cumulative
-        units_string = 'kg'
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-        ! instantaneous
-        units_string = 'kg/' // trim(adjustl(output_option%tunit))
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-    end select
-    select case(option%iflowmode)
-      case(G_MODE,H_MODE,WF_MODE)
-        variable_string = ' Gas Component'
-        ! cumulative
-        units_string = 'kg'
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-        ! instantaneous
-        units_string = 'kg/' // trim(adjustl(output_option%tunit))
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-        variable_string = ' Energy'
-        ! cumulative
-        units_string = 'MJ'
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-        ! instantaneous
-        units_string = 'MJ/' // trim(adjustl(output_option%tunit))
-        call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
-                                 cell_string,icolumn)
-      case default
-        option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
-          ' not supported in SSSandboxOutputHeader()'
-        call PrintErrMsg(option)
-    end select
+      ! cell natural id
+      write(cell_string,*) grid%nG2A(ghosted_id)
+      cell_string = ' (' // trim(adjustl(cell_string)) // ')'
+      ! coordinate of cell
+      x_string = BestFloat(grid%x(ghosted_id),1.d4,1.d-2)
+      y_string = BestFloat(grid%y(ghosted_id),1.d4,1.d-2)
+      z_string = BestFloat(grid%z(ghosted_id),1.d4,1.d-2)
+      cell_string = trim(cell_string) // &
+              ' (' // trim(adjustl(x_string)) // &
+              ' ' // trim(adjustl(y_string)) // &
+              ' ' // trim(adjustl(z_string)) // ')'
+      select case(option%iflowmode)
+        case(RICHARDS_MODE,G_MODE,H_MODE,WF_MODE)
+          variable_string = ' Water'
+          ! cumulative
+          units_string = 'kg'
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+          ! instantaneous
+          units_string = 'kg/' // trim(adjustl(output_option%tunit))
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+      end select
+      select case(option%iflowmode)
+        case(G_MODE,H_MODE,WF_MODE)
+          variable_string = ' Gas Component'
+          ! cumulative
+          units_string = 'kg'
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+          ! instantaneous
+          units_string = 'kg/' // trim(adjustl(output_option%tunit))
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+          variable_string = ' Energy'
+          ! cumulative
+          units_string = 'MJ'
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+          ! instantaneous
+          units_string = 'MJ/' // trim(adjustl(output_option%tunit))
+          call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
+                                  cell_string,icolumn)
+        case default
+          option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
+            ' not supported in SSSandboxOutputHeader()'
+          call PrintErrMsg(option)
+      end select
+    enddo
     cur_srcsink => cur_srcsink%next
   enddo
 

@@ -1,0 +1,150 @@
+#Description: Batch aerobic respiration with inhibition
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+REFERENCE_LIQUID_DENSITY 1000.d0
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    O2(aq)
+    CH2O(aq)
+    CO2(aq)
+  /
+  IMMOBILE_SPECIES
+    Biomass
+  /
+  MICROBIAL_REACTION
+    REACTION O2(aq) + CH2O(aq) <-> CO2(aq) + H2O
+    RATE_CONSTANT 4.d-2
+    MONOD
+      SPECIES_NAME O2(aq)
+      HALF_SATURATION_CONSTANT 2.d-4
+    /
+    MONOD
+      SPECIES_NAME CH2O(aq)
+      HALF_SATURATION_CONSTANT 1.25d-5
+    /
+    INHIBITION
+      SPECIES_NAME O2(aq)
+      TYPE SMOOTHSTEP
+      SMOOTHSTEP_INTERVAL 1.d-3
+      INHIBIT_BELOW_THRESHOLD
+      THRESHOLD_CONCENTRATION 2.5d-4
+    /
+    BIOMASS
+      SPECIES_NAME Biomass
+      YIELD 1.d-4
+    /
+  /
+  IMMOBILE_DECAY_REACTION
+    SPECIES_NAME Biomass
+    RATE_CONSTANT 1.d-6
+  /
+  DATABASE ./aerobic_respiration.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    FREE_ION
+    ALL
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.d0
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION middle
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION middle
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  TIME_UNITS d
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 w
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 h
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS # [mol/L]
+    O2(aq)    1.5d-3   F
+    CH2O(aq)  2.d-3    F
+    CO2(aq)   1.d-10   F
+  /
+  IMMOBILE    # [mol/m^3 bulk]
+    Biomass   1.d-4
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

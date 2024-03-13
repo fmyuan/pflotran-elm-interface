@@ -41,10 +41,12 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
+  use PM_SCO2_class
   use Richards_module
   use TH_module
   use General_module
   use Hydrate_module
+  use SCO2_module
   use WIPP_Flow_module
   use ZFlow_module
   use PNF_module
@@ -70,7 +72,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE, &
+           SCO2_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -104,6 +107,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       class is(pm_hydrate_type)
         call HydrateSetup(realization)
         call PMHydrateAssignParameters(realization,pm)
+      class is (pm_sco2_type)
+        call SCO2Setup(realization)
       class default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
@@ -142,6 +147,9 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call HydrateUpdateAuxVars(realization,PETSC_FALSE)
       case(WF_MODE)
         call WIPPFloUpdateAuxVars(realization)
+      case(SCO2_MODE)
+        ! Update BC's
+        call SCO2UpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call PrintErrMsg(option)
@@ -191,12 +199,12 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: cur_patch
 
   option => realization%option
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
+  grid => patch%grid
 
   if (option%iflowmode /= RICHARDS_MODE .and. &
       option%iflowmode /= RICHARDS_TS_MODE) then
@@ -206,38 +214,29 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
                        trim(option%flowmode)
   endif
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
+    ! assign initial conditions values to domain
+  call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-    grid => cur_patch%grid
-
-      ! assign initial conditions values to domain
-    call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    ! Pressure for all modes
-    offset = 1
-    group_name = ''
-    dataset_name = 'Pressure'
-    call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                      filename,group_name, &
-                                      dataset_name,option%id>0)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-    do local_id=1, grid%nlmax
-      if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-      if (dabs(vec_p(local_id)) < 1.d-40) then
-        print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
-              ': Potential error - zero pressure in Initial Condition read from file.'
-      endif
-      idx = (local_id-1)*option%nflowdof + offset
-      xx_p(idx) = vec_p(local_id)
-    enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-
-    call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
+  ! Pressure for all modes
+  offset = 1
+  group_name = ''
+  dataset_name = 'Pressure'
+  call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                    filename,group_name, &
+                                    dataset_name,option%id>0)
+  call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+  do local_id=1, grid%nlmax
+    if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
+    if (dabs(vec_p(local_id)) < 1.d-40) then
+      print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
+            ': Potential error - zero pressure in Initial Condition read from file.'
+    endif
+    idx = (local_id-1)*option%nflowdof + offset
+    xx_p(idx) = vec_p(local_id)
   enddo
+  call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+
+  call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &

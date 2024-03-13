@@ -218,6 +218,12 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   PetscErrorCode :: ierr
   PetscInt, allocatable :: int_array(:), int_array2(:)
 
+#if GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: ndof_word, string
+  PetscViewer :: viewer
+#endif
+
+
   gmdm => GMDMCreate()
   gmdm%ndof = ndof
 
@@ -602,6 +608,11 @@ subroutine GMGridDMCreateMatrix(geomech_grid,gmdm,mat_type,J,option)
   PetscInt, allocatable :: d_nnz(:), o_nnz(:)
   PetscInt :: ndof_local
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  PetscInt :: local_id1
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
 
   allocate(d_nnz(geomech_grid%nlmax_node))
   allocate(o_nnz(geomech_grid%nlmax_node))

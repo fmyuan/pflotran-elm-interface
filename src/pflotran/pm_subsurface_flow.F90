@@ -29,10 +29,12 @@ module PM_Subsurface_Flow_class
     PetscReal :: max_temperature_change
     PetscReal :: max_saturation_change
     PetscReal :: max_xmol_change
+    PetscReal :: max_salt_mass_change
     PetscReal :: pressure_change_governor
     PetscReal :: temperature_change_governor
     PetscReal :: saturation_change_governor
     PetscReal :: xmol_change_governor
+    PetscReal :: salt_mass_change_governor
     PetscReal :: cfl_governor
     ! these limit (truncate) the maximum change in a Newton iteration
     ! truncation occurs within PMXXXCheckUpdatePre
@@ -101,6 +103,8 @@ subroutine PMSubsurfaceFlowInit(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
+  use SrcSink_Sandbox_module
+
   implicit none
 
   class(pm_subsurface_flow_type) :: this
@@ -119,16 +123,20 @@ subroutine PMSubsurfaceFlowInit(this)
   this%max_temperature_change = 0.d0
   this%max_saturation_change = 0.d0
   this%max_xmol_change = 0.d0
+  this%max_salt_mass_change = 0.d0
   this%pressure_change_governor = 5.d5
   this%temperature_change_governor = 5.d0
   this%saturation_change_governor = 0.5d0
   this%xmol_change_governor = 1.d0
+  this%salt_mass_change_governor = 1.d1
   this%cfl_governor = UNINITIALIZED_DOUBLE
   this%pressure_dampening_factor = UNINITIALIZED_DOUBLE
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
   this%logging_verbosity = 0
+
+  call SSSandboxInit()
 
 end subroutine PMSubsurfaceFlowInit
 
@@ -235,6 +243,10 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%saturation_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
+    case('SALT_MASS_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%salt_mass_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -305,6 +317,9 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
 
+    case('USE_EUCLIDEAN_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_FALSE
+
     case default
       found = PETSC_FALSE
   end select
@@ -344,6 +359,20 @@ subroutine PMSubsurfaceFlowSetup(this)
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
+    if (this%realization%reaction%update_tortuosity .and. &
+        this%option%transport%anisotropic_tortuosity) then
+      this%option%io_buffer = 'Updating of tortuosity is not currently &
+                              &supported for anisotropic tortuosity.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+  if (this%option%transport%anisotropic_tortuosity) then
+    select case(this%option%iflowmode)
+      case(G_MODE,H_MODE,MPH_MODE)
+        this%option%io_buffer = 'Anisotropic tortuosity not supported in &
+          &the miscible multiphase flow process models.'
+        call PrintErrMsg(this%option)
+    end select
   endif
   if (this%option%flow%transient_porosity) then
     this%store_porosity_for_ts_cut = PETSC_TRUE
@@ -676,6 +705,11 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   implicit none
 
   class(pm_subsurface_flow_type) :: this
+
+#ifdef GEOMECH_DEBUG
+  PetscErrorCode :: ierr
+  PetscViewer :: viewer
+#endif
 
   if (this%option%flow%store_state_variables_in_global) then
     ! store initial saturations for transport

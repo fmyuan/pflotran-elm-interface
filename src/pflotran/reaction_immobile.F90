@@ -11,16 +11,16 @@ module Reaction_Immobile_module
 
   private
 
-  public :: ImmobileRead, &
-            ImmobileDecayRxnRead, &
-            ImmobileProcessConstraint, &
-            RImmobileDecay
+  public :: ReactionImRead, &
+            ReactionImDecayRxnRead, &
+            ReactionImProcessConstraint, &
+            ReactionImDecay
 
 contains
 
 ! ************************************************************************** !
 
-subroutine ImmobileRead(immobile,input,option)
+subroutine ReactionImRead(immobile,input,option)
   !
   ! Reads immobile species
   !
@@ -58,9 +58,9 @@ subroutine ImmobileRead(immobile,input,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    ! this count is required for comparisons prior to BasisInit()
+    ! this count is required for comparisons prior to ReactionDBInitBasis()
     immobile%nimmobile = immobile%nimmobile + 1
-    new_immobile_species => ImmobileSpeciesCreate()
+    new_immobile_species => ReactionImSpeciesCreate()
     call InputReadCard(input,option,new_immobile_species%name)
     call InputErrorMsg(input,option,'keyword', &
                         'CHEMISTRY,IMMOBILE_SPECIES')
@@ -76,11 +76,11 @@ subroutine ImmobileRead(immobile,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine ImmobileRead
+end subroutine ReactionImRead
 
 ! ************************************************************************** !
 
-subroutine ImmobileDecayRxnRead(immobile,input,option)
+subroutine ReactionImDecayRxnRead(immobile,input,option)
   !
   ! Reads chemical species
   !
@@ -108,7 +108,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
 
   immobile%ndecay_rxn = immobile%ndecay_rxn + 1
 
-  immobile_decay_rxn => ImmobileDecayRxnCreate()
+  immobile_decay_rxn => ReactionImDecayRxnCreate()
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -169,12 +169,12 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   endif
   nullify(immobile_decay_rxn)
 
-end subroutine ImmobileDecayRxnRead
+end subroutine ReactionImDecayRxnRead
 
 ! ************************************************************************** !
 
-subroutine ImmobileProcessConstraint(immobile,constraint_name, &
-                                    constraint,option)
+subroutine ReactionImProcessConstraint(immobile,constraint_name, &
+                                       constraint,option)
   !
   ! Initializes constraints based on immobile
   ! species in system
@@ -237,13 +237,13 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
   constraint%constraint_aux_string = constraint_aux_string
   constraint%external_dataset = external_dataset
 
-end subroutine ImmobileProcessConstraint
+end subroutine ReactionImProcessConstraint
 
 ! ************************************************************************** !
 
-subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
-                          global_auxvar,material_auxvar,reaction, &
-                          option)
+subroutine ReactionImDecay(Res,Jac,compute_derivative,rt_auxvar, &
+                           global_auxvar,material_auxvar,reaction, &
+                           option)
   !
   ! Computes decay of biomass species
   !
@@ -291,6 +291,6 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
 
   enddo  ! loop over reactions
 
-end subroutine RImmobileDecay
+end subroutine ReactionImDecay
 
 end module Reaction_Immobile_module

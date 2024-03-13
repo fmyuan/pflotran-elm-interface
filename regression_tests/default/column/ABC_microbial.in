@@ -73,10 +73,10 @@ CHEMISTRY
     INHIBITION
       SPECIES_NAME C(aq)
       TYPE MONOD
-      INHIBITION_CONSTANT 6.d-4   ! C is the product and inhibits when too high
+      INHIBIT_ABOVE_THRESHOLD
+      THRESHOLD_CONCENTRATION 6.d-4
     /
   /
-  DATABASE ../../../database/hanford.dat
 #  LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

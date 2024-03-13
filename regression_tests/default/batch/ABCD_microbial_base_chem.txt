@@ -1,0 +1,19 @@
+  PRIMARY_SPECIES
+    A(aq)
+    B(aq)
+    C(aq)
+  /
+  IMMOBILE_SPECIES
+    D(im)
+  /
+  IMMOBILE_DECAY_REACTION
+    SPECIES_NAME D(im)
+    RATE_CONSTANT 1.d-9
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    ALL
+    TOTAL
+  /

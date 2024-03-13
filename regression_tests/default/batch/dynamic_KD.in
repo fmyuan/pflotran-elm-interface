@@ -44,7 +44,6 @@ CHEMISTRY
       /
     /
   /
-  DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
   MOLAL

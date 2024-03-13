@@ -26,7 +26,7 @@ module Realization_Subsurface_class
 
   implicit none
 
-private
+  private
 
   type, public, extends(realization_base_type) :: realization_subsurface_type
 
@@ -71,11 +71,7 @@ private
             RealizUpdateUniformVelocity, &
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
-!            RealizationGetVariable, &
-!            RealizGetVariableValueAtCell, &
-!            RealizationSetVariable, &
             RealizationPrintCouplers, &
-            RealizationInitConstraints, &
             RealProcessMatPropAndSatFunc, &
             RealProcessFluidProperties, &
             RealizationUpdatePropertiesTS, &
@@ -92,11 +88,8 @@ private
             RealizationLimitDTByCFL, &
             RealizationReadGeopSurveyFile, &
             RealizationCheckConsistency, &
-            RealizationPrintStateAtCells
-
-  !TODO(intel)
-  ! public from Realization_Base_class
-  !public :: RealizationGetVariable
+            RealizationPrintStateAtCells, &
+            RealizationProcessOutputVarList
 
 contains
 
@@ -401,6 +394,7 @@ subroutine RealizationCreateDiscretization(realization)
       call GridComputeVolumes(grid,field%volume0,option)
   end select
   call GridPrintExtents(grid,option)
+  call GridPrintSize(grid,option)
 
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
@@ -696,7 +690,8 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
     ! use default tcc curve for legacy thermal conductivity input by material
     do i = 1, num_mat_prop
-      if (.not. option%iflowmode == G_MODE) then
+      if (.not. option%iflowmode == G_MODE .and. &
+          .not. option%iflowmode == SCO2_MODE) then
         ! some modes outside of general will only use one thermal conductivity
         ! if that is the case, use default values as fallback options
         if (patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
@@ -866,6 +861,24 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%electrical_conductivity_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for electrical &
+                             &conductivity.'
+          call PrintErrMsg(option)
+      end select
+    endif
+    if (associated(cur_material_property%surf_elec_cond_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),SURFACE_ELECTRICAL_CONDUCTIVITY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                surf_elec_cond_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%surf_elec_cond_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%surf_elec_cond_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for surface electrical &
                              &conductivity.'
           call PrintErrMsg(option)
       end select
@@ -1320,32 +1333,6 @@ end subroutine RealProcessTranConditions
 
 ! ************************************************************************** !
 
-subroutine RealizationInitConstraints(realization)
-  !
-  ! Initializes constraint concentrations
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/04/08
-  !
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(patch_type), pointer :: cur_patch
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    call PatchInitConstraints(cur_patch,realization%reaction_base, &
-                              realization%option)
-    cur_patch => cur_patch%next
-  enddo
-
-end subroutine RealizationInitConstraints
-
-! ************************************************************************** !
-
 subroutine RealizationPrintCouplers(realization)
   !
   ! Print boundary and initial condition data
@@ -1361,42 +1348,36 @@ subroutine RealizationPrintCouplers(realization)
 
   class(realization_subsurface_type) :: realization
 
-  type(patch_type), pointer :: cur_patch
+  type(patch_type), pointer :: patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
   class(reaction_rt_type), pointer :: reaction
 
   option => realization%option
   reaction => realization%reaction
+  patch => realization%patch
 
   if (.not.OptionPrintToFile(option)) return
 
-  cur_patch => realization%patch_list%first
+  cur_coupler => patch%initial_condition_list%first
   do
-    if (.not.associated(cur_patch)) exit
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
 
-    cur_coupler => cur_patch%initial_condition_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
+  cur_coupler => patch%boundary_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
 
-    cur_coupler => cur_patch%boundary_condition_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
-
-    cur_coupler => cur_patch%source_sink_list%first
-    do
-      if (.not.associated(cur_coupler)) exit
-      call RealizationPrintCoupler(cur_coupler,reaction,option)
-      cur_coupler => cur_coupler%next
-    enddo
-
-    cur_patch => cur_patch%next
+  cur_coupler => patch%source_sink_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
   enddo
 
 end subroutine RealizationPrintCouplers
@@ -2076,9 +2057,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         if (associated(porosity0_p)) then
           temp_porosity = porosity0_p(local_id)
         endif
-        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
-                                          material_auxvars(ghosted_id), &
-                                          temp_porosity,option)
+        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                            material_auxvars(ghosted_id), &
+                                            temp_porosity,option)
       enddo
     enddo
 
@@ -2975,6 +2956,131 @@ contains
   end function IntegersDiffer
 
 end subroutine RealizationCheckConsistency
+
+! ************************************************************************** !
+
+subroutine RealizationProcessOutputVarList(output_variable_list,realization)
+  !
+  ! Checks to ensure that output variables exist, maps PARAMETER output
+  ! variables with named parameters to the actual parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  use Material_Aux_module, only : soil_compressibility_index, &
+                                  soil_reference_pressure_index, &
+                                  electrical_conductivity_index, &
+                                  archie_cementation_exp_index, &
+                                  archie_saturation_exp_index, &
+                                  archie_tortuosity_index, &
+                                  surf_elec_conduct_index, &
+                                  ws_clay_conduct_index
+  use Option_module
+  use Output_Aux_module
+  use Parameter_module
+  use String_module
+  use Variables_module
+
+  implicit none
+
+  type(output_variable_list_type), pointer :: output_variable_list
+  class(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(parameter_type), pointer :: cur_parameter
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(output_variable_type), pointer :: cur_variable
+  PetscBool :: error_flag
+  PetscInt :: error_count
+
+  if (.not.associated(output_variable_list)) return
+
+  option => realization%option
+
+  cur_variable => output_variable_list%first
+  error_count =  0
+  do
+    if (.not.associated(cur_variable)) exit
+    error_flag = PETSC_FALSE
+    error_string = ''
+    select case(cur_variable%ivar)
+      case(SOIL_COMPRESSIBILITY)
+        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
+      case(SOIL_REFERENCE_PRESSURE)
+        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+      case(ELECTRICAL_CONDUCTIVITY)
+        if (electrical_conductivity_index == 0 .and. &
+            (option%iflowmode == NULL_MODE .and. &
+             option%itranmode == NULL_MODE)) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY &
+            &(for ERT alone)'
+        endif
+      case(ARCHIE_CEMENTATION_EXPONENT)
+        if (archie_cementation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_SATURATION_EXPONENT)
+        if (archie_saturation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_TORTUOSITY_CONSTANT)
+        if (archie_tortuosity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+        if (surf_elec_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+        if (ws_clay_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      ! ADD_SOIL_PROPERTY_INDEX_HERE
+      case(NAMED_PARAMETER)
+        cur_parameter => realization%parameter_list
+        do
+          if (.not.associated(cur_parameter)) exit
+          if (Stringcompare(cur_parameter%name,cur_variable%subname)) then
+            cur_variable%isubvar = cur_parameter%id
+            exit
+          endif
+          cur_parameter => cur_parameter%next
+        enddo
+        if (Uninitialized(cur_variable%isubvar)) then
+          error_flag = PETSC_TRUE
+          error_string = '- does not match a PARAMETER name'
+        endif
+    end select
+    if (error_flag) then
+      error_count = error_count + 1
+      if (error_count == 1) then
+        if (OptionPrintToScreen(option)) then
+          print *
+          print *, 'The following OUTPUT VARIABLES are undefined in this &
+            &simulation:'
+          print *
+        endif
+      endif
+      if (OptionPrintToScreen(option)) then
+        print *, '  ' // OutputVariableGetName(cur_variable) // &
+                 trim(error_string)
+      endif
+    endif
+    cur_variable => cur_variable%next
+  enddo
+  if (error_count > 0) then
+    option%io_buffer = 'Simulation was stopped due to undefined output &
+                       &variables.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RealizationProcessOutputVarList
 
 ! ************************************************************************** !
 

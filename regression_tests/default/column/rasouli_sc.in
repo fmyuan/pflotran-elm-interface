@@ -37,7 +37,6 @@ CHEMISTRY
         OH- 5.27d-9
     END
 
-
     ACTIVITY_COEFFICIENTS TIMESTEP
     DATABASE ../../../database/rasouli.dat
     LOG_FORMULATION
@@ -117,11 +116,6 @@ MATERIAL_PROPERTY sourceMaterial
     LONGITUDINAL_DISPERSIVITY 0d0
     CHARACTERISTIC_CURVES default
 /
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
-END
 
 #=========================== output options ===================================
 OUTPUT

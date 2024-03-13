@@ -45,6 +45,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   use Option_module
   use Gauss_module
   use Geometry_module
+  use String_module
 
   implicit none
 
@@ -83,9 +84,12 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   type(point3d_type), pointer :: vertices(:)
   PetscInt, allocatable :: vertex_count_array(:)
   PetscInt, allocatable :: vertex_count_array2(:)
+  PetscBool :: lflag
 
 
 #ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
   call PrintMsg(option,'Copying unstructured grid to geomechanics grid')
 #endif
 
@@ -327,15 +331,21 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
                      option%comm%size,MPIU_INTEGER,MPI_SUM, &
                      option%mycomm,ierr);CHKERRQ(ierr)
 
-  do int_rank = 0, option%comm%size
-    if (option%myrank == int_rank) geomech_grid%nlmax_node = &
-      vertex_count_array2(int_rank+1)
-    if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
-      option%io_buffer = 'Error: nlmax_node cannot be greater than' // &
-                         ' ngmax_node.'
-      call PrintErrMsg(option)
-    endif
-  enddo
+  lflag = PETSC_FALSE
+  geomech_grid%nlmax_node = vertex_count_array2(option%myrank+1)
+  if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
+    option%io_buffer = 'Error: nlmax_node (' // &
+      StringWrite(geomech_grid%nlmax_node) // ') cannot be greater than &
+      &ngmax_node (' // StringWrite(geomech_grid%ngmax_node) // ').'
+    call PrintMsgByRank(option)
+    lflag = PETSC_TRUE
+  endif
+  call MPI_Allreduce(MPI_IN_PLACE,lflag,ONE_INTEGER_MPI, &
+                     MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
+  if (lflag) then
+    option%io_buffer = 'See errors above.'
+    call PrintErrMsg(option)
+  endif 
 
 
   if (allocated(vertex_count_array)) deallocate(vertex_count_array)
@@ -488,7 +498,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
   if (vertex_count /= geomech_grid%ngmax_node - geomech_grid%nlmax_node) then
     option%io_buffer = 'Error in number of ghost nodes!'
-    call PrintErrMsg(option)
+    call PrintErrMsgByRank(option)
   endif
 
 #ifdef GEOMECH_DEBUG
@@ -671,14 +681,16 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   allocate(geomech_grid%gauss_node(geomech_grid%nlmax_elem))
   do local_id = 1, geomech_grid%nlmax_elem
     call GaussInitialize(geomech_grid%gauss_node(local_id))
-    geomech_grid%gauss_node(local_id)%Eletype = &
+    geomech_grid%gauss_node(local_id)%element_type = &
       geomech_grid%Elem_type(local_id)
     ! Set to 3D although we have gauss point calculations for 2D
     geomech_grid%gauss_node(local_id)%dim = THREE_DIM_GRID
     ! Three gauss points in each direction
-    geomech_grid%gauss_node(local_id)%NGPTS = THREE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%Eletype == PYR_TYPE) &
-      geomech_grid%gauss_node(local_id)%NGPTS = FIVE_INTEGER
+    geomech_grid%gauss_node(local_id)%num_gauss_pts = THREE_INTEGER
+    if (geomech_grid%gauss_node(local_id)%element_type == PYR_TYPE) &
+      geomech_grid%gauss_node(local_id)%num_gauss_pts = FIVE_INTEGER
+    if (geomech_grid%gauss_node(local_id)%element_type == TET_TYPE) &
+      geomech_grid%gauss_node(local_id)%num_gauss_pts = FOUR_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 
@@ -814,6 +826,11 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   PetscInt, pointer :: tmp_int_array(:)
   PetscScalar, pointer :: v_loc_p(:)
   PetscScalar, pointer :: tmp_scl_array(:)
+
+#ifdef GEOMECH_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string, string1
+  PetscViewer :: viewer
+#endif
 
   if (associated(geomech_region%vertex_ids)) then
     call VecCreateMPI(option%mycomm,geomech_grid%nlmax_node,PETSC_DECIDE, &
@@ -1107,6 +1124,12 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
   PetscInt :: iend
   PetscInt :: remainder
   PetscErrorCode :: ierr
+
+#ifdef GEOMECH_DEBUG
+  PetscInt :: ii
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it

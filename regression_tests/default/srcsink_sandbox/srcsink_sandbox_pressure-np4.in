@@ -1,0 +1,88 @@
+#Description: 1D vertical injection scenario
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE srcsink_sandbox_pressure.txt
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+  CELL_IDS
+    13
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
+#=========================== times ============================================
+TIME
+#  FINAL_TIME 3.d0 y
+  FINAL_TIME 1.d-5 y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 1.d0 5.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 5.d0
+  /
+END
+
+REGION injection_cell
+  BLOCK 3 3 1 1 2 4
+END
+
+REGION source
+  LIST
+    8
+    13
+    18
+    23
+  /
+END
+
+#=========================== src/sink sandbox =================================
+SOURCE_SINK_SANDBOX
+  PRESSURE
+    REGION source
+    PHASE LIQUID
+    INHIBIT_FLOW_ABOVE_PRESSURE
+    PRESSURE 1.1d6
+    SCALE_MAXIMUM_MASS_RATE
+    MAXIMUM_MASS_RATE 4.d-4 kg/s
+  /
+END
+
+#=========================== condition couplers ===============================
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
+END_SUBSURFACE

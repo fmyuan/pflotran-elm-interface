@@ -39,6 +39,7 @@ CHEMISTRY
     Tracer3
   /
   OUTPUT
+    ALL
     TOTAL
   /
 END
@@ -168,7 +169,7 @@ FLOW_CONDITION well
   TYPE
     RATE volumetric_rate
   /
-  RATE 0.1 l/min
+  RATE 0.1 L/min
 END
 
 #=========================== transport conditions =============================

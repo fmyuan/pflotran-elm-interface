@@ -46,6 +46,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: SetAlpha_ => SFVGSetAlpha
     procedure, public :: SetM_ => SFVGSetM
   end type sat_func_VG_type
+
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_BC_type
     PetscReal :: alpha
@@ -58,6 +59,18 @@ module Characteristic_Curves_Common_module
     procedure, public :: Saturation => SFBCSaturation
     procedure, public :: D2SatDP2 => SFBCD2SatDP2
   end type sat_func_BC_type
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_BC_SPE11_type
+    PetscReal :: alpha
+    PetscReal :: lambda
+  contains
+    procedure, public :: Init => SFBCSPE11Init
+    procedure, public :: Verify => SFBCSPE11Verify
+    procedure, public :: SetupPolynomials => SFBCSPE11SetupPolynomials
+    procedure, public :: CapillaryPressure => SFBCSPE11CapillaryPressure
+    procedure, public :: Saturation => SFBCSPE11Saturation
+    procedure, public :: GetAlpha_ => SFBCSPE11GetAlpha
+  end type sat_func_BC_SPE11_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Linear_type
     PetscReal :: alpha
@@ -98,6 +111,17 @@ module Characteristic_Curves_Common_module
     procedure, public :: CapillaryPressure => SFExpFreezingCapillaryPressure
     procedure, public :: Saturation => SFExpFreezingSaturation
   end type sat_func_Exp_Freezing_type
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_VG_STOMP_type
+    PetscReal :: alpha 
+    PetscReal :: n
+  contains
+    procedure, public :: Init => SFVGSTOMPInit
+    procedure, public :: Verify => SFVGSTOMPVerify
+    procedure, public :: GetAlpha_ => SFVGSTOMPGetAlpha
+    procedure, public :: CapillaryPressure => SFVGSTOMPCapillaryPressure
+    procedure, public :: Saturation => SFVGSTOMPSaturation
+  end type sat_func_VG_STOMP_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Table_type
     class(dataset_ascii_type), pointer :: pc_dataset
@@ -302,16 +326,26 @@ module Characteristic_Curves_Common_module
                                   RPFTableGasRelPerm
   end type rpf_Table_gas_type
 
+  type, public, extends(rel_perm_func_base_type) :: rpf_Modified_Corey_gas_type
+    PetscReal :: a
+    contains
+    procedure, public :: Init => RPFModifiedCoreyGasInit
+    procedure, public :: Verify => RPFModifiedCoreyGasVerify
+    procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
+    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
+  end type rpf_Modified_Corey_gas_type
 
   public :: &! standard char. curves:
             SFDefaultCreate, &
             SFConstantCreate, &
             SFVGCreate, &
             SFBCCreate, &
+            SFBCSPE11Create, &
             SFLinearCreate, &
             SFmKCreate, &
             SFIGHCC2Create, &
             SFExpFreezingCreate, &
+            SFVGSTOMPCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
             RPFDefaultCreate, &
@@ -336,7 +370,8 @@ module Characteristic_Curves_Common_module
             RPFModBrooksCoreyLiqCreate, &
             RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
-            RPFTableGasCreate
+            RPFTableGasCreate, &
+            RPFModifiedCoreyGasCreate
 
 contains
 
@@ -554,7 +589,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,MPH_MODE,H_MODE)
+    case(WF_MODE,G_MODE,MPH_MODE,H_MODE,SCO2_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
@@ -1354,6 +1389,156 @@ end subroutine SFExpFreezingSaturation
 ! ************************************************************************** !
 ! ************************************************************************** !
 
+function SFVGSTOMPCreate()
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type), pointer :: SFVGSTOMPCreate
+
+  allocate(SFVGSTOMPCreate)
+  call SFVGSTOMPCreate%Init()
+
+end function SFVGSTOMPCreate
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPInit(this)
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+end subroutine SFVGSTOMPInit
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,VG_STOMP'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%n)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFVGSTOMPVerify
+
+! ************************************************************************** !
+
+function SFVGSTOMPGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+
+  PetscReal :: SFVGSTOMPGetAlpha
+
+  SFVGSTOMPGetAlpha = this%alpha
+
+end function SFVGSTOMPGetAlpha
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
+                                      capillary_pressure,dpc_dsatl,option)
+  !
+  ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
+  ! Currently does nothing.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: esl, m, n
+
+  esl = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+
+  if (liquid_saturation > this%Sr) then
+    capillary_pressure = ((1.d0 / esl)**(1.d0/m)-1.d0)**(1.d0/n) / &
+                          this%alpha
+  else
+    capillary_pressure = this%pcmax
+  endif
+
+end subroutine SFVGSTOMPCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
+                               liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes saturation as a function of capillary head:
+  ! sigma * Pc / (rho_l * g)
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/2024
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_VG_STOMP_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: m,n
+  PetscReal :: asl
+
+  dsat_dpres = 0.d0
+
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+  ! m = this%m
+  ! n = - 1.d0 / (m - 1.d0)
+
+  asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
+  liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
+
+end subroutine SFVGSTOMPSaturation
+
+! ************************************************************************** !
+! ************************************************************************** !
+
 function SFTableCreate()
 
   ! Creates the Lookup Table capillary pressure function object
@@ -1874,6 +2059,285 @@ subroutine SFBCD2SatDP2(this,pc,d2s_dp2,option)
   d2s_dp2 = (1.d0-this%Sr)*d2Se_dpc2*dpc_dpres*dpc_dpres
 
 end subroutine SFBCD2SatDP2
+
+!  ************************************************************************** !
+
+function SFBCSPE11Create()
+
+  ! Creates the Brooks Corey capillary pressure function object
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type), pointer :: SFBCSPE11Create
+
+  allocate(SFBCSPE11Create)
+  call SFBCSPE11Create%Init()
+
+end function SFBCSPE11Create
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Init(this)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%lambda = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_FALSE
+
+end subroutine SFBCSPE11Init
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,BROOKS_COREY_SPE11'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%pcmax)) then
+    option%io_buffer = UninitializedMessage('MAX_CAPILLARY_PRESSURE',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFBCSPE11Verify
+
+! ************************************************************************** !
+
+function SFBCSPE11GetAlpha(this)
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+
+  PetscReal :: SFBCSPE11GetAlpha
+
+  SFBCSPE11GetAlpha = this%alpha
+
+end function SFBCSPE11GetAlpha
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Brooks-Corey saturation function
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  PetscReal :: b(4)
+
+  ! polynomial fitting pc as a function of saturation
+  ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
+  this%sat_poly => PolynomialCreate()
+  this%sat_poly%low = 1.05d0**(-this%lambda)
+  this%sat_poly%high = 1.d0
+
+  b = 0.d0
+  ! fill right hand side
+  ! capillary pressure at 1
+  b(1) = 1.05d0/this%alpha
+  ! capillary pressure at 2
+  b(2) = 0.d0
+  ! derivative of pressure at saturation_1
+  ! pc = Se**(-1/lambda)/alpha
+  ! dpc_dSe = -1/lambda*Se**(-1/lambda-1)/alpha
+  b(3) = -1.d0/this%lambda* &
+          this%sat_poly%low**(-1.d0/this%lambda-1.d0)/ &
+          this%alpha
+
+  call QuadraticPolynomialSetup(this%sat_poly%low,this%sat_poly%high,b(1:3), &
+                                ! indicates derivative given at 1
+                                PETSC_TRUE)
+
+  this%sat_poly%coefficients(1:3) = b(1:3)
+
+  ! polynomial fitting saturation as a function of pc
+  !geh: cannot invert the pressure/saturation relationship above
+  !     since it can result in saturations > 1 with both
+  !     quadratic and cubic polynomials
+  ! fill matix with values
+  this%pres_poly => PolynomialCreate()
+  this%pres_poly%low = 0.95/this%alpha
+  this%pres_poly%high = 1.05/this%alpha
+
+  b = 0.d0
+  ! Se at 1
+  b(1) = 1.d0
+  ! Se at 2
+  b(2) = (this%pres_poly%high*this%alpha)** &
+          (-this%lambda)
+  ! derivative of Se at 1
+  b(3) = 0.d0
+  ! derivative of Se at 2
+  b(4) = -this%lambda/this%pres_poly%high* &
+            (this%pres_poly%high*this%alpha)** &
+              (-this%lambda)
+
+  call CubicPolynomialSetup(this%pres_poly%low,this%pres_poly%high,b)
+
+  this%pres_poly%coefficients(1:4) = b(1:4)
+
+
+end subroutine SFBCSPE11SetupPolynomials
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11CapillaryPressure(this,liquid_saturation, &
+                                   capillary_pressure,dpc_dsatl,option)
+  !
+  ! Computes the capillary_pressure as a function of saturation using the
+  ! Brooks-Corey formulation, and then wraps it in an error function following
+  ! the SPE 11th Comparative Solution Project description.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/27/24
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: dSe_dsatl
+  PetscReal :: dpc_dSe
+  PetscReal :: neg_one_over_lambda
+
+  dpc_dsatl = 0.d0
+
+  dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+  Se = (liquid_saturation-this%Sr)*dSe_dsatl
+  Se = max(Se,0.d0)
+
+  if (associated(this%sat_poly)) then
+    if (Se > this%sat_poly%low) then
+      call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
+                                       Se,capillary_pressure,dpc_dSe)
+      capillary_pressure = this%pcmax * &
+                           erf(capillary_pressure/this%pcmax * sqrt(PI)/2.d0)
+      return
+    endif
+  endif
+
+  if (Se <= 0.d0) then
+    capillary_pressure = this%pcmax
+  elseif (Se >= 1.d0) then
+    capillary_pressure = 0.d0
+  else
+    neg_one_over_lambda = -1.d0/this%lambda
+    capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
+    capillary_pressure = this%pcmax * &
+                           erf(capillary_pressure/this%pcmax * sqrt(PI)/2.d0)
+  endif
+
+
+
+end subroutine SFBCSPE11CapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Saturation(this,capillary_pressure, &
+                            liquid_saturation,dsat_dpres,option)
+  !
+  ! Computes  saturation as a function of capillary pressure after passing
+  ! through an inverse error function, inverting the function from the 
+  ! SPE 11th Comparative Solution Project description.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/27/24
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_BC_SPE11_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: pc_alpha_neg_lambda
+  PetscReal :: Se
+  PetscReal :: dSe_dpc,dndp
+  PetscReal :: one_minus_pc_pcmax_over_two, inverse_erfc, p_cap_tilde
+  PetscReal, parameter :: dpc_dpres = -1.d0
+
+  dsat_dpres = 0.d0
+
+  one_minus_pc_pcmax_over_two = (1.d0 - capillary_pressure/this%pcmax) / 2.d0
+  if (one_minus_pc_pcmax_over_two < 0.d0) then
+    liquid_saturation = this%Sr
+    return
+  endif
+
+  call InverseNorm(one_minus_pc_pcmax_over_two, inverse_erfc, PETSC_FALSE,dndp)
+  inverse_erfc = -inverse_erfc / sqrt(2.d0)
+  p_cap_tilde = inverse_erfc * this%pcmax * 2.d0 / sqrt(PI)
+
+  ! reference #1
+  if (associated(this%pres_poly)) then
+    if (p_cap_tilde < this%pres_poly%low) then
+      liquid_saturation = 1.d0
+      return
+    else if (p_cap_tilde < this%pres_poly%high) then
+      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+                                   p_cap_tilde,Se,dSe_dpc)
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+      return
+    endif
+  endif
+
+  if (p_cap_tilde <= 0.d0) then
+    Se = 1.d0
+  elseif (p_cap_tilde >= this%pcmax) then
+    Se = 0.d0
+  else
+    pc_alpha_neg_lambda = (p_cap_tilde*this%alpha)**(-this%lambda)
+    Se = pc_alpha_neg_lambda
+  endif
+  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+
+end subroutine SFBCSPE11Saturation
 
 ! ************************************************************************** !
 
@@ -4785,5 +5249,135 @@ subroutine RPFmKGasRelPerm(this,liquid_saturation, &
 
 end subroutine RPFmKGasRelPerm
 
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPFModifiedCoreyGasCreate()
+
+  ! Creates the Modified Corey gas relative permeability function object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type), pointer :: RPFModifiedCoreyGasCreate
+
+  allocate(RPFModifiedCoreyGasCreate)
+  call RPFModifiedCoreyGasCreate%Init()
+
+end function RPFModifiedCoreyGasCreate
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasInit(this)
+
+  ! Initializes the Modified Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+
+  call RPFBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_FALSE
+  this%a = 1.d0
+
+end subroutine RPFModifiedCoreyGasInit
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,Modified_Corey_GAS'
+  endif
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPFModifiedCoreyGasVerify
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
+                                      relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sla = Se
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+end subroutine 
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
+                 trapped_gas_sat, relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid and trapped gas saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Modified_Corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(in) :: trapped_gas_sat
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+  PetscReal :: Sgte
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0) 
+  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
+  Sla = Se + Sgte
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+
+end subroutine RPFModifiedCoreyGasRelPermWTGas
+
+! ************************************************************************** !
+! ************************************************************************** !
 
 end module Characteristic_Curves_Common_module

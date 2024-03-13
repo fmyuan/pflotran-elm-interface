@@ -96,6 +96,8 @@ function PMGeneralCreate()
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
+  ! set default to infinity norm convergence
+  this%check_post_convergence = PETSC_TRUE
 
   PMGeneralCreate => this
 
@@ -110,7 +112,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   ! Author: David Fukuyama
   ! Date: 06/10/21
   !
-
+  use General_Aux_module
   use Option_module
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
@@ -164,7 +166,7 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(max_change_index)
 
 
-  option%use_isothermal = PETSC_FALSE
+  option%use_isothermal = general_isothermal
 
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
@@ -191,9 +193,10 @@ subroutine PMGeneralSetFlowMode(pm,option)
     option%nphase = 3
     option%precipitate_phase = 3
     general_max_states = 7
-    max_change_index = 7
+    max_change_index = 8
     if (.not.general_set_solute) then
-      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block of GENERAL MODE.'
+      option%io_buffer = 'Solute must be acknowledged in the OPTIONS block &
+                          &of GENERAL MODE.'
       call PrintErrMsg(option)
     endif
   else
@@ -216,17 +219,17 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(pm%converged_cell(option%nflowdof,general_max_states,MAX_INDEX))
   allocate(pm%converged_real(option%nflowdof,general_max_states,MAX_INDEX))
 
-  if (optioN%nflowdof == 3) then
+  if (option%nflowdof == 3) then
     rel_update_inf_tol = &
       reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
                pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
                pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol], &
-               shape(rel_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+               shape(rel_update_inf_tol))*1.d0 !change to 0 to zero tolerances
     abs_update_inf_tol = &
       reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
                pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
                pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol], &
-               shape(abs_update_inf_tol))*1.d0 ! change to 0.d0 to zero tolerances
+               shape(abs_update_inf_tol))*1.d0 !change to 0 to zero tolerances
     residual_abs_inf_tol(:) = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
                                u_abs_inf_tol]
     residual_scaled_inf_tol(:) = 1.d-6
@@ -241,34 +244,44 @@ subroutine PMGeneralSetFlowMode(pm,option)
     pm%max_change_isubvar = [0,0,0,2,0,0]
   elseif (option%nflowdof == 4) then
     rel_update_inf_tol = &
-      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+      reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+               xmol_rel_inf_tol,&
                pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,999.d0,&
-               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,xmol_rel_inf_tol,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+               xmol_rel_inf_tol,&
                pres_rel_inf_tol,999.d0,temp_rel_inf_tol,999.d0,&
-               pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
-               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol,&
-               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol,sat_rel_inf_tol], &
+               pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol,&
+               pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol,&
+               pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+               sat_rel_inf_tol], &
                shape(rel_update_inf_tol)) * &
                1.d0 ! change to 0.d0 to zero tolerances
     abs_update_inf_tol = &
-      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+      reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,&
+               xmol_abs_inf_tol,&
                pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,999.d0,&
-               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,xmol_abs_inf_tol,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+               xmol_abs_inf_tol,&
                pres_abs_inf_tol,999.d0,temp_abs_inf_tol,999.d0,&
-               pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
-               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol,&
-               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol,sat_abs_inf_tol], &
+               pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol,&
+               pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol,&
+               pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+               sat_abs_inf_tol], &
                shape(abs_update_inf_tol)) * &
                1.d0 ! change to 0.d0 to zero tolerances
     residual_abs_inf_tol = [w_mass_abs_inf_tol,a_mass_abs_inf_tol,&
                             s_mass_abs_inf_tol,u_abs_inf_tol]
     residual_scaled_inf_tol(:) = 1.d-6
-    allocate(pm%max_change_ivar(7))
+    allocate(pm%max_change_ivar(8))
     pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-                          LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                          GAS_SATURATION, POROSITY]
-    allocate(pm%max_change_isubvar(7))
-    pm%max_change_isubvar = [0,0,0,2,0,0,0]
+                          LIQUID_MOLE_FRACTION, LIQUID_MOLE_FRACTION, &
+                          TEMPERATURE, GAS_SATURATION, POROSITY]
+    allocate(pm%max_change_isubvar(8))
+    pm%max_change_isubvar = [0,0,0,2,3,0,0,0]
   endif
   pm%damping_factor = -1.d0
   pm%residual_abs_inf_tol = residual_abs_inf_tol
@@ -409,10 +422,14 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('VAPOR_PRESSURE_KELVIN')
         general_kelvin_equation = PETSC_TRUE
       case('SOLUBLE_MATRIX')
-        general_soluble_matrix = PETSC_TRUE
+        option%io_buffer = "Matrix solubility is now entered in material properties as SOLUBLE."
+        call PrintErrMsg(option)
       case('UPDATE_PERMEABILITY')
         general_update_permeability = PETSC_TRUE
         call InputReadDouble(input,option,permeability_func_porosity_exp)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('MIN_PERMEABILITY')
+        call InputReadDouble(input,option,general_min_permeability)
         call InputErrorMsg(input,option,keyword,error_string)
       case('SOLUTE')
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -421,6 +438,32 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_salt = PETSC_TRUE
         general_set_solute = PETSC_TRUE
         option%nflowdof = FOUR_INTEGER
+      case('CENTRAL_DIFFERENCE_JACOBIAN')
+        general_central_diff_jacobian = PETSC_TRUE
+      case('MIN_CENTRAL_DIFFERENCE_PERT')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        general_min_cd_pert = tempreal
+      case('MIN_LIQUID_SATURATION')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        general_min_liq_sat = tempreal
+        general_prevent_gp_phase = PETSC_TRUE
+      case('MIN_POROSITY')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        general_min_porosity = tempreal
+        general_min_porosity_flag = PETSC_TRUE
+      case('SALT_SOURCE_MIN_POROSITY')
+         call InputReadDouble(input,option,tempreal)
+         call InputErrorMsg(input,option,keyword,error_string)
+         general_salt_src_flag = PETSC_TRUE
+         general_min_por_srcsink = tempreal
+      case('SALT_SOURCE_MAX_PRESSURE')
+         call InputReadDouble(input,option,tempreal)
+         call InputErrorMsg(input,option,keyword,error_string)
+         general_salt_src_flag = PETSC_TRUE
+         general_max_pres_srcsink = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
@@ -939,7 +982,7 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: offset
-  PetscInt :: pgas_index, xmol_index, pw_index
+  PetscInt :: pgas_index, xmol_index, smol_index, pw_index
   PetscInt :: saturation_index
   PetscReal :: temp_real
 
@@ -998,6 +1041,13 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
            dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
            changed = PETSC_TRUE
+          endif
+          if (general_salt) then
+            smol_index = offset + GENERAL_LIQUID_STATE_S_MOLE_DOF !salt mole fraction
+            if (X_p(smol_index) - dX_p(smol_index) < 0.d0) then
+              dX_p(smol_index) = X_p(smol_index)
+              changed = PETSC_TRUE
+            endif
           endif
         case(GAS_STATE)
          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
@@ -1760,7 +1810,7 @@ subroutine PMGeneralMaxChange(this)
   if (option%nflowdof == 3) then
     max_change_index = SIX_INTEGER
   elseif (option%nflowdof == 4) then
-    max_change_index = SEVEN_INTEGER
+    max_change_index = EIGHT_INTEGER
   endif
   allocate(max_change_local(max_change_index))
   allocate(max_change_global(max_change_index))
@@ -1779,7 +1829,8 @@ subroutine PMGeneralMaxChange(this)
     if (i==1 .and. gen_chk_max_dpl_liq_state_only) then
       do j = 1,grid%nlmax
         ghosted_id = grid%nL2G(j)
-        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
+        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE .or. &
+            global_auxvars(ghosted_id)%istate /= LP_STATE) then
           vec_ptr(j) = 0.d0
         endif
       enddo
@@ -1809,8 +1860,8 @@ subroutine PMGeneralMaxChange(this)
         max_change_global(1:max_change_index)
     elseif (option%nflowdof == 4) then
       write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
-        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-        & " dsg= ",1pe12.4,/,15x," dpo= ",1pe12.4)') &
+        & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4," dxs= ",1pe12.4,&
+        & "  dt= ",1pe12.4,/,15x," dsg= ",1pe12.4," dpo= ",1pe12.4)') &
         max_change_global(1:max_change_index)
     endif
   endif
@@ -1828,12 +1879,13 @@ subroutine PMGeneralMaxChange(this)
     endif
   endif
 
-  this%max_pressure_change = maxval(max_change_global(1:2))
-  this%max_xmol_change = max_change_global(4)
+  this%max_pressure_change = maxval(max_change_global(1:3))
   this%max_temperature_change = max_change_global(5)
   if (option%nflowdof == 3) then
     this%max_saturation_change = max_change_global(6)
+    this%max_xmol_change = max_change_global(4)
   elseif (option%nflowdof == 4) then
+    this%max_xmol_change = maxval(max_change_global(4:5))
     this%max_saturation_change = maxval(max_change_global(6:7))
   endif
 
@@ -1931,6 +1983,7 @@ subroutine PMGeneralRestartBinary(this,viewer)
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
 end subroutine PMGeneralRestartBinary
+
 ! ************************************************************************** !
 
 subroutine PMGeneralDestroy(this)

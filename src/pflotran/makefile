@@ -205,7 +205,11 @@ ifdef gnu_runtime_checks
 endif
 
 ifdef catch_warnings_as_errors
-  MYFLAGS += -Werror=all -Wno-maybe-uninitialized -Wno-unused-dummy-argument 
+  MYFLAGS += -Werror=all -Wno-unused-dummy-argument 
+endif
+
+ifdef no_warnings
+  MYFLAGS += -w
 endif
 
 ###############################################################################

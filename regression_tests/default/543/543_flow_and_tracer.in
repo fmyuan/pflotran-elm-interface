@@ -10,6 +10,18 @@ SIMULATION
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
     /
+    PARAMETER test3
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_LAST_PM
+    /
+    PARAMETER test2
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_LAST_PM
+    /
+    PARAMETER test1
+      PARAMETER_NAME test
+      WHEN_TO_UPDATE AFTER_FLOW
+    /
   /
   CHECKPOINT
     TIMES d 50.d0 60.d0
@@ -18,6 +30,12 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== parameters =======================================
+PARAMETER
+  NAME test
+  VALUE 86.d0
+END
 
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
@@ -211,8 +229,8 @@ END
 #=========================== times ============================================
 TIME
   FINAL_TIME 100.d0 d
-  INITIAL_TIMESTEP_SIZE 1.d-6 d
-  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+  INITIAL_TIMESTEP_SIZE 1440.d-6 minute ! 1.d-6 d
+  MAXIMUM_TIMESTEP_SIZE 864000d0 second ! 10 d
 END
 
 #=========================== regions ==========================================
@@ -316,7 +334,7 @@ FLOW_CONDITION initial
   GRADIENT
     LIQUID_PRESSURE -1.6666667d-2 0.d0 0.d0
   /
-  LIQUID_PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101.325 kPa
 END
 
 FLOW_CONDITION east
@@ -331,21 +349,21 @@ FLOW_CONDITION east
     50.d0 0.d0 0.d0 33.d0
     100.d0 0.d0 0.d0 34.d0
   /
-  LIQUID_PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 14.7 psi ! ~101325 Pa
 END
 
 FLOW_CONDITION recharge
   TYPE
     LIQUID_FLUX neumann
   /
-  LIQUID_FLUX 5.d0 cm/yr
+  LIQUID_FLUX 5.d-5 km/yr ! 5cm/y
 END
 
 FLOW_CONDITION injection_well
   TYPE
     RATE scaled_volumetric_rate neighbor_perm
   /
-  RATE 1 m^3/hr
+  RATE 168 m^3/week ! ~1 m^3/hr
 END
 
 #=========================== transport conditions =============================

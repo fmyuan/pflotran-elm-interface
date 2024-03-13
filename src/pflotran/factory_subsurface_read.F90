@@ -45,8 +45,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
   use PM_TH_TS_class
   use PM_ZFlow_class
   use PM_PNF_class
+  use PM_SCO2_class
   use Init_Common_module
-  use General_module
 
   implicit none
 
@@ -106,6 +106,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
             pm => PMZFlowCreate()
           case ('PORE_FLOW')
             pm => PMPNFCreate()
+          case ('STOMP-CO2','SCO2')
+            pm => PMSCO2Create()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -613,7 +615,6 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  use General_module
   use Reaction_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
@@ -660,10 +661,6 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
     case(STRUCTURED_GRID,UNSTRUCTURED_GRID)
       patch => PatchCreate()
       patch%grid => discretization%grid
-      if (.not.associated(realization%patch_list)) then
-        realization%patch_list => PatchCreateList()
-      endif
-      call PatchAddToList(patch,realization%patch_list)
       realization%patch => patch
   end select
   call InputPopBlock(input,option)
@@ -843,6 +840,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Utility_module
   use Checkpoint_module
   use Simulation_Subsurface_class
+  use Parameter_module
   use PMC_Base_class
   use PMC_Subsurface_class
   use PMC_Geophysics_class
@@ -852,6 +850,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_NWT_class
   use PM_Well_class
   use PM_Hydrate_class
+  use PM_SCO2_class
   use PM_Base_class
   use Print_module
   use Timestepper_Base_class
@@ -864,7 +863,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Survey_module
 
 #ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
+  use Reaction_Solid_Solution_module, only : ReactionSolidSolnReadSolidSoln
 #endif
 
   implicit none
@@ -928,6 +927,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input
   type(survey_type), pointer :: survey
+  type(parameter_type), pointer :: parameter
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -1094,20 +1094,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call DebugRead(realization%debug,input,option)
 
 !....................
-      case ('PRINT_PRIMAL_GRID')
-        !option%print_explicit_primal_grid = PETSC_TRUE
-        option%io_buffer = 'PRINT_PRIMAL_GRID must now be entered under &
-                            &OUTPUT card.'
-        call PrintErrMsg(option)
-
-!....................
-      case ('PRINT_DUAL_GRID')
-        !option%print_explicit_dual_grid = PETSC_TRUE
-        option%io_buffer = 'PRINT_DUAL_GRID must now be entered under &
-                            &OUTPUT card.'
-        call PrintErrMsg(option)
-
-!....................
       case ('PROC')
 
 !....................
@@ -1133,6 +1119,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
             call FlowConditionGeneralRead(flow_condition,input,option)
           case(H_MODE)
             call FlowConditionHydrateRead(flow_condition,input,option)
+          case(SCO2_MODE)
+            call FlowConditionSCO2Read(flow_condition,input,option)
           case default
             call FlowConditionRead(flow_condition,input,option)
         end select
@@ -1227,7 +1215,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('SOURCE_SINK_SANDBOX')
-        call SSSandboxInit(option)
         call SSSandboxRead(input,option)
 
 !....................
@@ -1549,6 +1536,10 @@ subroutine FactorySubsurfReadInput(simulation,input)
             option%io_buffer = 'Variably-saturated flow not supported &
               &in PORE mode.'
             call PrintErrMsg(option)
+          case(NULL_MODE)
+            option%io_buffer = 'CHARACTERISTIC_CURVES may not be used &
+              &without a SUBSURFACE_FLOW mode.'
+            call PrintErrMsg(option)
         end select
         characteristic_curves => CharacteristicCurvesCreate()
         call InputReadWord(input,option,characteristic_curves%name,PETSC_TRUE)
@@ -1747,31 +1738,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
               output_option%print_final_obs = PETSC_TRUE
               output_option%print_final_snap = PETSC_TRUE
               output_option%print_final_massbal = PETSC_TRUE
-            case('PROCESSOR_ID')
-              option%io_buffer = 'PROCESSOR_ID output must now be entered &
-                                 &under OUTPUT/VARIABLES card as PROCESS_ID.'
-              call PrintErrMsg(option)
-!              output_option%print_iproc = PETSC_TRUE
-            case('PERMEABILITY')
-              option%io_buffer = 'PERMEABILITY output must now be entered &
-                                 &under OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_permeability = PETSC_TRUE
-            case('POROSITY')
-              option%io_buffer = 'POROSITY output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_porosity = PETSC_TRUE
-            case('TORTUOSITY')
-              option%io_buffer = 'TORTUOSITY output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_tortuosity = PETSC_TRUE
-            case('VOLUME')
-              option%io_buffer = 'VOLUME output must now be entered under &
-                                 &OUTPUT/VARIABLES card.'
-              call PrintErrMsg(option)
-!              output_option%print_volume = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1
@@ -2449,6 +2415,14 @@ subroutine FactorySubsurfReadInput(simulation,input)
         call PMWellReadPass2(input,option)
 
 !....................
+      case ('PARAMETER')
+        parameter => ParameterCreate()
+        call InputReadWord(input,option,parameter%name,PETSC_FALSE)
+        call ParameterRead(parameter,input,option)
+        call ParameterAddToList(parameter,realization%parameter_list)
+        nullify(parameter)
+
+!....................
       case ('END_SUBSURFACE')
         exit
 
@@ -2465,7 +2439,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
       case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE, &
-           H_MODE)
+           H_MODE,SCO2_MODE)
         if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'

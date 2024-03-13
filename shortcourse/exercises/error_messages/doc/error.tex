@@ -1,4 +1,4 @@
-\documentclass{beamer}
+\documentclass[aspectratio=169]{beamer}
 
 \usepackage{comment}
 \usepackage{color}
@@ -35,11 +35,7 @@
 \author{Emily Stein}
 \date{\today}
 
-%\frame{\titlepage}
-
-\begin{frame}[fragile,containsverbatim]\frametitle{\color{red}UPDATES NEEDED!!!}
-  The screen output for errors that are printed while reading the input deck now list the line number of the error. We need to add this to the examples below (missing end).
-\end{frame}
+\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
 \section{Location of Example}
@@ -89,8 +85,10 @@ Most input errors result in tidy error messages, such as:
 \begin{semiverbatim}
 
 > pflotran -input_prefix calcite_missing_param
+
 ... \gehcomment{returns screen output that ends with:}
-  ERROR: Non-initialized porosity.
+
+  (0): ERROR: Non-initialized porosity.
 
   ERROR: Material property errors found in RichardsSetup.
 
@@ -121,7 +119,7 @@ END
 
 MATERIAL_PROPERTY soil1
   ID 1
-  \magentacomment{POROSITY 0.25d0} \bluecomment{! must be specified by user}
+  \magentacomment{POROSITY 0.25}   \bluecomment{! must be specified by user}
   PERMEABILITY
     PERM_ISO 1.d-12
   /
@@ -138,7 +136,9 @@ Another tidy error message.
 \begin{semiverbatim}
 
 > pflotran -input_prefix calcite_file_not_found
+
 ... \gehcomment{returns screen output that ends with:}
+
   ERROR: File: "../../../database/hanord.dat" not found.
 
   Stopping!
@@ -171,10 +171,11 @@ One last example of a very tidy error message:
 \begin{semiverbatim}
 
 > pflotran -input_prefix calcite_mineral_constraint
+
 ... \gehcomment{returns screen output ending with:}
-  ERROR: Two aqueous species (HCO3- and Ca++) are
-  constrained by the same mineral (Calcite) in
-  CONSTRAINT "initial".
+
+  ERROR: Two aqueous species (HCO3- and Ca++) are constrained by the
+  same mineral (Calcite) in CONSTRAINT "initial".
 
   Stopping!
 >
@@ -223,16 +224,26 @@ END
 \subsection{END}
 
 \begin{frame}[fragile,containsverbatim]\frametitle{Missing \greencomment{END} or \greencomment{/}}
+\small
 \begin{itemize}
-\item Missing \greencomment{END} statements are trickier to diagnose.
-\item \greencomment{END} and \greencomment{/} are interchangeable.
-\item This is the most common type of ERROR when a block isn't closed with \greencomment{END} or \greencomment{/}.
+\item Missing \greencomment{END} or  \greencomment{/} statements, which are interchangeable,  are trickier to diagnose.
+\item This is the VERY common type of error.
 \end{itemize}
+\footnotesize
 \begin{semiverbatim}
-
 > pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
-  ERROR:  Keyword "TIME" not recognized in OUTPUT.
+   ------------------------------------------------------------------------------
+
+   Helpful information for debugging the input deck:
+
+       Filename : calcite_missing_end.in
+    Line Number : 114
+        Keyword : SUBSURFACE,OUTPUT,TIME
+
+   ------------------------------------------------------------------------------
+
+  ERROR: Keyword "TIME" not recognized in OUTPUT.
 
   Stopping!
 >
@@ -282,10 +293,11 @@ END
 \begin{semiverbatim}
 
 > pflotran -input_prefix calcite_missing_end
+
 ... \gehcomment{returns screen output that ends with:}
-  ERROR: Number of concentration constraints exceeds
-  number of primary chemical components in constraint:
-  initial
+
+  ERROR: Number of concentration constraints exceeds number of primary
+  chemical components in constraint: initial
 
   Stopping!
 >
@@ -334,7 +346,9 @@ END
 \begin{semiverbatim}
 
 > pflotran -input_prefix calcite_missing_end
+
 ... \gehcomment{returns screen output that ends with:}
+
   ERROR: Species not found in database.
 
   Stopping!

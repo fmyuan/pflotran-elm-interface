@@ -270,7 +270,7 @@ FLOW_CONDITION initial
   GRADIENT
     LIQUID_PRESSURE -1.6666667d-2 0.d0 0.d0
   /
-  LIQUID_PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 1 atm 
 END
 
 FLOW_CONDITION east
@@ -285,21 +285,21 @@ FLOW_CONDITION east
     50.d0 0.d0 0.d0 33.d0
     100.d0 0.d0 0.d0 34.d0
   /
-  LIQUID_PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 1.01325 Bar
 END
 
 FLOW_CONDITION recharge
   TYPE
     LIQUID_FLUX neumann
   /
-  LIQUID_FLUX 5.d0 cm/yr
+  LIQUID_FLUX 0.5d0 dm/yr
 END
 
 FLOW_CONDITION injection_well
   TYPE
     RATE scaled_volumetric_rate neighbor_perm
   /
-  RATE 1 m^3/hr
+  RATE 1.d3 dm^3/hour
 END
 
 INITIALIZE_FLOW_FROM_FILE 543_initial_pressure.h5

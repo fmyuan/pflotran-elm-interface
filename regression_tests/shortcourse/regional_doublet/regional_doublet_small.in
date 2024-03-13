@@ -43,6 +43,7 @@ CHEMISTRY
     Tracer2
   /
   OUTPUT
+    ALL
     TOTAL
   /
 END
@@ -76,6 +77,10 @@ DATASET perm_field
   REALIZATION_DEPENDENT
 /
 
+DATASET river_stage
+  FILENAME ./undulating_river_stage.h5
+  HDF5_DATASET_NAME undulating_river_stage
+/
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
@@ -312,8 +317,7 @@ FLOW_CONDITION river
     LIQUID_PRESSURE SEEPAGE
   /
   INTERPOLATION LINEAR
-  CYCLIC
-  DATUM FILE ./river_stage.txt
+  DATUM DATASET river_stage
   LIQUID_PRESSURE 101325.d0
 END
 
