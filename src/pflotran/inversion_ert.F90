@@ -136,7 +136,7 @@ subroutine InversionERTInit(this,driver)
   ! Date: 06/14/21
   !
   use Inversion_Parameter_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
   use Driver_class
 
   class(inversion_ert_type) :: this
@@ -146,7 +146,7 @@ subroutine InversionERTInit(this,driver)
   ! override default set in InversionSubsurfaceInit
   allocate(this%inversion_aux%parameters(1))
   call InversionParameterInit(this%inversion_aux%parameters(1))
-  this%inversion_aux%parameters(1)%itype = ELECTRICAL_CONDUCTIVITY
+  this%inversion_aux%parameters(1)%itype = MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -700,7 +700,7 @@ subroutine InvERTSetupForwardRunLinkage(this)
   use Material_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   class(inversion_ert_type) :: this
 
@@ -715,7 +715,7 @@ subroutine InvERTSetupForwardRunLinkage(this)
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
     select case(this%inversion_aux%parameters(1)%itype)
-      case(ELECTRICAL_CONDUCTIVITY)
+      case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
       case default
@@ -866,7 +866,7 @@ subroutine InvERTEvaluateCostFunction(this)
   use Patch_module
   use Material_Aux_module
   use Survey_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -941,9 +941,9 @@ subroutine InvERTEvaluateCostFunction(this)
         (patch%imat(ghosted_id_nb) <= 0)) cycle
     irb = rblock(iconst,3)
     cond_ce = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     cond_nb = MaterialAuxVarGetValue(material_auxvars(ghosted_id_nb), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     x = 0.d0
 
     select case(constrained_block%structure_metric(irb))
@@ -1261,7 +1261,7 @@ subroutine InversionERTCGLSRhs(this)
   use Material_Aux_module
   use Option_module
   use Survey_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1303,9 +1303,9 @@ subroutine InversionERTCGLSRhs(this)
     wm = this%Wm(iconst)
 
     cond_ce = MaterialAuxVarGetValue(material_auxvars(rblock(iconst,1)), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     cond_nb = MaterialAuxVarGetValue(material_auxvars(rblock(iconst,2)), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     irb = rblock(iconst,3)
 
     select case(constrained_block%structure_metric(irb))
@@ -1359,7 +1359,7 @@ subroutine InversionERTBuildWm(this)
   use Grid_module
   use Material_Aux_module
   use Option_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -1417,9 +1417,9 @@ contains
 
     irb = rblock(iconst,3)
     cond_ce = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     cond_nb = MaterialAuxVarGetValue(material_auxvars(ghosted_id_nb), &
-                                     ELECTRICAL_CONDUCTIVITY)
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)
     x = 0.d0
 
     select case(constrained_block%structure_metric(irb))
