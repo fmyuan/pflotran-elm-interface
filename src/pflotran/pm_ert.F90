@@ -430,7 +430,7 @@ recursive subroutine PMERTInitializeRun(this)
   use String_module
   use Transport_Constraint_RT_module
   use ZFlow_Aux_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -476,12 +476,12 @@ recursive subroutine PMERTInitializeRun(this)
   ! copy conductivities if defined
   ert_auxvars => patch%aux%ERT%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  if (electrical_conductivity_index > 0) then
+  if (material_elec_conduct_index > 0) then
     do ghosted_id = 1, grid%ngmax
       if (patch%imat(ghosted_id) <= 0) cycle
       ert_auxvars(ghosted_id)%bulk_conductivity = &
                MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                      ELECTRICAL_CONDUCTIVITY)
+                                      MATERIAL_ELECTRICAL_CONDUCTIVITY)
     enddo
   endif
 

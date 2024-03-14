@@ -7753,7 +7753,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          SOIL_REFERENCE_PRESSURE, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
-         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY,MATERIAL_ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -7911,7 +7911,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                             vec_ptr(local_id),dummy1,dummy2,option)
           enddo
       end select
-    case(ELECTRICAL_CONDUCTIVITY)
+    case(COMPUTED_ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity
@@ -9023,7 +9023,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          EPSILON,HALF_MATRIX_WIDTH, &
          ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
-         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+         SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
+         MATERIAL_ELECTRICAL_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -9127,7 +9128,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
-    case(ELECTRICAL_CONDUCTIVITY)
+    case(COMPUTED_ELECTRICAL_CONDUCTIVITY)
       value = patch%aux%ERT%auxvars(ghosted_id)%bulk_conductivity
     case(ELECTRICAL_POTENTIAL_DIPOLE)
       call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
@@ -10048,7 +10049,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
          EPSILON,HALF_MATRIX_WIDTH, &
          ARCHIE_CEMENTATION_EXPONENT,ARCHIE_SATURATION_EXPONENT, &
          ARCHIE_TORTUOSITY_CONSTANT,SURFACE_ELECTRICAL_CONDUCTIVITY, &
-         WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+         WAXMAN_SMITS_CLAY_CONDUCTIVITY,MATERIAL_ELECTRICAL_CONDUCTIVITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
@@ -10089,11 +10090,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
-    case(ELECTRICAL_CONDUCTIVITY)
-      do local_id=1,grid%nlmax
-        patch%aux%ERT%auxvars(grid%nL2G(local_id))%bulk_conductivity = &
-          vec_ptr(local_id)
-      enddo
+    case(COMPUTED_ELECTRICAL_CONDUCTIVITY)
+      option%io_buffer = 'Setting of computed electrical conductivvity in &
+        &"PatchSetVariable" not supported. It may only be calculated &
+        &internally.'
+      call PrintErrMsg(option)
     case(ELECTRICAL_POTENTIAL)
       do local_id=1,grid%nlmax
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
