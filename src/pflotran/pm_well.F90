@@ -292,6 +292,7 @@ module PM_Well_class
   type :: well_flow_save_type
     PetscReal, pointer :: pl(:)
     PetscReal, pointer :: sg(:)
+    PetscReal :: bh_p
   end type well_flow_save_type
 
   ! primary variables necessary to reset transport solution
@@ -585,6 +586,8 @@ subroutine PMWellFlowCreate(pm_well)
   nullify(pm_well%flow_soln%prev_soln%sg)
   nullify(pm_well%flow_soln%soln_save%pl)
   nullify(pm_well%flow_soln%soln_save%sg)
+  pm_well%flow_soln%prev_soln%bh_p = UNINITIALIZED_DOUBLE
+  pm_well%flow_soln%soln_save%bh_p = UNINITIALIZED_DOUBLE
 
   pm_well%flow_soln%bh_p = PETSC_FALSE
   pm_well%flow_soln%th_p = PETSC_FALSE
@@ -3581,6 +3584,8 @@ subroutine PMWellInitializeWellFlow(pm_well)
   pm_well%flow_soln%prev_soln%sg = pm_well%well%gas%s
   pm_well%flow_soln%soln_save%pl = pm_well%well%pl
   pm_well%flow_soln%soln_save%sg = pm_well%well%gas%s
+  pm_well%flow_soln%prev_soln%bh_p = pm_well%well%bh_p
+  pm_well%flow_soln%soln_save%bh_p = pm_well%well%bh_p
 
   ! Link well material properties
   if (pm_well%well_comm%comm /= MPI_COMM_NULL) then
@@ -4486,7 +4491,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
             pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)%&
                  well%Qg = pm_well%well%gas%Q(k)
             pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)%&
-                 well%Qg = pm_well%well%bh_p
+                 well%bh_p = pm_well%well%bh_p
         end select
 
         exit
@@ -4635,9 +4640,12 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
 
   if (initialize_well_flow) then
     call PMWellInitializeWellFlow(pm_well)
+    call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
+    call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
   else
     pm_well%well%pl = pm_well%flow_soln%soln_save%pl
     pm_well%well%gas%s = pm_well%flow_soln%soln_save%sg
+    pm_well%well%bh_p = pm_well%flow_soln%soln_save%bh_p
   endif
 
   if (option%iflowmode == WF_MODE) then
@@ -4761,7 +4769,7 @@ end subroutine PMWellCalcResidualValues
 
 ! ************************************************************************** !
 
-subroutine PMWellCalcJacobianValues(pm_well,Jac,ierr)
+subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
 !
 ! This subroutine computes the well contribution to the reservoir Jacobian when 
 ! called from the fully- or quasi-coupled source/sink update.
@@ -4769,21 +4777,27 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ierr)
 ! Date: 01/16/2023
 
   use SCO2_Aux_module, only : SCO2_WELL_DOF
+  use Option_module
 
   implicit none
 
   class(pm_well_type) :: pm_well
   Mat :: Jac
+  PetscBool :: ires_pert
   PetscErrorCode :: ierr
 
+  type(option_type), pointer :: option
   PetscReal :: pert_pl, pert_sg
   PetscReal :: res, res_pert_pl, res_pert_sg
   PetscReal :: pert, res_pert
   PetscReal :: Q, sum_q
   PetscInt :: ghosted_id
+  PetscReal, allocatable :: residual(:,:)
   PetscReal, allocatable :: J_block(:,:)
   PetscInt :: air_comp_id, wat_comp_id
-  PetscInt :: j,k
+  PetscInt :: j,k,idof,irow
+
+  option => pm_well%option
 
   air_comp_id = pm_well%option%air_id
   wat_comp_id = pm_well%option%water_id
@@ -4833,56 +4847,118 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ierr)
       enddo
     case(SCO2_MODE)
 
-      allocate(J_block(pm_well%option%nflowdof,pm_well%option%nflowdof))
+      allocate(J_block(option%nflowdof,option%nflowdof))
+      allocate(residual(pm_well%well_grid%nsegments,option%nflowdof))
 
       if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
-        do k = 1,pm_well%well_grid%nsegments
-          if (pm_well%well_grid%h_rank_id(k) /= pm_well%option%myrank) cycle
-  
-          J_block = 0.d0
-  
-          ghosted_id = pm_well%well_grid%h_ghosted_id(k)
-          pert = pm_well%realization%patch%aux%SCO2% &
-                         auxvars(SCO2_WELL_DOF,ghosted_id)%pert
-
-          if (k == 1) then
-            if (dabs(pm_well%well%th_qg) > 0.d0) then
-              sum_q = sum_q + sum(pm_well%well%gas%q)
-              Q = -1.d0 * (pm_well%well%th_qg)
-            else
-              sum_q = sum(pm_well%well%liq%q)
-              Q = -1.d0 * (pm_well%well%th_ql)
+        if (ires_pert) then
+        ! Calculate Jacobian entries wrt reservoir perturbation:
+        ! BHP residual and reservoir source/sink residuals.
+          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,ierr)
+          do k = 1,pm_well%well_grid%nsegments
+            do irow = 1, option%nflowdof-1
+              residual(k,irow) = pm_well%well%liq%q(k)* &
+                                 pm_well%well%liq%xmass(k,irow) + &
+                                 pm_well%well%gas%q(k)* &
+                                 pm_well%well%gas%xmass(k,irow)
+            enddo
+            if (k==1) then
+              if (dabs(pm_well%well%th_qg) > 0.d0) then
+                sum_q = sum_q + sum(pm_well%well%gas%q)
+                Q = -1.d0 * (pm_well%well%th_qg)
+              else
+                sum_q = sum(pm_well%well%liq%q)
+                Q = -1.d0 * (pm_well%well%th_ql)
+              endif
+              residual(k,option%nflowdof) = Q - sum_q
             endif
-            res = Q - sum_q
-
-            if (dabs(pm_well%well_pert(ONE_INTEGER)%th_qg) > 0.d0) then
-              sum_q = sum_q + sum(pm_well%well_pert(ONE_INTEGER)%gas%q)
-              Q = -1.d0 * (pm_well%well_pert(ONE_INTEGER)%th_qg)
-            else
-              sum_q = sum(pm_well%well_pert(ONE_INTEGER)%liq%q)
-              Q = -1.d0 * (pm_well%well_pert(ONE_INTEGER)%th_ql)
-            endif
-            res_pert = Q - sum_q
-
-            J_block(pm_well%option%nflowdof,pm_well%option%nflowdof) = &
-                    (res_pert - res)/pert
-          endif
-  
-          do j = 0,pm_well%option%nflowdof-2
-            res = pm_well%well%liq%q(k)*pm_well%well%liq%xmass(k,j+1) + &
-                  pm_well%well%gas%q(k)* pm_well%well%gas%xmass(k,j+1)
-            res_pert = pm_well%well_pert(ONE_INTEGER)%liq%q(k)* &
-                       pm_well%well_pert(ONE_INTEGER)%liq%xmass(k,j+1) + &
-                       pm_well%well_pert(ONE_INTEGER)%gas%q(k)* &
-                       pm_well%well_pert(ONE_INTEGER)%gas%xmass(k,j+1)
-            J_block(j+1,SCO2_WELL_DOF) = (res_pert - res)/pert
           enddo
+          do idof = 1,option%nflowdof-1
+            call PMWellUpdateRates(pm_well,ZERO_INTEGER,idof,ierr)
+            do k = 1,pm_well%well_grid%nsegments
+              ghosted_id = pm_well%well_grid%h_ghosted_id(k)
+              if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
+                J_block = 0.d0
+                pert = pm_well%realization%patch%aux%SCO2% &
+                           auxvars(idof,ghosted_id)%pert
+              if (k==1) then
+                if (dabs(pm_well%well%th_qg) > 0.d0) then
+                  sum_q = sum_q + sum(pm_well%well%gas%q)
+                  Q = -1.d0 * (pm_well%well%th_qg)
+                else
+                  sum_q = sum(pm_well%well%liq%q)
+                  Q = -1.d0 * (pm_well%well%th_ql)
+                endif
+                res_pert = Q - sum_q
+                J_block(option%nflowdof,idof) = &
+                                  (res_pert - residual(k,option%nflowdof))/pert
+              endif
+              do irow = 1,option%nflowdof-1
+                res_pert = pm_well%well%liq%q(k)* &
+                           pm_well%well%liq%xmass(k,irow) + &
+                           pm_well%well%gas%q(k)* &
+                           pm_well%well%gas%xmass(k,irow)
+                J_block(irow,idof) = (res_pert - residual(k,irow))/pert
+              enddo
+              J_block = -1.d0*J_block
   
-          J_block = -1.d0*J_block
+              call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+            enddo
+          enddo
+        else
+          call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,ierr)
+        ! Calculate Jacobian entries wrt well perturbation:
+        ! BHP residual and reservoir source/sink residuals.
+          do k = 1,pm_well%well_grid%nsegments
+            if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
   
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,J_block, &
-                                        ADD_VALUES,ierr);CHKERRQ(ierr)
-        enddo
+            J_block = 0.d0
+  
+            ghosted_id = pm_well%well_grid%h_ghosted_id(k)
+            pert = pm_well%realization%patch%aux%SCO2% &
+                           auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+
+            if (k == 1) then
+              if (dabs(pm_well%well%th_qg) > 0.d0) then
+                sum_q = sum_q + sum(pm_well%well%gas%q)
+                Q = -1.d0 * (pm_well%well%th_qg)
+              else
+                sum_q = sum(pm_well%well%liq%q)
+                Q = -1.d0 * (pm_well%well%th_ql)
+              endif
+              res = Q - sum_q
+
+              if (dabs(pm_well%well_pert(ONE_INTEGER)%th_qg) > 0.d0) then
+                sum_q = sum_q + sum(pm_well%well_pert(ONE_INTEGER)%gas%q)
+                Q = -1.d0 * (pm_well%well_pert(ONE_INTEGER)%th_qg)
+              else
+                sum_q = sum(pm_well%well_pert(ONE_INTEGER)%liq%q)
+                Q = -1.d0 * (pm_well%well_pert(ONE_INTEGER)%th_ql)
+              endif
+              res_pert = Q - sum_q
+
+              J_block(option%nflowdof,option%nflowdof) = &
+                      (res_pert - res)/pert
+            endif
+  
+            do j = 0,option%nflowdof-2
+              res = pm_well%well%liq%q(k)*pm_well%well%liq%xmass(k,j+1) + &
+                    pm_well%well%gas%q(k)* pm_well%well%gas%xmass(k,j+1)
+              res_pert = pm_well%well_pert(ONE_INTEGER)%liq%q(k)* &
+                         pm_well%well_pert(ONE_INTEGER)%liq%xmass(k,j+1) + &
+                         pm_well%well_pert(ONE_INTEGER)%gas%q(k)* &
+                         pm_well%well_pert(ONE_INTEGER)%gas%xmass(k,j+1)
+              J_block(j+1,SCO2_WELL_DOF) = (res_pert - res)/pert
+            enddo
+  
+            J_block = -1.d0*J_block
+  
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+                                          J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          enddo
+        endif
       endif
     end select
 
@@ -6175,7 +6251,7 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
                         (pm_well%reservoir%p_l(i)-well%pl(i))
         well%gas%xmass(i,:) = 0.d0
         well%gas%xmass(i,ONE_INTEGER) = 1.d0
-      else
+      elseif (well%th_qg < 0.d0 .or. well%th_ql < 0.d0) then
         ! Extraction well
         upwind = pm_well%reservoir%p_l(i) > well%pl(i)
         if (upwind) then
@@ -6203,7 +6279,6 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
         ! Flowrate in kg/s
         well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
                         (pm_well%reservoir%p_g(i)-well%pg(i))
-        
       endif
     enddo
 
@@ -6568,6 +6643,8 @@ subroutine PMWellCutTimestepFlow(pm_well)
       call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
                      pm_well%realization%patch%characteristic_curves_array, &
                      pm_well%realization%option)
+    case(WELL_MODEL_HYDROSTATIC)
+      pm_well%well%bh_p = pm_well%flow_soln%prev_soln%bh_p
   end select
 
 end subroutine PMWellCutTimestepFlow
@@ -9116,6 +9193,8 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%flow_soln%update)
   call DeallocateArray(this%flow_soln%prev_soln%pl)
   call DeallocateArray(this%flow_soln%prev_soln%sg)
+  call DeallocateArray(this%flow_soln%soln_save%pl)
+  call DeallocateArray(this%flow_soln%soln_save%sg)
   nullify(this%flow_soln)
 
   if (this%transport) then

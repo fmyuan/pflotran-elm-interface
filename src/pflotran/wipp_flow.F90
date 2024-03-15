@@ -1722,7 +1722,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
         call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,TWO_INTEGER,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+          call PMWellCalcJacobianValues(pmwell_ptr,A,PETSC_FALSE,ierr)
         endif
       endif
     endif

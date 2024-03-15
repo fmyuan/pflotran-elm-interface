@@ -614,6 +614,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     endif
     sco2_auxvar(SCO2_WELL_DOF)%well%bh_p = x(SCO2_WELL_DOF) + &
                                            pert(SCO2_WELL_DOF)
+    sco2_auxvar(SCO2_WELL_DOF)%pert = pert(SCO2_WELL_DOF)
   endif
 
   ! SCO2_UPDATE_FOR_DERIVATIVE indicates call from perturbation
