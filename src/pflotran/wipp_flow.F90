@@ -1291,7 +1291,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   if (wippflo_well_quasi_imp_coupled) then
     if (associated(pmwell_ptr)) then
       if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
           call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
         endif
@@ -1718,9 +1718,9 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   if (wippflo_well_quasi_imp_coupled) then
   if (associated(pmwell_ptr)) then
     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-      call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
+      call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ONE_INTEGER,ierr)
       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-        call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,ierr)
+        call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,TWO_INTEGER,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
           call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
         endif

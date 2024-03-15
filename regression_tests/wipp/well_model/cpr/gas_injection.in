@@ -17,6 +17,9 @@ SIMULATION
       END
     END
     WELL_MODEL well01
+      OPTIONS
+        TYPE WIPP_DARCY
+      /
     END
   END
 END
@@ -108,7 +111,8 @@ WELLBORE_MODEL
   # provide a single value and it will be applied to all segments.
   WELL
     DIAMETER 2.d-1 #1.2d0 1.3d0 1.4d0
-    FRICTION_COEFFICIENT 0.d0 #1.0d-5
+    FRICTION_COEFFICIENT 1.d0 #1.0d-5
+    SKIN_FACTOR 0.d0
     WELL_INDEX 1.d0
     WELL_INDEX_MODEL PEACEMAN_ISO #PEACEMAN_ANISOTROPIC
   /
@@ -118,19 +122,15 @@ WELLBORE_MODEL
   # For FLUX, is it going to be a MASS_FLUX or a VOLUMETRIC_FLUX????
   WELL_BOUNDARY_CONDITIONS
     BOTTOM_OF_HOLE
-      LIQUID_RATE 0.d0 
-      GAS_RATE 0.d0 
+      LIQUID_VELOCITY 0.d0 
+      GAS_VELOCITY 0.d0 
     /
     TOP_OF_HOLE
-      LIQUID_RATE 0.d0 # 1.d-6
-      GAS_RATE 1.d-7
+      LIQUID_VELOCITY 0.d0 # 1.d-6
+      GAS_VELOCITY 1.d-7
     /
   /
 
-  WELL_MODEL_TYPE
-    WIPP_DARCY
-  /
-  
   WELL_FLOW_SOLVER
     MAXIMUM_NUMBER_OF_ITERATIONS 8      ! default=8
     MAXIMUM_NUMBER_OF_TS_CUTS 15         ! default=20

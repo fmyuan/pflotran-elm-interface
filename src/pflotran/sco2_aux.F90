@@ -144,6 +144,7 @@ module SCO2_Aux_module
     PetscReal :: dpg
     PetscReal :: Ql   ! liquid exchange flux
     PetscReal :: Qg   ! gas exchange flux
+    PetscReal :: bh_p ! bottom hole pressure
   end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
@@ -360,6 +361,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%dpg = UNINITIALIZED_DOUBLE
     auxvar%well%Ql = UNINITIALIZED_DOUBLE
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
+    auxvar%well%bh_p = UNINITIALIZED_DOUBLE
   endif
 
 end subroutine SCO2AuxVarInit
@@ -444,9 +446,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                xmolsl, xmolwl, salt_mass
   PetscReal :: sigma, beta_gl
   PetscReal :: Pv, Psat, Prvap, Pco2
-  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg,dt
+  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg, dt, dp_well
   PetscReal :: cell_pressure, sgt_max
-  PetscInt :: idof
+  PetscInt :: idof, welldof
 
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pbid, spid, tgid
@@ -472,6 +474,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   co2_pressure_id = option%co2_pressure_id
   vpid = option%vapor_pressure_id
   rvpid = option%reduced_vapor_pressure_id
+
+  dp_well = 1.d-1
+  welldof = 0
 
   call SCO2SaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
@@ -601,19 +606,23 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
 
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(sco2_auxvar(ZERO_INTEGER)%well)) then
-      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%pl
-      pert(SCO2_WELL_DOF) = dpl
+      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
+      pert(SCO2_WELL_DOF) = dp_well
     else
-      x(SCO2_WELL_DOF) = 0.d0
+      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
       pert(SCO2_WELL_DOF) = 1.d-10
     endif
+    sco2_auxvar(SCO2_WELL_DOF)%well%bh_p = x(SCO2_WELL_DOF) + &
+                                           pert(SCO2_WELL_DOF)
   endif
 
   ! SCO2_UPDATE_FOR_DERIVATIVE indicates call from perturbation
 
   option%iflag = SCO2_UPDATE_FOR_DERIVATIVE
 
-  do idof = 1, option%nflowdof
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) welldof = 1
+
+  do idof = 1, option%nflowdof - welldof
 
     if (sco2_central_diff_jacobian) then
 

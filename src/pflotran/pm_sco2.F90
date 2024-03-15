@@ -627,7 +627,8 @@ subroutine PMSCO2InitializeTimestep(this)
 
   call SCO2InitializeTimestep(this%realization)
   if (associated(this%pmwell_ptr)) then
-    call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,this%option%ierror)
+    call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER, &
+                           this%option%ierror)
     this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
     call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
   endif
@@ -1539,6 +1540,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
+  PetscInt :: root_rank
   character(len=MAXSTRINGLENGTH) :: string
   character(len=20), allocatable :: state_string(:)
   character(len=17), allocatable :: dof_string(:,:)
@@ -1944,6 +1946,16 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
+    
+    ! Send out updated well BHP
+    if (associated(this%pmwell_ptr)) then
+      if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then
+        root_rank = this%pmwell_ptr%well_grid%h_rank_id(ONE_INTEGER)
+        call MPI_Bcast(this%pmwell_ptr%well%pl(1),ONE_INTEGER, &
+                       MPI_DOUBLE_PRECISION,root_rank,this%pmwell_ptr% &
+                       well_comm%comm,ierr); CHKERRQ(ierr)
+      endif
+    endif
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX

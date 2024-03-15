@@ -1377,7 +1377,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pmwell_ptr)) then
       if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
           call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
         endif
@@ -1541,7 +1541,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn, nsegment
+  PetscInt :: ghosted_id_up, ghosted_id_dn, nsegment, ndof
   Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
@@ -1612,6 +1612,16 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
                            patch%characteristic_curves_array( &
                            patch%cc_id(ghosted_id))%ptr, &
                            sco2_parameter,natural_id,option)
+    if (associated(pmwell_ptr)) then
+      if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
+        ! Perturb well BHP
+        if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank) .and. &
+            any(pmwell_ptr%well_grid%h_ghosted_id == ghosted_id)) then
+          pmwell_ptr%well_pert(ONE_INTEGER)%bh_p = &
+                               sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%well%bh_p
+        endif
+      endif
+    endif
   enddo
 
   ! Accumulation terms ------------------------------------
@@ -1804,7 +1814,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! Well derivative: Need to update all well source/sink terms wrt
+  ! Well Terms
+  ! Need to update all well source/sink terms wrt
   ! perturbation in bottom pressure 
   if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
     if (associated(pmwell_ptr)) then
@@ -1823,10 +1834,17 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
                         pmwell_ptr%well_pert(ONE_INTEGER)%pl(ONE_INTEGER) + &
                         sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%pert
         ! Perturbed rates
-        call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
+        call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ZERO_INTEGER,ierr)
         ! Go through and update the well contributions to the Jacobian:
         ! dR/d(P_well)
         call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+
+        ! Compute source/sink changes due to perturbations of reservoir
+        ! variables
+        do ndof = 1,option%nflowdof
+          call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ndof,ierr)
+          call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+        enddo
       endif
     endif
   endif  
