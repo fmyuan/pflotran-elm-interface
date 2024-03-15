@@ -702,9 +702,11 @@ function StringsMerge(strings,chars)
 
   string = ''
   do i = 1, size(strings)
-    string = trim(string) // trim(strings(i))
-    if (len_trim(chars) > 0 .and. i < size(strings)) then
-      string = trim(string) // trim(chars)
+    if (len_trim(strings(i)) > 0) then
+      if (len_trim(chars) > 0 .and. i > 1) then
+        string = trim(string) // trim(chars)
+      endif
+      string = trim(string) // trim(strings(i))
     endif
   enddo
 
