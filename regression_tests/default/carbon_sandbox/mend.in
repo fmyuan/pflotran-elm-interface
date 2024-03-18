@@ -13,18 +13,23 @@ SUBSURFACE
 
 #=========================== constraints ======================================
 CONSTRAINT initial
-  # assuming porosity = 0.25, rock density = 2600, fmw CH2O = 30
+  # assuming porosity = 0.25, soil particle density = 2600, fmw CH2O = 30
+  # [mg C/g soil] * 1.d-3 [g C/mg C] / fmw [g C/mol C] * 
+  #   (1-por) [m^3 soil/m^3 bulk] * soil particle density [kg soil/m^3 soil] *
+  #   1000 [g soil/kg soil] = 65 [mol C/m^3 bulk]
+  # [mol C/m^3 bulk] / (por*sat) [m^3 water/m^3 bulk] / 
+  #   1000. [L water/m^3 water] = 4d-3 mol/L
   CONCENTRATIONS
-    MICROBIAL_BIOMASS  5.2d-4 T
-    DISSOLVED          2.6d-4 T
-    PARTICULATE        2.6d-3 T
-    PARTICULATE_ENZYME 2.6d-9 T
-    MINERAL_ENZYME     2.6d-9 T
+    MICROBIAL_BIOMASS  0.52   T
+    DISSOLVED          0.26   T
+    PARTICULATE        2.6    T
+    PARTICULATE_ENZYME 2.6d-6 T
+    MINERAL_ENZYME     2.6d-6 T
     INORGANIC_CARBON   1.d-10 T
   /
   IMMOBILE
-    MINERAL_ASSOCIATED 1.3d-3
-    ADSORBED_DISSOLVED 6.5d-3
+    MINERAL_ASSOCIATED 325.
+    ADSORBED_DISSOLVED 6.5
   /
 END
 
@@ -102,6 +107,7 @@ CHEMISTRY
     M_SPECIES_NAME MINERAL_ASSOCIATED
     P_SPECIES_NAME PARTICULATE
     Q_SPECIES_NAME ADSORBED_DISSOLVED
+    # from Wang et al., 2013. Typical values in Table 5
     V_P 2.5 mg/mg-h
     K_P 50 mg/g
     V_M 1 mg/mg-h
@@ -120,9 +126,8 @@ CHEMISTRY
     K_ADS 6.d-3 mg/mg-h
     K_DES 1.d-3 mg/mg-h
     K_BA 6 g/mg
-    I_P 0.8d-4 mg/mg-h  ! 1.6d-4 / 2
-    I_D 0.8d-4 mg/mg-h  ! 1.6d-4 / 2
-    FI_D 0.5
+    I_P 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
+    I_D 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
   /
 END
 #=========================== output options ===================================

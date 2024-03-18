@@ -48,7 +48,7 @@ module Carbon_Sandbox_MEND_class
     PetscReal :: K_BA
     PetscReal :: I_P
     PetscReal :: I_D
-    PetscReal :: fI_D
+    !PetscReal :: fI_D ! ratio I_D/I_P (currently unsupported)
   contains
     procedure, public :: ReadInput => CarbonMENDReadInput
     procedure, public :: Setup => CarbonMENDSetup
@@ -121,7 +121,7 @@ function CarbonMENDCreate()
   this%K_BA = UNINITIALIZED_DOUBLE
   this%I_P = UNINITIALIZED_DOUBLE
   this%I_D = UNINITIALIZED_DOUBLE
-  this%fI_D = UNINITIALIZED_DOUBLE
+  !this%fI_D = UNINITIALIZED_DOUBLE
 
   CarbonMENDCreate => this
 
@@ -243,7 +243,7 @@ subroutine CarbonMENDReadInput(this,input,option)
         call InputReadAndConvertUnits(input,tempreal,internal_units, &
                                       keyword,option)
         this%K_BA = tempreal
-      case('E_C','F_D','G_D','P_EP','P_EM','FI_D') ! unitless
+      case('E_C','F_D','G_D','P_EP','P_EM') ! unitless
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,err_string)
         select case(keyword)
@@ -257,8 +257,6 @@ subroutine CarbonMENDReadInput(this,input,option)
             this%p_EP = tempreal
           case('P_EM')
             this%p_EM = tempreal
-          case('FI_D')
-            this%fI_D = tempreal
         end select
       case default
         call InputKeywordUnrecognized(input,keyword,err_string,option)
@@ -396,15 +394,13 @@ subroutine CarbonMENDSetup(this,reaction,option)
     option%io_buffer = 'K_ads not defined in MEND carbon sandbox.'
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%I_P)) then
-    this%I_P = 0.d0 ! this is a source term that is not required
-  endif
   if (Uninitialized(this%I_D)) then
-    this%I_D = 0.d0 ! this is a source term that is not required
+    ! these source terms are not required
+    this%I_D = 0.d0
   endif
-  if (Uninitialized(this%fI_D)) then
-    option%io_buffer = 'fI_D not defined in MEND carbon sandbox.'
-    call PrintErrMsg(option)
+  if (Uninitialized(this%I_P)) then
+    ! these source terms are not required
+    this%I_P = 0.d0
   endif
 
   call this%EnforceConcentrationUnits(CARBON_UNITS_MOLE_PER_KG_SOIL,option)
