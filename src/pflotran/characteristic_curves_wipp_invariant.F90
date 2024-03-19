@@ -69,7 +69,7 @@ type, public, extends(sat_func_base_type) :: sf_WIPP_type
 
 !   Unsaturated Extension Parameters
 !   PetscReal :: Pcmax                    ! PCFIX          Defined in base
-    PetscReal :: Swj, Pcj, dPcj_dSwj
+    PetscReal :: Swj, Pcj, dPcj_dSwj, beta
 
 !   Threshold Pressure Parameters
     PetscReal :: Pct                      ! Calculated Pct
@@ -156,6 +156,7 @@ public  :: SFWIPPctor, RPFWIPPctor
 private :: SFWIPPKPC1Pc , SFWIPPKPC1Sw , SFWIPPKPC1Swj, &
            SFWIPPKPC2Pc , SFWIPPKPC2Sw , SFWIPPKPC2Swj, &
            SFWIPPKPC6Pc , SFWIPPKPC6Sw , SFWIPPKPC6Swj, &
+           SFWIPPKPC7Pc , SFWIPPKPC7Sw , SFWIPPKPC7Swj, &
                                          SFWIPPKRP12Swj
 
 ! Implemented WIPP KRP Pc procedures
@@ -248,6 +249,10 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
     new%KPCPc  => SFWIPPKPC6Pc
     new%KPCSw  => SFWIPPKPC6Sw
     new%setSwj => SFWIPPKPC6Swj
+  case (7) ! Exponential at or below junction
+    new%KPCPc  => SFWIPPKPC7Pc
+    new%KPCSw  => SFWIPPKPC7Sw
+    new%setSwj => SFWIPPKPC7Swj
   case default
                                         error = error + 2
   end select
@@ -519,6 +524,53 @@ pure subroutine SFWIPPKPC6Sw(this, Pc, Sw)
 
   if (Pc < this%Pcmax) then                           ! Linear interpolation
     Sw = (Pc - this%Pcmax) / this%dPcj_dSwj
+  else                                                ! y-intercept
+    Sw = 0d0
+  end if
+end subroutine
+
+! **************************************************************************** !
+
+function SFWIPPKPC7Swj(this,Swj) result (error)
+  class(sf_WIPP_type), intent(inout) :: this
+  PetscReal, intent(in) :: Swj
+  PetscInt :: error
+
+  if (Swj > this%Swr) then ! Exponentially extrapolate from the valid Swj
+    this%Swj = Swj
+    call this%KRPPc(Swj, this%Pcj, this%dPcj_dSwj)
+    this%beta = -this%dPcj_dSwj / this%Pcj
+    this%Pcmax = this%Pcj * exp(this%beta*this%Swj)
+    error = 0
+  else ! Invalid Swj
+    error = 1
+  end if
+end function
+
+! **************************************************************************** !
+
+pure subroutine SFWIPPKPC7Pc(this, Sw, Pc, dPc_dSw)
+  class(sf_WIPP_type), intent(in) :: this
+  PetscReal, intent(in)  :: Sw
+  PetscReal, intent(out) :: Pc, dPc_dSw
+
+  if (Sw > 0d0) then                                  ! Exponential interpolation
+    Pc = this%Pcmax * exp(-this%beta * Sw)
+  else                                                ! y-intercept
+    Pc = this%Pcmax
+  end if
+  dPc_dSw = -this%beta*Pc
+end subroutine
+
+! **************************************************************************** !
+
+pure subroutine SFWIPPKPC7Sw(this, Pc, Sw)
+  class(sf_WIPP_type), intent(in) :: this
+  PetscReal, intent(in)  :: Pc
+  PetscReal, intent(out) :: Sw
+
+  if (Pc < this%Pcmax) then                           ! Linear interpolation
+    Sw = log(this%Pcmax/Pc) / this%beta
   else                                                ! y-intercept
     Sw = 0d0
   end if
