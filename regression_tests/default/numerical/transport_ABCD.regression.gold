@@ -34,8 +34,8 @@
        40:   1.6264765234511E-07
        50:   2.3308722416272E-07
        60:   3.4474334940810E-07
-       70:   5.2454902232253E-07
-       80:   6.7602847558421E-07
+       70:   5.2454902232254E-07
+       80:   6.7602847558422E-07
       100:   5.1023423851532E-07
 -- CONCENTRATION: D(im) --
       Max:   4.5690659774699E-04
@@ -64,9 +64,10 @@
        80:         1
       100:         1
 -- SOLUTION: Transport --
+   Time (seconds):   4.2320200099903E-01
    Time Steps:          122
    Newton Iterations:          500
    Linear Solver Iterations:          500
    Time Step Cuts:            0
    Solution 2-Norm:   1.0114537065745E-02
-   Residual 2-Norm:   3.5417914696375E-22
+   Residual 2-Norm:   3.5417911153292E-22

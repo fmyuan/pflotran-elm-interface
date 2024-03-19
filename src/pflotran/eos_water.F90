@@ -1352,9 +1352,9 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
 
   !Author: Michael Nole
   !Date: 01/20/19
-  !Water saturation Pressure as f(T) from IF97 standard, valid between T273KK and
-  !623.15K (Region 4). At temperatures above 623.15K, a quadratic function covers
-  !the region where superheated steam properties are accurate.
+  !Water saturation Pressure as f(T) from IF97 standard, valid between 273.15K
+  !and 623.15K (Region 4). At temperatures above 623.15K, a quadratic function
+  !covers the region where superheated steam properties are accurate.
 
 
   implicit none
@@ -1789,7 +1789,7 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
 
   T_temp = T + T273K
   if (T_temp <= 623.15d0) then
-    ! Region 1: Valid from T273KK to 623.15 K, Ps(T) to 100MPa
+    ! Region 1: Valid from 273.15 K to 623.15 K, Ps(T) to 100MPa
 
     pi = P/p_ref
     tao = T_ref/T_temp
@@ -3184,7 +3184,7 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   tao = T_ref/T_temp
 
   if (Tf <= 623.15d0) then
-    ! Region 1: Valid from T273KK to 623.15 K, Ps(T) to 100MPa
+    ! Region 1: Valid from 273.15 K to 623.15 K, Ps(T) to 100MPa
     g_tao = sum((n_i*(7.1d0-pi)**(I_i))*J_i*(tao-1.222d0)**(J_i-1))
 
     hw = g_tao *T_ref*R
@@ -4395,10 +4395,10 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   !Author: Michael Nole
   !Date: 01/20/19
   !Superheated steam EOS from IF97
-  !Region 2, valid on: {T273KK <= T <= 623.15K; 0 < P < Ps(T)}
+  !Region 2, valid on: {273.15K <= T <= 623.15K; 0 < P < Ps(T)}
   !                    {623.15K < T <= 863.15K; 0 < P <= P(T) 2-3 boundary fn}
   !                    {863.15K < T <= 1073.15K; 0 < P < 100MPa}
-  !Region 5, valid on: {1073.15K < T < 2T273KK; 0 < P < 50MPa}
+  !Region 5, valid on: {1073.15K < T < 2273.15K; 0 < P < 50MPa}
   ! IAPWS R7-97(2012)
 
   implicit none

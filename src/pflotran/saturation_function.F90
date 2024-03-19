@@ -1026,7 +1026,7 @@ implicit none
   PetscReal :: dfunc_B_pl
   PetscReal :: liq_sat_one_over_m, dkr_ds_liq, dkr_temp
   PetscReal :: pth, dSe_dpc_at_pth
-  PetscReal, parameter :: den_ice = 9.167d2 !in kg/m3 at T273KK
+  PetscReal, parameter :: den_ice = 9.167d2 !in kg/m3 at 273.15K
   PetscReal, parameter :: interfacial_tensions_ratio = 2.33
   PetscReal, parameter :: T_0 = T273K !in K
 

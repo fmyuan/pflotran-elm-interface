@@ -1819,7 +1819,7 @@ subroutine SCO2Equilibrate(T,P,p_co2,p_vap,p_sat,p_vap_brine, &
     xmolwg = y0 + a1*exp(-tau1*P_bar) + a2*exp(-tau2*P_bar)
     xmolwg = max(min(xmolwg,1.d0),0.d0)
 
-    Hc = 6.305d-4 * exp(2.4d3*((1.d0/T_k)-(1.d0/298.15d0)))
+    Hc = 6.305d-4 * exp(2.4d3*((1.d0/T_k)-(1.d0/T298K)))
     pva = max(P-p_vap_brine,0.d0)/1.d5
 
     ! mole fraction of CO2 in the liquid phase

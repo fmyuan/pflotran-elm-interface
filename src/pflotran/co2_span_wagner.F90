@@ -23,7 +23,7 @@
 
 !     t = 35 - 410 C, p = 0.01 - 250 bars
 !     PetscInt,   public :: ntab_t = 150, ntab_p = 500
-!     PetscReal,  public :: t0_tab = 35.d0+273.15, p0_tab = 0.01d0
+!     PetscReal,  public :: t0_tab = 35.d0+T273K, p0_tab = 0.01d0
 !     PetscReal,  public :: dt_tab = 2.5d0, dp_tab = 0.5d0
 
 !     t = 0 - 375 C, p = 0.01 - 1250.01 bars
