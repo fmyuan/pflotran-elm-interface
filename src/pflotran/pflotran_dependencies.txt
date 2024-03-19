@@ -979,6 +979,7 @@ grid_structured.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o
 grid_unstructured.o : \
   connection.o \
@@ -3719,7 +3720,8 @@ transport.o : \
   matrix_block_aux.o \
   option.o \
   pflotran_constants.o \
-  reactive_transport_aux.o
+  reactive_transport_aux.o \
+  utility.o
 transport_constraint.o : \
   option.o \
   pflotran_constants.o \

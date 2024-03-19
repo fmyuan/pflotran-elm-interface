@@ -111,7 +111,8 @@ module Utility_module
             PrintHeader, &
             UtilityTensorToScalar, &
             ThrowRuntimeError, &
-            Smoothstep
+            Smoothstep, &
+            Arrhenius
 
 contains
 
@@ -2862,5 +2863,34 @@ subroutine Smoothstep(x,xmin,xmax,y,derivative)
   endif
 
 end subroutine Smoothstep
+
+! ************************************************************************** !
+
+function Arrhenius(activation_energy,temperature,reference_temperature)
+  !
+  ! Calculates a scaling factor as a function of temperatuer and activation
+  ! energy through the Arrhenius equation.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/18/24
+
+  implicit none
+
+  PetscReal :: activation_energy
+  PetscReal :: temperature
+  PetscReal :: reference_temperature
+
+  PetscReal :: Arrhenius
+
+  ! = exp(-AE/R*(1/T-1/Tref))
+  ! R = J/mol-K
+  ! AE = J/mol
+  ! T = K
+  ! note the lack of minus sign because the temperatures are swapped
+  Arrhenius = exp(activation_energy / IDEAL_GAS_CONSTANT * &
+                  (1.d0/(reference_temperature + T273K) - &
+                   1.d0/(temperature + T273K)))
+
+end function Arrhenius
 
 end module Utility_module

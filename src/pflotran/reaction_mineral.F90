@@ -654,6 +654,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
 
   use Option_module
   use Material_Aux_module
+  use Utility_module, only : Arrhenius
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Soln_Aux_module
 #endif
@@ -692,6 +693,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: denominator
   PetscInt ::  icplx
   PetscReal :: ln_gam_m_beta
+  PetscReal :: TREF = 25.d0
 
 #ifdef SOLID_SOLUTION
   PetscBool :: cycle_
@@ -847,26 +849,22 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
               ln_numerator - ln_denominator
           enddo
           prefactor(ipref) = exp(ln_prefactor)
-        ! Arrhenius factor
           arrhenius_factor = 1.d0
           if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
             arrhenius_factor = &
-              exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
-                  IDEAL_GAS_CONSTANT &
-                  *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
-                                                273.15d0)))
+              Arrhenius(mineral%kinmnrl_pref_activation_energy(ipref,imnrl),&
+                        global_auxvar%temp,TREF)
           endif
           sum_prefactor_rate = sum_prefactor_rate + prefactor(ipref)* &
                                mineral%kinmnrl_pref_rate(ipref,imnrl)* &
                                arrhenius_factor
         enddo
       else
-        ! Arrhenius factor
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_activation_energy(imnrl) > 0.d0) then
-          arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/ &
-                                 IDEAL_GAS_CONSTANT &
-            *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+273.15d0)))
+          arrhenius_factor = &
+            Arrhenius(mineral%kinmnrl_activation_energy(imnrl),&
+                      global_auxvar%temp,TREF)
         endif
         sum_prefactor_rate = mineral%kinmnrl_rate_constant(imnrl)* &
                              arrhenius_factor
@@ -986,10 +984,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
           arrhenius_factor = &
-            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
-                IDEAL_GAS_CONSTANT &
-                *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
-                                              273.15d0)))
+            Arrhenius(mineral%kinmnrl_pref_activation_energy(ipref,imnrl),&
+                      global_auxvar%temp,TREF)
         endif
         ! prefactor() saved in residual calc above
         ln_prefactor = log(prefactor(ipref))
@@ -1104,6 +1100,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
   ! Date: 08/29/11
   !
   use Option_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -1129,6 +1126,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
 
   PetscReal :: arrhenius_factor
+  PetscReal :: TREF = 25.d0
 
   cycle_ = PETSC_FALSE
 
@@ -1217,26 +1215,22 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
           ln_prefactor_spec(ipref_species,ipref) = ln_numerator-ln_denominator
         enddo
         prefactor(ipref) = exp(ln_prefactor)
-      ! Arrhenius factor
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
           arrhenius_factor = &
-            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
-                IDEAL_GAS_CONSTANT &
-                *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
-                                              273.15d0)))
+            Arrhenius(mineral%kinmnrl_pref_activation_energy(ipref,imnrl),&
+                      global_auxvar%temp,TREF)
         endif
         sum_prefactor_rate = sum_prefactor_rate + prefactor(ipref)* &
                               mineral%kinmnrl_pref_rate(ipref,imnrl)* &
                               arrhenius_factor
       enddo
     else
-      ! Arrhenius factor
       arrhenius_factor = 1.d0
       if (mineral%kinmnrl_activation_energy(imnrl) > 0.d0) then
-        arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/ &
-                               IDEAL_GAS_CONSTANT &
-          *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+273.15d0)))
+        arrhenius_factor = &
+          Arrhenius(mineral%kinmnrl_activation_energy(imnrl), &
+                    global_auxvar%temp,TREF)
       endif
       sum_prefactor_rate = mineral%kinmnrl_rate_constant(imnrl)* &
                            arrhenius_factor
