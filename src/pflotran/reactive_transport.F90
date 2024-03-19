@@ -2751,7 +2751,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 !         r_p(jco2+(local_id-1)*reaction%ncomp)
 
       iflag = 1
-      call co2_span_wagner(pg*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
+      call co2_span_wagner(pg*1D-6,tc+T273K,dg,dddt,dddp,fg, &
               dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
 
       call EOSWaterSaturationPressure(tc, sat_pressure, ierr)

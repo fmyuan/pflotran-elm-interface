@@ -38,11 +38,11 @@ module EOS_Gas_module
   PetscInt, parameter, public :: EOS_GAS_TEMP_BOUND_EXCEEDED = 71
 
   ! This is the offset added to temperature [C] used to calculate the energy
-  ! equation of state.  Swithing between 0. and 273.15 greatly changes results.
+  ! equation of state.  Swithing between 0. and T273K greatly changes results.
 #if defined(MATCH_TOUGH2)
   PetscReal, parameter :: T_energy_offset = 0.d0
 #else
-  PetscReal, parameter :: T_energy_offset = 273.15d0
+  PetscReal, parameter :: T_energy_offset = T273K
 #endif
 
   ! EOS databases
@@ -724,7 +724,7 @@ subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, &
       d = d_air * FMWAIR
       xga = p_air / P_gas
       xgw = 1.D0 - xga
-      tk  = t + 273.15d0
+      tk  = t + T273K
       trd1 = tk/fair
       trd3 = tk/fmix
       one_over_trd3 = 1.d0/trd3
@@ -1180,7 +1180,7 @@ subroutine EOSGasDensityIdeal(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
 
   PetscReal  T_kelvin
 
-  T_kelvin = T + 273.15d0
+  T_kelvin = T + T273K
   ! calculate derivative first to avoid divide by zero
   dRho_dP = 1.d0 / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
   Rho_gas = P * dRho_dP
@@ -1236,7 +1236,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   dRho_dT = UNINITIALIZED_DOUBLE
   dRho_dP = UNINITIALIZED_DOUBLE
 
-  T_kelvin = T + 273.15d0
+  T_kelvin = T + T273K
   RT = IDEAL_GAS_CONSTANT * T_kelvin
 
   if (rks_use_effect_critical_props) then
@@ -1402,7 +1402,7 @@ subroutine EOSGasDensityPRMethane(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
   PetscReal :: coef(4)
   PetscInt, parameter :: maxit = 50
 
-  T_kelvin = T + 273.15d0
+  T_kelvin = T + T273K
   RT = IDEAL_GAS_CONSTANT*T_kelvin
   T_r = T_kelvin/Tc
   alpha = (1 + (0.3744 + 1.5422*omega - 0.26992*omega**2)*(1-T_r**(0.5)))**2
@@ -1520,7 +1520,7 @@ subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
   PetscReal :: A, B, alpha
 
   V = 1.d0 / Rho_gas * 1.d-3
-  T_kelvin = T + 273.15d0
+  T_kelvin = T + T273K
   Tr = T_kelvin/Tc  ! reduced temperature
   alpha = EXP(0.340d0*(1.d0-Tr))  ! alpha(T)
 
@@ -1560,10 +1560,10 @@ subroutine EOSGasEnergyIdealMethane(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal :: T_k
 
   ierr = 0
-  ! T_energy is either T or T + 273.15
+  ! T_energy is either T or T + T273K
   ! do not change below
   T_energy = T + T_energy_offset
-  T_k = T + 273.15d0
+  T_k = T + T273K
   H = Cp_methane * T_energy * 1.d3  ! J/mol -> J/kmol
   U = H - IDEAL_GAS_CONSTANT * T_k * 1.d3 ! J/mol -> J/kmol
 
@@ -1595,10 +1595,10 @@ subroutine EOSGasEnergyIdeal(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal :: T_energy
   PetscReal :: T_k
 
-  ! T_energy is either T or T + 273.15
+  ! T_energy is either T or T + T273K
   ! do not change below
   T_energy = T + T_energy_offset
-  T_k = T + 273.15d0
+  T_k = T + T273K
   U = Cv_air * T_energy * 1.d3  ! J/mol -> J/kmol
   H = U + IDEAL_GAS_CONSTANT * T_k * 1.d3 ! J/mol -> J/kmol
 
@@ -1685,7 +1685,7 @@ subroutine EOSGasEnergyConstant(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
   ierr = 0
   H = constant_enthalpy ! J/kmol
-  ! T_energy is either T or T + 273.15
+  ! T_energy is either T or T + T273K
   ! do not change below
   T_energy = T + T_energy_offset
   U = H - IDEAL_GAS_CONSTANT * T_energy * 1.d3 ! J/mol -> J/kmol
@@ -1767,7 +1767,7 @@ subroutine EOSGasHenry_air_noderiv(tc,ps,Henry)
     PetscReal, parameter :: a=-9.67578d0, b=4.72162d0, c=11.70585d0
     PetscReal, parameter :: Tcl=647.096d0 ! H2O critical temp(K) from IAPWS(1995b)
 
-    t = tc+273.15D0
+    t = tc+T273KD0
     Tr = t/Tcl
     tao = 1.D0-Tr
     tmp = a/Tr + b * tao**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tao)
@@ -1806,7 +1806,7 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     PetscReal, parameter :: a=-9.67578d0, b=4.72162d0, c=11.70585d0 ! for N2
     PetscReal, parameter :: Tcw=647.096d0 ! H2O critical temp from IAPWS(1995b)
 
-    TK = T+273.15D0
+    TK = T+T273K
     if ( TK > Tcw .or. TK < 0.0d0 ) then
        ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
        TK = 299.999D0
@@ -1840,8 +1840,8 @@ subroutine EOSGasHenry_methane(T,Psat,Hc,calculate_derivative, &
 !
 !   Calculates Henry's constant as a function of temperature [C]
 !
-!   Carroll, J. J., & Mather, A. E. (1997). A model for the solubility of 
-!   light hydrocarbons in water and aqueous solutions of alkanolamines. 
+!   Carroll, J. J., & Mather, A. E. (1997). A model for the solubility of
+!   light hydrocarbons in water and aqueous solutions of alkanolamines.
 !   Chemical Engineering Science, 52(4), 545-552. Table 2
 !
 !
@@ -1860,7 +1860,7 @@ subroutine EOSGasHenry_methane(T,Psat,Hc,calculate_derivative, &
 
   PetscReal :: T_temp
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
 
   ! [Hc] = [Pa/mol frac]
   Hc = exp(5.1345d0 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
@@ -1871,8 +1871,8 @@ subroutine EOSGasHenry_methane(T,Psat,Hc,calculate_derivative, &
     Hc_T = -7.837d3/(T**2) + 2*1.509d6/(T**3) - 3*2.06d7/(T**4)
     Hc_T = Hc_T * Hc
   endif
-  
-end subroutine EOSGasHenry_methane 
+
+end subroutine EOSGasHenry_methane
 
 ! ************************************************************************** !
 

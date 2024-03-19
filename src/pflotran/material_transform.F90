@@ -101,7 +101,7 @@ module Material_Transform_module
   !---------------------------------------------------------------------------
   type, public :: bats_transform_auxvar_type
     PetscReal :: temp0 ! initial temperature
-    PetscReal, allocatable :: perm0(:) ! initial permeability 
+    PetscReal, allocatable :: perm0(:) ! initial permeability
   end type bats_transform_auxvar_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_auxvar_type
@@ -320,7 +320,7 @@ function BatsTransformCreate()
   !
   ! Author: Rosie Leone
   ! Date: 02/8/2023
-  
+
   implicit none
 
   class(bats_transform_type), pointer :: BatsTransformCreate
@@ -415,7 +415,7 @@ function BufferErosionAuxVarInit()
   class(buffer_erosion_auxvar_type), pointer :: auxvar
 
   allocate(auxvar)
-  
+
   BufferErosionAuxVarInit => auxvar
 
 end function BufferErosionAuxVarInit
@@ -428,7 +428,7 @@ function BatsTransformAuxVarInit(option)
   !
   ! Author: Rosie Leone
   ! Date: 02/8/2023
-  
+
   use Option_module
 
   implicit none
@@ -440,7 +440,7 @@ function BatsTransformAuxVarInit(option)
   allocate(auxvar)
 
   auxvar%temp0 = UNINITIALIZED_DOUBLE
-  
+
   if (option%iflowmode /= NULL_MODE) then
     if (option%flow%full_perm_tensor) then
       allocate(auxvar%perm0(6))
@@ -453,7 +453,7 @@ function BatsTransformAuxVarInit(option)
   BatsTransformAuxVarInit => auxvar
 
 end function BatsTransformAuxVarInit
-  
+
 ! ************************************************************************** !
 
 subroutine MaterialTransformAuxVarInit(auxvar)
@@ -1121,7 +1121,7 @@ subroutine BatsTransformRead(this, input, option)
   !
   ! Author: Rosie Leone
   ! Date: 02/8/2023
-  
+
   use Option_module
   use Input_Aux_module
   use String_module
@@ -1228,7 +1228,7 @@ subroutine MaterialTransformRead(this, input, option)
         this%bats_transform%name = this%name
         call BatsTransformRead(this%bats_transform,input,option)
       !------------------------------------------
-  
+
       case default
         call InputKeywordUnrecognized(input,keyword, &
                'MATERIAL_TRANSFORM "'//trim(this%name)//'"',option)
@@ -1427,7 +1427,7 @@ subroutine ILTDefaultIllitization(this, fs, temperature, dt, fi, scale, option)
   !  pp. 162-177, 1993
 
   ! Use Kelvin to calculate rate
-  T = temperature + 273.15d0
+  T = temperature + T273K
 
   ! Check if temperature is above threshold for illitization
   if (temperature >= this%threshold) then
@@ -1489,7 +1489,7 @@ subroutine ILTGeneralIllitization(this, fs, temperature, dt, fi, scale, option)
   !   vol. 60, no. 3, pp. 439-453, 1996
 
   ! Use Kelvin to calculate rate
-  T = temperature + 273.15d0
+  T = temperature + T273K
 
   ! Check if temperature is above threshold for illitization
   if (temperature >= this%threshold) then
@@ -1947,16 +1947,16 @@ end subroutine ILTShiftPerm
 ! ************************************************************************** !
 
 subroutine BTModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
-  !                                                       
+  !
   ! Modifies the permeability tensor according to the Bats Function
-  !   
+  !
   ! Author: Rosie Leone
   ! Date: 02/8/2023
-  
+
   use Option_module
   use Material_Aux_module
   use Global_Aux_module
-  
+
   implicit none
 
   class(bats_transform_type), intent(inout) :: this
@@ -1972,14 +1972,14 @@ subroutine BTModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
     !store intial temperature
     auxvar%temp0 = global_auxvar%temp_store(1)
   endif
-  
+
   scale = (this%b(1) * (global_auxvar%temp - auxvar%temp0) + this%b(3) &
        * exp(this%b(2) * (global_auxvar%temp - auxvar%temp0)))
-  
+
   ps = size(material_auxvar%permeability)
   do i = 1, ps
-    material_auxvar%permeability(i) = auxvar%perm0(i) * scale 
-  enddo   
+    material_auxvar%permeability(i) = auxvar%perm0(i) * scale
+  enddo
 
 end subroutine BTModifyPerm
 
@@ -2411,7 +2411,7 @@ subroutine MaterialTransformInputRecord(material_transform_list)
       write(word,'(es12.5)') cur_material_transform%bats_transform%b(3)
       write(id,'(a)') adjustl(trim(word))
     endif
-   
+
     write(id,'(a29)') '---------------------------: '
     cur_material_transform => cur_material_transform%next
   enddo
@@ -2510,7 +2510,7 @@ subroutine BatsTransformAuxVarStrip(auxvar)
   !
   ! Author: Rosie Leone
   ! Date: 02/8/2023
-  
+
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -2550,7 +2550,7 @@ subroutine MaterialTransformAuxVarStrip(auxvar)
   if (associated(auxvar%bt_aux)) then
     call BatsTransformAuxVarStrip(auxvar%bt_aux)
   endif
- 
+
 end subroutine MaterialTransformAuxVarStrip
 
 ! ************************************************************************** !

@@ -152,7 +152,7 @@ function CyberCreate()
   CyberCreate%stoich_3_co2 = UNINITIALIZED_DOUBLE
   CyberCreate%stoich_3_biomass = UNINITIALIZED_DOUBLE
   CyberCreate%activation_energy = UNINITIALIZED_DOUBLE
-  CyberCreate%reference_temperature = 273.15d0 ! 25 C
+  CyberCreate%reference_temperature = T273K ! 25 C
   CyberCreate%nrxn = UNINITIALIZED_INTEGER
   CyberCreate%offset_auxiliary = UNINITIALIZED_INTEGER
   CyberCreate%carbon_consumption_species = ''

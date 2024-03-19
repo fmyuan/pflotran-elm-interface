@@ -1797,7 +1797,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           lnQK = -reaction%gas%paseqlogK(igas)*LOG_TO_LN
 
           ! divide K by RT
-          !lnQK = lnQK - log((auxvar%temp+273.15d0)*IDEAL_GAS_CONSTANT)
+          !lnQK = lnQK - log((auxvar%temp+T273K)*IDEAL_GAS_CONSTANT)
 
           ! activity of water
           if (reaction%gas%paseqh2oid(igas) > 0) then
@@ -1847,10 +1847,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
             yco2 = pco2/pres
 
             iflag = 1
-            call co2_span_wagner(pres*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
+            call co2_span_wagner(pres*1D-6,tc+T273K,dg,dddt,dddp,fg, &
               dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
 
-!            call co2_span_wagner(pco2*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
+!            call co2_span_wagner(pco2*1D-6,tc+T273K,dg,dddt,dddp,fg, &
 !              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
 
             global_auxvar%den_kg(2) = dg
@@ -2730,7 +2730,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
 
     do imnrl = 1, mineral_reaction%nmnrl
       i = eqmnrlsort(imnrl)
-      affinity = -1.d0*IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*lnQK(i)
+      affinity = -1.d0*IDEAL_GAS_CONSTANT*(global_auxvar%temp+T273K)*lnQK(i)
       write(option%fid_out,131) mineral_reaction%mineral_names(i), &
                                 lnQK(i)*LN_TO_LOG, affinity, &
                                 mineral_reaction%mnrl_logK(i)
@@ -2780,7 +2780,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
       lnQKgas(igas) = -reaction%gas%paseqlogK(igas)*LOG_TO_LN
 
       ! divide K by RT
-      !lnQKgas = lnQKgas - log((auxvar%temp+273.15d0)*IDEAL_GAS_CONSTANT)
+      !lnQKgas = lnQKgas - log((auxvar%temp+T273K)*IDEAL_GAS_CONSTANT)
 
       ! activity of water
       if (reaction%gas%paseqh2oid(igas) > 0) then
@@ -2881,7 +2881,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   type(global_auxvar_type), pointer :: global_auxvar
   type(surface_complexation_type), pointer :: surface_complexation
 
-  PetscReal, parameter :: tk = 273.15d0
+  PetscReal, parameter :: tk = T273K
   PetscReal, parameter :: epsilon = 78.5d0
   PetscReal, parameter :: epsilon0 = 8.854187817d-12
 

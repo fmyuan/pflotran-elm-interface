@@ -1264,7 +1264,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         enddo
       enddo
       if (reaction%gas%nactive_gas > 0) then
-        RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
+        RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + T273K) * 1.d3
         do igas = 1, reaction%gas%nactive_gas
           do j = 1, ncomp
             jcomp = reaction%gas%acteqspecid(j,igas)
@@ -1305,7 +1305,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
     endif
     if (reaction%gas%nactive_gas > 0) then
-      RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
+      RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + T273K) * 1.d3
       do igas = 1, reaction%gas%nactive_gas
         do j = 1, ncomp
           jcomp = reaction%gas%acteqspecid(j,igas)
