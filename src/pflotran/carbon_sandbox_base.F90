@@ -53,6 +53,7 @@ module Carbon_Sandbox_Base_class
     PetscReal :: porosity
     PetscReal :: cell_volume
     PetscReal :: liter_water
+    PetscReal :: temperature
     PetscReal, pointer :: conc(:)
     PetscReal, pointer :: ln_conc(:)
     PetscReal, pointer :: inhibition_conc(:)
@@ -246,6 +247,7 @@ subroutine CarbonBaseSetup(this,reaction,option)
   this%aux%porosity = UNINITIALIZED_DOUBLE
   this%aux%cell_volume = UNINITIALIZED_DOUBLE
   this%aux%liter_water = UNINITIALIZED_DOUBLE
+  this%aux%temperature = UNINITIALIZED_DOUBLE
   allocate(this%aux%conc(reaction%ncomp))
   this%aux%conc = UNINITIALIZED_DOUBLE
   allocate(this%aux%ln_conc(reaction%ncomp))
@@ -397,6 +399,7 @@ subroutine CarbonBaseMapStateVariables(this,rt_auxvar,global_auxvar, &
   this%aux%liter_water = this%aux%liquid_saturation * &
                          this%aux%porosity * &
                          this%aux%cell_volume * 1.d3
+  this%aux%temperature = global_auxvar%temp
 
   do i = 1, reaction%naqcomp
     this%aux%conc(i) = rt_auxvar%pri_molal(i)*this%aux%liter_water

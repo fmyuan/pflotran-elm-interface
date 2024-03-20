@@ -11,6 +11,8 @@ END
 
 SUBSURFACE
 
+REFERENCE_TEMPERATURE 13.d0
+
 #=========================== regression =======================================
 REGRESSION
   CELL_IDS

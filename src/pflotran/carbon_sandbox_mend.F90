@@ -424,6 +424,7 @@ subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reaction_Inhibition_Aux_module
   use Reactive_Transport_Aux_module
+  use Utility_module
 
   class(carbon_sandbox_mend_type) :: this
   class(reaction_rt_type) :: reaction
@@ -442,9 +443,17 @@ subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: F1, F2, F3, F4, F5, F6, F7, F8, F9EP, F9EM, F10EP, F10EM
   PetscReal :: dB, dD, dEM, dEP, dIC, dM, dP, dQ
   PetscReal :: conc_units_conversion
+  PetscReal :: V_P_adj, V_M_adj, V_D_adj, K_P_adj, K_M_adj, K_D_adj
+  PetscReal :: m_R_adj, E_C_adj
+  PetscReal :: K_ads_adj, K_des_adj
+  PetscReal :: t, tref
+  PetscReal :: tempreal
 
   call this%MapStateVariables(rt_auxvar,global_auxvar,material_auxvar, &
                               reaction,option)
+
+  t = this%aux%temperature
+  tref = 12.d0
   ! mgC/gsoil = molC/kgsoil*gC/molC*mgC/gC*kgsoil/gsoil
   conc_units_conversion = 30.d0*1000.d0*1.d-3
   B = this%aux%conc(this%B_species_index)*conc_units_conversion
@@ -455,20 +464,34 @@ subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
   M = this%aux%conc(this%M_species_index)*conc_units_conversion
   P = this%aux%conc(this%P_species_index)*conc_units_conversion
   Q = this%aux%conc(this%Q_species_index)*conc_units_conversion
+
+  V_P_adj = this%V_P*Arrhenius(53.d0,t,tref)
+  tempreal = Arrhenius(47.d0,t,tref)
+  V_M_adj = this%V_M*tempreal
+  V_D_adj = this%V_D*tempreal
+  tempreal = Arrhenius(30.d0,t,tref)
+  K_P_adj = this%K_P*tempreal
+  K_M_adj = this%K_M*tempreal
+  K_D_adj = this%K_D*tempreal
+  m_R_adj = this%m_R*Arrhenius(20.d0,t,tref)
+  K_ads_adj = this%K_ads*Arrhenius(5.d0,t,tref)
+  K_des_adj = this%K_des*Arrhenius(20.d0,t,tref)
+  E_C_adj = max(min(this%E_C - 0.012d0*(t-tref),1.d0),0.d0)
+
   D_monod = D/(this%K_D+D)
   M_monod = M/(this%K_M+M)
   P_monod = P/(this%K_P+P)
-  one_over_E_C = 1.d0 / this%E_C
-  F1 = one_over_E_C*(this%V_D+this%m_R)*B*D_monod
-  F2 = this%V_P*EP*P_monod
-  F3 = this%V_M*EM*M_monod
-  F4 = (one_over_E_C-1.d0)*this%V_D*B
-  F5 = (one_over_E_C-1.d0)*this%m_R*B*D_monod
-  F6 = this%K_ads*(1.d0-Q/this%Q_max)*D
-  F7 = this%K_des*Q/this%Q_max
-  F8 = (1.d0-this%p_EP-this%p_EM)*this%m_R*B
-  F9EM = this%p_EM*this%m_R*B
-  F9EP = this%p_EP*this%m_R*B
+  one_over_E_C = 1.d0 / E_C_adj
+  F1 = one_over_E_C*(V_D_adj+m_R_adj)*B*D_monod
+  F2 = V_P_adj*EP*P_monod
+  F3 = V_M_adj*EM*M_monod
+  F4 = (one_over_E_C-1.d0)*V_D_adj*B
+  F5 = (one_over_E_C-1.d0)*m_R_adj*B*D_monod
+  F6 = K_ads_adj*(1.d0-Q/this%Q_max)*D
+  F7 = K_des_adj*Q/this%Q_max
+  F8 = (1.d0-this%p_EP-this%p_EM)*m_R_adj*B
+  F9EM = this%p_EM*m_R_adj*B
+  F9EP = this%p_EP*m_R_adj*B
   F10EM = this%r_EM*EM
   F10EP = this%r_EP*EP
 
