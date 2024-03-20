@@ -222,7 +222,14 @@ module SCO2_Aux_module
             SCO2BrineDensity, &
             SCO2Henry, &
             SCO2SaltDensity, &
-            SCO2Equilibrate
+            SCO2Equilibrate, &
+            SCO2DensityCompositeLiquid, &
+            SCO2WaterDensity, &
+            SCO2ViscosityWater, &
+            SCO2ViscosityCO2, &
+            SCO2ViscosityBrine, &
+            SCO2ViscosityLiquid, &
+            SCO2ViscosityGas
 
 
 contains

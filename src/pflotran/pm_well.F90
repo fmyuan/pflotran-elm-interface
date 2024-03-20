@@ -3504,9 +3504,16 @@ subroutine PMWellInitializeTimestepFlow(pm_well,curr_time)
     pm_well%well%bh_sg = pm_well%reservoir%s_g(1)
   endif
 
-  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well,&
+  select case (pm_well%option%iflowmode)
+    case(WF_MODE)
+      call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well,&
                         pm_well%realization%patch%characteristic_curves_array,&
                         pm_well%realization%option)
+    case(SCO2_MODE)
+      call PMWellUpdatePropertiesSCO2Flow(pm_well,pm_well%well,&
+                        pm_well%realization%option)
+  end select
+  
 
 end subroutine PMWellInitializeTimestepFlow
 
@@ -4650,13 +4657,16 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
 
   if (option%iflowmode == WF_MODE) then
     ! Quasi-implicit
-      call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
-      call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
-  endif
+    call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
+    call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
   
-  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well,&
+    call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well,&
                         pm_well%realization%patch%characteristic_curves_array,&
                         pm_well%realization%option)
+  elseif (option%iflowmode == SCO2_MODE) then
+    call PMWellUpdatePropertiesSCO2Flow(pm_well,pm_well%well,&
+                        pm_well%realization%option)
+  endif
   pm_well%dt_flow = pm_well%realization%option%flow_dt
   call PMWellSolveFlow(pm_well,perturb,ierr)
   pm_well%print_output = PETSC_TRUE  
@@ -4808,6 +4818,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
     case(WF_MODE)
 
       allocate(J_block(pm_well%flow_soln%ndof,pm_well%flow_soln%ndof))
+      J_block = 0.d0
 
       do k = 1,pm_well%well_grid%nsegments
         if (pm_well%well_grid%h_rank_id(k) /= pm_well%option%myrank) cycle
@@ -4850,10 +4861,15 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
       allocate(J_block(option%nflowdof,option%nflowdof))
       allocate(residual(pm_well%well_grid%nsegments,option%nflowdof))
 
+      J_block = 0.d0
+      residual = 0.d0
+
       if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
         if (ires_pert) then
         ! Calculate Jacobian entries wrt reservoir perturbation:
         ! BHP residual and reservoir source/sink residuals.
+
+        ! Unperturbed residual
           call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,ierr)
           do k = 1,pm_well%well_grid%nsegments
             do irow = 1, option%nflowdof-1
@@ -4873,6 +4889,8 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
               residual(k,option%nflowdof) = Q - sum_q
             endif
           enddo
+
+        ! Perturbation in the reservoir variables
           do idof = 1,option%nflowdof-1
             call PMWellUpdateRates(pm_well,ZERO_INTEGER,idof,ierr)
             do k = 1,pm_well%well_grid%nsegments
@@ -6576,7 +6594,7 @@ subroutine PMWellUpdateSolutionFlow(pm_well)
         endif
 
       enddo
-      call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
+      call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well, &
                      pm_well%realization%patch%characteristic_curves_array, &
                      pm_well%realization%option)
   end select
@@ -6640,7 +6658,7 @@ subroutine PMWellCutTimestepFlow(pm_well)
       pm_well%dt_flow = max(pm_well%dt_flow,pm_well%min_dt_flow)
       pm_well%well%pl = pm_well%flow_soln%prev_soln%pl
       pm_well%well%gas%s = pm_well%flow_soln%prev_soln%sg
-      call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
+      call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well, &
                      pm_well%realization%patch%characteristic_curves_array, &
                      pm_well%realization%option)
     case(WELL_MODEL_HYDROSTATIC)
@@ -8317,13 +8335,24 @@ subroutine PMWellPerturb(pm_well)
   pm_well%well_pert(TWO_INTEGER)%gas%s = x(:,TWO_INTEGER) + pert(:,TWO_INTEGER)
 
   ! Update perturbed well properties
-  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well_pert(ONE_INTEGER), &
-                        pm_well%realization%patch%characteristic_curves_array, &
+  select case (pm_well%option%iflowmode)
+    case(WF_MODE)
+      call PMWellUpdatePropertiesWIPPFlow(pm_well, &
+                        pm_well%well_pert(ONE_INTEGER), &
+                        pm_well%realization%patch%characteristic_curves_array,&
                         pm_well%realization%option)
-  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well_pert(TWO_INTEGER), &
-                        pm_well%realization%patch%characteristic_curves_array, &
+      call PMWellUpdatePropertiesWIPPFlow(pm_well, &
+                        pm_well%well_pert(TWO_INTEGER), &
+                        pm_well%realization%patch%characteristic_curves_array,&
                         pm_well%realization%option)
-
+    case(SCO2_MODE)
+      call PMWellUpdatePropertiesSCO2Flow(pm_well, &
+                        pm_well%well_pert(ONE_INTEGER), &
+                        pm_well%realization%option)
+      call PMWellUpdatePropertiesSCO2Flow(pm_well, &
+                        pm_well%well_pert(TWO_INTEGER), &
+                        pm_well%realization%option)
+  end select
   ! Update perturbed source/sink term from the reservoir
   call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
   call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
@@ -8334,10 +8363,11 @@ end subroutine PMWellPerturb
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdatePropertiesFlow(pm_well,well,characteristic_curves_array, &
-                                      option)
+subroutine PMWellUpdatePropertiesWIPPFlow(pm_well,well, &
+                                          characteristic_curves_array, &
+                                          option)
   !
-  ! Updates flow well object properties.
+  ! Updates flow well object properties, when WIPP_FLOW is the flow mode.
   !
   ! Author: Michael Nole
   ! Date: 01/06/2022
@@ -8461,7 +8491,104 @@ subroutine PMWellUpdatePropertiesFlow(pm_well,well,characteristic_curves_array, 
   enddo
 
 
-end subroutine PMWellUpdatePropertiesFlow
+end subroutine PMWellUpdatePropertiesWIPPFlow
+
+! ************************************************************************** !
+subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
+  !
+  ! Updates flow well object properties, when SCO2 mode is the flow mode.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/06/2022
+  !
+
+  use EOS_Water_module
+  use EOS_Gas_module
+  use SCO2_Aux_module
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+  type(well_type) :: well
+  type(option_type) :: option
+
+  PetscInt :: i,nsegments
+  PetscReal :: drho_dT,drho_dP
+  PetscReal :: xsl, Pco2, Pvap, Pva, Ps, Prvap 
+  PetscReal :: den_kg_water, den_kg_steam, &
+               den_kg_brine, den_kg_liq, &
+               den_kg_gas, den_mol_co2, &
+               den_kg_co2
+  PetscReal :: visc_co2, visc_water, visc_liq, &
+               visc_brine, visc_gas
+  PetscReal :: xco2g, xwg, xco2l,xwl, &
+               xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl
+  PetscErrorCode :: ierr
+
+
+  if (pm_well%well_comm%comm == MPI_COMM_NULL) return
+
+  nsegments =pm_well%well_grid%nsegments
+
+  do i = 1,nsegments
+
+    !Liquid Density
+    xsl = well%liq%xmass(i,option%salt_id)
+    call SCO2BrineSaturationPressure(well%temp(i), &
+                                     xsl,Ps)
+    call SCO2BrineDensity(well%temp(i), well%pg(i), &
+                          xsl, den_kg_brine, option)
+    call SCO2VaporPressureBrine(well%temp(i), Ps, &
+                                0.d0, den_kg_brine, &
+                                xsl, Prvap)
+    call SCO2WaterDensity(well%temp(i),Prvap, &
+                          TWO_INTEGER,den_kg_water, &
+                          den_kg_steam,option)
+    call SCO2DensityCompositeLiquid(well%temp(i),den_kg_brine, &
+                                  well%liq%xmass(i,option%co2_id), &
+                                  den_kg_liq)
+
+    well%liq%den(i) = den_kg_liq
+
+    
+    call SCO2Equilibrate(well%temp(i),well%pg(i), &
+                         Pco2, Pvap, Ps, Prvap, &
+                         xco2g, xwg, xco2l, xsl, xwl, &
+                         xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
+
+    !Gas Density
+    Pva = max(well%pg(i),Prvap)
+    call EOSGasDensity(well%temp(i),Pva, &
+                       den_mol_co2,drho_dT,drho_dP,ierr)
+    den_kg_co2 = den_mol_co2 * fmw_comp(2)
+    den_kg_gas = well%gas%xmass(i,option%co2_id) * &
+                 den_kg_co2 + &
+                 well%gas%xmass(i,option%water_id) * &
+                 den_kg_steam
+    well%gas%den(i) = den_kg_gas
+
+    ! Liquid Viscosity
+    call SCO2ViscosityWater(well%temp(i),well%pg(i), &
+                           den_kg_water,visc_water,option)
+    call SCO2ViscosityCO2(well%temp(i), den_kg_co2, &
+                          visc_co2)
+    call SCO2ViscosityBrine(well%temp(i), xsl, &
+                           visc_water, visc_brine)
+    call SCO2ViscosityLiquid(xmolco2l, visc_brine, &
+                             visc_co2, visc_liq)
+
+    well%liq%visc(i) = visc_liq
+
+    ! Gas Viscosity
+    call SCO2ViscosityGas(visc_water,visc_co2,xmolwg, &
+                          xmolco2g,visc_gas)
+    
+    well%gas%visc(i) = visc_gas
+
+  enddo
+
+
+end subroutine PMWellUpdatePropertiesSCO2Flow
 
 ! ************************************************************************** !
 
