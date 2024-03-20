@@ -1178,7 +1178,7 @@ subroutine ReactionAuxFitLogKCoef(coefs,logK,name,option,reaction)
   ! need to fill in vec with equations for temperatures vs coefs.
 
   do i = 1, reaction%num_dbase_temperatures
-    temperature_kelvin = reaction%dbase_temperatures(i) + 273.15d0
+    temperature_kelvin = reaction%dbase_temperatures(i) + T273K
     vec(1,i) = log(temperature_kelvin)
     vec(2,i) = 1.d0
     vec(3,i) = temperature_kelvin
@@ -1291,7 +1291,7 @@ subroutine ReactionAuxInterpolateLogK(coefs,logKs,temp,n)
   PetscInt :: i
   PetscReal :: temp_kelvin
 
-  temp_kelvin = temp + 273.15d0
+  temp_kelvin = temp + T273K
 
   do i = 1, n
     logKs(i) = coefs(1,i)*log(temp_kelvin) &
@@ -1358,8 +1358,8 @@ subroutine ReactionAuxInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
   PetscInt :: i
   PetscReal :: temp_kelvin, tr, pr, logtr
 
-  temp_kelvin = temp + 273.15d0
-  tr = temp_kelvin/273.15d0
+  temp_kelvin = temp + T273K
+  tr = temp_kelvin/T273K
   pr = pres/1.d7
   logtr = log(tr)/log(10.d0)
 

@@ -746,7 +746,7 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
 
     qMag = MAX(global_auxvar%darcy_vel(iphase),1.0d-20)
 
-    diffusionCoeff = this%BOLTZMANN_CONSTANT*(temperature+273.15) / &
+    diffusionCoeff = this%BOLTZMANN_CONSTANT*(temperature+T273K) / &
                    (3.0 * PI * viscosity * dp)
 
     ! Non-dimensional parameters
@@ -762,11 +762,11 @@ subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
     NPe = (qMag * dc) / (diffusionCoeff)
 
     !! van der Waals number
-    NvdW = Hamaker/(kB*(temperature + 273.15))
+    NvdW = Hamaker/(kB*(temperature + T273K))
 
     !! Gravitational number
     NGr = PI/12.0 * (dp*dp*dp*dp) * (rho_p - rho_f) * g /&
-          (kB*(temperature + 273.15))
+          (kB*(temperature + T273K))
 
     ! Collector efficiencies
     ! ( see Tufenkji & Elimelech 2014

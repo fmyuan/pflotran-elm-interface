@@ -1194,7 +1194,7 @@ function TCFPowerCreate()
   allocate(TCFPowerCreate)
   TCFPowerCreate%kT_wet = UNINITIALIZED_DOUBLE
   TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
-  TCFPowerCreate%ref_temp = -273.15d0
+  TCFPowerCreate%ref_temp = -T273K
   TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
   TCFPowerCreate%alpha = 1.0d0
   TCFPowerCreate%isotropic   = PETSC_TRUE

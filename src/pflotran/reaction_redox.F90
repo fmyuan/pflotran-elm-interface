@@ -80,7 +80,7 @@ subroutine ReactionRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction, &
   ! pH
   call ReactionRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
   call ReactionRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnQKo2,option)
-  t_kelvin = global_auxvar%temp+273.15d0
+  t_kelvin = global_auxvar%temp+T273K
   ehfac = IDEAL_GAS_CONSTANT*t_kelvin*LOG_TO_LN/FARADAY
 
   ! O2(aq) + 4 e- + 4 H+ -> 2 H2O

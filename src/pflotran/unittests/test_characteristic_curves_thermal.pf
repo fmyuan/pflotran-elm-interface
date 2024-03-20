@@ -52,7 +52,7 @@ contains
 
   subroutine setUp(This)
 
-    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
+    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH, T273K
 
     implicit none
 
@@ -88,7 +88,7 @@ contains
       class is (kT_power_type)
         tcf%kT_dry = 6.d-1
         tcf%kT_wet = 1.9d0
-        tcf%ref_temp = -273.15d0
+        tcf%ref_temp = -T273K
         tcf%gamma = -1.18d0
       class default
         print *, 'not Power type'

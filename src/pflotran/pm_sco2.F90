@@ -175,7 +175,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
                           ! Gas State: Pg, Pco2, X_salt, T
                                    pres_rel_inf_tol,pres_rel_inf_tol, &
                                    xmass_rel_inf_tol,temp_rel_inf_tol,&
-                          ! Trapped Gas State: Pl, Sg, X_salt, T 
+                          ! Trapped Gas State: Pl, Sg, X_salt, T
                                    pres_rel_inf_tol,sat_rel_inf_tol, &
                                    xmass_rel_inf_tol,temp_rel_inf_tol, &
                           ! Liquid-Gas State: Pl, Pg, X_salt, T
@@ -1137,7 +1137,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                   dabs(dX_p(temperature_index))), &
                                   dX_p(temperature_index))
 
-        if ((X_p(temperature_index) + dX_p(temperature_index)) + 273.15 >= &
+        if ((X_p(temperature_index) + dX_p(temperature_index)) + T273K >= &
            H2O_CRITICAL_TEMPERATURE) then
           option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
            &greater than (or equal to) the critical temperature of water.'
@@ -1200,7 +1200,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
             dX_p(co2_pressure_index) = X_p(gas_pressure_index) - &
             X_p(co2_pressure_index)
 
-          ! Bound changes in salt mass 
+          ! Bound changes in salt mass
           if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
               dX_p(salt_index) = - X_p(salt_index)
 
@@ -1261,7 +1261,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       end select
 
       if (sco2_thermal) then
-        if ((X_p(temperature_index) + dX_p(temperature_index)) + 273.15 >= &
+        if ((X_p(temperature_index) + dX_p(temperature_index)) + T273K >= &
            H2O_CRITICAL_TEMPERATURE) then
           option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
            &greater than (or equal to) the critical temperature of water.'
@@ -2162,8 +2162,8 @@ subroutine PMSCO2MaxChange(this)
       max_change_global(1:max_change_index)
     endif
   endif
-  
-  
+
+
 
   ! MAN: check these
   this%max_pressure_change = maxval(max_change_global(1:3))

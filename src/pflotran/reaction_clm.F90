@@ -4044,7 +4044,7 @@ subroutine ReactionCLMNitrReact(this,Residual,Jacobian,compute_derivative, &
 
   ! nitrification (Dickinson et al. 2002)
   if (this%ispec_no3 > 0) then
-    f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+    f_t = exp(0.08d0 * (tc - T298K + T273K))
 
     ! to be consistent in CLM  CNNDynamicsMod.F90 line 839
     if (tc < 0.0d0) f_t = 0.0d0
@@ -4659,7 +4659,7 @@ subroutine ReactionCLMDeniReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp
   ! f_t = exp(0.08d0 * (tc - 25.d0))
   ! make it consistent with CLM CNNDynamicsMod.F90 line 652
-  f_t = exp(0.08d0 * (tc + 273.15d0 - 298.0d0))
+  f_t = exp(0.08d0 * (tc + T273K - T298K))
 
   saturation = global_auxvar%sat(1)
   s_min = 0.6d0

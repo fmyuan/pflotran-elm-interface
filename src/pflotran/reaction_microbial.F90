@@ -243,6 +243,7 @@ subroutine ReactionMicrobRate(Res,Jac,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module, only : reaction_rt_type
   use Reaction_Immobile_Aux_module, only : immobile_type
   use Reaction_Inhibition_Aux_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -272,6 +273,7 @@ subroutine ReactionMicrobRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: biomass_conc, yield, dbiomass_conc_dconc
   PetscReal :: denominator, dR_dX, dX_dconc, dR_dc, dR_dbiomass
   PetscReal :: tempreal
+  PetscReal, parameter :: TREF = 25.d0
   PetscReal :: L_water
   PetscReal :: dummy
   type(microbial_type), pointer :: microbial
@@ -307,8 +309,7 @@ subroutine ReactionMicrobRate(Res,Jac,compute_derivative,rt_auxvar, &
     if (associated(microbial%activation_energy)) then
       ! ideal gas constant units: J/mol-K
       effective_rate_constant = effective_rate_constant * &
-        exp(microbial%activation_energy(irxn)/IDEAL_GAS_CONSTANT* &
-            (1.d0/298.15d0-1.d0/(global_auxvar%temp+273.15d0)))
+        Arrhenius(microbial%activation_energy(irxn),global_auxvar%temp,TREF)
     endif
     yield = 0.d0
     biomass_conc = 0.d0

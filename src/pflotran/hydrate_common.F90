@@ -691,10 +691,10 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
       pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
                             hyd_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dTdn = ddiffusion_coef_dTup
       ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
       ddiffusion_coef_dpdn = ddiffusion_coef_dpup
@@ -1401,10 +1401,10 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
       temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
       pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
                             hyd_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
     else
       diffusion_scale = 1.d0
