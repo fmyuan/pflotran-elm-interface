@@ -9,12 +9,12 @@
        64:   1.0769190665590E-02
 -- GENERIC: Electrical Potential_2 --
       Max:   2.6770852193476E+01
-      Min:   8.1405586884773E-03
+      Min:   8.1405586884764E-03
      Mean:   9.6933412381434E-01
        93:   3.9862783453414E-01
-        1:   1.8567669452961E-01
+        1:   1.8567669452962E-01
         4:   2.6770852193476E+01
-       61:   7.6603622972602E-02
+       61:   7.6603622972601E-02
        64:   1.6621756047938E+00
 -- GENERIC: Electrical Jacobian_1 --
       Max:   3.6746419489235E+01
@@ -44,6 +44,7 @@
        61:         1
        64:         1
 -- SOLUTION: Transport --
+   Time (seconds):   5.4885779999950E-02
    Time Steps:            9
    Newton Iterations:           11
    Linear Solver Iterations:           17

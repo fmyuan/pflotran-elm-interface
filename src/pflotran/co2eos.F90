@@ -515,7 +515,7 @@ subroutine duanco2 (tt,p,dc,fc,phi)
   ! 8000 bar. Geochimica Cosmochimica Acta, 56, 2605-2617.
   !
 
-      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT, T273K
 
       implicit none
 
@@ -544,10 +544,10 @@ subroutine duanco2 (tt,p,dc,fc,phi)
       data beta  / 1.398d0/
       data gamma / 2.96d-2/
 
-      t = tt + 273.15d0
+      t = tt + T273K
 
 
-      tc = 31.05d0 + 273.15d0
+      tc = 31.05d0 + T273K
       pc = 73.825d0
 
       tr = t/tc
@@ -642,6 +642,7 @@ end subroutine duanco2
 
 subroutine Henry_duan_sun_0NaCl (p,tc,henry)
 
+  use PFLOTRAN_Constants_module, only : T273K
   implicit none
 
   PetscReal :: c1,c2,c3,c4,c5,c6,c7,c8,c9,c10
@@ -658,7 +659,7 @@ subroutine Henry_duan_sun_0NaCl (p,tc,henry)
   c9  = -0.0907301486d0
   c10 =  9.32713393d-4
 
-  t = tc + 273.15d0
+  t = tc + T273K
   lnt = log(t)
   muco2 = c1 + c2*t + c3/t + c4*t*t + c5/(630.d0-t) + c6*p + c7*p*lnt &
     + c8*p/t + c9*p/(630.d0-t) + c10*p*p/(630.d0-t)**2
@@ -674,7 +675,7 @@ subroutine Henry_duan_sun(tc,p,keqco2,lngamco2,mc,ma,co2_aq_actcoef)
 
 ! t[c], p[bar], mco2[mol/Kg-H2O], mc[cation: mol/kg-H2O],
 ! ma[anion: mol/kg-H2O], psat[bars]
-
+  use PFLOTRAN_Constants_module, only : T273K
   implicit none
   PetscReal, save :: coef(3,11)
   PetscReal :: tc,p,keqco2,mc,ma,t
@@ -696,7 +697,7 @@ subroutine Henry_duan_sun(tc,p,keqco2,lngamco2,mc,ma,co2_aq_actcoef)
   0.,             1.41335834e-5,  0./
 
 
-  t=tc+273.15
+  t=tc+T273K
 
   ! adding temparray to improve efficiency (and remove Intel warning) - geh
   temparray = coef(1,:)
@@ -770,7 +771,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 !     poyn  [-]  Poynting correction
 !     xmole [-]  mole fraction CO2 in liquid water at t and p
 !     x1m   [-]  mass fraction CO2
-
+      use PFLOTRAN_Constants_module, only : T273K
       implicit none
 
       PetscReal, intent(in) :: tx,xphi,pcx
@@ -802,7 +803,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 !        RKH=(783.666E0+19.6025E0*TX+0.820574E0*T2-7.40674E-03*T3+
 !    X       2.18380E-05*T4-2.20999E-08*T2*T3)*1.E5
 !
-      tk = tx + 273.15d0
+      tk = tx + T273K
       otk = 1.d0/tk
 
       if (tx.gt.372.d0) then
@@ -1100,7 +1101,8 @@ subroutine SAT(T,P)
 !--------- Fast SAT M.J.O'Sullivan - 17 SEPT 1990 ---------
 !
       use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
-                                            H2O_CRITICAL_TEMPERATURE
+                                            H2O_CRITICAL_TEMPERATURE, &
+                                            T273K
       implicit none
 
       PetscReal :: T,P,A1,A2,A3,A4,A5,A6,A7,A8,A9
@@ -1111,7 +1113,7 @@ subroutine SAT(T,P)
       -1.189646225E2,4.167117320,2.097506760E1,1.E9,6./
 
       if (T.LT.1..OR.T.GT.500.) GOTO 10
-      TC=(T+273.15d0)/H2O_CRITICAL_TEMPERATURE
+      TC=(T+T273K)/H2O_CRITICAL_TEMPERATURE
       X1=1.d0-TC
       X2=X1*X1
       SC=A5*X1+A4
@@ -1133,7 +1135,8 @@ end subroutine SAT
 subroutine COWAT0(TF,PP,D,U)
 !--------- Fast COWAT M.J.O'Sullivan - 17 SEPT 1990 ---------
       use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
-                                            H2O_CRITICAL_TEMPERATURE
+                                            H2O_CRITICAL_TEMPERATURE, &
+                                            T273K
 
       implicit none
 
@@ -1159,7 +1162,7 @@ subroutine COWAT0(TF,PP,D,U)
       4.975858870E-2,6.537154300E-1,1.150E-6,1.51080E-5, &
       1.41880E-1,7.002753165E0,2.995284926E-4,2.040E-1   /
 
-      TKR=(TF+273.15)/H2O_CRITICAL_TEMPERATURE
+      TKR=(TF+T273K)/H2O_CRITICAL_TEMPERATURE
       TKR2=TKR*TKR
       TKR3=TKR*TKR2
       TKR4=TKR2*TKR2
@@ -1243,7 +1246,8 @@ subroutine SUPST(T,P,D,U)
 ! VAPOR DENSITY AND INTERNAL ENERGY AS FUNCTION OF TEMPERATURE AND
 ! PRESSURE (M. OS.)
       use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
-                                            H2O_CRITICAL_TEMPERATURE
+                                            H2O_CRITICAL_TEMPERATURE, &
+                                            T273K
 
       implicit none
 
@@ -1276,7 +1280,7 @@ subroutine SUPST(T,P,D,U)
       7.633333333E-1,4.006073948E-1,8.636081627E-2,-8.532322921E-1, &
       3.460208861E-1/
 
-      THETA=(T+273.15)/H2O_CRITICAL_TEMPERATURE
+      THETA=(T+T273K)/H2O_CRITICAL_TEMPERATURE
       BETA=P/H2O_CRITICAL_PRESSURE
       I1=4.260321148
       X=EXP(SB*(1.d0-THETA))
@@ -1393,6 +1397,7 @@ end subroutine SUPST
 ! ************************************************************************** !
 
 subroutine TSAT(PX,TX00,TS)
+      use PFLOTRAN_Constants_module, only : T273K
       implicit none
 
 !     SATURATION TEMPERATURE TS AT PRESSURE PX.
@@ -1403,7 +1408,7 @@ subroutine TSAT(PX,TX00,TS)
       if (.not. Equal(TX0,0.d0)) GOTO 2
 !
 !-----COME HERE TO OBTAIN ROUGH STARTING VALUE FOR ITERATION.
-      TX0=4606./(24.02-LOG(PX)) - 273.15
+      TX0=4606./(24.02-LOG(PX)) - T273K
       TX0=MAX(TX0,5.d0)
 
     2 CONTINUE
@@ -1508,6 +1513,7 @@ end subroutine VISS
 ! ************************************************************************** !
 
 subroutine THERC(T,P,D,CONW,CONS,PS)
+      use PFLOTRAN_Constants_module, only : T273K
       implicit none
 
 !     THERMAL CONDUCTIVITY OF WATER AND VAPOR AS FUNCTION OF
@@ -1520,9 +1526,9 @@ subroutine THERC(T,P,D,CONW,CONS,PS)
       DATA A0,A1,A2,A3,A4/-922.47,2839.5,-1800.7,525.77,-73.440/
       DATA B0,B1,B2,B3/-.94730,2.5186,-2.0012,.51536/
       DATA C0,C1,C2,C3/1.6563E-3,-3.8929E-3,2.9323E-3,-7.1693E-4/
-      DATA T0/273.15/
+      DATA T0/T273K/
 
-      T1=(T+273.15)/T0
+      T1=(T+T273K)/T0
       T2=T1*T1
       T3=T2*T1
       T4=T3*T1

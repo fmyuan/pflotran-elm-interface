@@ -3393,7 +3393,7 @@ subroutine PMWFInitializeTimestep(this)
         enddo
         call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                              avg_temp_global)
-        avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
+        avg_temp_global = avg_temp_global+T273K   ! Kelvin
         cur_waste_form%eff_canister_vit_rate = &
           cur_waste_form%canister_vitality_rate * &
           exp( cwfm%canister_material_constant * ( (1.d0/333.15d0) - &
@@ -3446,7 +3446,7 @@ subroutine PMWFInitializeTimestep(this)
           enddo
           call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                                avg_temp_global)
-          avg_temp_global = avg_temp_global + 273.15d0   ! Kelvin
+          avg_temp_global = avg_temp_global + T273K   ! Kelvin
         endif
 
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
@@ -4282,7 +4282,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   enddo
   call CalcParallelSUM(pm%option,waste_form%rank_list,avg_temp_local, &
                        avg_temp_global)
-  avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
+  avg_temp_global = avg_temp_global+T273K   ! Kelvin
 
   if (this%use_pH) then  ! pH ------------------------------------------------
     if (this%h_ion_id > 0) then   ! primary species
@@ -8590,7 +8590,7 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
   this%dose_rate = dose_rate(yTme,this%decay_time,this%burnup)
 
   ! features
-  f(1) = current_temp_C + 273.15d0
+  f(1) = current_temp_C + T273K
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(2)) ! Env_O2
   f(4) = log10(this%concentration(3)) ! Env_Fe_2p
@@ -8821,7 +8821,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   ! store for output
   this%dose_rate = dose_rate(yTme,decay_time,burnup)
 
-  f(1) = log10(current_temp_C + 273.15d0)
+  f(1) = log10(current_temp_C + T273K)
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(4)) ! Env_H2
   f(4) = log10(this%dose_rate)

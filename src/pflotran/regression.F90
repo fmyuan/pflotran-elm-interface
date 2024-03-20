@@ -563,15 +563,17 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
         trim(string), OutputVariableGetName(cur_variable)
 
-      ! max, min, mean
-      if (cur_variable%iformat == 0) then
-        write(OUTPUT_UNIT,'(6x,''Max: '',es21.13)') max
-        write(OUTPUT_UNIT,'(6x,''Min: '',es21.13)') min
-      else
-        write(OUTPUT_UNIT,'(6x,''Max: '',i9)') int(max)
-        write(OUTPUT_UNIT,'(6x,''Min: '',i9)') int(min)
+      if (realization%patch%grid%nmax > 1) then
+        ! max, min, mean
+        if (cur_variable%iformat == 0) then
+          write(OUTPUT_UNIT,'(6x,''Max: '',es21.13)') max
+          write(OUTPUT_UNIT,'(6x,''Min: '',es21.13)') min
+        else
+          write(OUTPUT_UNIT,'(6x,''Max: '',i9)') int(max)
+          write(OUTPUT_UNIT,'(6x,''Min: '',i9)') int(min)
+        endif
+        write(OUTPUT_UNIT,'(5x,''Mean: '',es21.13)') mean
       endif
-      write(OUTPUT_UNIT,'(5x,''Mean: '',es21.13)') mean
 
       ! natural cell ids
       if (associated(regression%natural_cell_ids)) then

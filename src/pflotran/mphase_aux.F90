@@ -346,7 +346,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
                      dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
             else
               iflag = 1
-              call co2_span_wagner(p2*1.D-6,t+273.15D0,dg,dddt,dddp,fg, &
+              call co2_span_wagner(p2*1.D-6,t+T273K,dg,dddt,dddp,fg, &
                      dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag, &
                      option%itable)
             endif
@@ -438,13 +438,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !   auxvar%diff(option%nflowspec+1:option%nflowspec*2) = 2.13D-5
     auxvar%diff(option%nflowspec+1:option%nflowspec*2) = &
       fluid_properties%gas_diffusion_coefficient &
-      * 101325.d0/p * ((t+273.15d0)/273.15d0)**1.8d0
+      * 101325.d0/p * ((t+T273K)/T273K)**1.8d0
 !       fluid_properties%diff_base(2)
 
 !   print *,'gas diff: ',fluid_properties%gas_diffusion_coefficient,p,t
 
 !  z factor
-    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1.D-3)
+    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+T273K)*1.D-3)
 
 !***************  Liquid phase properties **************************
 
@@ -503,7 +503,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
  ! Hebach, J. Chem.Eng.Data 2004 (49),p950 ***********
  !   den(1) = 949.7109D0 + p*(0.559684D-6 - 0.00097D-12*p) &
- !      + (t+273.15)*(0.883148 - 0.00228*(t+273.15))
+ !      + (t+T273K)*(0.883148 - 0.00228*(t+T273K))
  !  den(1) = dw_kg + (den(1)-dw_kg)*xmol(2)/p*henry
  !  den(1) = den(1)/avgmw(1)
 

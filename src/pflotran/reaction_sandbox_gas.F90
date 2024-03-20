@@ -253,7 +253,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   if (material_auxvar%id /= this%material_id_skip) then
 
     ! converts pressure in Pa to moles per m^3 gas
-    RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0)*1.0d3
+    RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp + T273K)*1.0d3
 
     do i = 1, this%nspecies
 

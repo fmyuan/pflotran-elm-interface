@@ -2015,10 +2015,10 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
       pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
                             gen_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dTdn = ddiffusion_coef_dTup
       ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
       ddiffusion_coef_dpdn = ddiffusion_coef_dpup
@@ -3391,7 +3391,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! liquid diffusion always exists as the internal cell has a liquid phase,
   ! but gas phase diffusion only occurs if the internal cell has a gas
   ! phase.
-  
+
   ! This checks for a dirichlet condition on either solute
   if (general_salt) then
     if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
@@ -3711,10 +3711,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
       pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
                             gen_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
     else
       diffusion_scale = 1.d0
@@ -4053,7 +4053,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     else
       xxss(4) = gen_auxvar_ss%sat(pid)
     endif
-  endif  
+  endif
 
   cell_pressure = maxval(gen_auxvar%pres(option%liquid_phase: &
                          option%gas_phase))
@@ -4756,7 +4756,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
            Jup(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/(2.d0 * &
                             gen_auxvar_up(idof)%pert)
          enddo !irow
-      enddo !idof        
+      enddo !idof
     else
       do idof = 1, option%nflowdof
         call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &

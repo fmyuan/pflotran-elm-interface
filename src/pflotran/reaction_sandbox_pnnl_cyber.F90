@@ -152,7 +152,7 @@ function CyberCreate()
   CyberCreate%stoich_3_co2 = UNINITIALIZED_DOUBLE
   CyberCreate%stoich_3_biomass = UNINITIALIZED_DOUBLE
   CyberCreate%activation_energy = UNINITIALIZED_DOUBLE
-  CyberCreate%reference_temperature = 298.15d0 ! 25 C
+  CyberCreate%reference_temperature = T273K ! 25 C
   CyberCreate%nrxn = UNINITIALIZED_INTEGER
   CyberCreate%offset_auxiliary = UNINITIALIZED_INTEGER
   CyberCreate%carbon_consumption_species = ''
@@ -282,7 +282,6 @@ subroutine CyberRead(this,input,option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,this%reference_temperature)
         call InputErrorMsg(input,option,word,error_string)
-        this%reference_temperature = this%reference_temperature + 273.15d0
       case('CARBON_CONSUMPTION_SPECIES')
         call InputReadWord(input,option, &
                            this%carbon_consumption_species,PETSC_TRUE)
@@ -606,6 +605,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reaction_Inhibition_Aux_module
   use Material_Aux_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -679,8 +679,8 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   temperature_scaling_factor = 1.d0
   if (Initialized(this%activation_energy)) then
     temperature_scaling_factor = &
-      exp(this%activation_energy/IDEAL_GAS_CONSTANT* &
-          (1.d0/this%reference_temperature-1.d0/(global_auxvar%temp+273.15d0)))
+      Arrhenius(this%activation_energy,global_auxvar%temp, &
+                this%reference_temperature)
   endif
 
   ! concentrations are molarities [M]

@@ -113,7 +113,7 @@ module Characteristic_Curves_Common_module
   end type sat_func_Exp_Freezing_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_VG_STOMP_type
-    PetscReal :: alpha 
+    PetscReal :: alpha
     PetscReal :: n
   contains
     procedure, public :: Init => SFVGSTOMPInit
@@ -1335,8 +1335,8 @@ subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
   dSe_dsatl = 1.d0 / (1.d0-this%Sr)
   Se = (liquid_saturation-this%Sr)*dSe_dsatl
 
-  capillary_pressure = sqrt(-1*log(Se))*this%w * (L_ICE * ICE_DENSITY * 1.D6)/(273.15)
-  c = this%w * L_ICE * ICE_DENSITY * 1.d6 / 273.15
+  capillary_pressure = sqrt(-1*log(Se))*this%w * (L_ICE * ICE_DENSITY * 1.D6)/(T273K)
+  c = this%w * L_ICE * ICE_DENSITY * 1.d6 / T273K
   dpc_dsatl = c / (2 * (this%sr - liquid_saturation) * (-1.d0 * log((this%sr - liquid_saturation)/(this%sr-1))) ** 0.5d0)
 
   if (capillary_pressure > this%pcmax) then
@@ -1380,10 +1380,10 @@ subroutine SFExpFreezingSaturation(this,capillary_pressure, &
     liquid_saturation = 1.d0
     return
   else
-    dTf = -1.d0 * (capillary_pressure * 273.15) /(L_ICE * ICE_DENSITY * 1.D6)
+    dTf = -1.d0 * (capillary_pressure * T273K) /(L_ICE * ICE_DENSITY * 1.D6)
     liquid_saturation = (1.d0 - this%sr) * exp(-1.d0 * (dTf/this%w)**2) + this%sr
   endif
-  
+
 end subroutine SFExpFreezingSaturation
 
 ! ************************************************************************** !
@@ -2278,7 +2278,7 @@ subroutine SFBCSPE11Saturation(this,capillary_pressure, &
                             liquid_saturation,dsat_dpres,option)
   !
   ! Computes  saturation as a function of capillary pressure after passing
-  ! through an inverse error function, inverting the function from the 
+  ! through an inverse error function, inverting the function from the
   ! SPE 11th Comparative Solution Project description.
   !
   ! Author: Michael Nole
@@ -5335,11 +5335,11 @@ subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
   PetscReal :: Sla
 
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  Se = min(max(Se,0.d0),1.d0) 
+  Se = min(max(Se,0.d0),1.d0)
   Sla = Se
 
   relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
-end subroutine 
+end subroutine
 
 ! ************************************************************************** !
 
@@ -5369,7 +5369,7 @@ subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
   PetscReal :: Sgte
 
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  Se = min(max(Se,0.d0),1.d0) 
+  Se = min(max(Se,0.d0),1.d0)
   Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
   Sla = Se + Sgte
 

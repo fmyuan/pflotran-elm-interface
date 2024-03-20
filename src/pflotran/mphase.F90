@@ -724,8 +724,8 @@ end subroutine MPhaseUpdateReason
             .or. xx_p((local_id-1)*option%nflowdof+1)>(ntab_p*dp_tab + p0_tab)*1D6)then
           ipass=-1; exit
       endif
-      if (xx_p((local_id-1)*option%nflowdof+2)< t0_tab -273.15D0 &
-            .or. xx_p((local_id-1)*option%nflowdof+2)>ntab_t*dt_tab + t0_tab-273.15D0)then
+      if (xx_p((local_id-1)*option%nflowdof+2)< t0_tab -T273K &
+            .or. xx_p((local_id-1)*option%nflowdof+2)>ntab_t*dt_tab + t0_tab-T273K)then
           ipass=-1; exit
       endif
     enddo
@@ -1402,7 +1402,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
               else
                 iflag = 1
                 call co2_span_wagner(auxvar%pres*1.D-6, &
-                  tsrc+273.15D0,rho,dddt,dddp,fg,dfgdp,dfgdt, &
+                  tsrc+T273K,rho,dddt,dddp,fg,dfgdp,dfgdt, &
                   eng,enth_src_co2,dhdt,dhdp,visc,dvdt,dvdp,iflag,option%itable)
               endif
             case(3)
@@ -2130,7 +2130,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
                   dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
             else
               iflag = 1
-              call co2_span_wagner(p2*1.D-6,t+273.15D0,dg,dddt,dddp,fg, &
+              call co2_span_wagner(p2*1.D-6,t+T273K,dg,dddt,dddp,fg, &
                   dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
               if (iflag < 1) then
                 ichange = -1

@@ -13,7 +13,7 @@
 #include "petsc/finclude/petscsys.h"
     use petscsys
     use Utility_module, only : Equal
-  use PFLOTRAN_Constants_module
+    use PFLOTRAN_Constants_module
 
       implicit none
 
@@ -23,12 +23,12 @@
 
 !     t = 35 - 410 C, p = 0.01 - 250 bars
 !     PetscInt,   public :: ntab_t = 150, ntab_p = 500
-!     PetscReal,  public :: t0_tab = 35.d0+273.15D0, p0_tab = 0.01d0
+!     PetscReal,  public :: t0_tab = 35.d0+T273K, p0_tab = 0.01d0
 !     PetscReal,  public :: dt_tab = 2.5d0, dp_tab = 0.5d0
 
 !     t = 0 - 375 C, p = 0.01 - 1250.01 bars
       PetscInt,   public :: ntab_t = 150, ntab_p = 500
-      PetscReal,  public :: t0_tab = 0.d0+273.15D0, p0_tab = 0.01d0
+      PetscReal,  public :: t0_tab = 0.d0+T273K, p0_tab = 0.01d0
       PetscReal,  public :: dt_tab = 2.5d0, dp_tab = 2.5d0
 
       PetscReal, private :: n(42),ti(40),gamma(5),phic(8),c(40),d(40),a(8)
@@ -536,7 +536,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
 
   if (iindex > ntab_p .or. iindex < 0.d0 .or. jindex < 0.d0 .or. jindex > ntab_t) then
     print  *,' Out of Table Bounds (Span-Wagner): ', 'p [MPa] =',p, &
-    ' t [C] =',t-273.15,' i=',iindex,' j=',jindex
+    ' t [C] =',t-T273K,' i=',iindex,' j=',jindex
 !geh    isucc=0
     iflag = -1
     return
@@ -702,8 +702,8 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
 !     call dissco2(p,t,mco2,fg1,mol)
 
 !     density of aqueous CO2 solution
-!     vpartial = 37.51d0-(9.585d-2*(t-273.15d0))+ &
-!     (8.74d-4*((t-273.15d0)**2.d0))-(5.044d-7*((t-273.15d0)**3))
+!     vpartial = 37.51d0-(9.585d-2*(t-T273K))+ &
+!     (8.74d-4*((t-T273K)**2.d0))-(5.044d-7*((t-T273K)**3))
 
 !      write(*,*) "Density of water?"
 !      read(*,*) rho_h2o
@@ -753,7 +753,7 @@ subroutine guess(lguess,uguess)
             t3 = 1.d0
             t4 = 7.d0/3.d0
             t5 = 14.d0/3.d0
-!           tr = 1.d0-(ts+273.15d0)/tc
+!           tr = 1.d0-(ts+T273K)/tc
             tr = 1.d0-ts/tc
             rhov =a1*(tr**t1)+a2*(tr**t2)+a3*(tr**t3)+ &
                     a4*(tr**t4)+a5*(tr**t5)
@@ -1691,15 +1691,15 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
 
   if (Equal(temp_min,UNINITIALIZED_DOUBLE) ) then
-    temp_min = 0.0d0 + 273.15D0 !temp in Kelvin
+    temp_min = 0.0d0 + T273K !temp in Kelvin
   else
-    temp_min = temp_min + 273.15D0 !convert to K
+    temp_min = temp_min + T273K !convert to K
   end if
 
   if (Equal(temp_max,UNINITIALIZED_DOUBLE) ) then
-    temp_max = 375.0d0 + 273.15D0 !Kelvin
+    temp_max = 375.0d0 + T273K !Kelvin
   else
-    temp_max = temp_max + 273.15D0 !convert to K
+    temp_max = temp_max + T273K !convert to K
   end if
 
   if (Equal(temp_delta,UNINITIALIZED_DOUBLE) ) then
@@ -1793,7 +1793,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   do i = 0, n_tab_press
     do j = 0, n_tab_temp
       write(IUNIT_TEMP,'(1p6e14.6)') co2_properties(i,j,1), &
-        co2_properties(i,j,2) - 273.15D0, & !back to C
+        co2_properties(i,j,2) - T273K, & !back to C
         co2_properties(i,j,3), &
         co2_properties(i,j,9:10), co2_properties(i,j,13)
     enddo

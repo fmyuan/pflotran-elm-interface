@@ -3724,7 +3724,8 @@ transport.o : \
   matrix_block_aux.o \
   option.o \
   pflotran_constants.o \
-  reactive_transport_aux.o
+  reactive_transport_aux.o \
+  utility.o
 transport_constraint.o : \
   option.o \
   pflotran_constants.o \

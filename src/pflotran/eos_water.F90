@@ -701,7 +701,7 @@ end subroutine EOSWaterSetSteamEnthalpy
 subroutine EOSWaterSetIceInternalEnergy(keyword,aux)
 
   implicit none
-  
+
 character(len=*), intent(in) :: keyword
   PetscReal, intent(in), optional :: aux(*)
 
@@ -717,7 +717,7 @@ character(len=*), intent(in) :: keyword
    end select
 
 end subroutine EOSWaterSetIceInternalEnergy
-   
+
 ! ************************************************************************** !
 
 subroutine EOSWaterSetWaterTab(input,option)
@@ -1317,7 +1317,7 @@ subroutine EOSWaterSaturationPressureIFC67(T, calculate_derivatives, &
     ierr = 1
     return
   end if
-  TC = (T+273.15d0)/H2O_CRITICAL_TEMPERATURE
+  TC = (T+T273K)/H2O_CRITICAL_TEMPERATURE
   one_m_tc = 1.d0-TC
   one_m_tc_sq = one_m_tc*one_m_tc
   SC = A(1)*one_m_tc+A(2)*one_m_tc_sq+A(3)*one_m_tc**3.d0+ &
@@ -1352,9 +1352,9 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
 
   !Author: Michael Nole
   !Date: 01/20/19
-  !Water saturation Pressure as f(T) from IF97 standard, valid between 273.15K and
-  !623.15K (Region 4). At temperatures above 623.15K, a quadratic function covers
-  !the region where superheated steam properties are accurate.
+  !Water saturation Pressure as f(T) from IF97 standard, valid between 273.15K
+  !and 623.15K (Region 4). At temperatures above 623.15K, a quadratic function
+  !covers the region where superheated steam properties are accurate.
 
 
   implicit none
@@ -1371,7 +1371,7 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
   PetscReal :: theta, T_temp, A, B, C
   PetscReal :: B2_4AC, dtheta_dt, da_dt, db_dt, dc_dt
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
 
   if (T_temp > 623.15d0) then
     PS = 0.34805185628969d3 - 0.11671859879975d1*T_temp + &
@@ -1383,7 +1383,7 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
     endif
   else
 
-    if (T_temp < 273.15d0) T_temp = 273.15d0
+    if (T_temp < T273K) T_temp = T273K
 
     theta = T_temp + n(9)/(T_temp-n(10))
     A = theta*theta + n(1)*theta +n(2)
@@ -1451,7 +1451,7 @@ subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, 
   PetscReal, parameter :: e5 = -5.7148d-3
   PetscReal, parameter :: e6 = 2.9370d5
 
-  Tx = T+273.15d0
+  Tx = T+T273K
 
   x = aux(1) ! mass fraction
   x = 1.d3*(x*1.d2)/(58.442d0*(1.d2-(x*1.d2))) !mol/kg
@@ -1523,7 +1523,7 @@ subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
   PetscReal :: polynomial
   PetscReal :: dpolynomial_dtau, dtau_dT
 
-  T_over_Tc = (T+273.15d0)/Tc
+  T_over_Tc = (T+T273K)/Tc
   tau = 1.d0 - T_over_Tc
   polynomial = a(1)*tau+a(2)*tau**1.5d0+a(3)*tau**3.d0+ &
                a(4)*tau**3.5d0+a(5)*tau**4.d0+a(6)*tau**7.5d0
@@ -1546,9 +1546,9 @@ subroutine EOSWaterSaturationPressureIce(T, calculate_derivatives, &
                                       PS, dPS_dT, ierr)
   !
   ! Calculates the saturation pressure of water as a function of temperature
-  ! above and below the freezing point of water based on Huang, J. (2018). 
-  ! A simple accurate formula for calculating saturation vapor pressure of 
-  ! water and ice. Journal of Applied Meteorology and Climatology, 57(6), 
+  ! above and below the freezing point of water based on Huang, J. (2018).
+  ! A simple accurate formula for calculating saturation vapor pressure of
+  ! water and ice. Journal of Applied Meteorology and Climatology, 57(6),
   ! 1265-1272.
   !
   ! Author: Michael Nole
@@ -1668,7 +1668,7 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   upc1 = one/pc1   ! 1/Pa
   vc1mol = vc1*FMWH2O ! m^3/kmol
 
-  theta = (t+273.15d0)*utc1
+  theta = (t+T273K)*utc1
   theta2x = theta*theta
   theta18 = theta**18.d0
   theta20 = theta18*theta2x
@@ -1763,7 +1763,7 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   PetscErrorCode, intent(inout) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: Tf = T273K !K
   PetscReal, parameter :: p_ref = 16.53d6 !Pa
   PetscReal, parameter :: T_ref = 1386.d0  ! K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
@@ -1787,9 +1787,9 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
   PetscReal :: pi, tao, g_pi, T_temp
   PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
   if (T_temp <= 623.15d0) then
-    ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+    ! Region 1: Valid from 273.15 K to 623.15 K, Ps(T) to 100MPa
 
     pi = P/p_ref
     tao = T_ref/T_temp
@@ -1821,7 +1821,7 @@ subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
     call EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
                                     dwp,dwt)
   end if
-  
+
 end subroutine EOSWaterDensityIF97
 
 ! ************************************************************************** !
@@ -1846,7 +1846,7 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
   PetscInt, parameter :: T3op=7, T3qu=8, T3rx=9
   PetscInt, parameter :: T3ef=12, T3uv=10, T3wx=11
 
-  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: Tf = T273K !K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
 
   ! Region 3:  Region 3: Valid in "wedge" >623.15K, >Ps(T), and 100MPa
@@ -2039,7 +2039,7 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
 
   dw = 1.d0 / (nu * R * T_temp / P * 1.0D+3)
   dwmol = dw/FMWH2O
-  
+
   if (calculate_derivatives) then
     stop 'IF97 region 3 water density derivative not implemented yet'
   else
@@ -2119,7 +2119,7 @@ function IF97_subregion_3a(p,T) result (v)
   PetscReal, parameter :: a = 0.085d0, b = 0.817d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3a
 
@@ -2149,7 +2149,7 @@ function IF97_subregion_3b(p,T) result (v)
   PetscReal, parameter :: a = 0.280d0, b = 0.779d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3b
 
@@ -2180,7 +2180,7 @@ function IF97_subregion_3c(p,T) result (v)
   PetscReal, parameter :: a = 0.259d0, b = 0.903d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3c
 
@@ -2212,7 +2212,7 @@ function IF97_subregion_3d(p,T) result (v)
   PetscReal, parameter :: a = 0.559d0, b = 0.939d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3d
 
@@ -2241,7 +2241,7 @@ function IF97_subregion_3e(p,T) result (v)
   PetscReal, parameter :: a = 0.587d0, b = 0.918d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3e
 
@@ -2275,7 +2275,7 @@ function IF97_subregion_3f(p,T) result (v)
   PetscReal, parameter :: a = 0.587d0, b = 0.891d0
   PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3f
 
@@ -2308,7 +2308,7 @@ function IF97_subregion_3g(p,T) result (v)
   PetscReal, parameter :: a = 0.872d0, b = 0.971d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3g
 
@@ -2337,7 +2337,7 @@ function IF97_subregion_3h(p,T) result (v)
   PetscReal, parameter :: a = 0.898d0, b = 0.983d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3h
 
@@ -2371,7 +2371,7 @@ function IF97_subregion_3i(p,T) result (v)
   PetscReal, parameter :: a = 0.910d0, b = 0.984d0
   PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3i
 
@@ -2399,7 +2399,7 @@ function IF97_subregion_3j(p,T) result (v)
   PetscReal, parameter :: a = 0.875d0, b = 0.964d0
   PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3j
 
@@ -2429,7 +2429,7 @@ function IF97_subregion_3k(p,T) result (v)
   PetscReal, parameter :: a = 0.802d0, b = 0.935d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3k
 
@@ -2463,7 +2463,7 @@ function IF97_subregion_3l(p,T) result (v)
   PetscReal, parameter :: a = 0.908d0, b = 0.989d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3l
 
@@ -2496,7 +2496,7 @@ function IF97_subregion_3m(p,T) result (v)
   PetscReal, parameter :: a = 1.000d0, b = 0.997d0
   PetscReal, parameter :: c = 1.0d0, d = 0.25d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3m
 
@@ -2527,7 +2527,7 @@ function IF97_subregion_3n(p,T) result (v)
   PetscReal, parameter :: v_star = 0.0031d0, p_star = 23.d0, T_star = 650.d0
   PetscReal, parameter :: a = 0.976d0, b = 0.997d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = exp(sum(n_i * (pi - a)**I_i * (theta - b)**J_i)) * v_star
 end function IF97_subregion_3n
 
@@ -2551,7 +2551,7 @@ function IF97_subregion_3o(p,T) result (v)
   PetscReal, parameter :: a = 0.974d0, b = 0.996d0
   PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3o
 
@@ -2578,7 +2578,7 @@ function IF97_subregion_3p(p,T) result (v)
   PetscReal, parameter :: a = 0.972d0, b = 0.997d0
   PetscReal, parameter :: c = 0.5d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3p
 
@@ -2604,7 +2604,7 @@ function IF97_subregion_3q(p,T) result (v)
   PetscReal, parameter :: a = 0.848d0, b = 0.983d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3q
 
@@ -2631,7 +2631,7 @@ function IF97_subregion_3r(p,T) result (v)
   PetscReal, parameter :: a = 0.874d0, b = 0.982d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3r
 
@@ -2659,7 +2659,7 @@ function IF97_subregion_3s(p,T) result (v)
   PetscReal, parameter :: a = 0.886d0, b = 0.990d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3s
 
@@ -2688,7 +2688,7 @@ function IF97_subregion_3t(p,T) result (v)
   PetscReal, parameter :: a = 0.803d0, b = 1.020d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3t
 
@@ -2721,7 +2721,7 @@ function IF97_subregion_3u(p,T) result (v)
   PetscReal, parameter :: a = 0.902d0, b = 0.988d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3u
 
@@ -2754,7 +2754,7 @@ function IF97_subregion_3v(p,T) result (v)
   PetscReal, parameter :: a = 0.960d0, b = 0.995d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3v
 
@@ -2786,7 +2786,7 @@ function IF97_subregion_3w(p,T) result (v)
   PetscReal, parameter :: a = 0.959d0, b = 0.995d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3w
 
@@ -2818,7 +2818,7 @@ function IF97_subregion_3x(p,T) result (v)
   PetscReal, parameter :: a = 0.910d0, b = 0.988d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 1.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3x
 
@@ -2840,7 +2840,7 @@ function IF97_subregion_3y(p,T) result (v)
   PetscReal, parameter :: a = 0.996d0, b = 0.994d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3y
 
@@ -2866,7 +2866,7 @@ function IF97_subregion_3z(p,T) result (v)
   PetscReal, parameter :: a = 0.993d0, b = 0.994d0
   PetscReal, parameter :: c = 1.0d0, d = 1.00d0, e = 4.d0
   pi = p/(p_star * 1.0D+6)
-  theta = (T + 273.15d0)/T_star
+  theta = (T + T273K)/T_star
   v = sum(n_i * ((pi - a)**c)**I_i * ((theta - b)**d)**J_i)**e * v_star
 end function IF97_subregion_3z
 
@@ -2981,7 +2981,7 @@ subroutine EOSWaterEnthalpyIFC67(t,p,calculate_derivatives,hw, &
   upc1 = one/pc1   ! 1/Pa
   vc1mol = vc1*FMWH2O ! m^3/kmol
 
-  theta = (t+273.15d0)*utc1
+  theta = (t+T273K)*utc1
   theta2x = theta*theta
   theta18 = theta**18.d0
   theta20 = theta18*theta2x
@@ -3156,7 +3156,7 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   PetscReal, intent(out) :: hw,hwp,hwt
   PetscErrorCode, intent(inout) :: ierr
 
-  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: Tf = T273K !K
   PetscReal, parameter :: p_ref = 16.53d6 !Pa
   PetscReal, parameter :: T_ref = 1386.d0  ! K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
@@ -3184,7 +3184,7 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   tao = T_ref/T_temp
 
   if (Tf <= 623.15d0) then
-    ! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+    ! Region 1: Valid from 273.15 K to 623.15 K, Ps(T) to 100MPa
     g_tao = sum((n_i*(7.1d0-pi)**(I_i))*J_i*(tao-1.222d0)**(J_i-1))
 
     hw = g_tao *T_ref*R
@@ -3223,7 +3223,7 @@ subroutine EOSWaterEnthalpyIF97Region3(T,P,calculate_derivatives,hw,hwp,hwt)
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: hw,hwp,hwt
 
-  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: Tf = T273K !K
   PetscReal, parameter :: T_c = 647.096d0 ! K
   PetscReal, parameter :: rho_c = 322.d0 ! kg/m^3
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
@@ -3390,7 +3390,7 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   s = aux(1) !mass frac
   brine_molar_mass = 1.d0 / (s / FMWNACL + (1.d0 - s) / FMWH2O)
   x = s * brine_molar_mass / FMWNACL
-  
+
   n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
   n21 = -2.6142d0 - 0.000239092d0 * p_bar
   n22 = 0.0356828d0 + (4.37235d-6 + 2.0566d-9 * p_bar) * p_bar
@@ -3400,7 +3400,7 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
         + p_bar * (5.84709d-9 - p_bar * 5.99373d-13))  ! eq 12
   n12 = -n1x1 - n11
   n20 = 1.d0 - n21 * sqrt(n22)
-  
+
   n23 = n2x1 - n20 - n21 * sqrt(1.d0 + n22)
   n1  = n1x1 + (1.d0 - x) * n11  + n12 * (1.d0 - x)**2 ! eq 9
   n2  = n20 + n21 * sqrt(x + n22) + n23 * x            ! eq 10
@@ -3423,7 +3423,7 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
      dwt = UNINITIALIZED_DOUBLE
   endif
 
-  
+
   dw = dw * brine_molar_mass / FMWH2O
 
 end subroutine EOSWaterDensityDriesnerExt
@@ -4075,7 +4075,7 @@ subroutine EOSWaterSteamDensityEnthalpyIFC67(t,pv,calculate_derivatives, &
   upc1 = one/pc1
   vc1mol = vc1*FMWH2O ! m^3/kmol
 
-  theta  = (t+273.15d0)*utc1
+  theta  = (t+T273K)*utc1
   beta   = pv*upc1
   ubeta  = one/beta
   utheta = one/theta
@@ -4413,7 +4413,7 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
   PetscReal, parameter :: p_ref = 1.d6 !16.53d6 !Pa
   PetscReal, parameter :: T_ref = 540d0 !1386  ! K
   PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
-  PetscReal, parameter :: Tf = 273.15d0
+  PetscReal, parameter :: Tf = T273K
   PetscReal :: pi, tao, T_temp
   PetscReal :: gamma_0_pi, gamma_r_pi, gamma_0_tao, gamma_r_tao
   ! region 2, Tables 10 and 11
@@ -4490,7 +4490,7 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
       hgp = UNINITIALIZED_DOUBLE
     endif
     hg = hg*FMWH2O * 1.d3
-  else if (T_temp <= 2273.15d0) then
+  else if (T_temp <= T273K) then
     ! region 5: table 40
     gamma_0_pi = 1.d0/pi
     gamma_0_tao = sum(n5_i0*J5_i0*tao**(J5_i0-1))
@@ -4533,7 +4533,7 @@ subroutine EOSWaterDuanMixture(t,p,xmol,y_nacl,avgmw,dw_kg,denmix)
   PetscErrorCode :: ierr
 
   !duan mixing **************************
-  tk = t + 273.15D0; xco2 = xmol;
+  tk = t + T273K; xco2 = xmol;
   call EOSWaterDensity(t,p,pw_kg,dummy,ierr)
   x1 = 1.D0-xco2;
   vphi_a1 = (0.3838402D-3*tk - 0.5595385D0)*tk + 0.30429268D3 + &
@@ -4698,7 +4698,7 @@ subroutine EOSWaterSaturationTemperature(ps,ts_guess,ts,t_ps,ierr)
 !-------newton-raphson iteration for calculating ts by analytical funcs
 
 !-------on entry, ts_guess = estimated ts
-  theta = (ts_guess+273.15d0)/tc1
+  theta = (ts_guess+T273K)/tc1
   beta  = ps/pc1
 
   u1  = 1.d0-theta
@@ -4729,7 +4729,7 @@ subroutine EOSWaterSaturationTemperature(ps,ts_guess,ts,t_ps,ierr)
 
   enddo
 
-  ts = theta*tc1-273.15d0
+  ts = theta*tc1-T273K
 
 !-------Note-(dbeta/dtheta) = -fp ; tsp = dT/dps
   t_ps = -tc1/(pc1*fp)
@@ -4784,11 +4784,11 @@ subroutine EOSWaterInternalEnergyIceDefault(T, u_ice, calculate_derivatives, &
   PetscReal, intent(out) :: du_ice_dT
   PetscReal, intent(out) :: du_ice_dP
   PetscErrorCode, intent(out) :: ierr
-  
+
   PetscReal, parameter :: a = -10.6644d0
   PetscReal, parameter :: b = 0.1698d0
   PetscReal, parameter :: c = 198148.d0
-  PetscReal, parameter :: T_ref = 273.15d0
+  PetscReal, parameter :: T_ref = T273K
 
   ! from Maier-Kelly type fit (integrated tref to t)
   ! in J/mol
@@ -4808,7 +4808,7 @@ end subroutine EOSWaterInternalEnergyIceDefault
 
 subroutine EOSWaterInternalEnergyIceFukusako(T, u_ice, calculate_derivatives, &
                                              du_ice_dT, du_ice_dP,ierr)
-  
+
   !Internal energy of ice as f(Temperature) (Fukusako and Yamada, 1993)
   !
   ! T is in deg C, internal energy is in J/mol
@@ -4821,18 +4821,18 @@ subroutine EOSWaterInternalEnergyIceFukusako(T, u_ice, calculate_derivatives, &
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: u_ice
   PetscReal, intent(out) :: du_ice_dT, du_ice_dP
-  PetscErrorCode, intent(out) :: ierr  
+  PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter :: Lw = -3.34110d5 ! Latent heat of fusion, J/kg 
+  PetscReal, parameter :: Lw = -3.34110d5 ! Latent heat of fusion, J/kg
   PetscReal :: T_temp
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
 
   if (T_temp >= 90.d0) then
-    u_ice = Lw + 185.d0 * (T_temp-273.15d0) + 3.445 * &
-                 (T_temp**2 - 273.15d0**2) 
+    u_ice = Lw + 185.d0 * (T_temp-T273K) + 3.445 * &
+                 (T_temp**2 - T273K**2)
   else
-    u_ice = Lw + 4.475 * (T_temp**2 - 273.15d0**2)
+    u_ice = Lw + 4.475 * (T_temp**2 - T273K**2)
   endif
 
   ! J/kg to J/mol
@@ -4872,7 +4872,7 @@ subroutine EOSWaterDensityPainter(t,p,calculate_derivatives,dw,dwmol, &
   PetscReal, parameter :: c = -0.0100836d0
   PetscReal, parameter :: d = 0.000206355
   PetscReal, parameter :: alpha = 5.0d-10     ! in Pa^(-1)
-  PetscReal, parameter :: T_ref = 273.15d0    ! in K
+  PetscReal, parameter :: T_ref = T273K    ! in K
   PetscReal, parameter :: P_ref = 1.0d5       ! in Pa
 
   PetscReal :: den_w_one_bar, T_K
@@ -4927,7 +4927,7 @@ subroutine EOSWaterEnthalpyPainter(T, P, calculate_derivatives, &
   PetscReal, parameter :: c = -0.0100836d0
   PetscReal, parameter :: d = 0.000206355
   PetscReal, parameter :: alpha = 5.0d-10     ! in Pa^(-1)
-  PetscReal, parameter :: T_ref = 273.15d0    ! in K
+  PetscReal, parameter :: T_ref = T273K    ! in K
   PetscReal, parameter :: P_ref = 1.0d5       ! in Pa
 
   PetscReal :: den_w_one_bar, T_K
@@ -6182,7 +6182,7 @@ subroutine EOSWaterSurfaceTension(T,sigma)
   PetscReal :: Temp
   PetscReal :: tao
 
-  Temp=T+273.15d0
+  Temp=T+T273K
 
   if (T <= 373.d0) then
     tao = 1.d0-Temp/Tc
@@ -6223,7 +6223,7 @@ subroutine EOSWaterKelvin(Pc,rhow,T,Psat,Pv)
 
   PetscReal :: vp_factor, T_temp
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
 
   ! For water:
   vp_factor = -Pc / (rhow * 1000.0d0 * IDEAL_GAS_CONSTANT * T_temp)
