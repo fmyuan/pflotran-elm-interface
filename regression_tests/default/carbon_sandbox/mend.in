@@ -11,6 +11,13 @@ END
 
 SUBSURFACE
 
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
 #=========================== constraints ======================================
 CONSTRAINT initial
   # assuming porosity = 0.25, soil particle density = 2600, fmw CH2O = 30
