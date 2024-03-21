@@ -3312,11 +3312,14 @@ subroutine PMWellUpdateStrata(this,curr_time)
     well_strata => this%strata_list%first
     do
       if (.not.associated(well_strata)) exit
-      if ((any(well_strata%region%cell_ids == &
-               this%well_grid%h_local_id(k))) .and. &
-          (well_strata%active)) then
-        this%well_grid%strata_id(k) = well_strata%id
-      endif
+      ! not all materials are assigned to the regions from the start
+      if (associated(well_strata%region%cell_ids)) then
+          if ((any(well_strata%region%cell_ids == &
+                   this%well_grid%h_local_id(k))) .and. &
+              (well_strata%active)) then
+            this%well_grid%strata_id(k) = well_strata%id
+          endif
+      endif    
       well_strata => well_strata%next
     enddo
   enddo
