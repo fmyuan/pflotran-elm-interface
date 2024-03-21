@@ -3188,6 +3188,8 @@ end subroutine PMWFSetup
     ! set to global petsc index
     species_indices_in_residual(:) = species_indices_in_residual(:) + &
       this%realization%patch%grid%global_offset*this%option%ntrandof
+  else
+    allocate(species_indices_in_residual(0))
   endif
   call ISCreateGeneral(this%option%mycomm,size_of_vec, &
                        species_indices_in_residual,PETSC_COPY_VALUES,is, &
@@ -3321,7 +3323,7 @@ subroutine PMWFInitializeTimestep(this)
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   field => this%realization%field
-  option => this%option
+  option => this%realization%option
   grid => this%realization%patch%grid
   dt = option%tran_dt
   ! zero entries from previous time step
@@ -3414,18 +3416,16 @@ subroutine PMWFInitializeTimestep(this)
        cur_waste_form%breached) then
 
         ! Get average saturation
-        if (.not. Initialized(avg_sat_global)) then
-          avg_sat_local = 0.d0
-          do i = 1,cur_waste_form%region%num_cells
-            local_id = cur_waste_form%region%cell_ids(i)
-            ghosted_id = grid%nL2G(local_id)
-            avg_sat_local = avg_sat_local + &
-                            global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
-                            cur_waste_form%scaling_factor(i)
-          enddo
-          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sat_local, &
-                               avg_sat_global)
-        endif
+        avg_sat_local = 0.d0
+        do i = 1,cur_waste_form%region%num_cells
+          local_id = cur_waste_form%region%cell_ids(i)
+          ghosted_id = grid%nL2G(local_id)
+          avg_sat_local = avg_sat_local + &
+                          global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
+                          cur_waste_form%scaling_factor(i)
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sat_local, &
+                             avg_sat_global)
 
         if (avg_sat_global >= &
             cur_waste_form%spacer_mechanism%threshold_sat) then
@@ -3436,18 +3436,16 @@ subroutine PMWFInitializeTimestep(this)
         endif
 
         ! Get average temperature
-        if ( .not. Initialized(avg_temp_global)) then
-          avg_temp_local = 0.d0
-          do i = 1,cur_waste_form%region%num_cells
-            local_id = cur_waste_form%region%cell_ids(i)
-            ghosted_id = grid%nL2G(local_id)
-            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
-                             cur_waste_form%scaling_factor(i)
-          enddo
-          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
-                               avg_temp_global)
-          avg_temp_global = avg_temp_global + T273K   ! Kelvin
-        endif
+        avg_temp_local = 0.d0
+        do i = 1,cur_waste_form%region%num_cells
+          local_id = cur_waste_form%region%cell_ids(i)
+          ghosted_id = grid%nL2G(local_id)
+          avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
+                           cur_waste_form%scaling_factor(i)
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                             avg_temp_global)
+        avg_temp_global = avg_temp_global + T273K   ! Kelvin
 
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
                                                        avg_sat_global, &
@@ -3972,6 +3970,7 @@ subroutine PMWFSolve(this,time,ierr)
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
+  option => this%realization%option
 
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
