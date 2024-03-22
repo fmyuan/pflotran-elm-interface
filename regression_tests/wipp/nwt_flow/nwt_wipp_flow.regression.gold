@@ -1,0 +1,76 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   7.0292418421716E+05
+      Min:  -4.0801391288096E+06
+     Mean:  -1.6890507276282E+06
+        3:  -1.6894939829236E+06
+-- PRESSURE: Gas Pressure --
+      Max:   7.0292418421716E+05
+      Min:  -4.0801391288096E+06
+     Mean:  -1.6890507276282E+06
+        3:  -1.6894939829236E+06
+-- SATURATION: Liquid Saturation --
+      Max:   9.9999999004739E-01
+      Min:   9.9999998993260E-01
+     Mean:   9.9999998998815E-01
+        3:   9.9999998998034E-01
+-- SATURATION: Gas Saturation --
+      Max:   1.0067395159787E-08
+      Min:   9.9526089082705E-09
+     Mean:   1.0011852971725E-08
+        3:   1.0019655374307E-08
+-- GENERIC: Liquid Density --
+      Max:   1.2202275460290E+03
+      Min:   1.2184195947910E+03
+     Mean:   1.2193232353176E+03
+        3:   1.2193229002253E+03
+-- GENERIC: Gas Density --
+      Max:   5.7161589884908E-01
+      Min:  -3.3179572533008E+00
+     Mean:  -1.3735311311705E+00
+        3:  -1.3738915850854E+00
+-- CONCENTRATION: Total Bulk Conc. Am241 --
+      Max:   2.9784144624678E-02
+      Min:   2.9639472036787E-02
+     Mean:   2.9710982969809E-02
+        3:   2.9710414177749E-02
+-- CONCENTRATION: Aq. Conc. Am241 --
+      Max:   3.0853184768064E-03
+      Min:   3.0853184768064E-03
+     Mean:   3.0853184768064E-03
+        3:   3.0853184768064E-03
+-- CONCENTRATION: Mnrl. Conc. Am241 --
+      Max:   2.8858546009620E-02
+      Min:   2.8713873426447E-02
+     Mean:   2.8785384357140E-02
+        3:   2.8784815565088E-02
+-- CONCENTRATION: Sorb. Conc. Am241 --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
+      Max:   2.4914486698013E-06
+      Min:   2.4789586450405E-06
+     Mean:   2.4851324014398E-06
+        3:   2.4850832958505E-06
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        3:         3
+-- SOLUTION: Flow --
+   Time (seconds):   6.9353215999399E-02
+   Time Steps:          150
+   Newton Iterations:          210
+   Linear Solver Iterations:          210
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.3444383114162E+06
+   Residual 2-Norm:   9.2133381359586E-16
+-- SOLUTION: Transport --
+   Time (seconds):   2.8802316997826E-02
+   Time Steps:          163
+   Newton Iterations:          163
+   Linear Solver Iterations:          163
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.6435875374679E-02
+   Residual 2-Norm:   8.9398773068409E-09
