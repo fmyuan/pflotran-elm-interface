@@ -9,12 +9,12 @@ SIMULATION
       MODE NWT
     /
   /
-  #CHECKPOINT
-  #  TIMES y 1.0d+00 2.0d+00 3.0d+00 4.0d+00
-  #  FORMAT HDF5
-  #/
-  INPUT_RECORD_FILE
-/
+  # CHECKPOINT
+  #   TIMES y 1.0d+00 2.0d+00 3.0d+00 4.0d+00
+  #   FORMAT HDF5
+  # /
+  # INPUT_RECORD_FILE
+END
 
 #==============================================================================
 SUBSURFACE
@@ -23,17 +23,12 @@ SUBSURFACE
 NUMERICAL_METHODS FLOW
 
   TIMESTEPPER
-    # TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d+00
-    # TIMESTEP_REDUCTION_FACTOR 5.0d-01
     TS_ACCELERATION 10
   /
 
   NEWTON_SOLVER
     USE_EUCLIDEAN_NORM_CONVERGENCE
     MAXIMUM_NUMBER_OF_ITERATIONS 20
-    #RTOL 1.0d-08
-    #ATOL 1.0d-08
-    #STOL 1.0d-30
   /
 
   LINEAR_SOLVER
@@ -43,7 +38,7 @@ NUMERICAL_METHODS FLOW
 
 END
 
-#====================== numerical methods - transport =========================
+#======================= numerical methods - transport ========================
 NUMERICAL_METHODS TRANSPORT
 
   TIMESTEPPER
@@ -64,16 +59,12 @@ NUMERICAL_METHODS TRANSPORT
     NWT_ITOL_ABSOLUTE_RESIDUAL
       Am241  1.0d-07
     /
-    #VERBOSE_LOGGING
-    #PRINT_DETAILED_CONVERGENCE
     MAXIMUM_NUMBER_OF_ITERATIONS 12
   /
 
   LINEAR_SOLVER
     SOLVER DIRECT
     #SOLVER ITERATIVE
-    #MAXIMUM_NUMBER_OF_ITERATIONS 2000
-    #RTOL 1.0d-07
   /
 
 END
@@ -85,7 +76,7 @@ REGRESSION
   /
 END
 
-#============================== discretization ================================
+#=============================== discretization ===============================
 GRID
   TYPE STRUCTURED
   NXYZ 1 1 5
@@ -96,7 +87,7 @@ GRID
   /
 END
 
-#============================ fluid properties ================================
+#============================== fluid properties ==============================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.0d-09
 END
@@ -117,10 +108,10 @@ THERMAL_CHARACTERISTIC_CURVES cct_repo
   THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
     THERMAL_CONDUCTIVITY_DRY 5.500d+00 W/m-C
     THERMAL_CONDUCTIVITY_WET 7.000d+00 W/m-C
-  END
+  /
 END
 
-#========================== saturation functions ==============================
+#============================ saturation functions ============================
 # Note: The liquid residual saturation must be set to zero, so
 #       that all liquid can flow out and make a dry-out condition.
 #       KRP11 must be used, because it sets capillary pressure to zero,
@@ -141,7 +132,7 @@ CHARACTERISTIC_CURVES cc_KRP4
   /
 END
 
-#=========================== material properties ==============================
+#============================ material properties =============================
 MATERIAL_PROPERTY REPO
   ID 3
   CHARACTERISTIC_CURVES cc_KRP4
@@ -181,35 +172,24 @@ REGION rgs_repo_face_top
   /
 END
 
-REGION rgs_repo
-  COORDINATES
-    0.0d+00 0.0d+00 0.0d+00
-    1.0d+02 5.0d+01 1.0d+02
-  /
-END
-
-REGION wp
-  COORDINATES
-    0.0d+00 0.0d+00 8.0d+01
-    1.0d+02 5.0d+01 1.0d+02
-  /
-END
+# REGION wp
+#   COORDINATES
+#     0.0d+00 0.0d+00 8.0d+01
+#     1.0d+02 5.0d+01 1.0d+02
+#   /
+# END
 
 REGION pt
   COORDINATE 5.0d+01 2.5d+01 5.0d+01 # observation point
 END
 
-REGION bot
-  COORDINATE 5.0d+01 2.5d+01 0.0d+00 # bottom observation point
-END
-
-#========================== stratigraphy couplers =============================
+#=========================== stratigraphy couplers ============================
 STRATA
   MATERIAL REPO
   REGION all
 END
 
-#============================= flow conditions ================================
+#============================== flow conditions ===============================
 FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE HYDROSTATIC
@@ -229,7 +209,7 @@ END
 #   TYPE
 #     RATE MASS_RATE
 #   /
-#   #     liquid 
+#   #     liquid
 #   RATE  0.0d+0 kg/s
 # /
 
@@ -239,19 +219,19 @@ REFERENCE_TEMPERATURE 2.00000000d+01 C
 TRANSPORT_CONDITION transport_initial_condition
   TYPE dirichlet_zero_gradient
   CONSTRAINT_LIST
-    # time[s]    constraint
+    # time[s]      constraint
     0.0d+00        constraint_inventory_initial
   /
 END
 
-#========================== initial condition couplers ========================
+#========================= initial condition couplers =========================
 INITIAL_CONDITION
   FLOW_CONDITION initial
   TRANSPORT_CONDITION transport_initial_condition
   REGION all
 END
 
-#========================= boundary condition couplers ========================
+#======================== boundary condition couplers =========================
 BOUNDARY_CONDITION
   FLOW_CONDITION initial
   TRANSPORT_CONDITION transport_initial_condition
@@ -271,7 +251,7 @@ END
 #   REGION wp
 # END
 
-#================================== times =====================================
+#=================================== times ====================================
 TIME
   FINAL_TIME 5.0 yr
   INITIAL_TIMESTEP_SIZE 1.0d-07 s
@@ -281,30 +261,22 @@ END
 #============================== output options ================================
 OBSERVATION
   REGION pt
-  # REGION bot
 END
 
 OUTPUT
-  # SNAPSHOT_FILE
   OBSERVATION_FILE
-    # FORMAT HDF5
     PERIODIC TIME 1.0d-04 y between 1.0d-04 y and 1.0d-03 y
     PERIODIC TIME 1.0d-03 y between 1.0d-03 y and 1.0d-02 y
     PERIODIC TIME 1.0d-02 y between 1.0d-02 y and 1.0d-01 y
     PERIODIC TIME 1.0d-01 y between 1.0d-01 y and 1.0d+00 y
     PERIODIC TIME 1.0d+00 y between 1.0d+00 y and 5.0d+01 y
-    # PERIODIC TIME 1.0d+01 y between 1.0d+01 y and 1.0d+02 y
-    # PERIODIC TIME 1.0d+02 y between 1.0d+02 y and 1.0d+03 y
-    # PERIODIC TIME 1.0d+03 y between 1.0d+03 y and 1.0d+04 y
-    # PERIODIC TIME 1.0d+04 y between 1.0d+04 y and 1.0d+05 y
-    # PERIODIC TIME 1.0d+05 y between 1.0d+05 y and 1.0d+06 y
     VARIABLES
       LIQUID_PRESSURE
     /
   /
-/
+END
 
-#================================== transport =================================
+#================================= transport ==================================
 NUCLEAR_WASTE_CHEMISTRY
 
   SPECIES
@@ -328,22 +300,12 @@ NUCLEAR_WASTE_CHEMISTRY
 
 END
 
-#============================ transport constraints ===========================
+#=========================== transport constraints ============================
 CONSTRAINT constraint_inventory_initial
   CONCENTRATIONS
-   # species_name  concentration  constraint_type
-   # AQ is for aqueous concentration [mol/m^3-liq]
-   # Cell volume is 100.0 x 100.0 x 4.0d+01 m^3 = 438406.0 m^3
-    Am241    1.0d-01    AQ  # [mol/m^3-liq]
-  /
-END
-
-CONSTRAINT constraint_inventory_recharge
-  CONCENTRATIONS
-   # species_name  concentration  constraint_type
-   # AQ is for aqueous concentration [mol/m^3-liq]
-   # Cell volume is 100.0 x 100.0 x 4.0d+01 m^3 = 438406.0 m^3
-    Am241    1.0d-01    AQ  # [mol/m^3-liq]
+    # species_name  concentration  constraint_type
+    # AQ is for aqueous concentration [mol/m^3-liq]
+    Am241           1.0d-01        AQ  # [mol/m^3-liq]
   /
 END
 
