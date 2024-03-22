@@ -49,6 +49,7 @@ module Carbon_Sandbox_MEND_class
     PetscReal :: I_P
     PetscReal :: I_D
     !PetscReal :: fI_D ! ratio I_D/I_P (currently unsupported)
+    PetscReal :: reference_temperature
   contains
     procedure, public :: ReadInput => CarbonMENDReadInput
     procedure, public :: Setup => CarbonMENDSetup
@@ -122,6 +123,7 @@ function CarbonMENDCreate()
   this%I_P = UNINITIALIZED_DOUBLE
   this%I_D = UNINITIALIZED_DOUBLE
   !this%fI_D = UNINITIALIZED_DOUBLE
+  this%reference_temperature = UNINITIALIZED_DOUBLE
 
   CarbonMENDCreate => this
 
@@ -258,6 +260,9 @@ subroutine CarbonMENDReadInput(this,input,option)
           case('P_EM')
             this%p_EM = tempreal
         end select
+      case('REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,this%reference_temperature)
+        call InputErrorMsg(input,option,keyword,err_string)
       case default
         call InputKeywordUnrecognized(input,keyword,err_string,option)
     end select
@@ -402,6 +407,9 @@ subroutine CarbonMENDSetup(this,reaction,option)
     ! these source terms are not required
     this%I_P = 0.d0
   endif
+  if (Uninitialized(this%reference_temperature)) then
+    this%reference_temperature = option%flow%reference_temperature
+  endif
 
   call this%EnforceConcentrationUnits(CARBON_UNITS_MOLE_PER_KG_SOIL,option)
 
@@ -446,14 +454,13 @@ subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: V_P_adj, V_M_adj, V_D_adj, K_P_adj, K_M_adj, K_D_adj
   PetscReal :: m_R_adj, E_C_adj
   PetscReal :: K_ads_adj, K_des_adj
-  PetscReal :: t, tref
+  PetscReal :: t
   PetscReal :: tempreal
 
   call this%MapStateVariables(rt_auxvar,global_auxvar,material_auxvar, &
                               reaction,option)
 
   t = this%aux%temperature
-  tref = 12.d0
   ! mgC/gsoil = molC/kgsoil*gC/molC*mgC/gC*kgsoil/gsoil
   conc_units_conversion = 30.d0*1000.d0*1.d-3
   B = this%aux%conc(this%B_species_index)*conc_units_conversion
@@ -465,18 +472,19 @@ subroutine CarbonMENDEvaluate(this,Residual,Jacobian,compute_derivative, &
   P = this%aux%conc(this%P_species_index)*conc_units_conversion
   Q = this%aux%conc(this%Q_species_index)*conc_units_conversion
 
-  V_P_adj = this%V_P*Arrhenius(53.d0,t,tref)
-  tempreal = Arrhenius(47.d0,t,tref)
+  V_P_adj = this%V_P*Arrhenius(53.d0,t,this%reference_temperature)
+  tempreal = Arrhenius(47.d0,t,this%reference_temperature)
   V_M_adj = this%V_M*tempreal
   V_D_adj = this%V_D*tempreal
-  tempreal = Arrhenius(30.d0,t,tref)
+  tempreal = Arrhenius(30.d0,t,this%reference_temperature)
   K_P_adj = this%K_P*tempreal
   K_M_adj = this%K_M*tempreal
   K_D_adj = this%K_D*tempreal
-  m_R_adj = this%m_R*Arrhenius(20.d0,t,tref)
-  K_ads_adj = this%K_ads*Arrhenius(5.d0,t,tref)
-  K_des_adj = this%K_des*Arrhenius(20.d0,t,tref)
-  E_C_adj = max(min(this%E_C - 0.012d0*(t-tref),1.d0),0.d0)
+  m_R_adj = this%m_R*Arrhenius(20.d0,t,this%reference_temperature)
+  K_ads_adj = this%K_ads*Arrhenius(5.d0,t,this%reference_temperature)
+  K_des_adj = this%K_des*Arrhenius(20.d0,t,this%reference_temperature)
+  E_C_adj = &
+    max(min(this%E_C - 0.012d0*(t-this%reference_temperature),1.d0),0.d0)
 
   D_monod = D/(this%K_D+D)
   M_monod = M/(this%K_M+M)

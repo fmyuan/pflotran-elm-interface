@@ -137,6 +137,7 @@ CHEMISTRY
     K_BA 6 g/mg
     I_P 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
     I_D 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
+    REFERENCE_TEMPERATURE 12.d0
   /
 END
 #=========================== output options ===================================
