@@ -127,6 +127,7 @@ chem_obj = \
 	${common_src}carbon_sandbox.o \
 	${common_src}carbon_sandbox_base.o \
 	${common_src}carbon_sandbox_mend.o \
+	${common_src}carbon_sandbox_mend20.o \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
 	${common_src}reaction_equation.o \
