@@ -12,50 +12,55 @@ module Carbon_Sandbox_MEND20_class
   private
 
   type, extends(carbon_sandbox_base_type), public :: carbon_sandbox_mend20_type
-    character(len=MAXWORDLENGTH) :: PO_species_name
+    character(len=MAXWORDLENGTH) :: PCO_species_name
     character(len=MAXWORDLENGTH) :: PNO_species_name
-    character(len=MAXWORDLENGTH) :: PH_species_name
+    character(len=MAXWORDLENGTH) :: PCH_species_name
     character(len=MAXWORDLENGTH) :: PNH_species_name
-    character(len=MAXWORDLENGTH) :: M_species_name
+    character(len=MAXWORDLENGTH) :: MC_species_name
     character(len=MAXWORDLENGTH) :: MN_species_name
-    character(len=MAXWORDLENGTH) :: D_species_name
+    character(len=MAXWORDLENGTH) :: DC_species_name
     character(len=MAXWORDLENGTH) :: DN_species_name
-    character(len=MAXWORDLENGTH) :: Q_species_name
+    character(len=MAXWORDLENGTH) :: QC_species_name
     character(len=MAXWORDLENGTH) :: QN_species_name
-    character(len=MAXWORDLENGTH) :: BA_species_name
+    character(len=MAXWORDLENGTH) :: BAC_species_name
     character(len=MAXWORDLENGTH) :: BAN_species_name
-    character(len=MAXWORDLENGTH) :: BD_species_name
+    character(len=MAXWORDLENGTH) :: BDC_species_name
     character(len=MAXWORDLENGTH) :: BDN_species_name
-    character(len=MAXWORDLENGTH) :: EPO_species_name
-    character(len=MAXWORDLENGTH) :: EPNO_species_name
-    character(len=MAXWORDLENGTH) :: EPH_species_name
+    character(len=MAXWORDLENGTH) :: EPCO_species_name
+    character(len=MAXWORDLENGTH) :: EPNO_species_name !
+    character(len=MAXWORDLENGTH) :: EPCH_species_name
     character(len=MAXWORDLENGTH) :: EPNH_species_name
-    character(len=MAXWORDLENGTH) :: EM_species_name
+    character(len=MAXWORDLENGTH) :: EMC_species_name
     character(len=MAXWORDLENGTH) :: EMN_species_name
     character(len=MAXWORDLENGTH) :: NH4_species_name
     character(len=MAXWORDLENGTH) :: NO3_species_name
-    PetscInt :: PO_species_index
+    ! C = carbon pool, N = nitrogen pool
+    ! P = particulate, M = mineral, D = dissolved, Q = sorbing
+    ! BA = active biomass, BD = dormant biomass
+    ! O = oxidative, H = hydrolytic
+    ! E = enzyme
+    PetscInt :: PCO_species_index  ! oxidative particulate organic matter (POM)
     PetscInt :: PNO_species_index
-    PetscInt :: PH_species_index
+    PetscInt :: PCH_species_index  ! hydrolytic POM
     PetscInt :: PNH_species_index
-    PetscInt :: M_species_index
+    PetscInt :: MC_species_index   ! mineral associated organic matter (MOM)
     PetscInt :: MN_species_index
-    PetscInt :: D_species_index
+    PetscInt :: DC_species_index   ! dissolved organic matter (DOC)
     PetscInt :: DN_species_index
-    PetscInt :: Q_species_index
+    PetscInt :: QC_species_index   ! active MOM interacting with DOC (sorbing)
     PetscInt :: QN_species_index
-    PetscInt :: BA_species_index
+    PetscInt :: BAC_species_index  ! active biomass
     PetscInt :: BAN_species_index
-    PetscInt :: BD_species_index
+    PetscInt :: BDC_species_index  ! dormant biomass
     PetscInt :: BDN_species_index
-    PetscInt :: EPO_species_index
+    PetscInt :: EPCO_species_index ! oxidative enzymes decomposing POM
     PetscInt :: EPNO_species_index
-    PetscInt :: EPH_species_index
+    PetscInt :: EPCH_species_index ! hydroylitic enzymes decomposing POM
     PetscInt :: EPNH_species_index
-    PetscInt :: EM_species_index
+    PetscInt :: EMC_species_index  ! enzymes decomposing MOM
     PetscInt :: EMN_species_index
-    PetscInt :: NH4_species_index
-    PetscInt :: NO3_species_index
+    PetscInt :: NH4_species_index  ! ammonium
+    PetscInt :: NO3_species_index  ! nitrate
     PetscReal :: LF_0
     PetscReal :: r_0
     PetscReal :: fINP
@@ -65,7 +70,7 @@ module Carbon_Sandbox_MEND20_class
     PetscReal :: K_PO
     PetscReal :: K_PH
     PetscReal :: K_M
-    PetscReal :: Q_max
+    PetscReal :: QC_max
     PetscReal :: K_ba
     PetscReal :: k_des
     PetscReal :: r_E
@@ -128,48 +133,48 @@ function CarbonMEND20Create()
 
   allocate(this)
   call CarbonBaseInit(this)
-  this%PO_species_name = ''
+  this%PCO_species_name = ''
   this%PNO_species_name = ''
-  this%PH_species_name = ''
+  this%PCH_species_name = ''
   this%PNH_species_name = ''
-  this%M_species_name = ''
+  this%MC_species_name = ''
   this%MN_species_name = ''
-  this%D_species_name = ''
+  this%DC_species_name = ''
   this%DN_species_name = ''
-  this%Q_species_name = ''
+  this%QC_species_name = ''
   this%QN_species_name = ''
-  this%BA_species_name = ''
+  this%BAC_species_name = ''
   this%BAN_species_name = ''
-  this%BD_species_name = ''
+  this%BDC_species_name = ''
   this%BDN_species_name = ''
-  this%EPO_species_name = ''
+  this%EPCO_species_name = ''
   this%EPNO_species_name = ''
-  this%EPH_species_name = ''
+  this%EPCH_species_name = ''
   this%EPNH_species_name = ''
-  this%EM_species_name = ''
+  this%EMC_species_name = ''
   this%EMN_species_name = ''
   this%NH4_species_name = ''
   this%NO3_species_name = ''
 
-  this%PO_species_index = UNINITIALIZED_INTEGER
+  this%PCO_species_index = UNINITIALIZED_INTEGER
   this%PNO_species_index = UNINITIALIZED_INTEGER
-  this%PH_species_index = UNINITIALIZED_INTEGER
+  this%PCH_species_index = UNINITIALIZED_INTEGER
   this%PNH_species_index = UNINITIALIZED_INTEGER
-  this%M_species_index = UNINITIALIZED_INTEGER
+  this%MC_species_index = UNINITIALIZED_INTEGER
   this%MN_species_index = UNINITIALIZED_INTEGER
-  this%D_species_index = UNINITIALIZED_INTEGER
+  this%DC_species_index = UNINITIALIZED_INTEGER
   this%DN_species_index = UNINITIALIZED_INTEGER
-  this%Q_species_index = UNINITIALIZED_INTEGER
+  this%QC_species_index = UNINITIALIZED_INTEGER
   this%QN_species_index = UNINITIALIZED_INTEGER
-  this%BA_species_index = UNINITIALIZED_INTEGER
+  this%BAC_species_index = UNINITIALIZED_INTEGER
   this%BAN_species_index = UNINITIALIZED_INTEGER
-  this%BD_species_index = UNINITIALIZED_INTEGER
+  this%BDC_species_index = UNINITIALIZED_INTEGER
   this%BDN_species_index = UNINITIALIZED_INTEGER
-  this%EPO_species_index = UNINITIALIZED_INTEGER
+  this%EPCO_species_index = UNINITIALIZED_INTEGER
   this%EPNO_species_index = UNINITIALIZED_INTEGER
-  this%EPH_species_index = UNINITIALIZED_INTEGER
+  this%EPCH_species_index = UNINITIALIZED_INTEGER
   this%EPNH_species_index = UNINITIALIZED_INTEGER
-  this%EM_species_index = UNINITIALIZED_INTEGER
+  this%EMC_species_index = UNINITIALIZED_INTEGER
   this%EMN_species_index = UNINITIALIZED_INTEGER
   this%NH4_species_index = UNINITIALIZED_INTEGER
   this%NO3_species_index = UNINITIALIZED_INTEGER
@@ -183,7 +188,7 @@ function CarbonMEND20Create()
   this%K_PO = UNINITIALIZED_DOUBLE
   this%K_PH = UNINITIALIZED_DOUBLE
   this%K_M = UNINITIALIZED_DOUBLE
-  this%Q_max = UNINITIALIZED_DOUBLE
+  this%QC_max = UNINITIALIZED_DOUBLE
   this%K_ba = UNINITIALIZED_DOUBLE
   this%k_des = UNINITIALIZED_DOUBLE
   this%r_E = UNINITIALIZED_DOUBLE
@@ -253,64 +258,64 @@ subroutine CarbonMEND20ReadInput(this,input,option)
     if (found) cycle
 
     select case(keyword)
-      case('POM_O_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%PO_species_name,PETSC_TRUE)
+      case('POMC_O_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%PCO_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('POM_O_N_SPECIES_NAME')
+      case('POMC_O_N_SPECIES_NAME')
         call InputReadWord(input,option,this%PNO_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('POM_H_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%PH_species_name,PETSC_TRUE)
+      case('POMC_H_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%PCH_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('POM_H_N_SPECIES_NAME')
+      case('POMC_H_N_SPECIES_NAME')
         call InputReadWord(input,option,this%PNH_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MOM_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%M_species_name,PETSC_TRUE)
+      case('MOMC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%MC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MOM_N_SPECIES_NAME')
+      case('MOMC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%MN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('DOM_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%D_species_name,PETSC_TRUE)
+      case('DOMC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%DC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('DOM_N_SPECIES_NAME')
+      case('DOMC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%DN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('QOM_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%Q_species_name,PETSC_TRUE)
+      case('QOMC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%QC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('QOM_N_SPECIES_NAME')
+      case('QOMC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%QN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MBA_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%BA_species_name,PETSC_TRUE)
+      case('MBAC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%BAC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MBA_N_SPECIES_NAME')
+      case('MBAC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%BAN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MBD_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%BD_species_name,PETSC_TRUE)
+      case('MBDC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%BDC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('MBD_N_SPECIES_NAME')
+      case('MBDC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%BDN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EPO_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%EPO_species_name,PETSC_TRUE)
+      case('EPCO_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%EPCO_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EPO_N_SPECIES_NAME')
+      case('EPCO_N_SPECIES_NAME')
         call InputReadWord(input,option,this%EPNO_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EPH_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%EPH_species_name,PETSC_TRUE)
+      case('EPCH_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%EPCH_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EPH_N_SPECIES_NAME')
+      case('EPCH_N_SPECIES_NAME')
         call InputReadWord(input,option,this%EPNH_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EM_C_SPECIES_NAME')
-        call InputReadWord(input,option,this%EM_species_name,PETSC_TRUE)
+      case('EMC_C_SPECIES_NAME')
+        call InputReadWord(input,option,this%EMC_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
-      case('EM_N_SPECIES_NAME')
+      case('EMC_N_SPECIES_NAME')
         call InputReadWord(input,option,this%EMN_species_name,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,err_string)
       case('NH4_SPECIES_NAME')
@@ -349,18 +354,18 @@ subroutine CarbonMEND20ReadInput(this,input,option)
           case('VN_DENIT')
             this%VN_denit = tempreal
         end select
-      case('VD_PO','VD_PH','VD_M','R_E','V_G','VN_IMNH4','VN_IMNO3')
+      case('VDC_PO','VDC_PH','VDC_M','R_E','V_G','VN_IMNH4','VN_IMNO3')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,err_string)
         internal_units = 'kg/kg-s' ! mg C / mg C / h
         call InputReadAndConvertUnits(input,tempreal,internal_units, &
                                       keyword,option)
         select case(keyword)
-          case('VD_PO')
+          case('VDC_PO')
             this%Vd_PO = tempreal
-          case('VD_PH')
+          case('VDC_PH')
             this%Vd_PH = tempreal
-          case('VD_M')
+          case('VDC_M')
             this%Vd_M = tempreal
           case('R_E')
             this%r_E = tempreal
@@ -371,7 +376,7 @@ subroutine CarbonMEND20ReadInput(this,input,option)
           case('VN_IMNO3')
             this%VN_imNO3 = tempreal
         end select
-      case('K_PO','K_PH','K_M','K_D','KS_NH4','KS_NO3','Q_MAX')
+      case('K_PO','K_PH','K_M','K_D','KS_NH4','KS_NO3','QC_MAX')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,err_string)
         internal_units = 'kg/m^3' ! mg C/cm^3 soil
@@ -390,8 +395,8 @@ subroutine CarbonMEND20ReadInput(this,input,option)
             this%KS_NH4 = tempreal
           case('KS_NO3')
             this%KS_NO3 = tempreal
-          case('Q_MAX')
-            this%Q_max = tempreal
+          case('QC_MAX')
+            this%QC_max = tempreal
         end select
       case('K_BA')
         call InputReadDouble(input,option,this%K_ba)
@@ -465,44 +470,44 @@ subroutine CarbonMEND20Setup(this,reaction,option)
 
   call CarbonBaseSetup(this,reaction,option)
 
-  call SetupMobile(this%PO_species_index,this%PO_species_name)
+  call SetupMobile(this%PCO_species_index,this%PCO_species_name)
   call SetupMobile(this%PNO_species_index,this%PNO_species_name)
-  call SetupMobile(this%PH_species_index,this%PH_species_name)
+  call SetupMobile(this%PCH_species_index,this%PCH_species_name)
   call SetupMobile(this%PNH_species_index,this%PNH_species_name)
-  call SetupMobile(this%D_species_index,this%D_species_name)
+  call SetupMobile(this%DC_species_index,this%DC_species_name)
   call SetupMobile(this%DN_species_index,this%DN_species_name)
-  call SetupMobile(this%BA_species_index,this%BA_species_name)
+  call SetupMobile(this%BAC_species_index,this%BAC_species_name)
   call SetupMobile(this%BAN_species_index,this%BAN_species_name)
-  call SetupMobile(this%BD_species_index,this%BD_species_name)
+  call SetupMobile(this%BDC_species_index,this%BDC_species_name)
   call SetupMobile(this%BDN_species_index,this%BDN_species_name)
   call SetupMobile(this%EPNO_species_index,this%EPNO_species_name)
-  call SetupMobile(this%EPH_species_index,this%EPH_species_name)
+  call SetupMobile(this%EPCH_species_index,this%EPCH_species_name)
   call SetupMobile(this%EPNH_species_index,this%EPNH_species_name)
-  call SetupMobile(this%EM_species_index,this%EM_species_name)
+  call SetupMobile(this%EMC_species_index,this%EMC_species_name)
   call SetupMobile(this%EMN_species_index,this%EMN_species_name)
   call SetupMobile(this%NH4_species_index,this%NH4_species_name)
   call SetupMobile(this%NO3_species_index,this%NO3_species_name)
 
-  call SetupImmobile(this%M_species_index,this%M_species_name)
+  call SetupImmobile(this%MC_species_index,this%MC_species_name)
   call SetupImmobile(this%MN_species_index,this%MN_species_name)
-  call SetupImmobile(this%Q_species_index,this%Q_species_name)
+  call SetupImmobile(this%QC_species_index,this%QC_species_name)
   call SetupImmobile(this%QN_species_index,this%QN_species_name)
 
 #if 0
-  if (this%M_species_index <= 0) then
-    option%io_buffer = 'Species "' // trim(this%M_species_name) // &
+  if (this%MC_species_index <= 0) then
+    option%io_buffer = 'Species "' // trim(this%MC_species_name) // &
       '" not found among the available immobile species. Mineral associated &
       &biomass must be an immobile species.'
     call PrintErrMsg(option)
   endif
   this%P_species_index = &
     ReactionAuxGetPriSpecIDFromName(this%P_species_name,reaction,option)
-  this%Q_species_index = &
-    ReactionImGetSpeciesIDFromName(this%Q_species_name,reaction%immobile, &
+  this%QC_species_index = &
+    ReactionImGetSpeciesIDFromName(this%QC_species_name,reaction%immobile, &
                                    PETSC_FALSE,option) + &
     reaction%offset_immobile
-  if (this%M_species_index <= 0) then
-    option%io_buffer = 'Species "' // trim(this%M_species_name) // &
+  if (this%MC_species_index <= 0) then
+    option%io_buffer = 'Species "' // trim(this%MC_species_name) // &
       '" not found among the available immobile species. Adsorbed biomass &
       &must be an immobile species.'
     call PrintErrMsg(option)
@@ -512,13 +517,13 @@ subroutine CarbonMEND20Setup(this,reaction,option)
   call CheckUninitialized(this%LF_0,'LF_0')
   call CheckUninitialized(this%r_0,'R_0')
   call CheckUninitialized(this%fINP,'FINP')
-  call CheckUninitialized(this%Vd_PO,'VD_PO')
-  call CheckUninitialized(this%Vd_PH,'VD_PH')
-  call CheckUninitialized(this%Vd_M,'VD_M')
+  call CheckUninitialized(this%Vd_PO,'VDC_PO')
+  call CheckUninitialized(this%Vd_PH,'VDC_PH')
+  call CheckUninitialized(this%Vd_M,'VDC_M')
   call CheckUninitialized(this%K_PO,'K_PO')
   call CheckUninitialized(this%K_PH,'K_PH')
   call CheckUninitialized(this%K_M,'K_M')
-  call CheckUninitialized(this%Q_max,'Q_MAX')
+  call CheckUninitialized(this%QC_max,'QC_MAX')
   call CheckUninitialized(this%K_ba,'K_BA')
   call CheckUninitialized(this%k_des,'K_DES')
   call CheckUninitialized(this%r_E,'R_E')
@@ -629,84 +634,128 @@ subroutine CarbonMEND20Evaluate(this,Residual,Jacobian,compute_derivative, &
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-#if 0
-  PetscReal :: B, D, EM, EP, IC, M, P, Q
-  PetscReal :: D_monod, M_monod, P_monod
-  PetscReal :: one_over_E_C
-  PetscReal :: F1, F2, F3, F4, F5, F6, F7, F8, F9EP, F9EM, F10EP, F10EM
-  PetscReal :: dB, dD, dEM, dEP, dIC, dM, dP, dQ
+  PetscReal :: PCO, PNO, PCH, PNH, MC, MN, DC, DN, QC, QN, BAC, BAN, BDC, BDN
+  PetscReal :: EPCO, EPNO, EPCH, EPNH, EMC, EMN, NH4, NO3
+  PetscReal :: F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14
+  PetscReal :: F15, F15_EPCO, F15_EPCH, F15_EMC
+  PetscReal :: F16, F16_EPCO, F16_EPCH, F16_EMC
+  PetscReal :: FN_im_NH4toBA, FN_im_NO3toBA
+!  PetscReal :: FN_mn_BA
+  PetscReal :: dPCO, dPCH, dMC, dQC, dDC, dBAC, dBDC, dEPCO, dEPCH, dEMC, dCO2
+  PetscReal :: YN_g, one_over_Y_g
+  PetscReal :: four_thirds
+  PetscReal :: FN_nit
+  PetscReal :: FN_nit_denit
+  PetscReal :: f_O2
+  PetscReal :: WFP
+  PetscReal :: FN_denit
+  PetscReal :: V_m, k_ads
   PetscReal :: conc_units_conversion
-  PetscReal :: V_P_adj, V_M_adj, V_D_adj, K_P_adj, K_M_adj, K_D_adj
-  PetscReal :: m_R_adj, E_C_adj
-  PetscReal :: K_ads_adj, K_des_adj
   PetscReal :: t
-  PetscReal :: tempreal
+  PetscReal :: CN_BA, CN_BAmin, CN_BAmax
+  PetscReal :: DC_monod
+
+  PetscReal :: I_PO, I_PH, I_D
+
+  I_PO = 0.d0
+  I_PO = (1.d0/I_PO)*0.d0
+  I_PH = I_PO
+  I_D = I_PO
+
+  CN_BA = 0.5d0
+  CN_BAmin = 0.d0
+  CN_BAmax = 1.d0
 
   call this%MapStateVariables(rt_auxvar,global_auxvar,material_auxvar, &
                               reaction,option)
-
   t = this%aux%temperature
+  WFP = 1.d0
+
+  k_ads = this%k_des * this%K_BA
+  V_m = this%alpha * this%V_g / (1.d0 - this%alpha)
+
   ! mgC/gsoil = molC/kgsoil*gC/molC*mgC/gC*kgsoil/gsoil
   conc_units_conversion = 30.d0*1000.d0*1.d-3
-  B = this%aux%conc(this%B_species_index)*conc_units_conversion
-  D = this%aux%conc(this%D_species_index)*conc_units_conversion
-  EM = this%aux%conc(this%EM_species_index)*conc_units_conversion
-  EP = this%aux%conc(this%EP_species_index)*conc_units_conversion
-  IC = this%aux%conc(this%IC_species_index)*conc_units_conversion
-  M = this%aux%conc(this%M_species_index)*conc_units_conversion
-  P = this%aux%conc(this%P_species_index)*conc_units_conversion
-  Q = this%aux%conc(this%Q_species_index)*conc_units_conversion
+  PCO = this%aux%conc(this%PCO_species_index)*conc_units_conversion
+  PNO = this%aux%conc(this%PNO_species_index)*conc_units_conversion
+  PCH = this%aux%conc(this%PCH_species_index)*conc_units_conversion
+  PNH = this%aux%conc(this%PNH_species_index)*conc_units_conversion
+  MC = this%aux%conc(this%MC_species_index)*conc_units_conversion
+  MN = this%aux%conc(this%MN_species_index)*conc_units_conversion
+  DC = this%aux%conc(this%DC_species_index)*conc_units_conversion
+  DN = this%aux%conc(this%DN_species_index)*conc_units_conversion
+  QC = this%aux%conc(this%QC_species_index)*conc_units_conversion
+  QN = this%aux%conc(this%QN_species_index)*conc_units_conversion
+  BAC = this%aux%conc(this%BAC_species_index)*conc_units_conversion
+  BAN = this%aux%conc(this%BAN_species_index)*conc_units_conversion
+  BDC = this%aux%conc(this%BDC_species_index)*conc_units_conversion
+  BDN = this%aux%conc(this%BDN_species_index)*conc_units_conversion
+  EPCO = this%aux%conc(this%EPCO_species_index)*conc_units_conversion
+  EPNO = this%aux%conc(this%EPNO_species_index)*conc_units_conversion
+  EPCH = this%aux%conc(this%EPCH_species_index)*conc_units_conversion
+  EPNH = this%aux%conc(this%EPNH_species_index)*conc_units_conversion
+  EMC = this%aux%conc(this%EMC_species_index)*conc_units_conversion
+  EMN = this%aux%conc(this%EMN_species_index)*conc_units_conversion
+  NH4 = this%aux%conc(this%NH4_species_index)*conc_units_conversion
+  NO3 = this%aux%conc(this%NO3_species_index)*conc_units_conversion
 
-  V_P_adj = this%V_P*Arrhenius(53.d0,t,this%reference_temperature)
-  tempreal = Arrhenius(47.d0,t,this%reference_temperature)
-  V_M_adj = this%V_M*tempreal
-  V_D_adj = this%V_D*tempreal
-  tempreal = Arrhenius(30.d0,t,this%reference_temperature)
-  K_P_adj = this%K_P*tempreal
-  K_M_adj = this%K_M*tempreal
-  K_D_adj = this%K_D*tempreal
-  m_R_adj = this%m_R*Arrhenius(20.d0,t,this%reference_temperature)
-  K_ads_adj = this%K_ads*Arrhenius(5.d0,t,this%reference_temperature)
-  K_des_adj = this%K_des*Arrhenius(20.d0,t,this%reference_temperature)
-  E_C_adj = &
-    max(min(this%E_C - 0.012d0*(t-this%reference_temperature),1.d0),0.d0)
+  one_over_Y_g = 1.d0 / (this%Y_g_T_ref - &
+                         this%k_Yg * (t - this%reference_temperature))
+  YN_g = ((CN_BA-CN_BAmin)/(CN_BAmax-CN_BAmin))**this%omega
+  four_thirds = 4.d0 / 3.d0
+  f_O2 = (((1.d0 - WFP)**four_thirds) / &
+          ((0.5**four_thirds)+((1.d0-WFP)**four_thirds)))
 
-  D_monod = D/(this%K_D+D)
-  M_monod = M/(this%K_M+M)
-  P_monod = P/(this%K_P+P)
-  one_over_E_C = 1.d0 / E_C_adj
-  F1 = one_over_E_C*(V_D_adj+m_R_adj)*B*D_monod
-  F2 = V_P_adj*EP*P_monod
-  F3 = V_M_adj*EM*M_monod
-  F4 = (one_over_E_C-1.d0)*V_D_adj*B
-  F5 = (one_over_E_C-1.d0)*m_R_adj*B*D_monod
-  F6 = K_ads_adj*(1.d0-Q/this%Q_max)*D
-  F7 = K_des_adj*Q/this%Q_max
-  F8 = (1.d0-this%p_EP-this%p_EM)*m_R_adj*B
-  F9EM = this%p_EM*m_R_adj*B
-  F9EP = this%p_EP*m_R_adj*B
-  F10EM = this%r_EM*EM
-  F10EP = this%r_EP*EP
+  DC_monod = DC / (this%K_D+DC)
 
-  dB = F1 - (F4 + F5) - F8 - (F9EP + F9EM)
-  dD = this%I_D + this%f_D*F2 + this%g_D*F8 + F3 + (F10EP + F10EM) - &
-       F1 - (F6 - F7)
-  dEM = F9EM - F10EM
-  dEP = F9EP - F10EP
-  dM = (1.d0-this%f_D)*F2 - F3
-  dP = this%I_P + (1.d0-this%g_D)*F8 - F2
-  dQ = F6 - F7
-  dIC = F4 + F5
+  F1 = this%Vd_PO * EPCO * PCO / (this%K_PO+PCO)
+  F2 = this%Vd_PH * EPCH * PCH / (this%K_PH+PCH)
+  F3 = this%Vd_M * EMC * MC / (this%K_M+MC)
+  F4 = k_ads * (1.d0 - QC/this%QC_max) * DC
+  F5 = this%k_des * (QC/this%QC_max)
+  F6 = one_over_Y_g * (this%V_g + V_m) * BAC * DC_monod
+  F7 = (1.d0 - DC_monod) * V_m * BAC
+  F8 = DC_monod * V_m * BDC
+  F9 = (one_over_Y_g - 1.d0) * this%V_g * BAC * DC_monod
+  F10 = (one_over_Y_g - 1.d0) * V_m * BAC * DC_monod
+  F11 = max(0.d0,BAC-BAN*CN_BAmax)
+  F12 = this%beta * V_m * BDC
+  F13 = max(0.d0,BDC-BDN*CN_BAmax)
+  F14 = this%gamma * V_m * BDC
+  F15_EPCO = PCO / (PCO+PCH) * this%p_EP * V_m * BAC
+  F15_EPCH = PCH / (PCO+PCH) * this%p_EP * V_m * BAC
+  F15_EMC = this%fp_EM * this%p_EP * V_m * BAC
+  F15 = F15_EPCO + F15_EPCH + F15_EMC
+  F16_EPCO = this%r_E * EPCO
+  F16_EPCH = this%r_E * EPCH
+  F16_EMC = this%r_E * EMC
+  F16 = F16_EPCO + F16_EPCH + F16_EMC
+  FN_im_NH4toBA = this%VN_imNH4 * YN_g * BAC * NH4 / &
+                  (this%KS_NH4 * (1.d0 + NH4 / this%KS_NH4 + &
+                                  NO3 / this%KS_NO3 + BAC / this%KS_NH4))
+  FN_im_NO3toBA = this%VN_imNO3 * YN_g * BAC * NO3 / &
+                  (this%KS_NO3 * (1.d0 + NH4 / this%KS_NH4 + &
+                                  NO3 / this%KS_NO3 + BAC / this%KS_NO3))
+!  FN_mn_BA = (1.d0 - YN_g) * FN6
+  FN_nit = this%VN_nit * NH4
+  FN_nit_denit = FN_nit * (1.d0 - f_O2)
+  FN_denit = this%VN_denit * NO3
 
-  Residual(this%B_species_index) = Residual(this%B_species_index) - dB
-  Residual(this%D_species_index) = Residual(this%D_species_index) - dD
-  Residual(this%EM_species_index) = Residual(this%EM_species_index) - dEM
-  Residual(this%EP_species_index) = Residual(this%EP_species_index) - dEP
-  Residual(this%IC_species_index) = Residual(this%IC_species_index) - dIC
-  Residual(this%M_species_index) = Residual(this%M_species_index) - dM
-  Residual(this%P_species_index) = Residual(this%P_species_index) - dP
-  Residual(this%Q_species_index) = Residual(this%Q_species_index) - dQ
-#endif
+  dPCO = I_PO + (1.d0-this%g_D)*this%g_PO*F12 - F1
+  dPCH = I_PH + (1.d0-this%g_D)*(1.d0-this%g_PO)*F12 - F2
+  dMC = (1.d0-this%f_D)*(F1+F2) - F3
+  dQC = F4 - F5
+  dDC = I_D + this%f_D*(F1+F2) + F3 + this%g_D*F12 + F14 - F6 - (F4-F5)
+  dBAC = F6 - (F7-F8) - (F9+F10+F11) - F14 - F15
+  dBDC = (F7-F8) - (F12+F13)
+  dEPCO = F15_EPCO - F16_EPCO
+  dEPCH = F15_EPCH - F16_EPCH
+  dEMC = F15_EMC - F16_EMC
+  dCO2 = (F9 + F10 + F11) + (F12 + F13)
+
+!  dPCH = I_PH + (1.d0-this%g_D)*this%g_PO*F12 - F1
+
+
 end subroutine CarbonMEND20Evaluate
 
 ! ************************************************************************** !
