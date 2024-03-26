@@ -2814,8 +2814,6 @@ subroutine PMWFSetup(this)
              cur_waste_form%mechanism%vitality_rate_stdev, &
              cur_waste_form%canister_vitality_rate, &
              cur_waste_form%mechanism%seed)
-        write(*,*) 'cur_waste_form%canister_vitality_rate = '
-        write(*,*) cur_waste_form%canister_vitality_rate
         if (cur_waste_form%canister_vitality_rate > &
             cur_waste_form%mechanism%vitality_rate_trunc) then
           cur_waste_form%canister_vitality_rate = &
