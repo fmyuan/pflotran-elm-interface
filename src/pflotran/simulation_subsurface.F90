@@ -506,13 +506,7 @@ subroutine SimSubsurfJumpStart(this)
   if (associated(tran_timestepper)) &
     tran_timestepper%start_time_step = tran_timestepper%steps + 1
 
-  if (this%realization%debug%print_regions) then
-    call OutputPrintRegions(this%realization)
-    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
-        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-      call OutputPrintRegionsH5(this%realization)
-    endif
-  endif
+  call OutputPrintRegions(this%realization)
 
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)

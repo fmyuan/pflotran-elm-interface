@@ -24,7 +24,8 @@ module Debug_module
     PetscBool :: verbose_filename
 
     PetscBool :: print_couplers
-    PetscBool :: print_regions
+    PetscBool :: print_regions_hdf5
+    PetscBool :: print_regions_tec
     character(len=MAXSTRINGLENGTH) :: coupler_string
     PetscBool :: print_waypoints
   end type debug_type
@@ -66,7 +67,8 @@ function DebugCreate()
   debug%verbose_filename = PETSC_FALSE
 
   debug%print_couplers = PETSC_FALSE
-  debug%print_regions = PETSC_FALSE
+  debug%print_regions_hdf5 = PETSC_FALSE
+  debug%print_regions_tec = PETSC_FALSE
   debug%coupler_string = ''
   debug%print_waypoints = PETSC_FALSE
 
@@ -121,7 +123,12 @@ subroutine DebugRead(debug,input,option)
       case('PRINT_MATRIX','MATVIEW_MATRIX','VIEW_MATRIX')
         debug%matview_Matrix = PETSC_TRUE
       case('PRINT_REGIONS')
-        debug%print_regions = PETSC_TRUE
+        debug%print_regions_tec = PETSC_TRUE
+        debug%print_regions_hdf5 = PETSC_TRUE
+      case('PRINT_REGIONS_TECPLOT')
+        debug%print_regions_tec = PETSC_TRUE
+      case('PRINT_REGIONS_HDF5')
+        debug%print_regions_hdf5 = PETSC_TRUE
       case('PRINT_COUPLERS','PRINT_COUPLER')
         debug%print_couplers = PETSC_TRUE
         debug%coupler_string = trim(adjustl(input%buf))
