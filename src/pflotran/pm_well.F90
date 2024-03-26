@@ -3716,9 +3716,9 @@ subroutine PMWellUpdateStrata(pm_well,curr_time)
       ! not all materials are assigned to the regions from the start
       if (associated(well_strata%region%cell_ids)) then
           if ((any(well_strata%region%cell_ids == &
-                   this%well_grid%h_local_id(k))) .and. &
+                   pm_well%well_grid%h_local_id(k))) .and. &
               (well_strata%active)) then
-            this%well_grid%strata_id(k) = well_strata%id
+            pm_well%well_grid%strata_id(k) = well_strata%id
           endif
       endif    
       well_strata => well_strata%next
