@@ -752,6 +752,9 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                  sco2_parameter,natural_id,option)
 
     endif
+    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(SCO2_WELL_DOF)
+    endif
   enddo
 
   boundary_condition => patch%boundary_condition_list%first

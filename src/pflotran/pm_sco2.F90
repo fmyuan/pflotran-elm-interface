@@ -1188,7 +1188,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       endif
 
       if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-        ! MAN: Add in update truncation for fully implicit well
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))),dX_p(well_index))
       endif
 
     enddo
@@ -1637,9 +1637,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
-              res_scaled = min(dabs(update) / &
-                           dabs(sco2_auxvar%well%pg), &
-                           dabs(residual))
+              ! Just check the update
+              res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
               ! find max value regardless of convergence
               if (converged_scaled_residual_real(idof,istate) < &
                   res_scaled) then
@@ -1648,10 +1648,10 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
             endif
           elseif (idof == FOUR_INTEGER) then
-              ! There is a fully implicit well, in DOF 4
-            res_scaled = min(dabs(update) / &
-                           dabs(sco2_auxvar%well%pg), &
-                           dabs(residual))
+            ! There is a fully implicit well, in DOF 4
+            ! Just check the update
+            res_scaled = dabs(update) / &
+                         (dabs(sco2_auxvar%well%bh_p) + epsilon)
               ! find max value regardless of convergence
             if (converged_scaled_residual_real(idof,istate) < &
                 res_scaled) then

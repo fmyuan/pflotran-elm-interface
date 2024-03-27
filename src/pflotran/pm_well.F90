@@ -3526,13 +3526,18 @@ subroutine PMWellInitializeWellFlow(pm_well)
 ! Author: Jennifer M. Frederick
 ! Date: 02/23/2022
 
+  use SCO2_Aux_module
+
   implicit none
 
   class(pm_well_type) :: pm_well
 
   type(strata_type), pointer :: strata
-  PetscInt :: k
+  type(sco2_auxvar_type), pointer :: sco2_auxvar
+  type(option_type), pointer :: option
+  PetscInt :: k, ghosted_id
 
+  option => pm_well%option
 
   ! set initial flow parameters to the reservoir flow parameters
   pm_well%well%pl = pm_well%reservoir%p_l
@@ -3547,16 +3552,28 @@ subroutine PMWellInitializeWellFlow(pm_well)
   pm_well%well%liq%xmass = pm_well%reservoir%xmass_liq
   pm_well%well%gas%xmass = pm_well%reservoir%xmass_gas
   if (Uninitialized(pm_well%well%bh_p)) then
-    if (pm_well%well%pg(1) > pm_well%well%pl(1)) then
-      ! There's free gas. Use gas pressure
-      pm_well%well%bh_p = pm_well%well%pg(1) - pm_well%well%gas%den(1) * &
-                          pm_well%option%gravity(Z_DIRECTION) * &
-                          pm_well%well_grid%dh(1)/2.d0
+    ! BHP can be a flow primary variable if fully coupled to flow.
+    if (option%iflowmode == SCO2_MODE) then
+      if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+        ghosted_id = pm_well%well_grid%h_ghosted_id(1)
+        sco2_auxvar => &
+          pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
+        pm_well%well%bh_p = sco2_auxvar%well%bh_p - pm_well%well%liq%den(1) * &
+                            pm_well%option%gravity(Z_DIRECTION) * &
+                            pm_well%well_grid%dh(1)/2.d0
+      endif
     else
-      ! Just liquid. Use liquid pressure
-      pm_well%well%bh_p = pm_well%well%pl(1) - pm_well%well%liq%den(1) * &
-                          pm_well%option%gravity(Z_DIRECTION) * &
-                          pm_well%well_grid%dh(1)/2.d0
+      if (pm_well%well%pg(1) > pm_well%well%pl(1)) then
+        ! There's free gas. Use gas pressure
+        pm_well%well%bh_p = pm_well%well%pg(1) - pm_well%well%gas%den(1) * &
+                            pm_well%option%gravity(Z_DIRECTION) * &
+                            pm_well%well_grid%dh(1)/2.d0
+      else
+        ! Just liquid. Use liquid pressure
+        pm_well%well%bh_p = pm_well%well%pl(1) - pm_well%well%liq%den(1) * &
+                            pm_well%option%gravity(Z_DIRECTION) * &
+                            pm_well%well_grid%dh(1)/2.d0
+      endif
     endif
   endif
   ! update the Darcy fluxes within the well
@@ -4619,6 +4636,7 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
   type(option_type), pointer :: option
   PetscReal :: time
   PetscBool :: perturb
+  PetscInt :: ghosted_id
   
   perturb = PETSC_FALSE
 
@@ -4652,10 +4670,16 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
     call PMWellInitializeWellFlow(pm_well)
     call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
     call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
-  else
+  elseif (option%iflowmode == WF_MODE) then
     pm_well%well%pl = pm_well%flow_soln%soln_save%pl
     pm_well%well%gas%s = pm_well%flow_soln%soln_save%sg
     pm_well%well%bh_p = pm_well%flow_soln%soln_save%bh_p
+  ! elseif (option%iflowmode == SCO2_MODE) then
+  !   if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+  !     ghosted_id = pm_well%well_grid%h_ghosted_id(1)
+  !     pm_well%well%bh_p = pm_well%realization%patch%aux%sco2% &
+  !                         auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p
+  !   endif
   endif
 
   if (option%iflowmode == WF_MODE) then

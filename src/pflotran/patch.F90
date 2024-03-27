@@ -5110,6 +5110,11 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
       ! ---------------------------------------------------------------------- !
       end select
 
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        coupler%flow_aux_real_var(SCO2_WELL_DOF, iconn) = &
+                   coupler%flow_aux_real_var(SCO2_GAS_PRESSURE_DOF,iconn)
+      endif
+
     enddo
   endif
 
