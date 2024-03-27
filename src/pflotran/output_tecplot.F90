@@ -28,7 +28,8 @@ module Output_Tecplot_module
             WriteTecplotDatasetNumPerLine, &
             WriteTecplotDataset, &
             OutputPrintExplicitFlowrates, &
-            OutputSecondaryContinuumTecplot
+            OutputSecondaryContinuumTecplot, &
+            OutputTecplotPrintRegions
 
 contains
 
@@ -2782,5 +2783,49 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
             TEN_INTEGER)
 
 end subroutine WriteTecplotPolyUGridElements
+
+! ************************************************************************** !
+
+subroutine OutputTecplotPrintRegions(realization_base)
+  !
+  ! Prints out the number of connections to each cell in a region.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/03/16
+  !
+  use Realization_Base_class, only : realization_base_type
+  use Field_module
+  use Region_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+
+  type(field_type), pointer :: field
+  type(region_type), pointer :: cur_region
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  field => realization_base%field
+
+  cur_region => realization_base%patch%region_list%first
+  do
+    if (.not.associated(cur_region)) exit
+    call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    do i = 1, cur_region%num_cells
+      vec_ptr(cur_region%cell_ids(i)) = vec_ptr(cur_region%cell_ids(i)) + 1.d0
+    enddo
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    word = 'REGION ' // trim(cur_region%name)
+    string = 'region_' // trim(cur_region%name) // '.tec'
+    call OutputVectorTecplot(string,word,realization_base,field%work)
+    cur_region => cur_region%next
+  enddo
+
+end subroutine OutputTecplotPrintRegions
 
 end module Output_Tecplot_module
