@@ -3425,56 +3425,83 @@ subroutine OutputMassBalance(realization_base)
         endif
       endif
       if (option%ntrandof > 0) then
-        max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
-                          reaction%immobile%nimmobile,reaction%gas%nactive_gas)
-        ! see RTComputeMassBalance for indexing used below
-        allocate(total_mass(max_tran_size,8))
-        allocate(global_total_mass(max_tran_size,8))
-        total_mass = 0.d0
-        select type(realization_base)
-          class is(realization_subsurface_type)
-            call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
-                 max_tran_size,total_mass,cur_mbr%region_cell_ids)
-          class default
-            option%io_buffer = 'Unrecognized realization class in MassBalance().'
-            call PrintErrMsg(option)
+        select case(option%itranmode)
+          case(RT_MODE)
+            max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
+                              reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+            ! see RTComputeMassBalance for indexing used below
+            allocate(total_mass(max_tran_size,8))
+            allocate(global_total_mass(max_tran_size,8))
+            total_mass = 0.d0
+            select type(realization_base)
+              class is(realization_subsurface_type)
+                call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
+                     max_tran_size,total_mass,cur_mbr%region_cell_ids)
+              class default
+                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                call PrintErrMsg(option)
+            end select
+            int_mpi = max_tran_size*8
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            global_total_mass_sum = 0.d0
+            do i =1, size(global_total_mass(:,1))
+                global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+            enddo
+            if (OptionIsIORank(option)) then
+              write(fid,110,advance="no") global_total_mass_sum
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") global_total_mass(icomp,1)
+                endif
+              enddo
+              ! immobile species
+              do i = 1, reaction%immobile%nimmobile
+                if (reaction%immobile%print_me(i)) then
+                  write(fid,110,advance="no") &
+                    global_total_mass(i,7)
+                endif
+              enddo
+              ! gas species
+              do i = 1, reaction%gas%nactive_gas
+                if (reaction%gas%active_print_me(i)) then
+                  write(fid,110,advance="no") &
+                    global_total_mass(i,8)
+                endif
+              enddo
+              do i = 1, reaction%mineral%nkinmnrl
+                if (reaction%mineral%kinmnrl_print(i)) then
+                  write(fid,110,advance="no") global_total_mass(i,6)
+                endif
+              enddo
+            endif
+            deallocate(total_mass,global_total_mass)
+          case(NWT_MODE)
+            max_tran_size = reaction_nw%params%nspecies
+            ! see NWTComputeMassBalance for indexing used below
+            allocate(total_mass(max_tran_size,4))
+            allocate(global_total_mass(max_tran_size,4))
+            total_mass = 0.d0
+            select type(realization_base)
+              class is(realization_subsurface_type)
+                ! computes the global mass balance
+                call NWTComputeMassBalance(realization_base,max_tran_size,total_mass)
+              class default
+                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                call PrintErrMsg(option)
+            end select
+            int_mpi = max_tran_size*4
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
+                            MPI_SUM,option%comm%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
+            if (OptionIsIORank(option)) then
+              do icomp = 1, reaction_nw%params%nspecies
+                write(fid,110,advance="no") sum_mol_global(icomp,1)
+              enddo
+            endif
+            deallocate(total_mass,global_total_mass)
         end select
-        int_mpi = max_tran_size*8
-        call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                        MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
-                        option%mycomm,ierr);CHKERRQ(ierr)
-        global_total_mass_sum = 0.d0
-        do i =1, size(global_total_mass(:,1))
-            global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
-        enddo
-        if (OptionIsIORank(option)) then
-          write(fid,110,advance="no") global_total_mass_sum
-          do icomp = 1, reaction%naqcomp
-            if (reaction%primary_species_print(icomp)) then
-              write(fid,110,advance="no") global_total_mass(icomp,1)
-            endif
-          enddo
-          ! immobile species
-          do i = 1, reaction%immobile%nimmobile
-            if (reaction%immobile%print_me(i)) then
-              write(fid,110,advance="no") &
-                global_total_mass(i,7)
-            endif
-          enddo
-          ! gas species
-          do i = 1, reaction%gas%nactive_gas
-            if (reaction%gas%active_print_me(i)) then
-              write(fid,110,advance="no") &
-                global_total_mass(i,8)
-            endif
-          enddo
-          do i = 1, reaction%mineral%nkinmnrl
-            if (reaction%mineral%kinmnrl_print(i)) then
-              write(fid,110,advance="no") global_total_mass(i,6)
-            endif
-          enddo
-        endif
-        deallocate(total_mass,global_total_mass)
       endif
       if (option%nflowdof > 0) then
         allocate(total_mass(option%nflowspec,option%nphase))
