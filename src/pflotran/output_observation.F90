@@ -2961,7 +2961,9 @@ subroutine OutputMassBalance(realization_base)
         select type(realization_base)
           class is(realization_subsurface_type)
             ! computes the global mass balance
-            call NWTComputeMassBalance(realization_base,max_tran_size,sum_mol)
+            call NWTComputeMassBalance(realization_base, &
+                                       realization_base%patch%grid%nlmax, &
+                                       max_tran_size,sum_mol)
           class default
             option%io_buffer = 'Unrecognized realization class in MassBalance().'
             call PrintErrMsg(option)
@@ -3486,16 +3488,22 @@ subroutine OutputMassBalance(realization_base)
             select type(realization_base)
               class is(realization_subsurface_type)
                 ! computes the global mass balance
-                call NWTComputeMassBalance(realization_base,max_tran_size,total_mass)
+                call NWTComputeMassBalance(realization_base,cur_mbr%num_cells, &
+                                           max_tran_size,total_mass,cur_mbr%region_cell_ids)
               class default
                 option%io_buffer = 'Unrecognized realization class in MassBalance().'
                 call PrintErrMsg(option)
             end select
-            int_mpi = max_tran_size*4
+            int_mpi = max_tran_size*423
             call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
                             MPI_SUM,option%comm%io_rank,option%mycomm, &
                             ierr);CHKERRQ(ierr)
+            global_total_mass_sum = 0.d0
+            do i = 1, size(global_total_mass(:,1))
+              global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+            enddo
             if (OptionIsIORank(option)) then
+              write(fid,110,advance="no") global_total_mass_sum
               do icomp = 1, reaction_nw%params%nspecies
                 write(fid,110,advance="no") global_total_mass(icomp,1)
               enddo
