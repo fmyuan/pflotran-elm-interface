@@ -3497,7 +3497,7 @@ subroutine OutputMassBalance(realization_base)
                             ierr);CHKERRQ(ierr)
             if (OptionIsIORank(option)) then
               do icomp = 1, reaction_nw%params%nspecies
-                write(fid,110,advance="no") sum_mol_global(icomp,1)
+                write(fid,110,advance="no") global_total_mass(icomp,1)
               enddo
             endif
             deallocate(total_mass,global_total_mass)
