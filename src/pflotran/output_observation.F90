@@ -3494,7 +3494,7 @@ subroutine OutputMassBalance(realization_base)
                 option%io_buffer = 'Unrecognized realization class in MassBalance().'
                 call PrintErrMsg(option)
             end select
-            int_mpi = max_tran_size*423
+            int_mpi = max_tran_size*4
             call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
                             MPI_SUM,option%comm%io_rank,option%mycomm, &
                             ierr);CHKERRQ(ierr)
