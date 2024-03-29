@@ -459,9 +459,6 @@ function PMWellCreate()
   call PMWellGridCreate(this)
   allocate(this%well)
   call PMWellVarCreate(this%well)
-  allocate(this%well_pert(TWO_INTEGER))
-  call PMWellVarCreate(this%well_pert(ONE_INTEGER))
-  call PMWellVarCreate(this%well_pert(TWO_INTEGER))
   call PMWellResCreate(this%reservoir)
   call PMWellResCreate(this%reservoir_save)
   call PMWellFlowCreate(this)
@@ -858,6 +855,11 @@ subroutine PMWellSetup(this)
 
   well_bottom_local = ZERO_INTEGER
   well_bottom_ghosted = ZERO_INTEGER
+
+  allocate(this%well_pert(option%nflowdof))
+  do k = 1,option%nflowdof
+    call PMWellVarCreate(this%well_pert(k))
+  enddo
 
   num_entries = 10000
   allocate(dz_list(num_entries))
@@ -3084,7 +3086,12 @@ recursive subroutine PMWellInitializeRun(this)
 
   call PMWellUpdateStrata(this,curr_time)
 
-  do k = 1,2
+  call PMWellInitWellVars(this%well,this%well_grid,this%transport, &
+                          nsegments,this%nspecies)
+  call PMWellInitFluidVars(this%well,nsegments, &
+                           this%option%flow%reference_density,option)
+
+  do k = 1,option%nflowdof
     allocate(this%well_pert(k)%diameter(nsegments))
     allocate(this%well_pert(k)%WI_base(nsegments))
     allocate(this%well_pert(k)% &
@@ -3093,20 +3100,11 @@ recursive subroutine PMWellInitializeRun(this)
     this%well_pert(k)%WI_base = this%well%WI_base
     this%well_pert(k)%friction_factor = this%well%friction_factor
     this%well_pert(k)%well_model_type = this%well%well_model_type
+    call PMWellInitWellVars(this%well_pert(k),this%well_grid, &
+                          this%transport,nsegments,this%nspecies)
+    call PMWellInitFluidVars(this%well_pert(k),nsegments, &
+                           this%option%flow%reference_density,option)
   enddo
-
-  call PMWellInitWellVars(this%well,this%well_grid,this%transport, &
-                          nsegments,this%nspecies)
-  call PMWellInitFluidVars(this%well,nsegments, &
-                           this%option%flow%reference_density,option)
-  call PMWellInitWellVars(this%well_pert(ONE_INTEGER),this%well_grid, &
-                          this%transport,nsegments,this%nspecies)
-  call PMWellInitFluidVars(this%well_pert(ONE_INTEGER),nsegments, &
-                           this%option%flow%reference_density,option)
-  call PMWellInitWellVars(this%well_pert(TWO_INTEGER),this%well_grid, &
-                          this%transport,nsegments,this%nspecies)
-  call PMWellInitFluidVars(this%well_pert(TWO_INTEGER),nsegments, &
-                           this%option%flow%reference_density,option)
 
   call PMWellInitRes(this%reservoir,nsegments,this%nspecies,option)
   call PMWellInitRes(this%reservoir_save,nsegments,this%nspecies,option)
@@ -3437,11 +3435,11 @@ end subroutine PMWellFinalizeRun
 ! ************************************************************************** !
 
 subroutine PMWellInitializeTimestep(this)
-!
-! Initializes and takes the time step for the well process model.
-!
-! Author: Jennifer M. Frederick
-! Date: 08/04/2021
+  !
+  ! Initializes and takes the time step for the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
 
   implicit none
 
@@ -3463,11 +3461,11 @@ end subroutine PMWellInitializeTimestep
 ! ************************************************************************** !
 
 subroutine PMWellInitializeTimestepFlow(pm_well,curr_time)
-!
-! Initializes and takes the time step for the well process model - flow.
-!
-! Author: Jennifer M. Frederick
-! Date: 05/11/2023
+  !
+  ! Initializes and takes the time step for the well process model - flow.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 05/11/2023
 
   use Option_module
 
@@ -3475,6 +3473,7 @@ subroutine PMWellInitializeTimestepFlow(pm_well,curr_time)
 
   class(pm_well_type) :: pm_well
   PetscReal :: curr_time
+  PetscInt :: i
 
   ! update the reservoir object with current reservoir properties
   call PMWellCopyReservoir(pm_well%reservoir,pm_well%reservoir_save,pm_well%transport)
@@ -3482,7 +3481,7 @@ subroutine PMWellInitializeTimestepFlow(pm_well,curr_time)
     case(WF_MODE)
       call PMWellUpdateReservoirWIPP(pm_well,-999)
     case(SCO2_MODE)
-      call PMWellUpdateReservoirSCO2(pm_well,-999)
+      call PMWellUpdateReservoirSCO2(pm_well,-999,-999)
   end select
   
   call PMWellComputeWellIndex(pm_well)
@@ -3494,8 +3493,9 @@ subroutine PMWellInitializeTimestepFlow(pm_well,curr_time)
     call PMWellInitializeWellFlow(pm_well)
   endif
 
-  call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
-  call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
+  do i = 1,pm_well%option%nflowdof
+    call PMWellCopyWell(pm_well%well,pm_well%well_pert(i))
+  enddo
 
   if (pm_well%well%bh_p_set_by_reservoir) then
     pm_well%well%bh_p = pm_well%reservoir%p_l(1)
@@ -3520,11 +3520,11 @@ end subroutine PMWellInitializeTimestepFlow
 ! ************************************************************************** !
 
 subroutine PMWellInitializeWellFlow(pm_well)
-!
-! Initializes the well for the first time step for flow.
-!
-! Author: Jennifer M. Frederick
-! Date: 02/23/2022
+  !
+  ! Initializes the well for the first time step for flow.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
 
   use SCO2_Aux_module
 
@@ -3565,32 +3565,22 @@ subroutine PMWellInitializeWellFlow(pm_well)
     endif
   endif
   ! update the Darcy fluxes within the well
+  do k = 1,option%nflowdof
 
-  pm_well%well_pert(ONE_INTEGER)%pl = pm_well%reservoir%p_l
-  pm_well%well_pert(ONE_INTEGER)%pg = pm_well%reservoir%p_g
-  pm_well%well_pert(ONE_INTEGER)%temp = pm_well%reservoir%temp
-  pm_well%well_pert(ONE_INTEGER)%liq%s = pm_well%reservoir%s_l
-  pm_well%well_pert(ONE_INTEGER)%gas%s = pm_well%reservoir%s_g
-  pm_well%well_pert(ONE_INTEGER)%liq%den = pm_well%reservoir%den_l
-  pm_well%well_pert(ONE_INTEGER)%gas%den = pm_well%reservoir%den_g
-  pm_well%well_pert(ONE_INTEGER)%liq%visc = pm_well%reservoir%visc_l
-  pm_well%well_pert(ONE_INTEGER)%gas%visc = pm_well%reservoir%visc_g
-  pm_well%well_pert(ONE_INTEGER)%liq%xmass = pm_well%reservoir%xmass_liq
-  pm_well%well_pert(ONE_INTEGER)%gas%xmass = pm_well%reservoir%xmass_gas
-  pm_well%well_pert(ONE_INTEGER)%bh_p = pm_well%well%bh_p
+    pm_well%well_pert(k)%pl = pm_well%reservoir%p_l
+    pm_well%well_pert(k)%pg = pm_well%reservoir%p_g
+    pm_well%well_pert(k)%temp = pm_well%reservoir%temp
+    pm_well%well_pert(k)%liq%s = pm_well%reservoir%s_l
+    pm_well%well_pert(k)%gas%s = pm_well%reservoir%s_g
+    pm_well%well_pert(k)%liq%den = pm_well%reservoir%den_l
+    pm_well%well_pert(k)%gas%den = pm_well%reservoir%den_g
+    pm_well%well_pert(k)%liq%visc = pm_well%reservoir%visc_l
+    pm_well%well_pert(k)%gas%visc = pm_well%reservoir%visc_g
+    pm_well%well_pert(k)%liq%xmass = pm_well%reservoir%xmass_liq
+    pm_well%well_pert(k)%gas%xmass = pm_well%reservoir%xmass_gas
+    pm_well%well_pert(k)%bh_p = pm_well%well%bh_p
 
-  pm_well%well_pert(TWO_INTEGER)%pl = pm_well%reservoir%p_l
-  pm_well%well_pert(TWO_INTEGER)%pg = pm_well%reservoir%p_g
-  pm_well%well_pert(TWO_INTEGER)%temp = pm_well%reservoir%temp
-  pm_well%well_pert(TWO_INTEGER)%liq%s = pm_well%reservoir%s_l
-  pm_well%well_pert(TWO_INTEGER)%gas%s = pm_well%reservoir%s_g
-  pm_well%well_pert(TWO_INTEGER)%liq%den = pm_well%reservoir%den_l
-  pm_well%well_pert(TWO_INTEGER)%gas%den = pm_well%reservoir%den_g
-  pm_well%well_pert(TWO_INTEGER)%liq%visc = pm_well%reservoir%visc_l
-  pm_well%well_pert(TWO_INTEGER)%gas%visc = pm_well%reservoir%visc_g
-  pm_well%well_pert(TWO_INTEGER)%liq%xmass = pm_well%reservoir%xmass_liq
-  pm_well%well_pert(TWO_INTEGER)%gas%xmass = pm_well%reservoir%xmass_gas
-  pm_well%well_pert(TWO_INTEGER)%bh_p = pm_well%well%bh_p
+  enddo
 
   pm_well%flow_soln%prev_soln%pl = pm_well%well%pl
   pm_well%flow_soln%prev_soln%sg = pm_well%well%gas%s
@@ -3618,7 +3608,7 @@ subroutine PMWellInitializeWellFlow(pm_well)
 
   call PMWellComputeWellIndex(pm_well)
 
-  do k = 1,pm_well%nphase
+  do k = 1,option%nflowdof
     pm_well%well_pert(k)%permeability(:) = pm_well%well%permeability(:)
     pm_well%well_pert(k)%phi(:) = pm_well%well%phi(:)
     pm_well%well_pert(k)%ccid(:) = pm_well%well%ccid(:)
@@ -3632,11 +3622,11 @@ end subroutine PMWellInitializeWellFlow
 ! ************************************************************************** !
 
 subroutine PMWellInitializeWellTran(pm_well)
-!
-! Initializes the well for the first time step for transport.
-!
-! Author: Jennifer M. Frederick
-! Date: 02/23/2022
+  !
+  ! Initializes the well for the first time step for transport.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
 
   implicit none
 
@@ -3673,11 +3663,11 @@ end subroutine PMWellInitializeWellTran
 ! ************************************************************************** !
 
 subroutine PMWellUpdateStrata(pm_well,curr_time)
-!
-! Updates the strata at current time for the well process model.
-!
-! Author: Jennifer M. Frederick
-! Date: 11/23/2022
+  !
+  ! Updates the strata at current time for the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/23/2022
 
   use Strata_module
 
@@ -3750,11 +3740,11 @@ end subroutine PMWellUpdateStrata
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
-!
-! Updates the reservoir properties for the well process model.
-!
-! Author: Jennifer M. Frederick
-! Date: 12/01/2021
+  !
+  ! Updates the reservoir properties for the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
 
   use WIPP_Flow_Aux_module
   use Material_Aux_module
@@ -4035,12 +4025,12 @@ end subroutine PMWellUpdateReservoirWIPP
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
-!
-! Updates the SCO2 mode reservoir properties for the well process model.
-!
-! Author: Michael Nole
-! Date: 03/06/2024
+subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
+  !
+  ! Updates the SCO2 mode reservoir properties for the well process model.
+  !
+  ! Author: Michael Nole
+  ! Date: 03/06/2024
 
   use SCO2_Aux_module
   use Material_Aux_module
@@ -4050,6 +4040,7 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
 
   class(pm_well_type) :: pm_well
   PetscInt :: update_index
+  PetscInt :: segment_index
 
   type(sco2_auxvar_type), pointer :: sco2_auxvar
   type(material_auxvar_type), pointer :: material_auxvar
@@ -4077,8 +4068,20 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
-    sco2_auxvar => &
-      pm_well%realization%patch%aux%sco2%auxvars(indx,ghosted_id)
+    if (Initialized(segment_index)) then
+      ! Use reservoir perturbation: only perturb one reservoir variable
+      ! at a time.
+      if (k == segment_index) then
+        sco2_auxvar => &
+          pm_well%realization%patch%aux%sco2%auxvars(indx,ghosted_id)
+      else
+        sco2_auxvar => &
+          pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
+      endif
+    else
+      sco2_auxvar => &
+        pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
+    endif
 
     if (k == 1 .and. indx == 0) pm_well%well%bh_p = sco2_auxvar%well%bh_p
       
@@ -4322,11 +4325,11 @@ subroutine PMWellUpdateTimestep(this,update_dt, &
                                 dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                                 time_step_max_growth_factor)
-!
-! Updates the time step for the well process model.
-!
-! Author: Jennifer M. Frederick
-! Date: 08/04/2021
+  !
+  ! Updates the time step for the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
 
   implicit none
 
@@ -4346,9 +4349,10 @@ end subroutine PMWellUpdateTimestep
 ! ************************************************************************** !
 
 subroutine PMWellFinalizeTimestep(this)
-!
-! Author: Jennifer M. Frederick
-! Date: 08/04/2021
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -4380,9 +4384,10 @@ end subroutine PMWellFinalizeTimestep
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
-!
-! Author: Jennifer M. Frederick
-! Date: 12/21/2021
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/21/2021
+  !
 
   use Coupler_module
   use NW_Transport_Aux_module
@@ -4524,9 +4529,10 @@ end subroutine PMWellUpdateReservoirSrcSinkFlow
 ! ************************************************************************** !
 
 subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
-!
-! Author: Jennifer M. Frederick
-! Date: 12/21/2021
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/21/2021
+  !
 
   use Coupler_module
   use NW_Transport_Aux_module
@@ -4607,12 +4613,14 @@ end subroutine PMWellUpdateReservoirSrcSinkTran
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
-!
-! This subroutine performs the well rate computation when called from the
-! fully- or quasi-coupled source/sink update.
-! Author: Michael Nole
-! Date: 01/16/2023
+subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,segment_index,ierr)
+  !
+  ! This subroutine performs the well rate computation when called from the
+  ! fully- or quasi-coupled source/sink update.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/16/2023
+  !
 
   Use Option_module
 
@@ -4622,10 +4630,12 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
   PetscErrorCode :: ierr
   PetscInt :: well_pert
   PetscInt :: res_pert
+  PetscInt :: segment_index
 
   type(option_type), pointer :: option
   PetscReal :: time
   PetscBool :: perturb
+  PetscInt :: k
   
   perturb = PETSC_FALSE
 
@@ -4652,13 +4662,14 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
     case(WF_MODE)
       call PMWellUpdateReservoirWIPP(pm_well,res_pert)
     case(SCO2_MODE)
-      call PMWellUpdateReservoirSCO2(pm_well,res_pert)
+      call PMWellUpdateReservoirSCO2(pm_well,res_pert,segment_index)
   end select
 
   if (initialize_well_flow) then
     call PMWellInitializeWellFlow(pm_well)
-    call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
-    call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
+    do k = 1,option%nflowdof
+      call PMWellCopyWell(pm_well%well,pm_well%well_pert(k))
+    enddo
   elseif (option%iflowmode == WF_MODE) then
     pm_well%well%pl = pm_well%flow_soln%soln_save%pl
     pm_well%well%gas%s = pm_well%flow_soln%soln_save%sg
@@ -4666,8 +4677,9 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
   endif
   if (option%iflowmode == WF_MODE) then
     ! Quasi-implicit
-    call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
-    call PMWellCopyWell(pm_well%well,pm_well%well_pert(TWO_INTEGER))
+    do k = 1,option%nflowdof
+      call PMWellCopyWell(pm_well%well,pm_well%well_pert(k))
+    enddo
   
     call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well,&
                         pm_well%realization%patch%characteristic_curves_array,&
@@ -4687,11 +4699,13 @@ end subroutine PMWellUpdateRates
 ! ************************************************************************** !
 
 subroutine PMWellCalcResidualValues(pm_well,residual,ss_flow_vol_flux)
-!
-! This subroutine computes the well contribution to the reservoir residual when 
-! called from the fully- or quasi-coupled source/sink update in WIPP FLOW mode.
-! Author: Michael Nole
-! Date: 01/16/2023
+  !
+  ! This subroutine computes the well contribution to the reservoir residual when 
+  ! called from the fully- or quasi-coupled source/sink update in WIPP FLOW mode.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/16/2023
+  !
 
   implicit none
 
@@ -4786,13 +4800,14 @@ end subroutine PMWellCalcResidualValues
 ! ************************************************************************** !
 
 subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
-!
-! This subroutine computes the well contribution to the reservoir Jacobian when 
-! called from the fully- or quasi-coupled source/sink update.
-! Author: Michael Nole
-! Date: 01/16/2023
+  !
+  ! This subroutine computes the well contribution to the reservoir Jacobian when 
+  ! called from the fully- or quasi-coupled source/sink update.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/16/2023
+  !
 
-  use SCO2_Aux_module, only : SCO2_WELL_DOF
   use Option_module
 
   implicit none
@@ -4811,7 +4826,9 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
   PetscReal, allocatable :: residual(:,:)
   PetscReal, allocatable :: J_block(:,:)
   PetscInt :: air_comp_id, wat_comp_id
-  PetscInt :: j,k,idof,irow
+  PetscInt :: j,k,idof,irow,i
+  PetscInt :: local_row_index, local_col_index
+  PetscReal :: J_well
   PetscReal :: pres_bump
 
   option => pm_well%option
@@ -4877,7 +4894,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
         ! BHP residual and reservoir source/sink residuals.
 
         ! Unperturbed residual
-          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,ierr)
+          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
           do k = 1,pm_well%well_grid%nsegments
             do irow = 1, option%nflowdof-1
               residual(k,irow) = pm_well%well%liq%q(k)* &
@@ -4899,16 +4916,18 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
           enddo
 
         ! Perturbation in the reservoir variables
-          do idof = 1,option%nflowdof-1
-            call PMWellUpdateRates(pm_well,ZERO_INTEGER,idof,ierr)
-            do k = 1,pm_well%well_grid%nsegments
-              J_block = 0.d0
-              ghosted_id = pm_well%well_grid%h_ghosted_id(k)
-              if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
-              
+          do k = 1,pm_well%well_grid%nsegments
+            if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
+
+            J_block = 0.d0
+            ghosted_id = pm_well%well_grid%h_ghosted_id(k)
+            call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+            do idof = 1,option%nflowdof-1
+              call PMWellUpdateRates(pm_well,ZERO_INTEGER,idof,k,ierr)
               pert = pm_well%realization%patch%aux%SCO2% &
                            auxvars(idof,ghosted_id)%pert
-              if (k==1) then
+              ! dRwell / dXres
+              if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
                 sum_q = 0.d0
                 if (dabs(pm_well%well%th_qg) > 0.d0) then
                   sum_q = sum(pm_well%well%gas%q)
@@ -4917,10 +4936,17 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
                   sum_q = sum(pm_well%well%liq%q)
                   Q = -1.d0 * (pm_well%well%th_ql)
                 endif
+
                 res_pert = Q - sum_q
-                J_block(option%nflowdof,idof) = &
-                                  (res_pert - residual(k,option%nflowdof))/pert
+                local_row_index = pm_well%well_grid%h_ghosted_id(1)*option%nflowdof-1
+                local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
+                J_well = (res_pert - residual(1,option%nflowdof))/pert
+                call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
+                                       ADD_VALUES,ierr);CHKERRQ(ierr)
+
               endif
+
+              ! dRres / dXres
               do irow = 1,option%nflowdof-1
                 res_pert = pm_well%well%liq%q(k)* &
                            pm_well%well%liq%xmass(k,irow) + &
@@ -4929,18 +4955,16 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
                 J_block(irow,idof) = (res_pert - residual(k,irow))/pert
               enddo
               ! J_block = -1.d0*J_block
-  
-              call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
-                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
-
             enddo
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
           enddo
         else
           ! Make sure perturbation generates flow.
           pres_bump = 0.d0
-          ! i = 0
+          i = 0
           ! do
-          !   call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,ierr)
+          !   call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,-999,ierr)
           !   if (dabs(pm_well%well%th_ql) > 0.d0 .or. &
           !       dabs(pm_well%well%th_qg) > 0.d0) then
           !     if (any(dabs(pm_well%well_pert(ONE_INTEGER)%gas%Q) > 0.d0)) exit
@@ -4962,9 +4986,9 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
           !   endif
           ! enddo
           !Compute unperturbed rates
-          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,ierr)
+          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
           !Compute perturbed rates wrt well perturbation.
-          call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,ierr)
+          call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,-999,ierr)
         ! Calculate Jacobian entries wrt well perturbation:
         ! BHP residual and reservoir source/sink residuals.
           do k = 1,pm_well%well_grid%nsegments
@@ -4976,6 +5000,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
             pert = pm_well%well_pert(ONE_INTEGER)%bh_p - &
                    pm_well%well%bh_p
 
+            ! dRwell / dPwell
             if (k == 1) then
               sum_q = 0.d0
               if (dabs(pm_well%well%th_qg) > 0.d0) then
@@ -5001,17 +5026,21 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
                       (res_pert - res)/pert
             endif
   
+            ! dRres / dPwell
             do j = 0,option%nflowdof-2
               res = pm_well%well%liq%q(k)*pm_well%well%liq%xmass(k,j+1) + &
-                    pm_well%well%gas%q(k)* pm_well%well%gas%xmass(k,j+1)
+                    pm_well%well%gas%q(k)*pm_well%well%gas%xmass(k,j+1)
               res_pert = pm_well%well_pert(ONE_INTEGER)%liq%q(k)* &
                          pm_well%well_pert(ONE_INTEGER)%liq%xmass(k,j+1) + &
                          pm_well%well_pert(ONE_INTEGER)%gas%q(k)* &
                          pm_well%well_pert(ONE_INTEGER)%gas%xmass(k,j+1)
-              J_block(j+1,SCO2_WELL_DOF) = (res_pert - res)/pert
+              ! Just change 1 column
+              local_row_index = (ghosted_id-1)*option%nflowdof + j
+              local_col_index = pm_well%well_grid%h_ghosted_id(1)*option%nflowdof-1
+              J_well = (res_pert - res)/pert
+              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
+                                       ADD_VALUES,ierr);CHKERRQ(ierr)
             enddo
-  
-            ! J_block = -1.d0*J_block
   
             call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                           J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -5025,9 +5054,10 @@ end subroutine PMWellCalcJacobianValues
 ! ************************************************************************** !
 
 subroutine PMWellResidualFlow(pm_well)
-!
-! Author: Michael Nole
-! Date: 08/04/2021
+  !
+  ! Author: Michael Nole
+  ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -5155,6 +5185,7 @@ subroutine PMWellQISolveTran(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 03/13/2023
+  !
 
   implicit none
 
@@ -5189,6 +5220,7 @@ subroutine PMWellResidualTran(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
+  !
 
   implicit none
 
@@ -5220,6 +5252,7 @@ subroutine PMWellResidualTranAccum(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
+  !
 
   implicit none
 
@@ -5268,6 +5301,7 @@ subroutine PMWellResidualTranSrcSink(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/06/2022
+  !
 
   implicit none
 
@@ -5335,6 +5369,7 @@ subroutine PMWellResidualTranRxn(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/06/2022
+  !
 
   implicit none
 
@@ -5382,6 +5417,7 @@ subroutine PMWellResidualTranFlux(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/24/2022
+  !
 
   implicit none
 
@@ -5561,6 +5597,7 @@ subroutine PMWellJacobianFlow(pm_well)
   !
   ! Author: Michael Nole
   ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -5978,6 +6015,7 @@ subroutine PMWellPreSolve(this)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -5993,6 +6031,7 @@ subroutine PMWellPreSolveFlow(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -6025,6 +6064,7 @@ subroutine PMWellPreSolveTran(pm_well,master_dt)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
+  !
 
   implicit none
 
@@ -6059,6 +6099,7 @@ subroutine PMWellSolve(this,time,ierr)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
+  !
 
   implicit none
 
@@ -6118,6 +6159,7 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
   !
   ! Author: Michael Nole
   ! Date: 12/01/2021
+  !
 
   use Option_module
   use EOS_Water_module
@@ -6510,6 +6552,7 @@ subroutine PMWellSolveTran(pm_well,ierr)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
+  !
 
   implicit none
 
@@ -6612,6 +6655,7 @@ subroutine PMWellUpdateSolutionFlow(pm_well)
   !
   ! Author: Michael Nole
   ! Date: 01/21/2022
+  !
 
   implicit none
 
@@ -6655,6 +6699,7 @@ subroutine PMWellUpdateSolutionTran(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/15/22
+  !
 
   implicit none
 
@@ -6695,6 +6740,7 @@ subroutine PMWellCutTimestepFlow(pm_well)
   !
   ! Author: Michael Nole
   ! Date: 01/24/2022
+  !
 
   implicit none
 
@@ -6739,6 +6785,7 @@ subroutine PMWellNewtonFlow(pm_well)
   !
   ! Author: Michael Nole
   ! Date: 01/20/2022
+  !
 
   use Utility_module
 
@@ -6813,6 +6860,7 @@ subroutine PMWellNewtonTran(pm_well,n_iter)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
+  !
 
   use Utility_module
 
@@ -6856,6 +6904,7 @@ subroutine PMWellPostSolve(this)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -6871,6 +6920,7 @@ subroutine PMWellPostSolveFlow(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+  !
 
   implicit none
 
@@ -6896,6 +6946,7 @@ subroutine PMWellPostSolveTran(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/22/2022
+  !
 
   implicit none
 
@@ -6917,6 +6968,7 @@ subroutine PMWellCheckConvergenceFlow(pm_well,n_iter,fixed_accum)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 01/20/2022
+  !
 
   implicit none
 
@@ -7142,6 +7194,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
+  !
 
   implicit none
 
@@ -7343,6 +7396,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
+  !
 
   use SCO2_Aux_module, only: sco2_fmw => fmw_comp
 
@@ -7413,6 +7467,7 @@ subroutine PMWellComputeWellIndex(pm_well)
   !
   ! Author: Michael Nole
   ! Date: 12/22/2021
+  !
 
   implicit none
 
@@ -8678,6 +8733,7 @@ subroutine PMWellUpdatePropertiesTran(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 04/13/2022
+  !
 
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
@@ -8886,6 +8942,7 @@ function PMWellOutputFilename(option)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
+  !
 
   implicit none
 
@@ -8906,6 +8963,7 @@ subroutine PMWellOutputHeader(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
+  !
 
   use Output_Aux_module
   use Grid_module
@@ -9074,6 +9132,7 @@ subroutine PMWellOutput(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
+  !
 
   use Output_Aux_module
   use Global_Aux_module
@@ -9148,6 +9207,7 @@ subroutine PMWellMassBalance(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 06/28/2022
+  !
 
   implicit none
 
@@ -9235,6 +9295,7 @@ subroutine PMWellUpdateMass(pm_well)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/17/2022
+  !
 
   implicit none
 
@@ -9298,11 +9359,14 @@ subroutine PMWellDestroy(this)
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
   !
+  
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   class(pm_well_type) :: this
+
+  PetscInt :: s, i
 
   call PMBaseDestroy(this)
 
@@ -9358,41 +9422,27 @@ subroutine PMWellDestroy(this)
   nullify(this%well%gas)
   nullify(this%well)
 
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%area)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%diameter)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%volume)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%friction_factor)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%WI)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%pl)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%pg)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%den)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%visc)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%s)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%Q)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%den)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%visc)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%s)
-  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%Q)
-  nullify(this%well_pert(ONE_INTEGER)%liq)
-  nullify(this%well_pert(ONE_INTEGER)%gas)
+  s = size(this%well_pert)
 
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%area)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%diameter)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%volume)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%friction_factor)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%WI)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%pl)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%pg)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%den)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%visc)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%s)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%Q)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%den)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%visc)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%s)
-  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%Q)
-  nullify(this%well_pert(TWO_INTEGER)%liq)
-  nullify(this%well_pert(TWO_INTEGER)%gas)
+  do i = 1,s
+    call DeallocateArray(this%well_pert(i)%area)
+    call DeallocateArray(this%well_pert(i)%diameter)
+    call DeallocateArray(this%well_pert(i)%volume)
+    call DeallocateArray(this%well_pert(i)%friction_factor)
+    call DeallocateArray(this%well_pert(i)%WI)
+    call DeallocateArray(this%well_pert(i)%pl)
+    call DeallocateArray(this%well_pert(i)%pg)
+    call DeallocateArray(this%well_pert(i)%liq%den)
+    call DeallocateArray(this%well_pert(i)%liq%visc)
+    call DeallocateArray(this%well_pert(i)%liq%s)
+    call DeallocateArray(this%well_pert(i)%liq%Q)
+    call DeallocateArray(this%well_pert(i)%gas%den)
+    call DeallocateArray(this%well_pert(i)%gas%visc)
+    call DeallocateArray(this%well_pert(i)%gas%s)
+    call DeallocateArray(this%well_pert(i)%gas%Q)
+    nullify(this%well_pert(i)%liq)
+    nullify(this%well_pert(i)%gas)
+  enddo
   nullify(this%well_pert)
 
   call DeallocateArray(this%flow_soln%residual)

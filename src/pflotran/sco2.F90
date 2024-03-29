@@ -1258,6 +1258,20 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    if (associated(pmwell_ptr)) then
+      if (pmwell_ptr%well_grid%h_rank_id(1) == option%myrank) then
+        if (dabs(pmwell_ptr%well%th_qg) > 0.d0) then
+          accum_p2(local_end) = pmwell_ptr%well%th_qg
+        elseif (dabs(pmwell_ptr%well%th_ql) > 0.d0) then
+          accum_p2(local_end) = pmwell_ptr%well%th_ql
+        else
+          accum_p2(local_end) = 0.d0
+        endif
+        r_p(local_end) = 0.d0
+      endif
+    endif
+  endif
   call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
@@ -1388,7 +1402,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pmwell_ptr)) then
       if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER,ierr)
+        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
         call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
       endif
     endif

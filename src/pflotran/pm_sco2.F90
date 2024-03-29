@@ -628,7 +628,7 @@ subroutine PMSCO2InitializeTimestep(this)
   call SCO2InitializeTimestep(this%realization)
   if (associated(this%pmwell_ptr)) then
     call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER, &
-                           this%option%ierror)
+                           -999,this%option%ierror)
     this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
     call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
   endif
@@ -1512,6 +1512,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   ! Author: Michael Nole
   ! Date: 01/26/24
   !
+                                  
   use Convergence_module
   use SCO2_Aux_module
   use Global_Aux_module
@@ -1665,9 +1666,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
-              ! Just check the update
-              res_scaled = dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              res_scaled = min(dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+                           dabs(residual/(accumulation + epsilon)))
               ! find max value regardless of convergence
               if (converged_scaled_residual_real(idof,istate) < &
                   res_scaled) then
@@ -1677,9 +1678,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             endif
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
-            ! Just check the update
-            res_scaled = dabs(update) / &
-                         (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            res_scaled = min(dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+                           dabs(residual/(accumulation + epsilon)))
               ! find max value regardless of convergence
             if (converged_scaled_residual_real(idof,istate) < &
                 res_scaled) then
