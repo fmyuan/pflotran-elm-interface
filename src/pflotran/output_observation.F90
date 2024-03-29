@@ -2550,8 +2550,22 @@ subroutine OutputMassBalance(realization_base)
             endif
           case(NWT_MODE)
             do i=1,reaction_nw%params%nspecies
-              string = 'Global ' // trim(reaction_nw%species_names(i))
-              call OutputWriteToHeader(fid,string,'mol','',icol)
+              if (reaction_nw%print_what%total_bulk_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Total Bulk '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%aqueous_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Aqueous '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%sorb_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Sorbed '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%mnrl_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Mineral '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
             enddo
         end select
       endif
@@ -2766,11 +2780,30 @@ subroutine OutputMassBalance(realization_base)
                 enddo
 
               case(NWT_MODE)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
+                call OutputWriteToHeader(fid,string,'mol','',icol)
                 do i=1, reaction_nw%params%nspecies
                   if (reaction_nw%species_print(i)) then
-                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                         trim(reaction_nw%species_names(i)) // ' Mass'
-                    call OutputWriteToHeader(fid,string,'mol','',icol)
+                    if (reaction_nw%print_what%total_bulk_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Total Bulk Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%aqueous_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Aqueous Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%sorb_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Sorbed Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%mnrl_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Mineral Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
                   endif
                 enddo
             end select
@@ -2980,7 +3013,18 @@ subroutine OutputMassBalance(realization_base)
                         ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           do icomp = 1, reaction_nw%params%nspecies
-            write(fid,110,advance="no") sum_mol_global(icomp,1)
+            if (reaction_nw%print_what%total_bulk_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,1)
+            endif
+            if (reaction_nw%print_what%aqueous_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,2)
+            endif
+            if (reaction_nw%print_what%sorb_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,3)
+            endif
+            if (reaction_nw%print_what%mnrl_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,4)
+            endif
           enddo
         endif
         deallocate(sum_mol,sum_mol_global)
@@ -3511,7 +3555,19 @@ subroutine OutputMassBalance(realization_base)
             if (OptionIsIORank(option)) then
               write(fid,110,advance="no") global_total_mass_sum
               do icomp = 1, reaction_nw%params%nspecies
-                write(fid,110,advance="no") global_total_mass(icomp,1)
+                if (reaction_nw%print_what%total_bulk_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,1)
+                endif
+                if (reaction_nw%print_what%aqueous_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,2)
+                endif
+                if (reaction_nw%print_what%sorb_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,3)
+                endif
+                if (reaction_nw%print_what%mnrl_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,4)
+                endif
+
               enddo
             endif
             deallocate(total_mass,global_total_mass)
