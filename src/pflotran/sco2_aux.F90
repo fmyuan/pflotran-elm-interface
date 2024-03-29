@@ -136,15 +136,17 @@ module SCO2_Aux_module
   PetscInt, parameter, public :: SCO2_SEQUENTIAL_WELL = THREE_INTEGER
 
   type, public :: sco2_well_aux_type
+    ! These are useful for printing
     PetscReal :: pl   ! liquid pressure
     PetscReal :: pg   ! gas pressure
-    PetscReal :: sl
-    PetscReal :: sg
-    PetscReal :: dpl
-    PetscReal :: dpg
+    PetscReal :: sl   ! liquid saturation
+    PetscReal :: sg   ! gas saturation
+    PetscReal :: dpl  ! reservoir-well liquid pressure differential
+    PetscReal :: dpg  ! reservoir-well gas pressure differential
     PetscReal :: Ql   ! liquid exchange flux
     PetscReal :: Qg   ! gas exchange flux
     PetscReal :: bh_p ! bottom hole pressure
+    PetscReal :: pres_bump ! pressure change for initialization
   end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
@@ -175,8 +177,6 @@ module SCO2_Aux_module
     PetscReal :: pert
     type(sco2_well_aux_type), pointer :: well
   end type sco2_auxvar_type
-
-  
 
   type, public :: sco2_parameter_type
     PetscReal, pointer :: diffusion_coefficient(:,:) ! (icomp,iphase)
@@ -369,6 +369,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%Ql = UNINITIALIZED_DOUBLE
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
     auxvar%well%bh_p = UNINITIALIZED_DOUBLE
+    auxvar%well%pres_bump = 0.d0 
   endif
 
 end subroutine SCO2AuxVarInit
@@ -612,13 +613,8 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   endif
 
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-    if (associated(sco2_auxvar(ZERO_INTEGER)%well)) then
-      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
-      pert(SCO2_WELL_DOF) = dp_well
-    else
-      x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
-      pert(SCO2_WELL_DOF) = 1.d-10
-    endif
+    x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
+    pert(SCO2_WELL_DOF) = dp_well
     sco2_auxvar(SCO2_WELL_DOF)%well%bh_p = x(SCO2_WELL_DOF) + &
                                            pert(SCO2_WELL_DOF)
     sco2_auxvar(SCO2_WELL_DOF)%pert = pert(SCO2_WELL_DOF)
@@ -652,6 +648,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                            material_auxvar, &
                            characteristic_curves,sco2_parameter, &
                            natural_id,option)
+    if (idof /= SCO2_WELL_DOF .and. Initialized(SCO2_WELL_DOF)) then
+      sco2_auxvar(idof)%well%bh_p = sco2_auxvar(ZERO_INTEGER)%well%bh_p
+    endif
   enddo
 
 end subroutine SCO2AuxVarPerturb

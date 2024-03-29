@@ -401,7 +401,7 @@ module PM_Well_class
     PetscReal :: cumulative_dt_tran             ! [sec]
     PetscBool :: transport
     PetscBool :: ss_check
-    PetscBool :: well_on          !Turns the well on, regardless of other checks
+    PetscBool :: well_on    !Turns the well on, regardless of other checks
     PetscInt :: well_force_ts_cut
     PetscBool :: update_for_wippflo_qi_coupling
     PetscInt :: flow_coupling
@@ -3551,29 +3551,17 @@ subroutine PMWellInitializeWellFlow(pm_well)
   pm_well%well%gas%visc = pm_well%reservoir%visc_g
   pm_well%well%liq%xmass = pm_well%reservoir%xmass_liq
   pm_well%well%gas%xmass = pm_well%reservoir%xmass_gas
-  if (Uninitialized(pm_well%well%bh_p)) then
-    ! BHP can be a flow primary variable if fully coupled to flow.
-    if (option%iflowmode == SCO2_MODE) then
-      if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+  ! BHP can be a flow primary variable if fully coupled to flow.
+  if (option%iflowmode == SCO2_MODE) then
+    if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
         ghosted_id = pm_well%well_grid%h_ghosted_id(1)
         sco2_auxvar => &
           pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
-        pm_well%well%bh_p = sco2_auxvar%well%bh_p - pm_well%well%liq%den(1) * &
+        pm_well%well%bh_p = sco2_auxvar%pres(option%gas_phase) - &
+                            pm_well%well%liq%den(1) * &
                             pm_well%option%gravity(Z_DIRECTION) * &
                             pm_well%well_grid%dh(1)/2.d0
-      endif
-    else
-      if (pm_well%well%pg(1) > pm_well%well%pl(1)) then
-        ! There's free gas. Use gas pressure
-        pm_well%well%bh_p = pm_well%well%pg(1) - pm_well%well%gas%den(1) * &
-                            pm_well%option%gravity(Z_DIRECTION) * &
-                            pm_well%well_grid%dh(1)/2.d0
-      else
-        ! Just liquid. Use liquid pressure
-        pm_well%well%bh_p = pm_well%well%pl(1) - pm_well%well%liq%den(1) * &
-                            pm_well%option%gravity(Z_DIRECTION) * &
-                            pm_well%well_grid%dh(1)/2.d0
-      endif
+        
     endif
   endif
   ! update the Darcy fluxes within the well
@@ -4091,8 +4079,9 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
 
     sco2_auxvar => &
       pm_well%realization%patch%aux%sco2%auxvars(indx,ghosted_id)
-    ! if (pm_well%transport) then
-    ! endif
+
+    if (k == 1 .and. indx == 0) pm_well%well%bh_p = sco2_auxvar%well%bh_p
+      
     material_auxvar => &
       pm_well%realization%patch%aux%material%auxvars(ghosted_id)
 
@@ -4131,10 +4120,6 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
                                   pm_well%reservoir%dz(k))
       pm_well%reservoir%dy(k) = pm_well%reservoir%dx(k)
     endif
-
-    ! if (pm_well%transport) then
-    ! endif
-
   enddo
 
   if (update_index < 0 .or. initialize_well_flow) then
@@ -4157,6 +4142,11 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index)
           endif
           if ((option%myrank == pm_well%well_grid%h_rank_id(k)) .or. &
               (option%myrank == pm_well%well_grid%h_rank_id(1))) then
+            if (k == 1) then
+              call MPI_Sendrecv_replace(pm_well%well%bh_p,1, &
+                   MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                   MPI_STATUS_IGNORE,ierr)
+            endif
             call MPI_Sendrecv_replace(pm_well%reservoir%p_l(k),1, &
                    MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
                    MPI_STATUS_IGNORE,ierr)
@@ -4636,7 +4626,6 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
   type(option_type), pointer :: option
   PetscReal :: time
   PetscBool :: perturb
-  PetscInt :: ghosted_id
   
   perturb = PETSC_FALSE
 
@@ -4674,14 +4663,7 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
     pm_well%well%pl = pm_well%flow_soln%soln_save%pl
     pm_well%well%gas%s = pm_well%flow_soln%soln_save%sg
     pm_well%well%bh_p = pm_well%flow_soln%soln_save%bh_p
-  ! elseif (option%iflowmode == SCO2_MODE) then
-  !   if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
-  !     ghosted_id = pm_well%well_grid%h_ghosted_id(1)
-  !     pm_well%well%bh_p = pm_well%realization%patch%aux%sco2% &
-  !                         auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p
-  !   endif
   endif
-
   if (option%iflowmode == WF_MODE) then
     ! Quasi-implicit
     call PMWellCopyWell(pm_well%well,pm_well%well_pert(ONE_INTEGER))
@@ -4689,9 +4671,6 @@ subroutine PMWellUpdateRates(pm_well,well_pert,res_pert,ierr)
   
     call PMWellUpdatePropertiesWIPPFlow(pm_well,pm_well%well,&
                         pm_well%realization%patch%characteristic_curves_array,&
-                        pm_well%realization%option)
-  elseif (option%iflowmode == SCO2_MODE) then
-    call PMWellUpdatePropertiesSCO2Flow(pm_well,pm_well%well,&
                         pm_well%realization%option)
   endif
   pm_well%dt_flow = pm_well%realization%option%flow_dt
@@ -4833,6 +4812,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
   PetscReal, allocatable :: J_block(:,:)
   PetscInt :: air_comp_id, wat_comp_id
   PetscInt :: j,k,idof,irow
+  PetscReal :: pres_bump
 
   option => pm_well%option
 
@@ -4906,8 +4886,9 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
                                  pm_well%well%gas%xmass(k,irow)
             enddo
             if (k==1) then
+              sum_q = 0.d0
               if (dabs(pm_well%well%th_qg) > 0.d0) then
-                sum_q = sum_q + sum(pm_well%well%gas%q)
+                sum_q = sum(pm_well%well%gas%q)
                 Q = -1.d0 * (pm_well%well%th_qg)
               else
                 sum_q = sum(pm_well%well%liq%q)
@@ -4921,14 +4902,16 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
           do idof = 1,option%nflowdof-1
             call PMWellUpdateRates(pm_well,ZERO_INTEGER,idof,ierr)
             do k = 1,pm_well%well_grid%nsegments
+              J_block = 0.d0
               ghosted_id = pm_well%well_grid%h_ghosted_id(k)
               if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
-                J_block = 0.d0
-                pert = pm_well%realization%patch%aux%SCO2% &
+              
+              pert = pm_well%realization%patch%aux%SCO2% &
                            auxvars(idof,ghosted_id)%pert
               if (k==1) then
+                sum_q = 0.d0
                 if (dabs(pm_well%well%th_qg) > 0.d0) then
-                  sum_q = sum_q + sum(pm_well%well%gas%q)
+                  sum_q = sum(pm_well%well%gas%q)
                   Q = -1.d0 * (pm_well%well%th_qg)
                 else
                   sum_q = sum(pm_well%well%liq%q)
@@ -4945,7 +4928,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
                            pm_well%well%gas%xmass(k,irow)
                 J_block(irow,idof) = (res_pert - residual(k,irow))/pert
               enddo
-              J_block = -1.d0*J_block
+              ! J_block = -1.d0*J_block
   
               call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                          J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -4953,6 +4936,34 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
             enddo
           enddo
         else
+          ! Make sure perturbation generates flow.
+          pres_bump = 0.d0
+          ! i = 0
+          ! do
+          !   call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,ierr)
+          !   if (dabs(pm_well%well%th_ql) > 0.d0 .or. &
+          !       dabs(pm_well%well%th_qg) > 0.d0) then
+          !     if (any(dabs(pm_well%well_pert(ONE_INTEGER)%gas%Q) > 0.d0)) exit
+          !     pres_bump = pm_well%well_pert(ONE_INTEGER)%bh_p - &
+          !            pm_well%well%bh_p
+          !     pm_well%well_pert(ONE_INTEGER)%bh_p = &
+          !                            pm_well%well_pert(ONE_INTEGER)%bh_p - pres_bump
+          !     pres_bump = pres_bump * 1.25d0
+          !     pm_well%well_pert(ONE_INTEGER)%bh_p = &
+          !                            pm_well%well_pert(ONE_INTEGER)%bh_p + pres_bump
+          !     i = i + 1
+          !     if (i > 100) then
+          !       option%io_buffer = "Maximum number of iterations exceeded to recover &
+          !                           &vanishing well Jacobian. "
+          !       call PrintMsg(pm_well%option)
+          !     endif
+          !   else
+          !     exit
+          !   endif
+          ! enddo
+          !Compute unperturbed rates
+          call PMWellUpdateRates(pm_well,ZERO_INTEGER,ZERO_INTEGER,ierr)
+          !Compute perturbed rates wrt well perturbation.
           call PMWellUpdateRates(pm_well,ONE_INTEGER,ZERO_INTEGER,ierr)
         ! Calculate Jacobian entries wrt well perturbation:
         ! BHP residual and reservoir source/sink residuals.
@@ -4962,12 +4973,13 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
             J_block = 0.d0
   
             ghosted_id = pm_well%well_grid%h_ghosted_id(k)
-            pert = pm_well%realization%patch%aux%SCO2% &
-                           auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+            pert = pm_well%well_pert(ONE_INTEGER)%bh_p - &
+                   pm_well%well%bh_p
 
             if (k == 1) then
+              sum_q = 0.d0
               if (dabs(pm_well%well%th_qg) > 0.d0) then
-                sum_q = sum_q + sum(pm_well%well%gas%q)
+                sum_q = sum(pm_well%well%gas%q)
                 Q = -1.d0 * (pm_well%well%th_qg)
               else
                 sum_q = sum(pm_well%well%liq%q)
@@ -4975,8 +4987,9 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
               endif
               res = Q - sum_q
 
+              sum_q = 0.d0
               if (dabs(pm_well%well_pert(ONE_INTEGER)%th_qg) > 0.d0) then
-                sum_q = sum_q + sum(pm_well%well_pert(ONE_INTEGER)%gas%q)
+                sum_q = sum(pm_well%well_pert(ONE_INTEGER)%gas%q)
                 Q = -1.d0 * (pm_well%well_pert(ONE_INTEGER)%th_qg)
               else
                 sum_q = sum(pm_well%well_pert(ONE_INTEGER)%liq%q)
@@ -4998,7 +5011,7 @@ subroutine PMWellCalcJacobianValues(pm_well,Jac,ires_pert,ierr)
               J_block(j+1,SCO2_WELL_DOF) = (res_pert - res)/pert
             enddo
   
-            J_block = -1.d0*J_block
+            ! J_block = -1.d0*J_block
   
             call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                           J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -6236,6 +6249,9 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
         call EOSGasDensity(temperature,pg,den_mol,dummy,dummy2,ierr)
         rho_one_gas = den_mol * fmw_comp(TWO_INTEGER)
 
+        ! STOMP doesn't iterate
+        exit
+
         if (dabs(rho_kg_liq-rho_one_liq) < 1.d-5 .and. &
             dabs(rho_kg_gas-rho_one_gas) < 1.d-5) exit
         rho_kg_liq = rho_one_liq
@@ -6261,52 +6277,61 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
                             &results in negative gas pressure.'
         call PrintErrMsg(option)
       endif
-      ! Compute fluxes in/out of well
-      well%liq%Q(i) = 0.d0
-      well%gas%Q(i) = 0.d0
+    enddo
+
+    ! Update well properties based off new pressures
+    select case(option%iflowmode)
+      case(SCO2_MODE)
+        call PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
+    end select
+
+    ! Compute fluxes in/out of well
+    well%liq%Q = 0.d0
+    well%gas%Q = 0.d0
+
+    do i = 1,pm_well%well_grid%nsegments
       
       if (well%WI(i) == 0) cycle
 
       if (well%th_qg > 0.d0) then
-        ! Rate-controlled gas injection well
+        ! Rate-controlled gas injection well. Can potentially have
+        ! under-pressure in some well segments.
         upwind = pm_well%reservoir%p_g(i) > well%pg(i)
         if (upwind) then
           mobility = pm_well%reservoir%kr_g(i)/pm_well%reservoir%visc_g(i)
+          den_ave = pm_well%reservoir%den_g(i)
         else
           mobility = 1.d0 / well%gas%visc(i)
+          den_ave = well%gas%den(i)
         endif
-        den_ave = 0.5d0 * (well%gas%den(i) + pm_well%reservoir%den_g(i))
 
         ! Flowrate in kg/s
         well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
                         (pm_well%reservoir%p_g(i)-well%pg(i))
-        well%gas%xmass(i,:) = 0.d0
-        well%gas%xmass(i,TWO_INTEGER) = 1.d0
       elseif (well%th_ql > 0.d0) then
         ! Rate-controlled water injection well
         upwind = pm_well%reservoir%p_l(i) > well%pl(i)
         if (upwind) then
           mobility = pm_well%reservoir%kr_l(i)/pm_well%reservoir%visc_l(i)
+          den_ave = pm_well%reservoir%den_l(i)
         else
           mobility = 1.d0 / well%liq%visc(i)
+          den_ave = well%liq%den(i)
         endif
-        den_ave = 0.5d0 * (well%liq%den(i) + pm_well%reservoir%den_l(i))
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (pm_well%reservoir%p_l(i)-well%pl(i))
-        well%gas%xmass(i,:) = 0.d0
-        well%gas%xmass(i,ONE_INTEGER) = 1.d0
       elseif (well%th_qg < 0.d0 .or. well%th_ql < 0.d0) then
         ! Extraction well
         upwind = pm_well%reservoir%p_l(i) > well%pl(i)
         if (upwind) then
           mobility = pm_well%reservoir%kr_l(i)/pm_well%reservoir%visc_l(i)
+          den_ave = pm_well%reservoir%den_l(i)
         else
           mobility = dabs(well%th_ql)/ (dabs(well%th_ql + well%th_qg))/ &
                      well%liq%visc(i)
+          den_ave = well%liq%den(i)
         endif
-        den_ave = 0.5d0 * (well%liq%den(i) + &
-                  pm_well%reservoir%den_l(i))
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (pm_well%reservoir%p_l(i)-well%pl(i))
@@ -6314,12 +6339,12 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
         upwind = pm_well%reservoir%p_g(i) > well%pg(i)
         if (upwind) then
           mobility = pm_well%reservoir%kr_g(i)/pm_well%reservoir%visc_g(i)
+          den_ave = pm_well%reservoir%den_g(i)
         else
           mobility = dabs(well%th_qg)/ (dabs(well%th_ql + well%th_qg))/ &
                      well%gas%visc(i)
+          den_ave = well%gas%den(i)
         endif
-        den_ave = 0.5d0 * (well%gas%den(i) + &
-                  pm_well%reservoir%den_g(i))
 
         ! Flowrate in kg/s
         well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
@@ -6334,10 +6359,7 @@ subroutine PMWellSolveFlow(pm_well,perturb,ierr)
     pm_well%cumulative_dt_flow = pm_well%realization%option%flow_dt
 
     ! Update transport
-
-    flow_soln%n_steps = flow_soln%n_steps + 1
-
-    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+    ! flow_soln%n_steps = flow_soln%n_steps + 1
 
   else
 
@@ -7485,9 +7507,12 @@ subroutine PMWellComputeWellIndex(pm_well)
           dh_y = pm_well%well_grid%h(k)%y - pm_well%well_grid%bottomhole(2)
           dh_z = pm_well%well_grid%h(k)%z - pm_well%well_grid%bottomhole(3)
         else
-          dh_x = pm_well%well_grid%h(k)%x - dx_tot
-          dh_y = pm_well%well_grid%h(k)%y - dy_tot
-          dh_z = pm_well%well_grid%h(k)%z - dz_tot
+          dh_x = pm_well%well_grid%h(k)%x - dx_tot - &
+                 pm_well%well_grid%bottomhole(1)
+          dh_y = pm_well%well_grid%h(k)%y - dy_tot - &
+                 pm_well%well_grid%bottomhole(2)
+          dh_z = pm_well%well_grid%h(k)%z - dz_tot - &
+                 pm_well%well_grid%bottomhole(3)
         endif
         dh_x = 2.d0 * dh_x
         dh_y = 2.d0 * dh_y
@@ -8550,12 +8575,27 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
                visc_brine, visc_gas
   PetscReal :: xco2g, xwg, xco2l,xwl, &
                xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl
+  PetscInt :: wid, co2_id, sid
   PetscErrorCode :: ierr
-
 
   if (pm_well%well_comm%comm == MPI_COMM_NULL) return
 
+  wid = option%water_id
+  co2_id = option%co2_id
+  sid = option%salt_id
+  
   nsegments =pm_well%well_grid%nsegments
+
+  if (well%th_qg > 0.d0) then
+    ! CO2 Injection well. Need to update to flexibly accommodate humidity.
+    well%gas%xmass(:,:) = 0.d0
+    well%gas%xmass(:,TWO_INTEGER) = 1.d0
+  elseif (well%th_ql > 0.d0) then
+    ! Liquid Injection well: Need to update to flexibly 
+    ! accommodate dissolved gas.
+    well%liq%xmass(:,:) = 0.d0
+    well%liq%xmass(:,ONE_INTEGER) = 1.d0
+  endif
 
   do i = 1,nsegments
 
@@ -8577,11 +8617,24 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
 
     well%liq%den(i) = den_kg_liq
 
-    
     call SCO2Equilibrate(well%temp(i),well%pg(i), &
                          Pco2, Pvap, Ps, Prvap, &
                          xco2g, xwg, xco2l, xsl, xwl, &
                          xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
+
+    xmolco2g = (well%gas%xmass(i,co2_id)/fmw_comp(2)) / &
+               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                (well%gas%xmass(i,wid)/fmw_comp(1)))
+    xmolwg = 1.d0 - xmolco2g
+    xmolco2l = (well%liq%xmass(i,co2_id)/fmw_comp(2)) / &
+               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+               (well%gas%xmass(i,sid)/fmw_comp(3)))
+    xmolwl = (well%liq%xmass(i,wid)/fmw_comp(2)) / &
+               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+               (well%gas%xmass(i,sid)/fmw_comp(3)))
+    xmolsl = 1.d0 - xmolco2l - xmolwl
 
     !Gas Density
     Pva = max(well%pg(i),Prvap)

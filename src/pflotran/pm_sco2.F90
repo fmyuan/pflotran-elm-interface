@@ -1176,19 +1176,47 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         if ((X_p(temperature_index) + dX_p(temperature_index)) + T273K >= &
            H2O_CRITICAL_TEMPERATURE) then
-          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-           &greater than (or equal to) the critical temperature of water.'
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 &
+                             &mode: greater than (or equal to) the critical &
+                             &temperature of water.'
           call PrintErrMsg(option)
         endif
         if ((X_p(temperature_index) + dX_p(temperature_index)) <= 0.d0) then
-          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-           &less than (or equal to) the freezing temperature of water.'
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 &
+                            &mode: less than (or equal to) the freezing &
+                            &temperature of water.'
           call PrintErrMsg(option)
         endif
       endif
 
       if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))),dX_p(well_index))
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
+                                dX_p(well_index))
+        if (this%pmwell_ptr%well_grid%h_rank_id(ONE_INTEGER) == &
+            option%myrank) then
+          if (ghosted_id == this%pmwell_ptr%well_grid% &
+              h_ghosted_id(ONE_INTEGER)) then
+            ! if (this%pmwell_ptr%well%th_ql > 0.d0 .or. &
+            !     this%pmwell_ptr%well%th_qg > 0.d0) then
+            !   if (this%pmwell_ptr%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
+            !       sco2_auxvar%pres(option%gas_phase) + &
+            !       dX_p(liq_pressure_index)) then
+            !     dX_p(well_index) = (sco2_auxvar%pres(option%gas_phase) + &
+            !                        dX_p(liq_pressure_index)) - &
+            !                        (this%pmwell_ptr%well%pg(ONE_INTEGER) +  &
+            !                        dX_p(well_index))
+            !     dX_p(well_index) = dX_p(well_index) * 1.1d0
+            !   endif
+            ! endif
+
+            ! MAN: this is a hack to get the well to initialize properly
+            if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
+              dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
+                                 sco2_auxvar%pres(option%gas_phase))
+            endif
+          endif
+        endif
+        dX_p2(well_index) = dX_p(well_index)
       endif
 
     enddo
@@ -2236,8 +2264,6 @@ subroutine PMSCO2MaxChange(this)
       max_change_global(1:max_change_index)
     endif
   endif
-
-
 
   ! MAN: check these
   this%max_pressure_change = maxval(max_change_global(1:3))

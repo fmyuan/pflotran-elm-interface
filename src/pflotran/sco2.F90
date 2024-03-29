@@ -732,6 +732,13 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
     ! SCO2_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = SCO2_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
+    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+      ! MAN: this is a hack to get well to initialize properly
+      if (xx_loc_p(ghosted_end) /= &
+          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)) then
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(ghosted_end)
+      endif
+    endif
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
     call SCO2AuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                            sco2_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -752,9 +759,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                  sco2_parameter,natural_id,option)
 
     endif
-    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-      sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(SCO2_WELL_DOF)
-    endif
+    
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -905,7 +910,10 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0 .or. &
-          associated(source_sink%flow_condition%well)) cycle
+          associated(source_sink%flow_condition%well)) then
+        source_sink => source_sink%next
+        cycle
+      endif
 
       flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
 
@@ -1621,7 +1629,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
                            sco2_parameter,natural_id,option)
     if (associated(pmwell_ptr)) then
       if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
-        ! Perturb well BHP
+        ! Need to make sure that we have a nonzero Jacobian
         if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank) .and. &
             any(pmwell_ptr%well_grid%h_ghosted_id == ghosted_id)) then
           pmwell_ptr%well_pert(ONE_INTEGER)%bh_p = &
@@ -1837,6 +1845,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
             exit
           endif
         enddo
+        pmwell_ptr%well%bh_p = sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p
         pmwell_ptr%well_pert(ONE_INTEGER)%bh_p = &
                         sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%well%bh_p
         ! Go through and update the well contributions to the Jacobian:
