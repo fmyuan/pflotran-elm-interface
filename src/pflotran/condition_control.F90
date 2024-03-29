@@ -397,7 +397,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                           p_sat
                   endif
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
@@ -441,7 +442,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
                        general%liquid_pressure%dataset%rarray(1)
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
@@ -475,7 +477,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                        general%temperature%dataset%rarray(1)
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else

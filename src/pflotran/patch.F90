@@ -5362,13 +5362,18 @@ subroutine PatchGetSolublePorosityValue(coupler,patch,iconn,porosity,soluble)
   PetscInt :: local_id
   PetscInt :: ghosted_id
 
+  if (.not.associated(patch%aux%General)) then
+    stop 'General not associated in PatchGetCouplerValueFromDataset'
+  endif
+
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
   material_property_array => patch%material_property_array
 
   local_id = coupler%connection_set%id_dn(iconn)
   ghosted_id = grid%nL2G(local_id)
-  soluble = material_property_array(patch%imat(ghosted_id))%ptr%soluble
+  soluble = patch%aux%General%general_parameter% &
+              material_is_soluble(patch%imat(ghosted_id))
   porosity = material_auxvars(ghosted_id)%porosity_0
 
 end subroutine PatchGetSolublePorosityValue
