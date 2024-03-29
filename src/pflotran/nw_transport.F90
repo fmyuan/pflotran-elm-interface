@@ -2256,6 +2256,7 @@ subroutine NWTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids
   nspecies = reaction_nw%params%nspecies
 
    do i = 1, num_cells
+    local_id = i
     if (present(cell_ids)) local_id = cell_ids(i)
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
