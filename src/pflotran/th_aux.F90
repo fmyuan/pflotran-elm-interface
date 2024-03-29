@@ -100,8 +100,6 @@ module TH_Aux_module
     PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
     PetscReal, pointer :: alpha_fr(:) ! exponent frozen
     PetscReal, pointer :: sir(:,:)
-    PetscReal, pointer :: diffusion_coefficient(:)
-    PetscReal, pointer :: diffusion_activation_energy(:)
   end type th_parameter_type
 
   type, public :: TH_type
@@ -168,13 +166,6 @@ function THAuxCreate(option)
   nullify(aux%th_parameter%ckfrozen)
   nullify(aux%th_parameter%alpha_fr)
   nullify(aux%th_parameter%sir)
-  nullify(aux%th_parameter%diffusion_coefficient)
-  nullify(aux%th_parameter%diffusion_activation_energy)
-
-  allocate(aux%th_parameter%diffusion_coefficient(option%nphase))
-  allocate(aux%th_parameter%diffusion_activation_energy(option%nphase))
-  aux%th_parameter%diffusion_coefficient = 1.d-9
-  aux%th_parameter%diffusion_activation_energy = 0.d0
 
   THAuxCreate => aux
 
@@ -1149,12 +1140,6 @@ subroutine THAuxDestroy(aux)
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%th_parameter)) then
-    if (associated(aux%th_parameter%diffusion_coefficient)) &
-      deallocate(aux%th_parameter%diffusion_coefficient)
-    nullify(aux%th_parameter%diffusion_coefficient)
-    if (associated(aux%th_parameter%diffusion_activation_energy)) &
-      deallocate(aux%th_parameter%diffusion_activation_energy)
-    nullify(aux%th_parameter%diffusion_activation_energy)
     if (associated(aux%th_parameter%dencpr)) deallocate(aux%th_parameter%dencpr)
     nullify(aux%th_parameter%dencpr)
     if (associated(aux%th_parameter%ckwet)) deallocate(aux%th_parameter%ckwet)
