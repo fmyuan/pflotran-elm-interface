@@ -2766,7 +2766,13 @@ subroutine OutputMassBalance(realization_base)
                 enddo
 
               case(NWT_MODE)
-                call OutputWriteToHeader(fid,string,'mol','',icol)
+                do i=1, reaction_nw%params%nspecies
+                  if (reaction_nw%species_print(i)) then
+                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         trim(reaction_nw%species_names(i)) // ' Mass'
+                    call OutputWriteToHeader(fid,string,'mol','',icol)
+                  endif
+                enddo
             end select
 
           endif
