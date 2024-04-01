@@ -1875,6 +1875,22 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
         ! Compute source/sink changes due to perturbations of reservoir
         ! variables, dRi/dxi and dRwell,dxi 
         call PMWellCalcJacobianValues(pmwell_ptr,A,PETSC_TRUE,ierr)
+
+
+        ! ! Perturb the well and well's reservoir variables.
+        ! call pmwell_ptr%Perturb()
+        ! ! Go through and update the well contributions to the Jacobian:
+        ! ! dRi/d(P_well) and dRwell/d(P_well)
+        ! ! Compute source/sink changes due to perturbations of reservoir
+        ! ! variables, dRi/dxi and dRwell,dxi 
+        ! call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+        ! if (all(pmwell_ptr%well%liq%Q == 0.d0) .and. &
+        !     all(pmwell_ptr%well%gas%Q == 0.d0)) then
+        !   if (pmwell_ptr%well_grid%h_rank_id(1) == option%myrank) then
+        !     deactivate_row = pmwell_ptr%well_grid%h_ghosted_id(1) * &
+        !                      option%nflowdof
+        !   endif
+        ! endif
       endif
     endif
   endif  

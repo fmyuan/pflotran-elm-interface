@@ -1666,9 +1666,13 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
+              ! Just check update
+              ! res_scaled = dabs(update) / &
+              !              (dabs(sco2_auxvar%well%bh_p) + epsilon)
               res_scaled = min(dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon), &
                            dabs(residual/(accumulation + epsilon)))
+
               ! find max value regardless of convergence
               if (converged_scaled_residual_real(idof,istate) < &
                   res_scaled) then
@@ -1678,6 +1682,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             endif
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
+            ! Just check update
+            ! res_scaled = dabs(update) / &
+            !                (dabs(sco2_auxvar%well%bh_p) + epsilon)
             res_scaled = min(dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon), &
                            dabs(residual/(accumulation + epsilon)))
