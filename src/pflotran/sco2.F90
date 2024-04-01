@@ -1105,7 +1105,7 @@ end subroutine SCO2UpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
+subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   !
   ! Computes the residual
   !
@@ -1132,7 +1132,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
-  class(pm_well_type), pointer :: pmwell_ptr
+  class(pm_well_type), pointer :: pm_well
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1259,12 +1259,12 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
     accum_p2(local_start:local_end) = Res(:)
   enddo
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-    if (associated(pmwell_ptr)) then
-      if (pmwell_ptr%well_grid%h_rank_id(1) == option%myrank) then
-        if (dabs(pmwell_ptr%well%th_qg) > 0.d0) then
-          accum_p2(local_end) = pmwell_ptr%well%th_qg
-        elseif (dabs(pmwell_ptr%well%th_ql) > 0.d0) then
-          accum_p2(local_end) = pmwell_ptr%well%th_ql
+    if (associated(pm_well)) then
+      if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+        if (dabs(pm_well%well%th_qg) > 0.d0) then
+          accum_p2(local_end) = pm_well%well%th_qg
+        elseif (dabs(pm_well%well%th_ql) > 0.d0) then
+          accum_p2(local_end) = pm_well%well%th_ql
         else
           accum_p2(local_end) = 0.d0
         endif
@@ -1400,10 +1400,10 @@ subroutine SCO2Residual(snes,xx,r,realization,pmwell_ptr,ierr)
   
   ! Update well source/sink terms
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-    if (associated(pmwell_ptr)) then
-      if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-        call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
+    if (associated(pm_well)) then
+      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+        call pm_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
       endif
     endif
   endif
@@ -1526,7 +1526,7 @@ end subroutine SCO2Residual
 
 ! ************************************************************************** !
 
-subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
+subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   !
   ! Computes the Jacobian
   !
@@ -1552,7 +1552,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
   Vec :: xx
   Mat :: A, B
   class(realization_subsurface_type) :: realization
-  class(pm_well_type), pointer :: pmwell_ptr
+  class(pm_well_type), pointer :: pm_well
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1564,7 +1564,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn, nsegment
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = tVec(0)
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
@@ -1595,7 +1595,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
 
   well_dof = ZERO_INTEGER
   deactivate_row = UNINITIALIZED_INTEGER
-  if (associated(pmwell_ptr)) well_dof = ONE_INTEGER
+  if (associated(pm_well)) well_dof = ONE_INTEGER
 
   patch => realization%patch
   grid => patch%grid
@@ -1641,16 +1641,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
                            patch%characteristic_curves_array( &
                            patch%cc_id(ghosted_id))%ptr, &
                            sco2_parameter,natural_id,option)
-    if (associated(pmwell_ptr)) then
-      if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
-        ! Need to make sure that we have a nonzero Jacobian
-        if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank) .and. &
-            any(pmwell_ptr%well_grid%h_ghosted_id == ghosted_id)) then
-          pmwell_ptr%well_pert(ONE_INTEGER)%bh_p = &
-                               sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%well%bh_p
-        endif
-      endif
-    endif
   enddo
 
   ! Accumulation terms ------------------------------------
@@ -1847,50 +1837,24 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pmwell_ptr,ierr)
   ! Need to update all well source/sink terms wrt
   ! perturbation in bottom pressure 
   if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
-    if (associated(pmwell_ptr)) then
-      if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        ! All procs with a well need to perturb the BHP and compute new
-        ! source/sink terms
-        do nsegment = 1,pmwell_ptr%well_grid%nsegments
-          if (pmwell_ptr%well_grid%h_ghosted_id(nsegment) > 0) then
-            ! Doesn't matter right now which cell in the well, just
-            ! need one that is on process.
-            ghosted_id = pmwell_ptr%well_grid%h_ghosted_id(nsegment)
-            exit
-          endif
-        enddo
-        pmwell_ptr%well%bh_p = sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p
-        pmwell_ptr%well_pert(ONE_INTEGER)%bh_p = &
-                        sco2_auxvars(SCO2_WELL_DOF,ghosted_id)%well%bh_p
+    if (associated(pm_well)) then
+      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+        ! Perturb the well and well's reservoir variables.
+        call pm_well%Perturb()
+
         ! Go through and update the well contributions to the Jacobian:
-        ! dRi/d(P_well) and dRwell/d(P_well)
-        call PMWellCalcJacobianValues(pmwell_ptr,A,PETSC_FALSE,ierr)
-        if (all(pmwell_ptr%well%liq%Q == 0.d0) .and. &
-            all(pmwell_ptr%well%gas%Q == 0.d0)) then
-          if (pmwell_ptr%well_grid%h_rank_id(1) == option%myrank) then
-            deactivate_row = pmwell_ptr%well_grid%h_ghosted_id(1) * &
+        ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi 
+        call pm_well%ModifyFlowJacobian(A,ierr)
+
+        ! Deactivate unused rows
+        if (all(pm_well%well%liq%Q == 0.d0) .and. &
+            all(pm_well%well%gas%Q == 0.d0)) then
+          if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+            deactivate_row = pm_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
           endif
         endif
-        ! Compute source/sink changes due to perturbations of reservoir
-        ! variables, dRi/dxi and dRwell,dxi 
-        call PMWellCalcJacobianValues(pmwell_ptr,A,PETSC_TRUE,ierr)
 
-
-        ! ! Perturb the well and well's reservoir variables.
-        ! call pmwell_ptr%Perturb()
-        ! ! Go through and update the well contributions to the Jacobian:
-        ! ! dRi/d(P_well) and dRwell/d(P_well)
-        ! ! Compute source/sink changes due to perturbations of reservoir
-        ! ! variables, dRi/dxi and dRwell,dxi 
-        ! call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
-        ! if (all(pmwell_ptr%well%liq%Q == 0.d0) .and. &
-        !     all(pmwell_ptr%well%gas%Q == 0.d0)) then
-        !   if (pmwell_ptr%well_grid%h_rank_id(1) == option%myrank) then
-        !     deactivate_row = pmwell_ptr%well_grid%h_ghosted_id(1) * &
-        !                      option%nflowdof
-        !   endif
-        ! endif
       endif
     endif
   endif  

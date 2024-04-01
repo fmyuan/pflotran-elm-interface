@@ -2144,8 +2144,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 !    endif   
     call this%pmwell_ptr%InitializeTimestep()
     if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER, &
-                               -999,ierr)
+        call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                             -999,ierr)
     endif
   endif
 

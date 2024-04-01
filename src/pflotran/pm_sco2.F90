@@ -627,8 +627,8 @@ subroutine PMSCO2InitializeTimestep(this)
 
   call SCO2InitializeTimestep(this%realization)
   if (associated(this%pmwell_ptr)) then
-    call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ZERO_INTEGER, &
-                           -999,this%option%ierror)
+    call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                         -999,this%option%ierror)
     this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
     call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
   endif
@@ -1667,11 +1667,11 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
               ! Just check update
-              ! res_scaled = dabs(update) / &
-              !              (dabs(sco2_auxvar%well%bh_p) + epsilon)
-              res_scaled = min(dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon), &
-                           dabs(residual/(accumulation + epsilon)))
+              res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              ! res_scaled = min(dabs(update) / &
+              !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+              !              dabs(residual/(accumulation + epsilon)))
 
               ! find max value regardless of convergence
               if (converged_scaled_residual_real(idof,istate) < &
@@ -1683,11 +1683,11 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
             ! Just check update
-            ! res_scaled = dabs(update) / &
-            !                (dabs(sco2_auxvar%well%bh_p) + epsilon)
-            res_scaled = min(dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon), &
-                           dabs(residual/(accumulation + epsilon)))
+            res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            ! res_scaled = min(dabs(update) / &
+            !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+            !                dabs(residual/(accumulation + epsilon)))
               ! find max value regardless of convergence
             if (converged_scaled_residual_real(idof,istate) < &
                 res_scaled) then
@@ -1986,10 +1986,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     ! Send out updated well BHP
     if (associated(this%pmwell_ptr)) then
       if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then
-        root_rank = this%pmwell_ptr%well_grid%h_rank_id(ONE_INTEGER)
-        call MPI_Bcast(this%pmwell_ptr%well%pl(1),ONE_INTEGER, &
-                       MPI_DOUBLE_PRECISION,root_rank,this%pmwell_ptr% &
-                       well_comm%comm,ierr); CHKERRQ(ierr)
+        call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
       endif
     endif
 

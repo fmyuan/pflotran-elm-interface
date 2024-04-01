@@ -1163,6 +1163,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%xmass(co2_id,pid) = 0.d0
   sco2_auxvar%xmass(sid,pid) = 1.d0
 
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    ! This is an initialization hack:
+    if(x(SCO2_LIQUID_PRESSURE_DOF) /= x(SCO2_WELL_DOF))then
+      sco2_auxvar%well%bh_p = x(SCO2_WELL_DOF)
+    endif
+  endif
 
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
