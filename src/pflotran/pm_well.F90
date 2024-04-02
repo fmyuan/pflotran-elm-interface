@@ -10,6 +10,7 @@ module PM_Well_class
   use PFLOTRAN_Constants_module
   use WIPP_Flow_Aux_module
   use NW_Transport_Aux_module
+  use Well_Grid_module
 
   implicit none
 
@@ -65,49 +66,6 @@ module PM_Well_class
   PetscInt, parameter, public :: QUASI_IMPLICIT_WELL = TWO_INTEGER
   PetscInt, parameter, public :: SEQUENTIAL_WELL = THREE_INTEGER
 
-  type :: well_grid_type
-    ! number of well segments
-    PetscInt :: nsegments
-    ! number of well connections
-    PetscInt :: nconnections
-    ! delta h discretization of each segment center [m]
-    PetscReal, pointer :: dh(:)
-    ! reservoir dz
-    PetscReal, pointer :: res_dz(:)
-    ! h coordinate of each segment center [m]
-    type(point3d_type), pointer :: h(:)
-    ! the local id of the reservoir grid cell within which each segment
-    ! center resides
-    PetscInt, pointer :: h_local_id(:)
-    ! the ghosted id of the reservoir grid cell within which each segment
-    ! center resides
-    PetscInt, pointer :: h_ghosted_id(:)
-    ! the global id of the reservoir grid cell within which each segment
-    ! center resides
-    PetscInt, pointer :: h_global_id(:)
-    ! the rank id of the reservoir grid cell within which each segment
-    ! center resides
-    PetscInt, pointer :: h_rank_id(:)
-    ! the strata id number associated with each well segment
-    PetscInt, pointer :: strata_id(:)
-    ! coordinate of the top/bottom of the well [m]
-    PetscReal :: tophole(3)
-    PetscReal :: bottomhole(3)
-    ! x-y span search distance multipier
-    PetscInt :: xy_span_multiplier
-    ! flag to match well grid discretization to reservoir grid
-    PetscBool :: match_reservoir
-    ! dz for "match reservoir" search and peck method [m]
-    PetscReal :: dz_peck
-    ! minimum dz for "match reservoir" method [m]
-    PetscReal :: min_dz
-    ! ratio for # well cells per reservoir cell
-    PetscInt :: well_res_ratio
-    ! list of segment center z values [m]
-    PetscReal, pointer :: z_list(:)
-    ! list of segment length values [m]
-    PetscReal, pointer :: l_list(:)
-  end type well_grid_type
 
   type :: well_reservoir_type
     ! reservoir liquid pressure [Pa]
@@ -431,7 +389,9 @@ module PM_Well_class
   end type pm_well_type
 
   public :: PMWellCreate, &
+            PMWellSetupGrid, &
             PMWellReadPMBlock, &
+            PMWellReadGrid, &
             PMWellReadPass2, &
             PMWellQISolveTran, &
             PMWellUpdateReservoirSrcSinkFlow
@@ -458,7 +418,7 @@ function PMWellCreate()
   this%header = 'WELLBORE MODEL'
 
   nullify(this%realization)
-  call PMWellGridCreate(this)
+  this%well_grid => WellGridCreate()
   allocate(this%well)
   call PMWellVarCreate(this%well)
   call PMWellFlowCreate(this)
@@ -506,43 +466,6 @@ function PMWellCreate()
   PMWellCreate => this
 
 end function PMWellCreate
-
-! ************************************************************************** !
-
-subroutine PMWellGridCreate(pm_well)
-  !
-  ! Creates grid variables.
-  !
-  ! Author: Michael Nole
-  ! Date: 03/04/2023
-
-  implicit none
-
-  class(pm_well_type), pointer :: pm_well
-
-  ! create the well grid object:
-  allocate(pm_well%well_grid)
-  pm_well%well_grid%nsegments = UNINITIALIZED_INTEGER
-  pm_well%well_grid%nconnections = UNINITIALIZED_INTEGER
-  nullify(pm_well%well_grid%dh)
-  nullify(pm_well%well_grid%res_dz)
-  nullify(pm_well%well_grid%h)
-  nullify(pm_well%well_grid%h_local_id)
-  nullify(pm_well%well_grid%h_ghosted_id)
-  nullify(pm_well%well_grid%h_global_id)
-  nullify(pm_well%well_grid%h_rank_id)
-  nullify(pm_well%well_grid%strata_id)
-  pm_well%well_grid%tophole(:) = UNINITIALIZED_DOUBLE
-  pm_well%well_grid%bottomhole(:) = UNINITIALIZED_DOUBLE
-  pm_well%well_grid%xy_span_multiplier = 10
-  pm_well%well_grid%match_reservoir = PETSC_FALSE
-  pm_well%well_grid%dz_peck = 1.0d-2
-  pm_well%well_grid%min_dz = UNINITIALIZED_DOUBLE
-  pm_well%well_grid%well_res_ratio = 1
-  nullify(pm_well%well_grid%z_list)
-  nullify(pm_well%well_grid%l_list)
-
-end subroutine PMWellGridCreate
 
 ! ************************************************************************** !
 
@@ -836,9 +759,9 @@ end subroutine PMWellVarCreate
 
 ! ************************************************************************** !
 
-subroutine PMWellSetup(this)
+subroutine PMWellSetupGrid(well_grid,res_grid,option)
   !
-  ! Initializes variables associated with the well process model.
+  ! Sets up a well grid based off of well grid info and reservoir info.
   !
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 08/04/2021
@@ -859,27 +782,17 @@ subroutine PMWellSetup(this)
 
   implicit none
 
-  class(pm_well_type) :: this
-
-  type(option_type), pointer :: option
-  type(grid_type), pointer :: res_grid
   type(well_grid_type), pointer :: well_grid
-  type(coupler_type), pointer :: source_sink
-  type(input_type) :: input_dummy
-  class(realization_subsurface_type), pointer :: realization
+  type(grid_type), pointer :: res_grid
+  type(option_type), pointer :: option
+  
   type(point3d_type) :: dummy_h
-  class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscInt, allocatable :: h_global_id_unique(:)
-  PetscInt, allocatable :: h_rank_id_unique(:)
-  PetscInt, allocatable :: h_all_rank_id(:)
-  PetscInt, allocatable :: h_all_global_id(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
   PetscReal :: top_of_reservoir, top_of_hole
   PetscReal :: bottom_of_reservoir, bottom_of_hole
-  PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real, temp_real2
   PetscReal :: cum_z, z_dum
   PetscInt, allocatable :: temp_id_list(:)
@@ -892,41 +805,14 @@ subroutine PMWellSetup(this)
   PetscReal :: min_dz, dz, z
   PetscInt, allocatable :: cell_id_list(:)
   PetscInt :: local_id
-  PetscInt :: local_id_well, local_id_res, res_cell_count
+  PetscInt :: res_cell_count
   PetscInt :: nsegments, nsegments_save
-  PetscInt :: max_val, min_val
   PetscInt :: k, i, j
-  PetscInt :: count1, count2_local, count2_global
-  PetscBool :: well_grid_res_is_OK = PETSC_FALSE
-  PetscBool :: res_grid_cell_within_well_z
-  PetscBool :: res_grid_cell_within_well_y
-  PetscBool :: res_grid_cell_within_well_x
-  PetscErrorCode :: ierr
-  PetscInt :: well_bottom_local, well_bottom_ghosted
-  PetscInt, allocatable :: temp(:), temp2(:)
-
-  option => this%option
-  realization => this%realization
-  res_grid => realization%patch%grid
-  well_grid => this%well_grid
-
-  well_bottom_local = ZERO_INTEGER
-  well_bottom_ghosted = ZERO_INTEGER
-
-  allocate(this%well_pert(option%nflowdof))
-  do k = 1,option%nflowdof
-    call PMWellVarCreate(this%well_pert(k))
-  enddo
 
   num_entries = 10000
   allocate(dz_list(num_entries))
   allocate(res_dz_list(num_entries))
   allocate(cell_id_list(num_entries))
-
-  option%io_buffer = ' '
-  call PrintMsg(option)
-  option%io_buffer = 'WELLBORE_MODEL: Creating well grid discretization.... '
-  call PrintMsg(option)
 
   top_of_reservoir = res_grid%z_max_global
   top_of_hole = well_grid%tophole(3)
@@ -1066,7 +952,7 @@ subroutine PMWellSetup(this)
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
     enddo
 
-    this%well_grid%res_dz(:) = well_grid%dh(:)
+    well_grid%res_dz(:) = well_grid%dh(:)
 
     diff_x = diff_x*diff_x
     diff_y = diff_y*diff_y
@@ -1183,7 +1069,7 @@ subroutine PMWellSetup(this)
     !This could be way off if # of well cells per reservoir cell >> 1
     !This could also lead to inconsisent well indices between the 
     !generated vs. read-in well.
-    well_grid%res_dz(:) = this%well_grid%dh(:)
+    well_grid%res_dz(:) = well_grid%dh(:)
 
   elseif (Initialized(well_grid%nsegments)) then 
   !---------------------------------------------------------------------------
@@ -1223,6 +1109,7 @@ subroutine PMWellSetup(this)
     enddo
 
     well_grid%dh(:) = total_length/nsegments
+    well_grid%res_dz(:) = well_grid%dh(:)
 
     do k = 1,well_grid%nsegments
       call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
@@ -1303,7 +1190,7 @@ subroutine PMWellSetup(this)
      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
 
      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-     this%well_grid%nsegments = nsegments
+     well_grid%nsegments = nsegments
      well_grid%nconnections = well_grid%nsegments - 1
 
      well_grid%h(1)%id = 1
@@ -1334,14 +1221,92 @@ subroutine PMWellSetup(this)
   !---------------------------------------------------------------------------
   endif
 
+  allocate(well_grid%strata_id(nsegments))
+  well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+  well_grid%nconnections = well_grid%nsegments - 1
+
+end subroutine PMWellSetupGrid
+
+subroutine PMWellSetup(this)
+  !
+  ! Initializes variables associated with the well process model.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/04/2021
+  !
+
+  use Grid_module
+  use Utility_module
+  use Coupler_module
+  use Connection_module
+  use Condition_module
+  use Input_Aux_module
+  use Dataset_module
+  use Dataset_Base_class
+  use Dataset_Ascii_class
+  use Transport_Constraint_NWT_module
+  use NW_Transport_Aux_module
+  use SCO2_Aux_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: res_grid
+  type(well_grid_type), pointer :: well_grid
+  type(coupler_type), pointer :: source_sink
+  type(input_type) :: input_dummy
+  class(realization_subsurface_type), pointer :: realization
+  type(point3d_type) :: dummy_h
+  class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscInt, allocatable :: h_global_id_unique(:)
+  PetscInt, allocatable :: h_rank_id_unique(:)
+  PetscInt, allocatable :: h_all_rank_id(:)
+  PetscInt, allocatable :: h_all_global_id(:)
+  PetscReal :: max_diameter, xy_span
+  PetscReal :: temp_real
+  PetscInt :: local_id
+  PetscInt :: local_id_well, local_id_res
+  PetscInt :: nsegments
+  PetscInt :: max_val, min_val
+  PetscInt :: k, j
+  PetscInt :: count1, count2_local, count2_global
+  PetscBool :: well_grid_res_is_OK = PETSC_FALSE
+  PetscBool :: res_grid_cell_within_well_z
+  PetscBool :: res_grid_cell_within_well_y
+  PetscBool :: res_grid_cell_within_well_x
+  PetscErrorCode :: ierr
+  PetscInt :: well_bottom_local, well_bottom_ghosted
+  PetscInt, allocatable :: temp(:), temp2(:)
+
+  option => this%option
+  realization => this%realization
+  res_grid => realization%patch%grid
+  well_grid => this%well_grid
+
+  well_bottom_local = ZERO_INTEGER
+  well_bottom_ghosted = ZERO_INTEGER
+
+  allocate(this%well_pert(option%nflowdof))
+  do k = 1,option%nflowdof
+    call PMWellVarCreate(this%well_pert(k))
+  enddo
+
+  option%io_buffer = ' '
+  call PrintMsg(option)
+  option%io_buffer = 'WELLBORE_MODEL: Creating well grid discretization.... '
+  call PrintMsg(option)
+
+  call PMWellSetupGrid(well_grid,res_grid,option)
+
   write(string,'(I0.5)') well_grid%nsegments
   option%io_buffer = 'WELLBORE_MODEL: Grid created with ' // trim(string) // &
                      ' segments. '
   call PrintMsg(option)
 
-  allocate(well_grid%strata_id(nsegments))
-  well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-  well_grid%nconnections = well_grid%nsegments - 1
+  nsegments = well_grid%nsegments
 
   ! Create a well MPI communicator
   this%well_comm%petsc_rank = option%myrank
@@ -1849,11 +1814,13 @@ subroutine PMWellReadPMBlock(this,input)
   type(input_type), pointer :: input
 
   type(option_type), pointer :: option
+  type(well_grid_type), pointer :: well_grid
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
   option => this%option
+  well_grid => this%well_grid
   input%ierr = 0
   error_string = 'WELLBORE_MODEL'
 
@@ -1914,7 +1881,7 @@ subroutine PMWellReadPMBlock(this,input)
 
     ! Read sub-blocks within WELLBORE_MODEL block:
     error_string = 'WELLBORE_MODEL'
-    call PMWellReadGrid(this,input,option,word,error_string,found)
+    call PMWellReadGrid(well_grid,input,option,word,error_string,found)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
@@ -1965,7 +1932,7 @@ end subroutine PMWellReadPMBlock
 
 ! ************************************************************************** !
 
-subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
+subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
   !
   ! Reads input file parameters associated with the well model grid.
   !
@@ -1977,7 +1944,7 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
 
   implicit none
 
-  class(pm_well_type) :: pm_well
+  type(well_grid_type), pointer :: well_grid
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword
@@ -2009,25 +1976,25 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
         select case(trim(word))
         !-----------------------------
           case('MATCH_RESERVOIR')
-            pm_well%well_grid%match_reservoir = PETSC_TRUE
+            well_grid%match_reservoir = PETSC_TRUE
         !-------------------------------------
           case('MINIMUM_DZ_STEP')
-            call InputReadDouble(input,option,pm_well%well_grid%dz_peck)
+            call InputReadDouble(input,option,well_grid%dz_peck)
             call InputErrorMsg(input,option,'MINIMUM_DZ_STEP', &
                                error_string)
         !-------------------------------------
           case('MAX_WELL_RESERVOIR_CELL_RATIO')
-            call InputReadInt(input,option,pm_well%well_grid%well_res_ratio)
+            call InputReadInt(input,option,well_grid%well_res_ratio)
             call InputErrorMsg(input,option,'MAX_WELL_RESERVOIR_CELL_RATIO', &
                                error_string)
         !-------------------------------------
           case('MIN_DZ')
-            call InputReadDouble(input,option,pm_well%well_grid%min_dz)
+            call InputReadDouble(input,option,well_grid%min_dz)
             call InputErrorMsg(input,option,'MIN_DZ', &
                                error_string)
         !-----------------------------
           case('NUMBER_OF_SEGMENTS')
-            call InputReadInt(input,option,pm_well%well_grid%nsegments)
+            call InputReadInt(input,option,well_grid%nsegments)
             call InputErrorMsg(input,option,'NUMBER_OF_SEGMENTS',error_string)
         !-----------------------------
           case('SEGMENT_CENTER_Z_VALUES')
@@ -2045,9 +2012,9 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
                 &provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
-            allocate(pm_well%well_grid%z_list(num_read))
-            pm_well%well_grid%z_list(1:num_read) = temp_z_list(1:num_read)
-            pm_well%well_grid%nsegments = num_read
+            allocate(well_grid%z_list(num_read))
+            well_grid%z_list(1:num_read) = temp_z_list(1:num_read)
+            well_grid%nsegments = num_read
             deallocate(temp_z_list)
         !-----------------------------
           case('SEGMENT_LENGTH_VALUES')
@@ -2065,35 +2032,35 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
                 &provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
-            allocate(pm_well%well_grid%l_list(num_read))
-            pm_well%well_grid%l_list(1:num_read) = temp_l_list(1:num_read)
-            pm_well%well_grid%nsegments = num_read
+            allocate(well_grid%l_list(num_read))
+            well_grid%l_list(1:num_read) = temp_l_list(1:num_read)
+            well_grid%nsegments = num_read
             deallocate(temp_l_list)
         !-----------------------------
           case('TOP_OF_HOLE')
-            call InputReadDouble(input,option,pm_well%well_grid%tophole(1))
+            call InputReadDouble(input,option,well_grid%tophole(1))
             call InputErrorMsg(input,option,'TOP_OF_HOLE x-coordinate', &
                                error_string)
-            call InputReadDouble(input,option,pm_well%well_grid%tophole(2))
+            call InputReadDouble(input,option,well_grid%tophole(2))
             call InputErrorMsg(input,option,'TOP_OF_HOLE y-coordinate', &
                                error_string)
-            call InputReadDouble(input,option,pm_well%well_grid%tophole(3))
+            call InputReadDouble(input,option,well_grid%tophole(3))
             call InputErrorMsg(input,option,'TOP_OF_HOLE z-coordinate', &
                                error_string)
         !-----------------------------
           case('BOTTOM_OF_HOLE')
-            call InputReadDouble(input,option,pm_well%well_grid%bottomhole(1))
+            call InputReadDouble(input,option,well_grid%bottomhole(1))
             call InputErrorMsg(input,option,'BOTTOM_OF_HOLE x-coordinate', &
                                error_string)
-            call InputReadDouble(input,option,pm_well%well_grid%bottomhole(2))
+            call InputReadDouble(input,option,well_grid%bottomhole(2))
             call InputErrorMsg(input,option,'BOTTOM_OF_HOLE y-coordinate', &
                                error_string)
-            call InputReadDouble(input,option,pm_well%well_grid%bottomhole(3))
+            call InputReadDouble(input,option,well_grid%bottomhole(3))
             call InputErrorMsg(input,option,'BOTTOM_OF_HOLE z-coordinate', &
                                error_string)
         !-----------------------------
           case('XY_SEARCH_MULTIPLIER')
-            call InputReadInt(input,option,pm_well%well_grid%xy_span_multiplier)
+            call InputReadInt(input,option,well_grid%xy_span_multiplier)
             call InputErrorMsg(input,option,'XY_SEARCH_MULTIPLIER',error_string)
         !-----------------------------
           case default
@@ -2104,40 +2071,40 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-!      if (pm_well%well_grid%match_reservoir .eqv. PETSC_FALSE) then
-!        if (Uninitialized(pm_well%well_grid%nsegments)) then
+!      if (well_grid%match_reservoir .eqv. PETSC_FALSE) then
+!        if (Uninitialized(well_grid%nsegments)) then
 !          option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
 !                             &in the ' // trim(error_string) // ' block, or &
 !                             &SEGMENT_CENTER_Z_VALUES must be provided.'
 !          call PrintMsg(option)
 !          num_errors = num_errors + 1
 !        endif
-!        if (pm_well%well_grid%nsegments < 3) then
+!        if (well_grid%nsegments < 3) then
 !          option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
 !                             &in the ' // trim(error_string) // ' block.'
 !          call PrintMsg(option)
 !          num_errors = num_errors + 1
 !        endif
 !      endif
-      if (pm_well%well_grid%match_reservoir .eqv. PETSC_TRUE) then
-        !if (Uninitialized(pm_well%well_grid%min_dz)) then
+      if (well_grid%match_reservoir) then
+        !if (Uninitialized(well_grid%min_dz)) then
         !  option%io_buffer = 'ERROR: The minimum z spacing (MIN_DZ) must be &
         !                     &given in the ' // trim(error_string) // ' block.'
         !  call PrintMsg(option)
         !  num_errors = num_errors + 1
         !endif
       endif
-      if (Uninitialized(pm_well%well_grid%tophole(1)) .or. &
-          Uninitialized(pm_well%well_grid%tophole(2)) .or. &
-          Uninitialized(pm_well%well_grid%tophole(3))) then
+      if (Uninitialized(well_grid%tophole(1)) .or. &
+          Uninitialized(well_grid%tophole(2)) .or. &
+          Uninitialized(well_grid%tophole(3))) then
         option%io_buffer = 'ERROR: TOP_OF_HOLE must be specified &
                            &in the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
-      if (Uninitialized(pm_well%well_grid%bottomhole(1)) .or. &
-          Uninitialized(pm_well%well_grid%bottomhole(2)) .or. &
-          Uninitialized(pm_well%well_grid%bottomhole(3))) then
+      if (Uninitialized(well_grid%bottomhole(1)) .or. &
+          Uninitialized(well_grid%bottomhole(2)) .or. &
+          Uninitialized(well_grid%bottomhole(3))) then
         option%io_buffer = 'ERROR: BOTTOM_OF_HOLE must be specified &
                            &in the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
@@ -9576,12 +9543,9 @@ subroutine PMWellDestroy(this)
 
   PetscInt :: s, i
 
-  ! call PMBaseDestroy(this)
+  call PMBaseDestroy(this)
 
-  call DeallocateArray(this%well_grid%h_local_id)
-  call DeallocateArray(this%well_grid%h_ghosted_id)
-  call DeallocateArray(this%well_grid%dh)
-  nullify(this%well_grid)
+  call WellGridDestroy(this%well_grid)
 
   call DeallocateArray(this%well%reservoir%p_l)
   call DeallocateArray(this%well%reservoir%p_g)

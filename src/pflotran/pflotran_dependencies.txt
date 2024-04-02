@@ -670,6 +670,7 @@ factory_subsurface_read.o : \
   units.o \
   utility.o \
   waypoint.o \
+  well_grid.o \
   wipp.o
 field.o : \
   pflotran_constants.o
@@ -998,7 +999,8 @@ grid_unstructured_aux.o : \
   grid_unstructured_cell.o \
   option.o \
   pflotran_constants.o \
-  utility.o
+  utility.o \
+  well_grid.o
 grid_unstructured_cell.o : \
   geometry.o \
   option.o \
@@ -1657,6 +1659,7 @@ output_hdf5.o : \
   pflotran_provenance.o \
   reaction_aux.o \
   realization_base.o \
+  region.o \
   string.o \
   utility.o \
   variables.o
@@ -2384,6 +2387,7 @@ pm_well.o : \
   transport_constraint_nwt.o \
   utility.o \
   variables.o \
+  well_grid.o \
   wipp_flow_aux.o
 pm_wipp_flow.o : \
   checkpoint.o \
@@ -3787,6 +3791,10 @@ waypoint.o : \
   output_aux.o \
   pflotran_constants.o \
   string.o \
+  utility.o
+well_grid.o : \
+  geometry.o \
+  pflotran_constants.o \
   utility.o
 wipp.o : \
   characteristic_curves_base.o \

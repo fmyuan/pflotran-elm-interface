@@ -1569,7 +1569,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
-  PetscInt :: root_rank
   character(len=MAXSTRINGLENGTH) :: string
   character(len=20), allocatable :: state_string(:)
   character(len=17), allocatable :: dof_string(:,:)

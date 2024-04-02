@@ -5,6 +5,7 @@ module Grid_Unstructured_Aux_module
   use petscvec
   use Grid_Unstructured_Cell_module
   use Geometry_module
+  use Well_Grid_module
 
   use PFLOTRAN_Constants_module
 
@@ -71,6 +72,7 @@ module Grid_Unstructured_Aux_module
     PetscInt, pointer :: nat_ids_of_other_grid(:)
     PetscBool :: project_face_area_along_normal
     PetscBool :: check_all_points_rh_rule ! checks all point combinations for right hand rule
+    type(well_grid_type), pointer :: embedded_well_grid
   end type grid_unstructured_type
 
   type, public :: unstructured_explicit_type
@@ -282,6 +284,8 @@ function UGridCreate()
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
   unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
+
+  nullify(unstructured_grid%embedded_well_grid)
   
   UGridCreate => unstructured_grid
 

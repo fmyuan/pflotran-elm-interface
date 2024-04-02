@@ -314,8 +314,9 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCSubsurfGeophys(simulation,pm_geop, &
                                          'PMCSubsurfaceGeophysics')
   endif
-
+  
   input => InputCreate(IN_UNIT,option%input_filename,option)
+
   call FactorySubsurfReadRequiredCards(simulation,input)
   call FactorySubsurfReadInput(simulation,input)
 
@@ -359,7 +360,6 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
       end select
     endif
   endif
-
   if (associated(pm_flow)) then
     select type(pm_flow)
       class is (pm_wippflo_type)
@@ -1049,7 +1049,9 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   string = 'WELLBORE_MODEL'
   call LoggingCreateStage(string,pmc_well%stage)
 
-  if ( (option%itranmode /= NULL_MODE) .and. &
+  if (option%coupled_well) then
+    simulation%process_model_coupler_list%peer => pmc_well
+  elseif ( (option%itranmode /= NULL_MODE) .and. &
        (option%itranmode == NWT_MODE) ) then
     call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
          simulation%tran_process_model_coupler%CastToBase(), &

@@ -621,6 +621,8 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Init_Common_module
+  use Well_Grid_module
+  use PM_Well_class
 
   implicit none
 
@@ -635,8 +637,12 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+  type(well_grid_type), pointer :: dummy_well_grid
+  type(discretization_type), pointer :: dummy_discretization
+
   PetscBool :: found
   PetscBool :: qerr
+  character(len=MAXSTRINGLENGTH) :: error_string
 
   character(len = MAXSTRINGLENGTH) :: wname
 
@@ -665,7 +671,59 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
       patch%grid => discretization%grid
       realization%patch => patch
   end select
+
   call InputPopBlock(input,option)
+
+  if (option%coupled_well) then
+    if (discretization%itype /= UNSTRUCTURED_GRID) then
+      option%io_buffer = 'The fully implicit well model can only be used &
+                          &with an UNSTRUCTURED_GRID at the moment. Please &
+                          &convert your grid to UNSTRUCTURED_IMPLICIT using &
+                          &PFLOTRANs provided Python utilities &
+                          &(<pflotran_dir>/src/python/unstructured_grid/).'
+      call PrintErrMsg(option)
+    endif
+
+    dummy_discretization => DiscretizationCreate()
+
+    call InputRewind(input)
+    call InputPushBlock(input,'SUBSURFACE',option)
+    string = "GRID"
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call DiscretizationReadRequiredCards(dummy_discretization,input,option)
+    call InputPopBlock(input,option)
+    call InputRewind(input)
+    call InputPushBlock(input,'SUBSURFACE',option)
+    string = "GRID"
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call DiscretizationRead(dummy_discretization,input,option)
+    call InputPopBlock(input,option)
+    call InputRewind(input)
+    call InputPushBlock(input,'SUBSURFACE',option)
+    call InputPushBlock(input,'WELLBORE_MODEL',option)
+
+    call DiscretizationCreateDMs(dummy_discretization, ONE_INTEGER, &
+                                 ZERO_INTEGER, ZERO_INTEGER, ZERO_INTEGER,&
+                                 ZERO_INTEGER, option)
+    call RealizationCreateGrid(realization,dummy_discretization)
+    dummy_well_grid => WellGridCreate()
+    ! string = "WELLBORE_MODEL"
+    ! call InputFindStringInFile(input,option,string)
+    ! call InputFindStringErrorMsg(input,option,string)
+    string = "WELL_GRID"
+    call InputFindStringInFile(input,option,string)
+    call InputFindStringErrorMsg(input,option,string)
+    call PMWellReadGrid(dummy_well_grid,input,option,string,error_string,found)
+    call PMWellSetupGrid(dummy_well_grid,dummy_discretization%grid,option)
+    discretization%grid%unstructured_grid%embedded_well_grid => &
+                                                                dummy_well_grid
+    nullify(dummy_well_grid)
+    call DiscretizationDestroy(dummy_discretization)
+    call InputPopBlock(input,option)
+    call InputPopBlock(input,option)
+  endif
 
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.

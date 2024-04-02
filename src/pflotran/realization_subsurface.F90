@@ -68,6 +68,7 @@ module Realization_Subsurface_class
             RealizationProcessDatasets, &
             RealizationAddWaypointsToList, &
             RealizationCreateDiscretization, &
+            RealizationCreateGrid, &
             RealizUpdateUniformVelocity, &
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
@@ -353,14 +354,10 @@ subroutine RealizationCreateDiscretization(realization)
 
   endif
 
+  call RealizationCreateGrid(realization,discretization)
   grid => discretization%grid
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      ! set up nG2L, nL2G, etc.
-      call GridMapIndices(grid, &
-                          discretization%dm_1dof, &
-                          discretization%stencil_type,&
-                          option)
       if (option%itranmode == EXPLICIT_ADVECTION) then
         call StructGridCreateTVDGhosts(grid%structured_grid, &
                                        realization%reaction%naqcomp, &
@@ -370,29 +367,11 @@ subroutine RealizationCreateDiscretization(realization)
                                        discretization%tvd_ghost_scatter, &
                                        option)
       endif
-      call GridComputeSpacing(grid,discretization%origin_global,option)
-      call GridComputeCoordinates(grid,discretization%origin_global,option)
       call GridComputeVolumes(grid,field%volume0,option)
-      ! set up internal connectivity, distance, etc.
-      call GridComputeInternalConnect(grid,option)
     case(UNSTRUCTURED_GRID)
-      ! set up nG2L, NL2G, etc.
-      call GridMapIndices(grid, &
-                          discretization%dm_1dof, &
-                          discretization%stencil_type,&
-                          option)
-      call GridComputeCoordinates(grid,discretization%origin_global,option, &
-                                    discretization%dm_1dof%ugdm)
-      if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-        call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
-                                      grid%y,grid%z,grid%nG2A,grid%nL2G, &
-                                      option)
-      endif
-      ! set up internal connectivity, distance, etc.
-      call GridComputeInternalConnect(grid,option, &
-                                      discretization%dm_1dof%ugdm)
       call GridComputeVolumes(grid,field%volume0,option)
   end select
+
   call GridPrintExtents(grid,option)
   call GridPrintSize(grid,option)
 
@@ -475,6 +454,59 @@ subroutine RealizationCreateDiscretization(realization)
 end subroutine RealizationCreateDiscretization
 
 ! ************************************************************************** !
+
+subroutine RealizationCreateGrid(realization,discretization)
+  !
+  ! Create a grid.
+  !
+
+  use Field_module
+  use Grid_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_module, only : UGridEnsureRightHandRule
+  use Grid_Structured_module, only : StructGridCreateTVDGhosts
+  use Discretization_module
+  use Grid_Unstructured_Cell_module
+
+  class(realization_subsurface_type) :: realization
+  type(discretization_type), pointer :: discretization
+  
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+
+  option => realization%option
+  grid => discretization%grid
+
+  select case(discretization%itype)
+    case(STRUCTURED_GRID)
+      ! set up nG2L, nL2G, etc.
+      call GridMapIndices(grid, &
+                          discretization%dm_1dof, &
+                          discretization%stencil_type,&
+                          option)
+      call GridComputeSpacing(grid,discretization%origin_global,option)
+      call GridComputeCoordinates(grid,discretization%origin_global,option)
+      ! set up internal connectivity, distance, etc.
+      call GridComputeInternalConnect(grid,option)
+    case(UNSTRUCTURED_GRID)
+      ! set up nG2L, NL2G, etc.
+      call GridMapIndices(grid, &
+                          discretization%dm_1dof, &
+                          discretization%stencil_type,&
+                          option)
+      call GridComputeCoordinates(grid,discretization%origin_global,option, &
+                                    discretization%dm_1dof%ugdm)
+      if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+        call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
+                                      grid%y,grid%z,grid%nG2A,grid%nL2G, &
+                                      option)
+      endif
+      ! set up internal connectivity, distance, etc.
+      call GridComputeInternalConnect(grid,option, &
+                                      discretization%dm_1dof%ugdm)
+  end select
+
+end subroutine RealizationCreateGrid
 
 subroutine RealizationPassPtrsToPatches(realization)
   !
