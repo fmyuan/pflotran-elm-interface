@@ -1049,9 +1049,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   string = 'WELLBORE_MODEL'
   call LoggingCreateStage(string,pmc_well%stage)
 
-  if (option%coupled_well) then
-    simulation%process_model_coupler_list%peer => pmc_well
-  elseif ( (option%itranmode /= NULL_MODE) .and. &
+  if ( (option%itranmode /= NULL_MODE) .and. &
        (option%itranmode == NWT_MODE) ) then
     call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
          simulation%tran_process_model_coupler%CastToBase(), &

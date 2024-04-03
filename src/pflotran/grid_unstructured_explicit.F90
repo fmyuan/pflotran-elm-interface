@@ -1727,7 +1727,7 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
   PetscInt :: id_up, id_dn
   PetscReal :: pt_up(3), pt_dn(3), pt_center(3)
   PetscBool :: error
-
+  
   num_connections = size(explicit_grid%connections,2)
   connections => ConnectionCreate(num_connections,INTERNAL_CONNECTION_TYPE)
 

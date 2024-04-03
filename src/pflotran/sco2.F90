@@ -1281,6 +1281,8 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
+      if (.not. Initialized(cur_connection_set%face_id(iconn))) cycle
+      if (cur_connection_set%area(iconn) <= 0.d0) cycle
       sum_connection = sum_connection + 1
 
       ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -1677,6 +1679,9 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
+      if (.not. Initialized(cur_connection_set%face_id(iconn))) cycle
+      if (cur_connection_set%area(iconn) <= 0.d0) cycle
+      
       sum_connection = sum_connection + 1
 
       ghosted_id_up = cur_connection_set%id_up(iconn)

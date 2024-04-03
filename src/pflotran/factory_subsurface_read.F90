@@ -678,7 +678,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
     if (discretization%itype /= UNSTRUCTURED_GRID) then
       option%io_buffer = 'The fully implicit well model can only be used &
                           &with an UNSTRUCTURED_GRID at the moment. Please &
-                          &convert your grid to UNSTRUCTURED_IMPLICIT using &
+                          &convert your grid to UNSTRUCTURED_EXPLICIT using &
                           &PFLOTRANs provided Python utilities &
                           &(<pflotran_dir>/src/python/unstructured_grid/).'
       call PrintErrMsg(option)
@@ -717,8 +717,18 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
     call InputFindStringErrorMsg(input,option,string)
     call PMWellReadGrid(dummy_well_grid,input,option,string,error_string,found)
     call PMWellSetupGrid(dummy_well_grid,dummy_discretization%grid,option)
-    discretization%grid%unstructured_grid%embedded_well_grid => &
+    if (discretization%grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
+      call PMWellAddGridConnectionsExplicit(discretization%grid% &
+                  unstructured_grid%explicit_grid%connections, &
+                  discretization%grid% &
+                  unstructured_grid%explicit_grid%face_areas, &
+                  discretization%grid% &
+                  unstructured_grid%explicit_grid%face_centroids, &
+                  dummy_well_grid, option)
+    else
+      discretization%grid%unstructured_grid%embedded_well_grid => &
                                                                 dummy_well_grid
+    endif
     nullify(dummy_well_grid)
     call DiscretizationDestroy(dummy_discretization)
     call InputPopBlock(input,option)

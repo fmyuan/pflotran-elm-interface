@@ -1762,6 +1762,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   use Option_module
   use Utility_module, only : DotProduct, CrossProduct
   use Geometry_module
+  use Well_Grid_module
 
   implicit none
 
@@ -1771,6 +1772,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   type(grid_unstructured_type) :: unstructured_grid
 
   type(connection_set_type), pointer :: connections
+  type(well_grid_type), pointer :: well_grid
   PetscInt :: nconn, iconn
   PetscInt :: idual, dual_id
 
@@ -1802,6 +1804,8 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   PetscReal :: area1, area2
   PetscReal :: dist_up, dist_dn
   PetscInt :: ivert
+  PetscInt :: isegment, dual_segment
+  PetscBool, allocatable :: well_connections(:,:)
 
   type(plane_type) :: plane1, plane2
   type(point3d_type) :: point1, point2, point3, point4
@@ -2087,7 +2091,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       dual_id = unstructured_grid%cell_neighbors_local_ghosted(idual,local_id)
       ! count all ghosted connections (dual_id < 0)
       ! only count connection with cells of larger ids to avoid double counts
-!geh: we need to cound all local connection, but just once (local_id < dual_id) and all
+!geh: we need to count all local connections, but just once (local_id < dual_id) and all
 !      ghosted connections (dual_id < 0)
       if (dual_id < 0 .or. local_id < dual_id) then
 !geh: Nope      if (dual_id > 0 .and. local_id < dual_id) then !sp
@@ -2096,6 +2100,29 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
     enddo
   enddo
 
+  ! Add embedded well connectivity
+  if (associated(unstructured_grid%embedded_well_grid)) then
+    well_grid => unstructured_grid%embedded_well_grid
+    allocate(well_connections(well_grid%nsegments,well_grid%nsegments))
+    well_connections(:,:) = PETSC_FALSE
+    do isegment = 1,well_grid%nsegments
+      if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
+      local_id = well_grid%h_ghosted_id(isegment)
+      ! For each local cell, check if a connection to a well cell exists. If 
+      ! not, add it, and keep track of connections that are only well-related.
+      do dual_segment = 1,well_grid%nsegments
+        dual_id = well_grid%h_ghosted_id(dual_segment)
+        if (dual_id == local_id) cycle
+        if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
+        if (any(unstructured_grid% &
+              cell_neighbors_local_ghosted(:,local_id) == dual_id)) cycle
+        if (well_connections(dual_segment,isegment)) cycle
+        nconn = nconn + 1
+        well_connections(isegment,dual_segment) = PETSC_TRUE
+      enddo
+    enddo
+    nullify(well_grid)
+  endif
 
   connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
 
@@ -2284,6 +2311,22 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
     enddo
   enddo
 
+  ! Add embedded well connectivity
+  if (associated(unstructured_grid%embedded_well_grid)) then
+    well_grid => unstructured_grid%embedded_well_grid
+    do isegment = 1,well_grid%nsegments
+      do dual_segment = 1,well_grid%nsegments
+        if (well_connections(isegment,dual_segment)) then
+          iconn = iconn + 1
+          connections%id_up(iconn) = well_grid%h_ghosted_id(isegment)
+          connections%id_dn(iconn) = well_grid%h_ghosted_id(dual_segment)
+          connections%face_id(iconn) = UNINITIALIZED_INTEGER
+        endif
+      enddo
+    enddo
+    nullify(well_grid)
+  endif
+
   ! Save area and centroid of faces
   allocate(unstructured_grid%face_centroid(face_count))
   do iface = 1,face_count
@@ -2388,6 +2431,8 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   deallocate(cell_to_face)
   deallocate(face_to_cell)
   deallocate(vertex_to_cell)
+
+  if (allocated(well_connections)) deallocate(well_connections)
 
   UGridComputeInternConnect => connections
 

@@ -390,6 +390,7 @@ module PM_Well_class
 
   public :: PMWellCreate, &
             PMWellSetupGrid, &
+            PMWellAddGridConnectionsExplicit, &
             PMWellReadPMBlock, &
             PMWellReadGrid, &
             PMWellReadPass2, &
@@ -819,12 +820,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   bottom_of_reservoir = res_grid%z_min_global
   bottom_of_hole = well_grid%bottomhole(3)
   if (top_of_reservoir < top_of_hole) then
-    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
-                       &beyond the top of the reservoir domain. &
-                       &You must fix the TOP_OF_HOLE coordinates to align &
-                       &with the top face of the reservoir grid cell that &
-                       &it occupies.'
-    call PrintErrMsg(option)
+    ! MAN: this might be hard to get right with an explicit unstructured
+    !      grid.
+    ! option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
+    !                    &beyond the top of the reservoir domain. &
+    !                    &You must fix the TOP_OF_HOLE coordinates to align &
+    !                    &with the top face of the reservoir grid cell that &
+    !                    &it occupies.'
+    ! call PrintErrMsg(option)
+    well_grid%tophole(3) = top_of_reservoir
   endif
   if (top_of_reservoir > top_of_hole) then
     option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates do not &
@@ -835,14 +839,17 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     call PrintErrMsg(option)
   endif
   if (bottom_of_reservoir > bottom_of_hole) then
-    option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
-                       &beyond the bottom of the reservoir domain. &
-                       &You must fix the BOTTOM_OF_HOLE coordinates so that &
-                       &the bottom of the well is aligned with the bottom &
-                       &face of the reservoir, or is above the bottom &
-                       &face of the reservoir in the vertical column that the &
-                       &well occupies.'
-    call PrintErrMsg(option)
+    ! MAN: this might be hard to get right with an explicit unstructured
+    !      grid.
+    ! option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
+    !                    &beyond the bottom of the reservoir domain. &
+    !                    &You must fix the BOTTOM_OF_HOLE coordinates so that &
+    !                    &the bottom of the well is aligned with the bottom &
+    !                    &face of the reservoir, or is above the bottom &
+    !                    &face of the reservoir in the vertical column that the &
+    !                    &well occupies.'
+    ! call PrintErrMsg(option)
+    well_grid%bottomhole(3) = bottom_of_reservoir
   endif
 
   diff_x = well_grid%tophole(1)-well_grid%bottomhole(1)
@@ -1226,6 +1233,105 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   well_grid%nconnections = well_grid%nsegments - 1
 
 end subroutine PMWellSetupGrid
+
+! ************************************************************************** !
+
+subroutine PMWellAddGridConnectionsExplicit(connections,face_areas, &
+                                            face_centroids,well_grid,option)
+  !
+  ! Modifies grid connectivity to include well connections.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/03/2024
+  !
+
+  use Option_module
+
+  implicit none
+
+  PetscInt, pointer :: connections(:,:)
+  PetscReal, pointer :: face_areas(:)
+  type(point3d_type), pointer :: face_centroids(:)
+  type(well_grid_type), pointer :: well_grid
+  type(option_type), pointer :: option
+
+  PetscInt :: n_well_conn, total_connections, num_connections, iconn
+  PetscInt :: isegment, dual_segment, local_id, dual_id
+  PetscBool, allocatable :: well_connections(:,:)
+  PetscBool, allocatable :: mask(:)
+  PetscInt, pointer :: new_connections(:,:)
+  PetscReal, pointer :: new_face_areas(:)
+  type(point3d_type), pointer :: new_face_centroids(:)
+
+  num_connections = size(connections,2)
+  allocate(mask(num_connections))
+  n_well_conn = 0
+  
+  ! Add embedded well connectivity
+  allocate(well_connections(well_grid%nsegments,well_grid%nsegments))
+  well_connections(:,:) = PETSC_FALSE
+  do isegment = 1,well_grid%nsegments
+    if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
+    local_id = well_grid%h_ghosted_id(isegment)
+    ! For each local cell, check if a connection to a well cell exists. If 
+    ! not, add it, and keep track of connections that are only well-related.
+    do dual_segment = 1,well_grid%nsegments
+      if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
+      dual_id = well_grid%h_ghosted_id(dual_segment)
+      if (dual_id == local_id) cycle
+      if (well_connections(dual_segment,isegment)) cycle
+      mask = PETSC_FALSE
+      where (connections(1,:) == local_id)
+        where (connections(2,:) == dual_id)
+          mask = PETSC_TRUE
+        endwhere
+      endwhere
+      if (any(mask)) cycle
+      where (connections(1,:) == dual_id)
+        where (connections(2,:) == local_id)
+          mask = PETSC_TRUE
+        endwhere
+      endwhere
+      if (any(mask)) cycle
+      n_well_conn = n_well_conn+1
+      well_connections(isegment,dual_segment) = PETSC_TRUE
+    enddo
+  enddo
+
+  total_connections = num_connections + n_well_conn
+  allocate(new_connections(2,total_connections))
+  allocate(new_face_areas(total_connections))
+  allocate(new_face_centroids(total_connections))
+  new_connections(:,1:num_connections) = connections(:,:)
+  new_face_areas(1:num_connections) = face_areas(:)
+  new_face_centroids(1:num_connections) = face_centroids(:)
+  iconn = total_connections - n_well_conn + 1
+  do isegment = 1,well_grid%nsegments
+    do dual_segment = 1,well_grid%nsegments
+      if (well_connections(isegment,dual_segment)) then
+        new_connections(1,iconn) = isegment
+        new_connections(2,iconn) = dual_segment
+        new_face_areas(iconn) = 0.d0
+        new_face_centroids(iconn) = &
+                face_centroids(well_grid%h_ghosted_id(isegment))
+        iconn = iconn + 1
+      endif
+    enddo
+  enddo
+
+  nullify(connections)
+  nullify(face_areas)
+  nullify(face_centroids)
+  connections => new_connections
+  face_areas => new_face_areas
+  face_centroids => new_face_centroids
+
+  deallocate(mask)
+  deallocate(well_connections)
+
+end subroutine PMWellAddGridConnectionsExplicit
+
+! ************************************************************************** !
 
 subroutine PMWellSetup(this)
   !
@@ -6469,7 +6575,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
           option%io_buffer = 'Hydrostatic iteration failed to converge in well model'
-          call PrintErrMsg(option)
+          call PrintErrMsgByRank(option)
         endif
       enddo
       rho_zero_liq = rho_kg_liq
@@ -6485,7 +6591,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         option%io_buffer = 'BHP cannot support the gas column: &
                             &hydrostatic well pressure calcuation &
                             &results in negative gas pressure.'
-        call PrintErrMsg(option)
+        call PrintErrMsgByRank(option)
       endif
     enddo
 
