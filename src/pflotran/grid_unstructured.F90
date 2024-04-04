@@ -2105,21 +2105,21 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
     well_grid => unstructured_grid%embedded_well_grid
     allocate(well_connections(well_grid%nsegments,well_grid%nsegments))
     well_connections(:,:) = PETSC_FALSE
+    dual_segment = 1
     do isegment = 1,well_grid%nsegments
       if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
+      if (well_grid%WI_base(isegment) <= 0.d0) cycle
       local_id = well_grid%h_ghosted_id(isegment)
       ! For each local cell, check if a connection to a well cell exists. If 
       ! not, add it, and keep track of connections that are only well-related.
-      do dual_segment = 1,well_grid%nsegments
-        dual_id = well_grid%h_ghosted_id(dual_segment)
-        if (dual_id == local_id) cycle
-        if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
-        if (any(unstructured_grid% &
-              cell_neighbors_local_ghosted(:,local_id) == dual_id)) cycle
-        if (well_connections(dual_segment,isegment)) cycle
-        nconn = nconn + 1
-        well_connections(isegment,dual_segment) = PETSC_TRUE
-      enddo
+      dual_id = well_grid%h_ghosted_id(dual_segment)
+      if (dual_id == local_id) cycle
+      if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
+      if (any(unstructured_grid% &
+            cell_neighbors_local_ghosted(:,local_id) == dual_id)) cycle
+      if (well_connections(dual_segment,isegment)) cycle
+      nconn = nconn + 1
+      well_connections(isegment,dual_segment) = PETSC_TRUE
     enddo
     nullify(well_grid)
   endif

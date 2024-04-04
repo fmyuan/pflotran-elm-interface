@@ -4,6 +4,7 @@ module Grid_Structured_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
+  use Well_Grid_module
 
   implicit none
 
@@ -69,6 +70,7 @@ module Grid_Structured_module
                             ! (iface=1:6,local_id) = ghosted_ids of neighbors
                             ! ghosted neighbors have negative ghost_ids
     PetscBool :: second_order_bc
+    type(well_grid_type), pointer :: embedded_well_grid
 
   end type grid_structured_type
 
@@ -191,6 +193,8 @@ function StructGridCreate()
 
   structured_grid%invert_z_axis = PETSC_FALSE
   structured_grid%second_order_bc = PETSC_FALSE
+
+  nullify(structured_grid%embedded_well_grid)
 
   StructGridCreate => structured_grid
 
@@ -852,6 +856,9 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscReal :: dist_up, dist_dn
   PetscReal :: r1, r2
   type(connection_set_type), pointer :: connections
+  type(well_grid_type), pointer :: well_grid
+  PetscInt :: isegment, dual_segment, local_id, dual_id
+  PetscBool, allocatable :: well_connections(:,:)
 
   PetscReal, pointer :: radius(:)
 
@@ -861,6 +868,37 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   nconn = (structured_grid%ngx-1)*structured_grid%nly*structured_grid%nlz+ &
           structured_grid%nlx*(structured_grid%ngy-1)*structured_grid%nlz+ &
           structured_grid%nlx*structured_grid%nly*(structured_grid%ngz-1)
+
+  ! Add embedded well connectivity. This just connects the bottom-hole
+  ! cell to all other reservoir cells connected to the well. Does not
+  ! connect those other reservoir cells to each other. This is therefore
+  ! only applicable to a HYDROSTATIC well model type.
+  if (associated(structured_grid%embedded_well_grid)) then
+    well_grid => structured_grid%embedded_well_grid
+    allocate(well_connections(well_grid%nsegments,well_grid%nsegments))
+    well_connections(:,:) = PETSC_FALSE
+    dual_segment = 1
+    do isegment = 1,well_grid%nsegments
+      if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
+      if (well_grid%WI_base(isegment) <= 0.d0) cycle
+      local_id = well_grid%h_ghosted_id(isegment)
+      ! For each local cell, check if a connection to a well cell exists. If 
+      ! not, add it, and keep track of connections that are only well-related.
+      dual_id = well_grid%h_ghosted_id(dual_segment)
+      if (dual_id == local_id) cycle
+      if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
+      if (dual_id == local_id + 1) cycle
+      if (dual_id == local_id - 1) cycle
+      if (dual_id == local_id + structured_grid%nlx) cycle
+      if (dual_id == local_id - structured_grid%nlx) cycle
+      if (dual_id == local_id + structured_grid%nlx*structured_grid%nly) cycle
+      if (dual_id == local_id - structured_grid%nlx*structured_grid%nly) cycle
+      if (well_connections(dual_segment,isegment)) cycle
+      nconn = nconn + 1
+      well_connections(isegment,dual_segment) = PETSC_TRUE
+    enddo
+    nullify(well_grid)
+  endif
 
   structured_grid%nlmax_faces = 0
   structured_grid%ngmax_faces = 0
@@ -1102,6 +1140,22 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
         option%io_buffer = 'For spherical coordinates, NZ must be equal to 1.'
         call PrintErrMsg(option)
   end select
+  endif
+
+  ! Add embedded well connectivity
+  if (associated(structured_grid%embedded_well_grid)) then
+    well_grid => structured_grid%embedded_well_grid
+    do isegment = 1,well_grid%nsegments
+      do dual_segment = 1,well_grid%nsegments
+        if (well_connections(isegment,dual_segment)) then
+          iconn = iconn + 1
+          connections%id_up(iconn) = well_grid%h_ghosted_id(isegment)
+          connections%id_dn(iconn) = well_grid%h_ghosted_id(dual_segment)
+          connections%face_id(iconn) = 0
+        endif
+      enddo
+    enddo
+    nullify(well_grid)
   endif
 
   StructGridComputeInternConnect => connections

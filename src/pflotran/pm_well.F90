@@ -138,8 +138,6 @@ module PM_Well_class
     PetscReal, pointer :: friction_factor(:)
     ! skin factor of each well segment
     PetscReal, pointer :: skin(:)
-    ! well index of each well segment [0,1]  0 = cased; 1 = open
-    PetscReal, pointer :: WI_base(:)
     ! total well index for each well segment (including reservoir effects)
     PetscReal, pointer :: WI(:)
     ! Peaceman equivalent radius
@@ -390,7 +388,6 @@ module PM_Well_class
 
   public :: PMWellCreate, &
             PMWellSetupGrid, &
-            PMWellAddGridConnectionsExplicit, &
             PMWellReadPMBlock, &
             PMWellReadGrid, &
             PMWellReadPass2, &
@@ -629,7 +626,6 @@ subroutine PMWellVarCreate(well)
   nullify(well%volume)
   nullify(well%friction_factor)
   nullify(well%skin)
-  nullify(well%WI_base)
   nullify(well%WI)
   nullify(well%r0)
   well%WI_model = PEACEMAN_3D
@@ -1236,103 +1232,6 @@ end subroutine PMWellSetupGrid
 
 ! ************************************************************************** !
 
-subroutine PMWellAddGridConnectionsExplicit(connections,face_areas, &
-                                            face_centroids,well_grid,option)
-  !
-  ! Modifies grid connectivity to include well connections.
-  !
-  ! Author: Michael Nole
-  ! Date: 04/03/2024
-  !
-
-  use Option_module
-
-  implicit none
-
-  PetscInt, pointer :: connections(:,:)
-  PetscReal, pointer :: face_areas(:)
-  type(point3d_type), pointer :: face_centroids(:)
-  type(well_grid_type), pointer :: well_grid
-  type(option_type), pointer :: option
-
-  PetscInt :: n_well_conn, total_connections, num_connections, iconn
-  PetscInt :: isegment, dual_segment, local_id, dual_id
-  PetscBool, allocatable :: well_connections(:,:)
-  PetscBool, allocatable :: mask(:)
-  PetscInt, pointer :: new_connections(:,:)
-  PetscReal, pointer :: new_face_areas(:)
-  type(point3d_type), pointer :: new_face_centroids(:)
-
-  num_connections = size(connections,2)
-  allocate(mask(num_connections))
-  n_well_conn = 0
-  
-  ! Add embedded well connectivity
-  allocate(well_connections(well_grid%nsegments,well_grid%nsegments))
-  well_connections(:,:) = PETSC_FALSE
-  do isegment = 1,well_grid%nsegments
-    if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
-    local_id = well_grid%h_ghosted_id(isegment)
-    ! For each local cell, check if a connection to a well cell exists. If 
-    ! not, add it, and keep track of connections that are only well-related.
-    do dual_segment = 1,well_grid%nsegments
-      if (well_grid%h_rank_id(dual_segment) /= option%myrank) cycle
-      dual_id = well_grid%h_ghosted_id(dual_segment)
-      if (dual_id == local_id) cycle
-      if (well_connections(dual_segment,isegment)) cycle
-      mask = PETSC_FALSE
-      where (connections(1,:) == local_id)
-        where (connections(2,:) == dual_id)
-          mask = PETSC_TRUE
-        endwhere
-      endwhere
-      if (any(mask)) cycle
-      where (connections(1,:) == dual_id)
-        where (connections(2,:) == local_id)
-          mask = PETSC_TRUE
-        endwhere
-      endwhere
-      if (any(mask)) cycle
-      n_well_conn = n_well_conn+1
-      well_connections(isegment,dual_segment) = PETSC_TRUE
-    enddo
-  enddo
-
-  total_connections = num_connections + n_well_conn
-  allocate(new_connections(2,total_connections))
-  allocate(new_face_areas(total_connections))
-  allocate(new_face_centroids(total_connections))
-  new_connections(:,1:num_connections) = connections(:,:)
-  new_face_areas(1:num_connections) = face_areas(:)
-  new_face_centroids(1:num_connections) = face_centroids(:)
-  iconn = total_connections - n_well_conn + 1
-  do isegment = 1,well_grid%nsegments
-    do dual_segment = 1,well_grid%nsegments
-      if (well_connections(isegment,dual_segment)) then
-        new_connections(1,iconn) = isegment
-        new_connections(2,iconn) = dual_segment
-        new_face_areas(iconn) = 0.d0
-        new_face_centroids(iconn) = &
-                face_centroids(well_grid%h_ghosted_id(isegment))
-        iconn = iconn + 1
-      endif
-    enddo
-  enddo
-
-  nullify(connections)
-  nullify(face_areas)
-  nullify(face_centroids)
-  connections => new_connections
-  face_areas => new_face_areas
-  face_centroids => new_face_centroids
-
-  deallocate(mask)
-  deallocate(well_connections)
-
-end subroutine PMWellAddGridConnectionsExplicit
-
-! ************************************************************************** !
-
 subroutine PMWellSetup(this)
   !
   ! Initializes variables associated with the well process model.
@@ -1486,18 +1385,18 @@ subroutine PMWellSetup(this)
   max_diameter = maxval(this%well%diameter)
   xy_span = well_grid%xy_span_multiplier*max_diameter
 
-  if (size(this%well%WI_base) /= nsegments) then
-    if (size(this%well%WI_base) == 1) then
-      temp_real = this%well%WI_base(1)
-      deallocate(this%well%WI_base)
-      allocate(this%well%WI_base(nsegments))
-      this%well%WI_base(:) = temp_real
+  if (size(this%well_grid%WI_base) /= nsegments) then
+    if (size(this%well_grid%WI_base) == 1) then
+      temp_real = this%well_grid%WI_base(1)
+      deallocate(this%well_grid%WI_base)
+      allocate(this%well_grid%WI_base(nsegments))
+      this%well_grid%WI_base(:) = temp_real
     else
       option%io_buffer = 'The number of values provided in &
-        &WELLBORE_MODEL,WELL,WELL_INDEX must match the number &
+        &WELLBORE_MODEL,GRID,WELL_INDEX must match the number &
         &of well segments provided in &
         &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        &a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
+        &a single value is provided in WELLBORE_MODEL,GRID,WELL_INDEX, &
         &it will be applied to all segments of the well.'
       call PrintErrMsg(option)
     endif
@@ -2060,9 +1959,15 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
   PetscInt :: num_errors, num_read
   PetscInt :: read_max = 10000
   PetscInt :: k
-  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: at_index,num_segs
+  PetscReal :: index_val
+  PetscReal, pointer :: temp_well_index(:)
+  character(len=MAXWORDLENGTH) :: word, index_word
   PetscReal, pointer :: temp_z_list(:)
   PetscReal, pointer :: temp_l_list(:)
+
+  allocate(temp_well_index(read_max))
+  temp_well_index(:) = UNINITIALIZED_DOUBLE
 
   error_string = trim(error_string) // ',WELL_GRID'
   found = PETSC_TRUE
@@ -2169,6 +2074,31 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
             call InputReadInt(input,option,well_grid%xy_span_multiplier)
             call InputErrorMsg(input,option,'XY_SEARCH_MULTIPLIER',error_string)
         !-----------------------------
+          case('WELL_INDEX')
+            num_read = 0
+            do k = 1,read_max
+              index_word = trim(input%buf)
+              call InputReadDouble(input,option,temp_well_index(k))
+              if (InputError(input)) then
+                at_index = 0; at_index = index(index_word,'@')
+                if (at_index > 0) then
+                  read(index_word(1:at_index-1), *) num_segs
+                  read(index_word(at_index+1:len(index_word)), *) index_val
+                  temp_well_index(k:k+num_segs-1) = index_val
+                  num_read = num_read + num_segs
+                endif
+                exit
+              endif 
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for WELL_INDEX &
+                &must be provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            write(*,*) 'num_read =', num_read
+            allocate(well_grid%WI_base(num_read))
+            well_grid%WI_base(1:num_read) = temp_well_index(1:num_read)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2199,6 +2129,11 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
         !  call PrintMsg(option)
         !  num_errors = num_errors + 1
         !endif
+      endif
+      if (.not.associated(well_grid%WI_base)) then
+        option%io_buffer = 'Keyword WELL_INDEX must be provided in &
+                           &the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
       endif
       if (Uninitialized(well_grid%tophole(1)) .or. &
           Uninitialized(well_grid%tophole(2)) .or. &
@@ -2231,6 +2166,8 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
     call PrintErrMsg(option)
   endif
 
+  deallocate(temp_well_index)
+
   end subroutine PMWellReadGrid
 
 ! ************************************************************************** !
@@ -2251,18 +2188,14 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
   class(pm_well_type) :: pm_well
   type(input_type), pointer :: input
   type(option_type) :: option
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: word, keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
   PetscInt :: k
   PetscInt :: num_errors,read_max,num_read
-  PetscInt :: at_index,num_segs
-  character(len=MAXWORDLENGTH) :: word, index_word
-  PetscReal :: index_val
   PetscReal, pointer :: temp_diameter(:)
   PetscReal, pointer :: temp_friction(:)
-  PetscReal, pointer :: temp_well_index(:)
   PetscReal, pointer :: temp_well_perm(:)
   PetscReal, pointer :: temp_well_phi(:)
   PetscReal, pointer :: temp(:)
@@ -2274,13 +2207,11 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
   read_max = 9000
   allocate(temp_diameter(read_max))
   allocate(temp_friction(read_max))
-  allocate(temp_well_index(read_max))
   allocate(temp_well_perm(read_max))
   allocate(temp_well_phi(read_max))
   allocate(temp(read_max))
   temp_diameter(:) = UNINITIALIZED_DOUBLE
   temp_friction(:) = UNINITIALIZED_DOUBLE
-  temp_well_index(:) = UNINITIALIZED_DOUBLE
   temp_well_perm(:) = UNINITIALIZED_DOUBLE
   temp_well_phi(:) = UNINITIALIZED_DOUBLE
   temp(:) = UNINITIALIZED_DOUBLE
@@ -2341,31 +2272,6 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
             allocate(pm_well%well%skin(num_read))
             pm_well%well%skin(1:num_read) = temp(1:num_read)
         !-----------------------------
-          case('WELL_INDEX')
-            do k = 1,read_max
-              index_word = trim(input%buf)
-              call InputReadDouble(input,option,temp_well_index(k))
-              if (InputError(input)) then
-                at_index = 0; at_index = index(index_word,'@')
-                if (at_index > 0) then
-                  read(index_word(1:at_index-1), *) num_segs
-                  read(index_word(at_index+1:len(index_word)), *) index_val
-                  temp_well_index(k:k+num_segs-1) = index_val
-                  num_read = num_read + num_segs
-                endif
-                exit
-              endif 
-              num_read = num_read + 1
-            enddo
-            if (num_read == 0) then
-              option%io_buffer = 'At least one value for WELL_INDEX &
-                &must be provided in the ' // trim(error_string) // ' block.'
-              call PrintErrMsg(option)
-            endif
-            write(*,*) 'num_read =', num_read
-            allocate(pm_well%well%WI_base(num_read))
-            pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
-        !-----------------------------
           case('WELL_INDEX_MODEL')
             call InputReadWord(input,option,word,PETSC_TRUE)
             select case(word)
@@ -2391,11 +2297,6 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (.not.associated(pm_well%well%WI_base)) then
-        option%io_buffer = 'Keyword WELL_INDEX must be provided in &
-                           &the ' // trim(error_string) // ' block.'
-        call PrintErrMsg(option)
-      endif
       if (.not.associated(pm_well%well%friction_factor)) then
         option%io_buffer = 'Keyword FRICTION_COEFFICIENT must be provided in &
                            &the ' // trim(error_string) // ' block.'
@@ -2420,7 +2321,6 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
     call PrintErrMsg(option)
   endif
 
-  deallocate(temp_well_index)
   deallocate(temp_friction)
   deallocate(temp_diameter)
   deallocate(temp)
@@ -3226,13 +3126,11 @@ recursive subroutine PMWellInitializeRun(this)
 
   do k = 1,option%nflowdof
     allocate(this%well_pert(k)%diameter(nsegments))
-    allocate(this%well_pert(k)%WI_base(nsegments))
     allocate(this%well_pert(k)% &
              friction_factor(size(this%well%friction_factor)))
     allocate(this%well_pert(k)%r0(size(this%well%r0)))
     allocate(this%well_pert(k)%skin(size(this%well%skin)))
     this%well_pert(k)%diameter = this%well%diameter
-    this%well_pert(k)%WI_base = this%well%WI_base
     this%well_pert(k)%friction_factor = this%well%friction_factor
     this%well_pert(k)%well_model_type = this%well%well_model_type
     call PMWellInitWellVars(this%well_pert(k),this%well_grid, &
@@ -5221,8 +5119,10 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
               local_row_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
               local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
               J_well = -(res_pert)/pert
-              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
+              if (dabs(J_well) > 0.d0) then
+                call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+              endif
 
             endif
 
@@ -5235,8 +5135,10 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
               J_block(irow,idof) = (res_pert - residual(k,irow))/pert
             enddo
           enddo
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+          if (any(dabs(J_block) > 0.d0)) then
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
 
           ! Make sure perturbation generates flow.
           ! pres_bump = 0.d0
@@ -5312,12 +5214,16 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             local_row_index = (ghosted_id-1)*option%nflowdof + j
             local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
             J_well = (res_pert - res)/pert
-            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
+            if (dabs(J_well) > 0.d0) then
+              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index,J_well, &
                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
           enddo
   
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+          if (any(dabs(J_block) > 0.d0)) then
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
         enddo
       endif
     end select
@@ -7875,7 +7781,7 @@ subroutine PMWellComputeWellIndex(pm_well)
       
   end select
 
-  pm_well%well%WI = pm_well%well%WI*pm_well%well%WI_base
+  pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%WI_base
 
 end subroutine PMWellComputeWellIndex
 
@@ -9072,7 +8978,6 @@ subroutine PMWellCopyWell(well,well_copy,transport)
   well_copy%gas%visc(:) = well%gas%visc(:)
   well_copy%gas%kr = well%gas%kr
   well_copy%diameter(:) = well%diameter(:)
-  well_copy%WI_base(:) = well%WI_base(:)
   well_copy%permeability(:) = well%permeability(:)
   well_copy%phi(:) = well%phi(:)
   well_copy%friction_factor(:) = well%friction_factor(:)
