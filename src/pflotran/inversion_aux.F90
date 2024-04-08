@@ -292,11 +292,11 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
 
   use String_module
   use Utility_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
-                               POROSITY, VG_ALPHA, VG_SR, VG_M, &
+  use Variables_module, only : PERMEABILITY, POROSITY, VG_ALPHA, VG_SR, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                VERTICAL_PERM_ANISOTROPY_RATIO
@@ -314,11 +314,11 @@ subroutine InvAuxGetSetParamValueByMat(aux,value,iparameter_type,imat,iflag)
 
   material_property => aux%material_property_array(imat)%ptr
   select case(iparameter_type)
-    case(ELECTRICAL_CONDUCTIVITY)
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
       if (iflag == INVAUX_GET_MATERIAL_VALUE) then
-        value = material_property%electrical_conductivity
+        value = material_property%material_electrical_conductivity
       else
-        material_property%electrical_conductivity = value
+        material_property%material_electrical_conductivity = value
       endif
     case(PERMEABILITY)
       if (iflag == INVAUX_GET_MATERIAL_VALUE) then
@@ -567,13 +567,13 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
   use Material_Aux_module, only : material_auxvar_type, &
                                   MaterialAuxVarGetValue
   use String_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, PERMEABILITY_X, &
+  use Variables_module, only : PERMEABILITY, PERMEABILITY_X, &
                                POROSITY, BASE_POROSITY, &
                                VG_ALPHA, VG_SR, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                VERTICAL_PERM_ANISOTROPY_RATIO
@@ -588,7 +588,7 @@ subroutine InvAuxGetParamValueByCell(aux,value,iparameter_type,imat, &
   type(characteristic_curves_type), pointer :: cc
 
   select case(iparameter_type)
-    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
          SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvar,iparameter_type)

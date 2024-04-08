@@ -749,11 +749,12 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY, &
+  use Variables_module, only : PERMEABILITY,POROSITY, &
                                VG_ALPHA,VG_SR,VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                VERTICAL_PERM_ANISOTROPY_RATIO
@@ -778,7 +779,7 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
          VERTICAL_PERM_ANISOTROPY_RATIO)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = InversionParamGetNameFromItype(iqoi(1),this%driver)
-    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
          SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
@@ -1828,9 +1829,6 @@ subroutine InversionZFlowAllocateWm(this)
   use Grid_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA, VG_M
 
   implicit none
 

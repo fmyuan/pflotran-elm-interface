@@ -35,7 +35,7 @@ module PM_ERT_class
     PetscReal :: saturation_exponent   ! n
     PetscReal :: water_conductivity
     PetscReal :: surface_conductivity
-    PetscReal :: tracer_conductivity
+    PetscReal :: tracer_water_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
     PetscReal :: max_tracer_concentration
@@ -127,7 +127,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
   pm_ert%surface_conductivity = 0.d0 ! to modify Archie's equation
-  pm_ert%tracer_conductivity = UNINITIALIZED_DOUBLE
+  pm_ert%tracer_water_conductivity  = UNINITIALIZED_DOUBLE
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_concentration = UNINITIALIZED_DOUBLE
@@ -233,7 +233,10 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,this%surface_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
-        call InputReadDouble(input,option,this%tracer_conductivity)
+        call InputKeywordDeprecated(keyword,'TRACER_WATER_CONDUCTIVITY', &
+                                    option)
+      case('TRACER_WATER_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%tracer_water_conductivity )
         call InputErrorMsg(input,option,keyword,error_string)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
         this%conductivity_mapping_law = WAXMAN_SMITS
@@ -344,10 +347,10 @@ subroutine PMERTSetup(this)
       call PrintErrMsg(this%option)
     endif
   else ! no transport
-    if (Initialized(this%tracer_conductivity)) then
+    if (Initialized(this%tracer_water_conductivity )) then
       option%io_buffer = 'TRACER_CONDUCTIVITY will not be factored into the &
         &bulk electrical conductivity calculation since solute is not being &
-        &transported. Please add SOLUTE_CONCENTRATION as a process under &
+        &transported. Please add SOLUTE_TRANSPORT as a process under &
         &ZFLOW->OPTIONS->PROCESSES or include SUBSURFACE_TRANSPORT as a &
         &process model.'
       call PrintErrMsg(option)
@@ -427,7 +430,7 @@ recursive subroutine PMERTInitializeRun(this)
   use String_module
   use Transport_Constraint_RT_module
   use ZFlow_Aux_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY
 
   implicit none
 
@@ -473,12 +476,12 @@ recursive subroutine PMERTInitializeRun(this)
   ! copy conductivities if defined
   ert_auxvars => patch%aux%ERT%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  if (electrical_conductivity_index > 0) then
+  if (material_elec_conduct_index > 0) then
     do ghosted_id = 1, grid%ngmax
       if (patch%imat(ghosted_id) <= 0) cycle
       ert_auxvars(ghosted_id)%bulk_conductivity = &
                MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                      ELECTRICAL_CONDUCTIVITY)
+                                      MATERIAL_ELECTRICAL_CONDUCTIVITY)
     enddo
   endif
 
@@ -768,6 +771,7 @@ subroutine PMERTPreSolve(this)
   use Variables_module
   use ERT_module
   use ZFlow_Aux_module
+  use Parameter_module
 
   implicit none
 
@@ -785,11 +789,17 @@ subroutine PMERTPreSolve(this)
   PetscInt :: ghosted_id,local_id
   PetscInt :: species_id
   PetscInt :: empirical_law
+  PetscInt :: parameter_index
   PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
-  PetscReal :: cond_sp,cond_w0
   PetscReal :: dcond_dsat,dcond_dconc,dcond_dpor
+  PetscReal :: cond_sp
   PetscReal :: tracer_scale
+  PetscReal :: cond_w_no_tracer
+  PetscReal :: diff_water_cond
+  PetscReal :: relative_tracer_concentration
+  PetscReal :: dstress,drho_geomech,rho_geomech,cond_geomech
+  PetscReal :: cond_surface
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
   PetscBool :: cementation_cell_by_cell
@@ -822,7 +832,7 @@ subroutine PMERTPreSolve(this)
   endif
   tracer_scale = 0.d0
   if (Initialized(this%max_tracer_concentration)) then
-    tracer_scale = this%tracer_conductivity/this%max_tracer_concentration
+    tracer_scale = 1.d0 / this%max_tracer_concentration
   endif
 
   empirical_law = this%conductivity_mapping_law
@@ -830,10 +840,11 @@ subroutine PMERTPreSolve(this)
   m = this%cementation_exponent
   n = this%saturation_exponent
   Vc = this%clay_volume_factor
-  cond_w = this%water_conductivity
+  cond_w_no_tracer = this%water_conductivity
+  diff_water_cond = this%tracer_water_conductivity - cond_w_no_tracer
+  cond_w = UNINITIALIZED_DOUBLE
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
-  cond_w0 = cond_w
 
   cementation_cell_by_cell = (archie_cementation_exp_index > 0)
   saturation_cell_by_cell = (archie_saturation_exp_index > 0)
@@ -877,18 +888,21 @@ subroutine PMERTPreSolve(this)
             global_auxvars(ghosted_id)%den_kg(1)           ![kg water/m^3]
         enddo
         ! modify fluid conductivity for species contribution
-        cond_w = cond_w0 + cond_sp
+        cond_w = cond_w_no_tracer + cond_sp
       else
         species_id = 1
-        cond_sp = tracer_scale * rt_auxvars(ghosted_id)%total(species_id,1)
-        cond_w = cond_w0 + cond_sp
+        cond_sp = tracer_scale * diff_water_cond * &
+                  rt_auxvars(ghosted_id)%total(species_id,1)
+        cond_w = cond_w_no_tracer + cond_sp
       endif
     endif
     if (associated(zflow_auxvars)) then
-      cond_sp = tracer_scale * &
+      relative_tracer_concentration = tracer_scale * &
         max(zflow_auxvars(ZERO_INTEGER,ghosted_id)%conc,0.d0)
-      cond_w = cond_w0 + cond_sp
+      cond_w = cond_w_no_tracer + &
+               relative_tracer_concentration * diff_water_cond
     endif
+    if (Uninitialized(cond_w)) cond_w = cond_w_no_tracer
     ! compute conductivity
     if (cementation_cell_by_cell) then
       m = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
@@ -910,7 +924,25 @@ subroutine PMERTPreSolve(this)
       cond_c = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                       WAXMAN_SMITS_CLAY_CONDUCTIVITY)
     endif
-    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+
+    cond_surface = cond_s
+
+    if (option%geomech_subsurf_coupling == GEOMECH_ERT_COUPLING) then
+      parameter_index = ParameterGetIDFromName('geomechanics_stress',option)
+      dstress = patch%aux% &
+              Global%auxvars(ghosted_id)%parameters(parameter_index)
+      drho_geomech = 0.d0
+      ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
+      drho_geomech = 21054.d0 * dstress * 1.0d-8
+      if (cond_s /= 0.d0) then
+        rho_geomech = 1.d0/cond_s + drho_geomech
+        cond_geomech = 1.d0/rho_geomech
+      endif
+      cond_w = 0.d0
+      cond_surface = cond_geomech
+    endif
+
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_surface, &
                                          cond_c,empirical_law,cond, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
                                          dcond_dpor)

@@ -67,6 +67,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
 
   use Option_module
   use Connection_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -83,7 +84,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
 
-  PetscInt :: iphase, nphase
+  PetscInt :: iphase, nphase, iaqcomp
   PetscReal :: abs_dist(3)
   PetscReal :: dist_up, dist_dn
   PetscReal :: sat_up, sat_dn
@@ -102,10 +103,12 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: hydrodynamic_dispersion_up(rt_parameter%naqcomp)
   PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: tort_up, tort_dn
-  PetscReal :: t_ref_inv
   PetscReal :: v_up, v_dn
   PetscReal :: vi2_over_v_up, vj2_over_v_up, vk2_over_v_up
   PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn
+  PetscReal :: activation_energy
+  PetscReal, parameter :: PREF = 101325.d0
+  PetscReal, parameter :: TREF = 25.d0
 
   PetscReal, parameter :: s_pow = 7.d0/3.d0
   PetscReal, parameter :: por_pow = 1.d0/3.d0
@@ -123,37 +126,33 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
     if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle
+    molecular_diffusion_up(:) = rt_parameter%diffusion_coefficient(:,iphase)
+    molecular_diffusion_dn(:) = rt_parameter%diffusion_coefficient(:,iphase)
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
-          t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
-          molecular_diffusion_up(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
-                IDEAL_GAS_CONSTANT* &
-                (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
-          molecular_diffusion_dn(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
-                IDEAL_GAS_CONSTANT* &
-                (t_ref_inv - 1.d0/(global_auxvar_dn%temp + 273.15d0)))
+          do iaqcomp = 1, rt_parameter%naqcomp
+            activation_energy = &
+              rt_parameter%diffusion_activation_energy(iaqcomp,iphase)
+            molecular_diffusion_up(iaqcomp) = &
+              molecular_diffusion_up(iaqcomp) * &
+              Arrhenius(activation_energy,global_auxvar_up%temp,TREF)
+            molecular_diffusion_dn(iaqcomp) = &
+              molecular_diffusion_dn(iaqcomp) * &
+              Arrhenius(activation_energy,global_auxvar_dn%temp,TREF)
+          enddo
         case(GAS_PHASE)
           ! if gas phase exists, gas pressure %pres(GAS_PHASE) should be total
           ! pressure
           molecular_diffusion_up(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase) * &
-            ((((global_auxvar_up%temp+273.15d0)/273.15d0)**1.8d0) * &
-             (101325.d0/global_auxvar_up%pres(GAS_PHASE)))
+            molecular_diffusion_up(:) * &
+            ((((global_auxvar_up%temp+T273K)/T273K)**1.8d0) * &
+             (PREF/global_auxvar_up%pres(GAS_PHASE)))
           molecular_diffusion_dn(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase) * &
-            ((((global_auxvar_dn%temp+273.15d0)/273.15d0)**1.8d0) * &
-             (101325.d0/global_auxvar_dn%pres(GAS_PHASE)))
+            molecular_diffusion_dn(:) * &
+            ((((global_auxvar_dn%temp+T273K)/T273K)**1.8d0) * &
+             (PREF/global_auxvar_dn%pres(GAS_PHASE)))
       end select
-    else
-      molecular_diffusion_up(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase)
-      molecular_diffusion_dn(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase)
     endif
     if (rt_parameter%millington_quirk_tortuosity) then
       molecular_diffusion_up(:) = &
@@ -260,6 +259,7 @@ subroutine TDispersionBC(ibndtype, &
 
   use Option_module
   use Connection_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -276,7 +276,7 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
                                              rt_parameter%nphase)
 
-  PetscInt :: iphase, nphase
+  PetscInt :: iphase, nphase, iaqcomp
   PetscReal :: sat_up, sat_dn
   PetscReal :: abs_dist_dn(3)
   PetscReal :: velocity_dn(3)
@@ -291,7 +291,8 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: tort_dn
   PetscReal :: v_dn
   PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn
-  PetscReal :: t_ref_inv
+  PetscReal, parameter :: PREF = 101325.d0
+  PetscReal, parameter :: TREF = 25.d0
 
   PetscReal, parameter :: s_pow = 7.d0/3.d0
   PetscReal, parameter :: por_pow = 1.d0/3.d0
@@ -306,26 +307,25 @@ subroutine TDispersionBC(ibndtype, &
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle
+    molecular_diffusion(:) = rt_parameter%diffusion_coefficient(:,iphase)
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
-          t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
-          molecular_diffusion(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
-                IDEAL_GAS_CONSTANT* &
-                (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
+          do iaqcomp = 1, rt_parameter%naqcomp
+            molecular_diffusion(iaqcomp) = &
+              molecular_diffusion(iaqcomp) * &
+              Arrhenius(rt_parameter% &
+                          diffusion_activation_energy(iaqcomp,iphase), &
+                        global_auxvar_up%temp,TREF)
+          enddo
         case(GAS_PHASE)
           ! if gas phase exists, gas pressure %pres(GAS_PHASE) should be total
           ! pressure
           molecular_diffusion(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            ((((global_auxvar_up%temp+273.15d0)/273.15d0)**1.8d0) * &
-             (101325.d0/global_auxvar_up%pres(GAS_PHASE)))
+            ((((global_auxvar_up%temp+T273K)/T273K)**1.8d0) * &
+             (PREF/global_auxvar_up%pres(GAS_PHASE)))
       end select
-    else
-      molecular_diffusion(:) = &
-        rt_parameter%diffusion_coefficient(:,iphase)
     endif
     if (rt_parameter%millington_quirk_tortuosity) then
       molecular_diffusion(:) = &

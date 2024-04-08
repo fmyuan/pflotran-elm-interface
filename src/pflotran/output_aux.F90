@@ -746,7 +746,9 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
            'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
-           'SURFACE_ELECTRICAL_CONDUCTIVITY','WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+           'MATERIAL_ELECTRICAL_CONDUCTIVITY', &
+           'SURFACE_ELECTRICAL_CONDUCTIVITY', &
+           'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
       case default
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a flow mode.')
@@ -758,7 +760,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
            'ARCHIE_CEMENTATION_EXPONENT','ARCHIE_SATURATION_EXPONENT', &
            'ARCHIE_TORTUOSITY_CONSTANT','SURFACE_ELECTRICAL_CONDUCTIVITY', &
-           'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+           'WAXMAN_SMITS_CLAY_CONDUCTIVITY','MATERIAL_ELECTRICAL_CONDUCTIVITY')
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a geophysics mode.')
     end select
@@ -1086,6 +1088,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Gas Relative Permeability'
       category = OUTPUT_GENERIC
       id = GAS_RELATIVE_PERMEABILITY
+    case('THERMAL_CONDUCTIVITY')
+      units = 'W/m-K'
+      name = 'Thermal Conductivity'
+      category = OUTPUT_GENERIC
+      id = THERMAL_CONDUCTIVITY
     case ('SOIL_COMPRESSIBILITY')
       units = ''
       name = 'Compressibility'
@@ -1155,77 +1162,81 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'K Orthogonality Error'
       category = OUTPUT_GENERIC
       id = K_ORTHOGONALITY_ERROR
-    case ('ELECTRICAL_CONDUCTIVITY')
-      if (option%ngeopdof <= 0) then
-        call PrintErrMsg(option,trim(word)//' output only &
-          &supported when the GEOPHYSICS process model is used.')
-      endif
-      units = 'S/m'
-      name = 'Electrical Conductivity'
-      category = OUTPUT_GENERIC
-      id = ELECTRICAL_CONDUCTIVITY
-    case ('ELECTRICAL_POTENTIAL')
-      if (option%ngeopdof <= 0) then
-        call PrintErrMsg(option,trim(word)//' output only &
-          &supported when the GEOPHYSICS process model is used.')
-      endif
-      units = 'V'
-      name = 'Electrical Potential'
-      category = OUTPUT_GENERIC
-      id = ELECTRICAL_POTENTIAL
-    case ('ELECTRICAL_JACOBIAN')
-      if (option%ngeopdof <= 0) then
-        call PrintErrMsg(option,trim(word)//' output only &
-          &supported when the GEOPHYSICS process model is used.')
-      endif
-      units = 'Vm/S'
-      name = 'Electrical Jacobian'
-      category = OUTPUT_GENERIC
-      id = ELECTRICAL_JACOBIAN
     case ('SMECTITE')
       units = ''
       name = 'Smectite'
       category = OUTPUT_GENERIC
       id = SMECTITE
-    case ('ELECTRICAL_POTENTIAL_DIPOLE')
+    case('ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
+         'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
+         'ARCHIE_CEMENTATION_EXPONENT','ARCHIE_SATURATION_EXPONENT', &
+         'ARCHIE_TORTUOSITY_CONSTANT','MATERIAL_ELECTRICAL_CONDUCTIVITY', &
+         'SURFACE_ELECTRICAL_CONDUCTIVITY','WAXMAN_SMITS_CLAY_CONDUCTIVITY')
       if (option%ngeopdof <= 0) then
         call PrintErrMsg(option,trim(word)//' output only &
           &supported when the GEOPHYSICS process model is used.')
       endif
-      units = 'V'
-      name = 'Electrical Potential Dipole'
-      category = OUTPUT_GENERIC
-      id = ELECTRICAL_POTENTIAL_DIPOLE
+      select case(word)
+        case ('ELECTRICAL_CONDUCTIVITY')
+          units = 'S/m'
+          name = 'Electrical Conductivity'
+          category = OUTPUT_GENERIC
+          id = COMPUTED_ELECTRICAL_CONDUCTIVITY
+        case ('ELECTRICAL_POTENTIAL')
+          units = 'V'
+          name = 'Electrical Potential'
+          category = OUTPUT_GENERIC
+          id = ELECTRICAL_POTENTIAL
+        case ('ELECTRICAL_JACOBIAN')
+          units = 'Vm/S'
+          name = 'Electrical Jacobian'
+          category = OUTPUT_GENERIC
+          id = ELECTRICAL_JACOBIAN
+        case ('ELECTRICAL_POTENTIAL_DIPOLE')
+          units = 'V'
+          name = 'Electrical Potential Dipole'
+          category = OUTPUT_GENERIC
+          id = ELECTRICAL_POTENTIAL_DIPOLE
+        case ('ARCHIE_CEMENTATION_EXPONENT')
+          units = '-'
+          name = "Archie's Cementation Exponent"
+          category = OUTPUT_GENERIC
+          id = ARCHIE_CEMENTATION_EXPONENT
+        case ('ARCHIE_SATURATION_EXPONENT')
+          units = '-'
+          name = "Archie's Saturation Exponent"
+          category = OUTPUT_GENERIC
+          id = ARCHIE_SATURATION_EXPONENT
+        case ('ARCHIE_TORTUOSITY_CONSTANT')
+          units = '-'
+          name = "Archie's Tortuosity Constant"
+          category = OUTPUT_GENERIC
+          id = ARCHIE_TORTUOSITY_CONSTANT
+        case ('MATERIAL_ELECTRICAL_CONDUCTIVITY')
+          units = 'S/m'
+          name = 'Material Electrical Conductivity'
+          category = OUTPUT_GENERIC
+          id = MATERIAL_ELECTRICAL_CONDUCTIVITY
+        case ('SURFACE_ELECTRICAL_CONDUCTIVITY')
+          units = 'S/m'
+          name = 'Surface Electrical Conductivity'
+          category = OUTPUT_GENERIC
+          id = SURFACE_ELECTRICAL_CONDUCTIVITY
+        case ('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+          units = 'S/m'
+          name = 'Waxman-Smits Clay Conductivity'
+          category = OUTPUT_GENERIC
+          id = WAXMAN_SMITS_CLAY_CONDUCTIVITY
+        case default
+          option%io_buffer = 'Unknown keyword "' // trim(word) // &
+            '" in OutputVariableToID(ERT).'
+          call PrintErrMsg(option)
+      end select
     case ('SOLUTE_CONCENTRATION')
       units = 'M'
       name = 'Solute Concentration'
       category = OUTPUT_GENERIC
       id = SOLUTE_CONCENTRATION
-    case ('ARCHIE_CEMENTATION_EXPONENT')
-      units = '-'
-      name = "Archie's Cementation Exponent"
-      category = OUTPUT_GENERIC
-      id = ARCHIE_CEMENTATION_EXPONENT
-    case ('ARCHIE_SATURATION_EXPONENT')
-      units = '-'
-      name = "Archie's Saturation Exponent"
-      category = OUTPUT_GENERIC
-      id = ARCHIE_SATURATION_EXPONENT
-    case ('ARCHIE_TORTUOSITY_CONSTANT')
-      units = '-'
-      name = "Archie's Tortuosity Constant"
-      category = OUTPUT_GENERIC
-      id = ARCHIE_TORTUOSITY_CONSTANT
-    case ('SURFACE_ELECTRICAL_CONDUCTIVITY')
-      units = 'S/m'
-      name = 'Surface Electrical Conductivity'
-      category = OUTPUT_GENERIC
-      id = SURFACE_ELECTRICAL_CONDUCTIVITY
-    case ('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
-      units = 'S/m'
-      name = 'Waxman-Smits Clay Conductivity'
-      category = OUTPUT_GENERIC
-      id = WAXMAN_SMITS_CLAY_CONDUCTIVITY
     case ('PARAMETER')
       units = '?'
       name = 'Parameter'

@@ -45,7 +45,7 @@ module PFLOTRAN_Constants_module
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_OUT_UNIT = 17
   PetscInt, parameter, public :: OUTPUT_UNIT = 18 ! for output data files
-  PetscInt, parameter, public :: IN_UNIT = 19 
+  PetscInt, parameter, public :: IN_UNIT = 19
   ! Before you add file UNITS between IN_UNIT and MAX_IN_UNIT, read
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_IN_UNIT = 27
@@ -90,6 +90,8 @@ module PFLOTRAN_Constants_module
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
 !to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
+  PetscReal, parameter, public :: T273K = 273.15d0 ! 0C in K
+  PetscReal, parameter, public :: T298K = 298.15d0 ! 25C in K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
@@ -145,6 +147,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: FLOW_CLASS = 1
   PetscInt, parameter, public :: TRANSPORT_CLASS = 2
   PetscInt, parameter, public :: GEOPHYSICS_CLASS = 3
+  PetscInt, parameter, public :: GEOMECHANICS_CLASS = 4
 
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
@@ -182,6 +185,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ERT_MODE = 1
   PetscInt, parameter, public :: SIP_MODE = 2
 
+  ! geomechanics modes
+  PetscInt, parameter, public :: LINEAR_ELASTICITY_MODE = 1
+
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
   PetscInt, parameter, public :: DIRICHLET_BC = 1
@@ -216,6 +222,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 30
   PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 31
   PetscInt, parameter, public :: MEMBRANE_BC = 32
+  PetscInt, parameter, public :: AT_SOLUBILITY_BC = 33
 
   PetscInt, parameter, public :: WELL_SS = 100
 
@@ -308,6 +315,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
   PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
   PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
+  PetscInt, parameter, public :: GEOMECH_ERT_COUPLING = 6
 
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3

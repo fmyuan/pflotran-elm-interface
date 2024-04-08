@@ -150,7 +150,7 @@ module Variables_module
 
   PetscInt, parameter, public :: K_ORTHOGONALITY_ERROR   = 124
 
-  PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 125
+  PetscInt, parameter, public :: COMPUTED_ELECTRICAL_CONDUCTIVITY = 125
   PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 126
   PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 127
   PetscInt, parameter, public :: ELECTRICAL_POTENTIAL_DIPOLE = 128
@@ -202,5 +202,8 @@ module Variables_module
   PetscInt, parameter, public :: CO2_PRESSURE = 162
   PetscInt, parameter, public :: LIQUID_SALT_MASS_FRAC = 163
   PetscInt, parameter, public :: TRAPPED_GAS_SATURATION = 164
+
+  PetscInt, parameter, public :: THERMAL_CONDUCTIVITY = 165
+  PetscInt, parameter, public :: MATERIAL_ELECTRICAL_CONDUCTIVITY = 166
 
 end module Variables_module

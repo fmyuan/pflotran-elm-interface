@@ -229,7 +229,7 @@ subroutine ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
 
       call EOSWaterSaturationPressure(temperature, sat_pressure, ierr)
       pco2 = pressure - sat_pressure
-!     call co2_span_wagner(pressure*1.D-6,temperature+273.15D0,dg,dddt,dddp,fg, &
+!     call co2_span_wagner(pressure*1.D-6,temperature+T273K,dg,dddt,dddp,fg, &
 !              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
 !
 !            fg = fg*1D6
@@ -269,7 +269,7 @@ subroutine ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
 
 !     rt_auxvar%gas_pp(iactgas) = &
 !         exp(lnQK+lngamco2)*rt_auxvar%pri_molal(icomp) &
-!         /(IDEAL_GAS_CONSTANT*1.d-2*(temperature+273.15D0)*xphico2)
+!         /(IDEAL_GAS_CONSTANT*1.d-2*(temperature+T273K)*xphico2)
 
 !     This form includes factor Z in pV = ZRT for nonideal gas
       rt_auxvar%gas_pp(iactgas) = &
@@ -321,7 +321,7 @@ function ReactionGasPartialPresToConc(gas_pp,temperature)
   ! mol/m^3 = bar * Pa/bar / (Pa-m^3/mol-K * K)
 
   ReactionGasPartialPresToConc = gas_pp * 1.d5 / &
-                      (IDEAL_GAS_CONSTANT * (temperature+273.15d0))
+                      (IDEAL_GAS_CONSTANT * (temperature+T273K))
 
 end function ReactionGasPartialPresToConc
 

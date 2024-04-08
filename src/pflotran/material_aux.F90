@@ -42,7 +42,7 @@ module Material_Aux_module
   ! "ADD_SOIL_PROPERTY_INDEX_HERE" to see whereall you must update the code.
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
-  PetscInt, public :: electrical_conductivity_index
+  PetscInt, public :: material_elec_conduct_index
   PetscInt, public :: archie_cementation_exp_index
   PetscInt, public :: archie_saturation_exp_index
   PetscInt, public :: archie_tortuosity_index
@@ -166,7 +166,7 @@ function MaterialAuxCreate(option)
   use String_module
   use Variables_module, only : SOIL_COMPRESSIBILITY, &
                                SOIL_REFERENCE_PRESSURE, &
-                               ELECTRICAL_CONDUCTIVITY, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
@@ -201,8 +201,8 @@ function MaterialAuxCreate(option)
     call MaterialAuxInitSoilPropertyMap(aux,soil_reference_pressure_index, &
                                         SOIL_REFERENCE_PRESSURE, &
                                         'Soil Reference Pressure')
-    call MaterialAuxInitSoilPropertyMap(aux,electrical_conductivity_index, &
-                                        ELECTRICAL_CONDUCTIVITY, &
+    call MaterialAuxInitSoilPropertyMap(aux,material_elec_conduct_index, &
+                                        MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                         'Electrical Conductivity')
     call MaterialAuxInitSoilPropertyMap(aux,archie_cementation_exp_index, &
                                         ARCHIE_CEMENTATION_EXPONENT, &
@@ -773,7 +773,7 @@ function MaterialAuxVarGetSoilPropIndex(ivar)
   !
   use Variables_module, only : SOIL_COMPRESSIBILITY, &
                                SOIL_REFERENCE_PRESSURE, &
-                               ELECTRICAL_CONDUCTIVITY, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
@@ -795,8 +795,8 @@ function MaterialAuxVarGetSoilPropIndex(ivar)
       index_ = soil_compressibility_index
     case(SOIL_REFERENCE_PRESSURE)
       index_ = soil_reference_pressure_index
-    case(ELECTRICAL_CONDUCTIVITY)
-      index_ = electrical_conductivity_index
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
+      index_ = material_elec_conduct_index
     case(ARCHIE_CEMENTATION_EXPONENT)
       index_ = archie_cementation_exp_index
     case(ARCHIE_SATURATION_EXPONENT)

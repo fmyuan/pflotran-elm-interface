@@ -1,0 +1,18 @@
+-- GENERIC: Gas Density --
+      Max:   2.3773426215203E+02
+      Min:   2.3773426215203E+02
+     Mean:   2.3773426215203E+02
+        1:   2.3773426215203E+02
+-- DISCRETE: Material ID --
+      Max:         5
+      Min:         5
+     Mean:   5.0000000000000E+00
+        1:         5
+-- SOLUTION: Flow --
+   Time (seconds):   1.7443627000034E-02
+   Time Steps:           38
+   Newton Iterations:           43
+   Linear Solver Iterations:           43
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.0361432369783E+07
+   Residual 2-Norm:   1.9788001291726E-08

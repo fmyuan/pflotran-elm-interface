@@ -42,31 +42,18 @@ END
 
 MATERIAL_PROPERTY MAT1
   ID 1
-  CHARACTERISTIC_CURVES default
   POROSITY 0.25
   TORTUOSITY 1.0
-  PERMEABILITY
-    PERM_ISO 1.0D-12
-  /
 END
 
 MATERIAL_PROPERTY MAT2
   ID 2
-  CHARACTERISTIC_CURVES default
   POROSITY 0.25
   TORTUOSITY 1.0
-  PERMEABILITY
-    PERM_ISO 1.0D-12
-  /
 END
 
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 0.d0
-END
-!=========================== characteristic curves ============================
-
-CHARACTERISTIC_CURVES default
-  DEFAULT
 END
 
 !============================ solver options ==================================

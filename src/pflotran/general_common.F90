@@ -49,7 +49,7 @@ contains
 
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
-                               analytical_derivatives,debug_cell)
+                               analytical_derivatives,soluble_matrix,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -78,6 +78,8 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
+
+  PetscBool :: soluble_matrix
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -118,11 +120,11 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   !                 vol[m^3 bulk] / dt[sec]
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
-  if (general_soluble_matrix) then
+  if (soluble_matrix) then
     ! Res[kmol/sec] = Res[kmol/sec] + (1-por)[m^3 solid/m^3 bulk] * den[kmol/m^3]
     !                 * vol[m^3 bulk] / dt[sec]
     Res(option%salt_id) = Res(option%salt_id) + (1.d0 - porosity) * &
-                            PRECIPITATE_DENSITY * &
+                            material_auxvar%soil_particle_density / FMWNACL * &
                             volume_over_dt
     !
   endif
@@ -2013,10 +2015,10 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
       pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
                             gen_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dTdn = ddiffusion_coef_dTup
       ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
       ddiffusion_coef_dpdn = ddiffusion_coef_dpup
@@ -3389,10 +3391,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! liquid diffusion always exists as the internal cell has a liquid phase,
   ! but gas phase diffusion only occurs if the internal cell has a gas
   ! phase.
-  
+
   ! This checks for a dirichlet condition on either solute
   if (general_salt) then
     if (ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==DIRICHLET_BC .or. &
+        ibndtype(GENERAL_LIQUID_STATE_S_MOLE_DOF)==AT_SOLUBILITY_BC .or. &
         ibndtype(GENERAL_LIQUID_STATE_X_MOLE_DOF)==DIRICHLET_BC) then
       dirichlet_solute = PETSC_TRUE
     endif
@@ -3708,10 +3711,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
       pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
                             gen_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
+      tempreal = (temp_ave+T273K)/T273K
       diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
                              ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * T273K)
       ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
     else
       diffusion_scale = 1.d0
@@ -3977,7 +3980,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           material_auxvar,ss_flow_vol_flux, &
                           characteristic_curves, natural_id, scale,Res,J, &
                           analytical_derivatives,aux_var_compute_only, &
-                          debug_cell)
+                          soluble_matrix,soil_heat_capacity,debug_cell)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4021,6 +4024,9 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: cell_pressure
   PetscReal :: xxss(option%nflowdof)
   PetscInt :: lid, gid, pid, apid
+  PetscReal :: soil_heat_capacity
+
+  PetscBool :: soluble_matrix
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -4042,12 +4048,12 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   xxss(2) = gen_auxvar_ss%sat(gid)
   xxss(3) = gen_auxvar_ss%temp
   if (general_salt) then
-    if (general_soluble_matrix) then
+    if (soluble_matrix) then
       xxss(4) = gen_auxvar_ss%effective_porosity
     else
       xxss(4) = gen_auxvar_ss%sat(pid)
     endif
-  endif  
+  endif
 
   cell_pressure = maxval(gen_auxvar%pres(option%liquid_phase: &
                          option%gas_phase))
@@ -4078,6 +4084,40 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar%pres(apid)
         endif
+      case(LP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(air_comp_id, wat_comp_id)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
+      case(LGP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%sat(gid)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
+      case(GP_STATE)
+        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+          xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
+        else
+          xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(wat_comp_id,air_comp_id)
+        endif
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
     end select
     global_auxvar_ss%istate = global_auxvar%istate
   else ! If injecting, use primary variables from user-supplied conditions
@@ -4103,18 +4143,47 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         else
           xxss(THREE_INTEGER) = gen_auxvar_ss%pres(apid)
         endif
-        if (general_salt .and. .not. general_soluble_matrix) then
+        if (general_salt) then
           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. general_soluble_matrix) then
-          xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        endif
+      case(LP_STATE)
+        xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(air_comp_id, wat_comp_id)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
         endif
       case(LGP_STATE)
-        if (general_salt .and. .not. general_soluble_matrix) then
-           xxss(FOUR_INTEGER) = gen_auxvar_ss%xmol(salt_comp_id,wat_comp_id)
-        elseif (general_salt .and. general_soluble_matrix) then
-           xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+        xxss(TWO_INTEGER) = gen_auxvar_ss%sat(gid)
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
+        endif
+      case(GP_STATE)
+        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+          xxss(TWO_INTEGER) = gen_auxvar_ss%pres(apid)
+        else
+          xxss(TWO_INTEGER) = gen_auxvar_ss%xmol(wat_comp_id,air_comp_id)
+        endif
+        xxss(THREE_INTEGER) = gen_auxvar_ss%temp
+        if (general_salt) then
+          if (soluble_matrix) then
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%effective_porosity
+          else
+            xxss(FOUR_INTEGER) = gen_auxvar_ss%sat(pid)
+          endif
         endif
     end select
+    if (soluble_matrix) then
+      global_auxvar_ss%istate = global_auxvar%istate
+    endif
   endif
 
   option%iflag = GENERAL_UPDATE_FOR_SS
@@ -4127,7 +4196,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   elseif (general_salt) then
     call GeneralAuxVarCompute4(xxss,gen_auxvar_ss, global_auxvar_ss, &
                               material_auxvar, characteristic_curves, &
-                              natural_id,option)
+                              natural_id,soluble_matrix,option)
   endif
   if (aux_var_compute_only) return
 
@@ -4403,7 +4472,17 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
     end select
     ss_flow_vol_flux(salt_comp_id) = qsrc_mol / &
                                     gen_auxvar_ss%den(salt_comp_id)
-    Res(salt_comp_id) = qsrc_mol
+    if (general_salt_src_flag) then
+      if (gen_auxvar_ss%effective_porosity <= general_min_por_srcsink) then
+        Res(salt_comp_id) = 0.d0
+      elseif (maxval(gen_auxvar_ss%pres(:)) > general_max_pres_srcsink) then
+        Res(salt_comp_id) = 0.d0
+      else
+        Res(salt_comp_id) = qsrc_mol
+      endif
+    else
+      Res(salt_comp_id) = qsrc_mol
+    endif
     ! No analytical derivative for the salt phase
     if (analytical_derivatives) then
       option%io_buffer = 'Analytical derivatives not implemented in general mode with 4 dof.'
@@ -4467,19 +4546,15 @@ endif
       endif
       if (general_salt) then
         if (dabs(qsrc(salt_comp_id)) > 1.d-40) then
-           ! this is pure air, we use the enthalpy of air, NOT the air/water
-           ! mixture in gas
-           ! air enthalpy is only a function of temperature
-           if (associated(gen_auxvar_ss%d)) then
-              ha_dp = gen_auxvar_ss%d%Ha_pg
-              ha_dT = gen_auxvar_ss%d%Ha_T
-           endif
-
-           internal_energy = gen_auxvar_ss%u(salt_comp_id)
-           enthalpy = gen_auxvar_ss%h(salt_comp_id)
-           
-           Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * enthalpy
-           
+          if (soluble_matrix) then
+                             !kmol/sec * kg/kmol * MJ/kg-K * T[C] = MJ/sec
+            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * FMWNACL * &
+              soil_heat_capacity * gen_auxvar_ss%temp
+          else
+            internal_energy = gen_auxvar_ss%u(salt_comp_id)
+            enthalpy = gen_auxvar_ss%h(salt_comp_id)
+            Res(energy_id) = Res(energy_id) + Res(salt_comp_id) * enthalpy
+          endif
         endif
       endif
     endif
@@ -4492,7 +4567,7 @@ end subroutine GeneralAuxVarComputeAndSrcSink
 ! ************************************************************************** !
 
 subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
-                                  soil_heat_capacity,option,J)
+                                  soil_heat_capacity,option,soluble_matrix,J)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -4503,6 +4578,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
 
   use Option_module
   use Material_Aux_module
+  use Material_module
 
   implicit none
 
@@ -4514,29 +4590,51 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
+  PetscBool :: soluble_matrix
 
 !geh:print *, 'GeneralAccumDerivative'
-
-  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
-                           material_auxvar,soil_heat_capacity,option, &
-                           res,jac,general_analytical_derivatives, &
-                           PETSC_FALSE)
+  if (.not. general_central_diff_jacobian) then
+    call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
+                             material_auxvar,soil_heat_capacity,option, &
+                             res,jac,general_analytical_derivatives, &
+                             soluble_matrix,PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     J = jac
   else
-    do idof = 1, option%nflowdof
-      call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
-                               material_auxvar,soil_heat_capacity,option, &
-                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
-      enddo !irow
-    enddo ! idof
+        call GeneralAccumulation(gen_auxvar(idof+option%nflowdof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert_minus,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                          gen_auxvar(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                                 material_auxvar,soil_heat_capacity,option, &
+                                 res_pert,jac_pert,PETSC_FALSE,soluble_matrix,&
+                                 PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
   endif
 
   if (general_isothermal) then
@@ -4593,6 +4691,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
 
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
 
   Jup = 0.d0
@@ -4600,70 +4699,147 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
 
 !geh:print *, 'GeneralFluxDerivative'
   option%iflag = -2
-  call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                   material_auxvar_up, &
-                   thermal_cc_up, &
-                   gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                   material_auxvar_dn, &
-                   thermal_cc_dn, &
-                   area,dist,upwind_direction_, &
-                   general_parameter, &
-                   option,v_darcy,res,Janal_up,Janal_dn,&
-                   general_analytical_derivatives, &
-                   PETSC_FALSE, & ! update the upwind direction
-                   ! avoid double counting upwind direction flip
-                   PETSC_FALSE, & ! count upwind direction flip
-                   PETSC_FALSE)
+
+  if (.not. general_central_diff_jacobian) then
+    call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                     material_auxvar_up, &
+                     thermal_cc_up, &
+                     gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                     material_auxvar_dn, &
+                     thermal_cc_dn, &
+                     area,dist,upwind_direction_, &
+                     general_parameter, &
+                     option,v_darcy,res,Janal_up,Janal_dn,&
+                     general_analytical_derivatives, &
+                     PETSC_FALSE, & ! update the upwind direction
+                     ! avoid double counting upwind direction flip
+                     PETSC_FALSE, & ! count upwind direction flip
+                     PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jup = Janal_up
     Jdn = Janal_dn
   else
     ! upgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
-                       material_auxvar_up, &
-                       thermal_cc_up, &
-                       gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       thermal_cc_dn, &
-                       area,dist,upwind_direction_, &
-                       general_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE, & ! analytical derivatives
-                       PETSC_FALSE, & ! update the upwind direction
-                       count_upwind_direction_flip, &
-                       PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+       do idof = 1, option%nflowdof
+         call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
+         call GeneralFlux(gen_auxvar_up(idof+option%nflowdof),&
+                          global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+         do irow = 1, option%nflowdof
+           Jup(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/(2.d0 * &
+                            gen_auxvar_up(idof)%pert)
+         enddo !irow
+      enddo !idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
+                         material_auxvar_up, &
+                         thermal_cc_up, &
+                         gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_cc_dn, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
+                         option,v_darcy,res_pert,Jdummy,Jdummy, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
 
-  !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
+
+    !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
 
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                       material_auxvar_up, &
-                       thermal_cc_up, &
-                       gen_auxvar_dn(idof),global_auxvar_dn, &
-                       material_auxvar_dn, &
-                       thermal_cc_dn, &
-                       area,dist,upwind_direction_, &
-                       general_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE, & ! analytical derivatives
-                       PETSC_FALSE, & ! update the upwind direction
-                       count_upwind_direction_flip, &
-                       PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+       do idof = 1, option%nflowdof
+         call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(idof),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+
+         call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),&
+                          global_auxvar_up, &
+                          material_auxvar_up, &
+                          thermal_cc_up, &
+                          gen_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                          material_auxvar_dn, &
+                          thermal_cc_dn, &
+                          area,dist,upwind_direction_, &
+                          general_parameter, &
+                          option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                          PETSC_FALSE, & ! analytical derivatives
+                          PETSC_FALSE, & ! update the upwind direction
+                          count_upwind_direction_flip, &
+                          PETSC_FALSE)
+         do irow = 1, option%nflowdof
+           Jdn(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/(2.d0 * &
+                            gen_auxvar_up(idof)%pert)
+         enddo !irow
+       enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                         material_auxvar_up, &
+                         thermal_cc_up, &
+                         gen_auxvar_dn(idof),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_cc_dn, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
+                         option,v_darcy,res_pert,Jdummy,Jdummy, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
 
 
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
-  !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
+    !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif ! forward diff
   endif
 
   if (general_isothermal) then
@@ -4724,6 +4900,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
 
@@ -4731,43 +4908,82 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 !geh:print *, 'GeneralBCFluxDerivative'
 
   option%iflag = -2
-  call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                     gen_auxvar_up,global_auxvar_up, &
-                     gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     thermal_cc_dn, &
-                     area,dist,upwind_direction_, &
-                     general_parameter, &
-                     option,v_darcy,res,Jdum, &
-                     general_analytical_derivatives, &
-                     PETSC_FALSE, & ! update the upwind direction
-                     ! avoid double counting upwind direction flip
-                     PETSC_FALSE, & ! count upwind direction flip
-                     PETSC_FALSE)
+
+  if (.not. general_central_diff_jacobian) then
+    call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                       gen_auxvar_up,global_auxvar_up, &
+                       gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_cc_dn, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
+                       option,v_darcy,res,Jdum, &
+                       general_analytical_derivatives, &
+                       PETSC_FALSE, & ! update the upwind direction
+                       ! avoid double counting upwind direction flip
+                       PETSC_FALSE, & ! count upwind direction flip
+                       PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jdn = Jdum
   else
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                         gen_auxvar_up,global_auxvar_up, &
-                         gen_auxvar_dn(idof),global_auxvar_dn, &
-                         material_auxvar_dn, &
-                         thermal_cc_dn, &
-                         area,dist,upwind_direction_, &
-                         general_parameter, &
-                         option,v_darcy,res_pert,Jdum, &
-                         PETSC_FALSE, & ! analytical derivatives
-                         PETSC_FALSE, & ! update the upwind direction
-                         count_upwind_direction_flip, &
-                         PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
+
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert_minus,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
 
 
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                            gen_auxvar_dn(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                           gen_auxvar_up,global_auxvar_up, &
+                           gen_auxvar_dn(idof),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           thermal_cc_dn, &
+                           area,dist,upwind_direction_, &
+                           general_parameter, &
+                           option,v_darcy,res_pert,Jdum, &
+                           PETSC_FALSE, & ! analytical derivatives
+                           PETSC_FALSE, & ! update the upwind direction
+                           count_upwind_direction_flip, &
+                           PETSC_FALSE)
+
+
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif !forward difference
   endif
 
   if (general_isothermal) then
@@ -4788,7 +5004,8 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvar,global_auxvar, &
                                     global_auxvar_ss, &
                                     characteristic_curves,natural_id, &
-                                    material_auxvar,scale,Jac)
+                                    material_auxvar,scale,soluble_matrix, &
+                                    soil_heat_capacity, Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -4816,9 +5033,12 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
+  PetscBool :: soluble_matrix
+  PetscReal :: soil_heat_capacity
 
   qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type = source_sink%flow_condition%general%rate%itype
@@ -4827,31 +5047,58 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
 
   ! Index 0 contains user-specified conditions
   ! Index 1 contains auxvars to be used in src/sink calculations
-  call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                      gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
-                      global_auxvar, global_auxvar_ss, &
-                      material_auxvar, dummy_real, characteristic_curves, &
-                      natural_id, scale,res,Jdum, &
-                      general_analytical_derivatives, PETSC_FALSE, PETSC_FALSE)
+  if (.not. general_central_diff_jacobian) then
+    call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                        gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
+                        global_auxvar, global_auxvar_ss, &
+                        material_auxvar, dummy_real, characteristic_curves, &
+                        natural_id, scale,res,Jdum, &
+                        general_analytical_derivatives, PETSC_FALSE, soluble_matrix, &
+                        soil_heat_capacity, PETSC_FALSE)
+  endif
 
   if (general_analytical_derivatives) then
     Jac = Jdum
   else
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
-                             gen_auxvar_ss(ONE_INTEGER), option)
-      call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
-                          global_auxvar,global_auxvar_ss, &
-                          material_auxvar, dummy_real,characteristic_curves, &
-                          natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                          PETSC_FALSE, PETSC_FALSE)
+    if (general_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
+                               gen_auxvar_ss(ONE_INTEGER), option)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real, characteristic_curves, &
+                            natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof+option%nflowdof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real, characteristic_curves, &
+                            natural_id, scale, res_pert_minus,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
-        Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert(irow)-res_pert_minus(irow))/ (2.d0 * &
+                            gen_auxvar(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
+                               gen_auxvar_ss(ONE_INTEGER), option)
+        call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                            gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
+                            global_auxvar,global_auxvar_ss, &
+                            material_auxvar, dummy_real,characteristic_curves, &
+                            natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
+                            PETSC_FALSE, soluble_matrix, soil_heat_capacity, PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif !forward diff
   endif
 
   if (general_isothermal) then

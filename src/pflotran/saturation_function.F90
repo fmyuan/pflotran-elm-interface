@@ -1028,7 +1028,7 @@ implicit none
   PetscReal :: pth, dSe_dpc_at_pth
   PetscReal, parameter :: den_ice = 9.167d2 !in kg/m3 at 273.15K
   PetscReal, parameter :: interfacial_tensions_ratio = 2.33
-  PetscReal, parameter :: T_0 = 273.15d0 !in K
+  PetscReal, parameter :: T_0 = T273K !in K
 
   dsl_pl = 0.d0
   dsl_temp = 0.d0
@@ -1225,7 +1225,7 @@ subroutine CalculateImplicitIceFunc(alpha,lambda,Pcgl,T,s_i,func_val,dfunc_val)
   PetscReal :: sat_PC, dsat_dpc, dfunc_val
   PetscReal, parameter :: beta = 2.33          ! dimensionless -- ratio of surf. tens
   PetscReal, parameter :: rho_i = 9.167d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
 
   if (T >= 0.d0) then   ! T is in C
     temp_term = 0.d0
@@ -1383,7 +1383,7 @@ subroutine CalcPhasePartitionIceDeriv(alpha,lambda,Pcgl,T,s_g,s_i,s_l, &
   PetscReal :: L, M, N
   PetscReal, parameter :: beta = 2.33          ! dimensionless -- ratio of surf. tens
   PetscReal, parameter :: rho_i = 9.167d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
 
 #if 0
   PetscReal :: dsi_dpl_num, dsi_dT_num
@@ -1626,7 +1626,7 @@ implicit none
   PetscReal :: S, dS, Sinv, dSinv
   PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
   PetscReal :: T_f, theta, X, dS_dX
 
@@ -1760,7 +1760,7 @@ implicit none
   PetscReal :: S, dS, Sinv, dSinv
   PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
   PetscReal :: T_f, theta, X, dS_dX
 
@@ -1920,7 +1920,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
   !PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: beta = 1             ! dimensionless [assumed as 1.d0]
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
 
   T_star_th = 5.d-1 ! [K]
@@ -2432,7 +2432,7 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
         capillary_pressure = (pc_alpha_neg_lambda**(-1.d0/lambda))/alpha
       endif
     case(LEVERETT)
-      tk = 273.15d0 + temp
+      tk = T273K + temp
       Se = (saturation-Sr)/(1.d0-Sr)
       os = 1.d0-Se
       f = os*(1.417d0 + os*(-2.120d0 + 1.263d0*os))

@@ -2814,8 +2814,6 @@ subroutine PMWFSetup(this)
              cur_waste_form%mechanism%vitality_rate_stdev, &
              cur_waste_form%canister_vitality_rate, &
              cur_waste_form%mechanism%seed)
-        write(*,*) 'cur_waste_form%canister_vitality_rate = '
-        write(*,*) cur_waste_form%canister_vitality_rate
         if (cur_waste_form%canister_vitality_rate > &
             cur_waste_form%mechanism%vitality_rate_trunc) then
           cur_waste_form%canister_vitality_rate = &
@@ -3188,6 +3186,8 @@ end subroutine PMWFSetup
     ! set to global petsc index
     species_indices_in_residual(:) = species_indices_in_residual(:) + &
       this%realization%patch%grid%global_offset*this%option%ntrandof
+  else
+    allocate(species_indices_in_residual(0))
   endif
   call ISCreateGeneral(this%option%mycomm,size_of_vec, &
                        species_indices_in_residual,PETSC_COPY_VALUES,is, &
@@ -3321,7 +3321,7 @@ subroutine PMWFInitializeTimestep(this)
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   field => this%realization%field
-  option => this%option
+  option => this%realization%option
   grid => this%realization%patch%grid
   dt = option%tran_dt
   ! zero entries from previous time step
@@ -3393,7 +3393,7 @@ subroutine PMWFInitializeTimestep(this)
         enddo
         call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                              avg_temp_global)
-        avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
+        avg_temp_global = avg_temp_global+T273K   ! Kelvin
         cur_waste_form%eff_canister_vit_rate = &
           cur_waste_form%canister_vitality_rate * &
           exp( cwfm%canister_material_constant * ( (1.d0/333.15d0) - &
@@ -3414,18 +3414,16 @@ subroutine PMWFInitializeTimestep(this)
        cur_waste_form%breached) then
 
         ! Get average saturation
-        if (.not. Initialized(avg_sat_global)) then
-          avg_sat_local = 0.d0
-          do i = 1,cur_waste_form%region%num_cells
-            local_id = cur_waste_form%region%cell_ids(i)
-            ghosted_id = grid%nL2G(local_id)
-            avg_sat_local = avg_sat_local + &
-                            global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
-                            cur_waste_form%scaling_factor(i)
-          enddo
-          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sat_local, &
-                               avg_sat_global)
-        endif
+        avg_sat_local = 0.d0
+        do i = 1,cur_waste_form%region%num_cells
+          local_id = cur_waste_form%region%cell_ids(i)
+          ghosted_id = grid%nL2G(local_id)
+          avg_sat_local = avg_sat_local + &
+                          global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
+                          cur_waste_form%scaling_factor(i)
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sat_local, &
+                             avg_sat_global)
 
         if (avg_sat_global >= &
             cur_waste_form%spacer_mechanism%threshold_sat) then
@@ -3436,18 +3434,16 @@ subroutine PMWFInitializeTimestep(this)
         endif
 
         ! Get average temperature
-        if ( .not. Initialized(avg_temp_global)) then
-          avg_temp_local = 0.d0
-          do i = 1,cur_waste_form%region%num_cells
-            local_id = cur_waste_form%region%cell_ids(i)
-            ghosted_id = grid%nL2G(local_id)
-            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
-                             cur_waste_form%scaling_factor(i)
-          enddo
-          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
-                               avg_temp_global)
-          avg_temp_global = avg_temp_global + 273.15d0   ! Kelvin
-        endif
+        avg_temp_local = 0.d0
+        do i = 1,cur_waste_form%region%num_cells
+          local_id = cur_waste_form%region%cell_ids(i)
+          ghosted_id = grid%nL2G(local_id)
+          avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
+                           cur_waste_form%scaling_factor(i)
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                             avg_temp_global)
+        avg_temp_global = avg_temp_global + T273K   ! Kelvin
 
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
                                                        avg_sat_global, &
@@ -3972,6 +3968,7 @@ subroutine PMWFSolve(this,time,ierr)
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
+  option => this%realization%option
 
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -4282,7 +4279,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   enddo
   call CalcParallelSUM(pm%option,waste_form%rank_list,avg_temp_local, &
                        avg_temp_global)
-  avg_temp_global = avg_temp_global+273.15d0   ! Kelvin
+  avg_temp_global = avg_temp_global+T273K   ! Kelvin
 
   if (this%use_pH) then  ! pH ------------------------------------------------
     if (this%h_ion_id > 0) then   ! primary species
@@ -8590,7 +8587,7 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
   this%dose_rate = dose_rate(yTme,this%decay_time,this%burnup)
 
   ! features
-  f(1) = current_temp_C + 273.15d0
+  f(1) = current_temp_C + T273K
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(2)) ! Env_O2
   f(4) = log10(this%concentration(3)) ! Env_Fe_2p
@@ -8821,7 +8818,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   ! store for output
   this%dose_rate = dose_rate(yTme,decay_time,burnup)
 
-  f(1) = log10(current_temp_C + 273.15d0)
+  f(1) = log10(current_temp_C + T273K)
   f(2) = log10(this%concentration(1)) ! Env_CO3_2n
   f(3) = log10(this%concentration(4)) ! Env_H2
   f(4) = log10(this%dose_rate)

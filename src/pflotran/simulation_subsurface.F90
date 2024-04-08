@@ -169,6 +169,7 @@ subroutine SimSubsurfInitializeRun(this)
   use Option_module
   use Option_Checkpoint_module
   use Output_module
+  use Parameter_module
   use hdf5
 
   implicit none
@@ -222,6 +223,7 @@ subroutine SimSubsurfInitializeRun(this)
   ! the requested process models; this routine should catch such issues.
   call InitSubsurfProcessOutputVars(this%realization)
   call SimSubsurfForbiddenCombinations(this)
+  call ParameterQualityCheck(this%realization%parameter_list,this%option)
 
   if (this%option%restart_flag) then
     if (index(this%option%restart_filename,'.chk') > 0) then
@@ -504,13 +506,7 @@ subroutine SimSubsurfJumpStart(this)
   if (associated(tran_timestepper)) &
     tran_timestepper%start_time_step = tran_timestepper%steps + 1
 
-  if (this%realization%debug%print_regions) then
-    call OutputPrintRegions(this%realization)
-    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
-        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-      call OutputPrintRegionsH5(this%realization)
-    endif
-  endif
+  call OutputPrintRegions(this%realization)
 
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)

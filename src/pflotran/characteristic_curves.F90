@@ -129,6 +129,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFVGCreate()
           case('BROOKS_COREY')
             this%saturation_function => SFBCCreate()
+          case('BROOKS_COREY_SPE11')
+            this%saturation_function => SFBCSPE11Create()
           case('LINEAR')
             this%saturation_function => SFLinearCreate()
           case('MODIFIED_KOSUGI')
@@ -432,6 +434,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       error_string = trim(error_string) // 'VAN_GENUCHTEN'
     class is(sat_func_BC_type)
       error_string = trim(error_string) // 'BROOKS_COREY'
+    class is (sat_func_BC_SPE11_type)
+    error_string = trim(error_string) // 'BROOKS_COREY_SPE11'
     class is(sat_func_Linear_type)
       error_string = trim(error_string) // 'LINEAR'
     class is(sat_func_mK_type)
@@ -540,6 +544,19 @@ function SaturationFunctionRead(saturation_function,input,option) &
         end select
     !------------------------------------------
       class is(sat_func_BC_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,sf%lambda)
+            call InputErrorMsg(input,option,keyword,error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,keyword,error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+                   'Brooks-Corey saturation function',option)
+        end select
+    !------------------------------------------
+        class is(sat_func_BC_SPE11_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,sf%lambda)
@@ -967,6 +984,12 @@ function SaturationFunctionRead(saturation_function,input,option) &
       option%io_buffer = 'CANNOT specify ALPHA without IGNORE_PERMEABILITY &
                          &option'
     end if
+  end if
+
+  ! Only KPC 1 and 2 are supported in the original WIPP/BRAGFLO implementation
+  ! If KPC other than 1 or 2 is declared, use loop_invariant instead
+  if (wipp_kpc > 2) then
+    loop_invariant = PETSC_TRUE
   end if
 
   if (loop_invariant) then

@@ -106,7 +106,6 @@ MATERIAL_PROPERTY diffusiveMaterial
     POROSITY 1d0
     TORTUOSITY 1.d0
     LONGITUDINAL_DISPERSIVITY 0d0
-    CHARACTERISTIC_CURVES default
 /
 
 MATERIAL_PROPERTY sourceMaterial
@@ -114,13 +113,7 @@ MATERIAL_PROPERTY sourceMaterial
     POROSITY 50000d0
     TORTUOSITY 1.d0
     LONGITUDINAL_DISPERSIVITY 0d0
-    CHARACTERISTIC_CURVES default
 /
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
-END
 
 #=========================== output options ===================================
 OUTPUT

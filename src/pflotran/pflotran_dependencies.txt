@@ -165,6 +165,7 @@ condition_control.o : \
   grid.o \
   hdf5.o \
   hydrate_aux.o \
+  material.o \
   material_aux.o \
   nw_transport.o \
   nw_transport_aux.o \
@@ -441,9 +442,11 @@ factory_geomechanics.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
+  pm_ert.o \
   pm_geomechanics_force.o \
   pmc_base.o \
   pmc_geomechanics.o \
+  realization_base.o \
   realization_subsurface.o \
   simulation_aux.o \
   simulation_geomechanics.o \
@@ -730,6 +733,7 @@ general_common.o : \
   eos_water.o \
   general_aux.o \
   global_aux.o \
+  material.o \
   material_aux.o \
   option.o \
   pflotran_constants.o \
@@ -763,6 +767,7 @@ geomech_grid.o : \
   logging.o \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o
 geomech_grid_aux.o : \
   gauss.o \
@@ -974,6 +979,7 @@ grid_structured.o : \
   input_aux.o \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o
 grid_unstructured.o : \
   connection.o \
@@ -1888,6 +1894,7 @@ pm_ert.o : \
   inversion_parameter.o \
   material_aux.o \
   option.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
@@ -1941,9 +1948,13 @@ pm_geomechanics_force.o : \
   geomechanics_realization.o \
   global.o \
   grid.o \
+  input_aux.o \
   option.o \
   pflotran_constants.o \
-  pm_base.o
+  pm_base.o \
+  realization_subsurface.o \
+  string.o \
+  utility.o
 pm_hydrate.o : \
   characteristic_curves.o \
   characteristic_curves_common.o \
@@ -2486,6 +2497,7 @@ pmc_general.o : \
   timestepper_base.o
 pmc_geomechanics.o : \
   convergence.o \
+  discretization.o \
   geomechanics_discretization.o \
   geomechanics_force.o \
   geomechanics_realization.o \
@@ -2493,6 +2505,7 @@ pmc_geomechanics.o : \
   grid.o \
   option.o \
   output_geomechanics.o \
+  parameter.o \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
@@ -3448,6 +3461,7 @@ simulation_subsurface.o : \
   output.o \
   output_aux.o \
   output_ekg.o \
+  parameter.o \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
@@ -3710,7 +3724,8 @@ transport.o : \
   matrix_block_aux.o \
   option.o \
   pflotran_constants.o \
-  reactive_transport_aux.o
+  reactive_transport_aux.o \
+  utility.o
 transport_constraint.o : \
   option.o \
   pflotran_constants.o \

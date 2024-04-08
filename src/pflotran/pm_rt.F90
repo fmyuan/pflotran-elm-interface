@@ -324,6 +324,8 @@ subroutine PMRTSetup(this)
 
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: i
+  PetscInt :: iphase
+  PetscBool :: lflag
   PetscReal :: val
   PetscErrorCode :: ierr
 
@@ -339,6 +341,23 @@ subroutine PMRTSetup(this)
     this%temperature_dependent_diffusion
   rt_parameter%millington_quirk_tortuosity = &
     this%millington_quirk_tortuosity
+
+  if (rt_parameter%temperature_dependent_diffusion) then
+    lflag = PETSC_FALSE
+    do iphase = 1, rt_parameter%nphase
+      do i = 1, rt_parameter%naqcomp
+        if (Uninitialized(rt_parameter% &
+                            diffusion_activation_energy(i,iphase))) then
+          lflag = PETSC_TRUE
+        endif
+      enddo
+    enddo
+    if (lflag) then
+      this%option%io_buffer = 'A DIFFUSION_ACTIVATION_ENERGY must be &
+        &assigned to each fluid phase for TEMPERATURE_DEPENDENT_DIFFUSION.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
 
 #ifndef SIMPLIFY
   ! set up communicator

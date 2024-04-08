@@ -16,6 +16,7 @@ module SCO2_module
             SCO2UpdateAuxVars, &
             SCO2UpdateFixedAccum, &
             SCO2ComputeMassBalance, &
+            SCO2ComputeComponentMassBalance, &
             SCO2Residual, &
             SCO2Jacobian, &
             SCO2SetPlotVariables, &
@@ -188,10 +189,6 @@ subroutine SCO2Setup(realization)
   endif
   patch%aux%SCO2%num_aux_ss = sum_connection
 
-  ! if (sco2_isothermal ) then
-  !   call MatrixZeroingInitRowZeroing(patch%aux%SCO2%matrix_zeroing, &
-  !                                    grid%nlmax)
-  ! endif
 
   ! initialize parameters
   ! MAN: Need to check this holds diffusion coefficient for salt.
@@ -338,6 +335,16 @@ subroutine SCO2UpdateSolution(realization)
 
     endif
 
+    global_auxvars(ghosted_id)%sat(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                sat(1:option%nphase)
+    global_auxvars(ghosted_id)%den(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                den(1:option%nphase)
+    global_auxvars(ghosted_id)%den_kg(1:option%nphase) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                                den_kg(1:option%nphase)
+
   enddo
 
   sco2_ts_count = sco2_ts_count + 1
@@ -467,12 +474,83 @@ subroutine SCO2ComputeMassBalance(realization,mass_balance,mass_trapped)
         material_auxvars(ghosted_id)%volume
     mass_trapped(co2_id) = mass_trapped(co2_id) + &
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid)* &
-        sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,tgid) * &
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,gid) * &
         vol_phase
   enddo
 
 end subroutine SCO2ComputeMassBalance
 
+! ************************************************************************** !
+
+subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
+                                           num_phase,sum_kg,cell_ids)
+  !
+  ! Author: Michael Nole
+  ! Date: 02/29/2024
+  !
+
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Field_module
+  use Grid_module
+  use Material_Aux_module
+
+
+  class(realization_subsurface_type) :: realization
+  PetscInt :: num_cells
+  PetscInt :: num_comp
+  PetscInt :: num_phase
+  PetscReal :: sum_kg(num_comp,num_phase)
+  PetscInt, pointer :: cell_ids(:)
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscInt :: icomp, iphase, k
+  PetscReal :: porosity, volume
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  field => realization%field
+
+  sco2_auxvars => patch%aux%SCO2%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  sum_kg = 0.d0
+
+  do k=1, num_cells
+    local_id = cell_ids(k)
+    ghosted_id = grid%nL2G(local_id)
+
+    if (patch%imat(ghosted_id) <= 0) cycle
+    volume = material_auxvars(ghosted_id)%volume
+    
+
+    do iphase = 1,num_phase
+      do icomp = 1,num_comp
+        if (iphase /=3) then
+          porosity = sco2_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+        else
+          porosity = material_auxvars(ghosted_id)%porosity
+        endif
+        sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
+                    porosity * volume
+      enddo
+    enddo
+  enddo
+
+end subroutine SCO2ComputeComponentMassBalance
 ! ************************************************************************** !
 
 subroutine SCO2ZeroMassBalanceDelta(realization)
@@ -1372,15 +1450,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
-  ! if (sco2_isothermal) then
-  !   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  !   ! zero energy residual
-  !   do local_id = 1, grid%nlmax
-  !     r_p((local_id-1)*option%nflowdof+SCO2_ENERGY_EQUATION_INDEX) =  0.d0
-  !   enddo
-  !   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  ! endif
-
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Sresidual','', &
                             sco2_ts_count,sco2_ts_cut_count, &
@@ -1722,19 +1791,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
-
-  ! if (sco2_isothermal) then
-  !   qsrc = 1.d0 ! solely a temporary variable in this conditional
-  !   zeros => patch%aux%SCO2%matrix_zeroing%row_zeroing_array
-  !   ! zero energy residual
-  !   do local_id = 1, grid%nlmax
-  !     ghosted_id = grid%nL2G(local_id)
-  !     zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
-  !                       SCO2_ENERGY_EQUATION_INDEX - 1 ! zero-based
-  !   enddo
-  !   call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
-  !                         PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
-  ! endif
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Sjacobian','', &

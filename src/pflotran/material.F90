@@ -41,6 +41,7 @@ module Material_module
     PetscReal :: tortuosity
     PetscReal :: tortuosity_anisotropic(3)
     PetscBool :: tortuosity_function_of_porosity
+    PetscBool :: soluble
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
     PetscInt :: thermal_conductivity_function_id
@@ -55,8 +56,8 @@ module Material_module
     PetscReal :: tensorial_rel_perm_exponent(3)
 
     ! Geophysics properties
-    PetscReal :: electrical_conductivity
-    class(dataset_base_type), pointer :: electrical_conductivity_dataset
+    PetscReal :: material_electrical_conductivity
+    class(dataset_base_type), pointer :: material_elec_cond_dataset
     PetscReal :: archie_cementation_exponent
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
@@ -201,6 +202,7 @@ function MaterialPropertyCreate(option)
 !  material_property%porosity_dataset_name = ''
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
+  material_property%soluble = PETSC_FALSE
   material_property%tortuosity_function_of_porosity = PETSC_FALSE
   material_property%tortuosity = 1.d0
   material_property%tortuosity_anisotropic = UNINITIALIZED_DOUBLE
@@ -218,8 +220,8 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
   material_property%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
-  material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
-  nullify(material_property%electrical_conductivity_dataset)
+  material_property%material_electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%material_elec_cond_dataset)
   material_property%archie_cementation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_saturation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_tortuosity_constant = UNINITIALIZED_DOUBLE
@@ -513,6 +515,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadDouble(input,option, &
                              material_property%tortuosity_func_porosity_pwr)
         call InputErrorMsg(input,option,keyword,error_str)
+      case('SOLUBLE')
+        material_property%soluble = PETSC_TRUE
       case('WIPP-FRACTURE')
         ! Calculates permeability and porosity induced by fracture,
         ! which is described by pressure within certain range of pressure
@@ -967,28 +971,40 @@ subroutine MaterialPropertyRead(material_property,input,option)
         enddo
         call InputPopBlock(input,option)
       case('ELECTRICAL_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 GEOPHYSICS_CLASS)
         call DatasetReadDoubleOrDataset(input, &
-                      material_property%electrical_conductivity, &
-                      material_property%electrical_conductivity_dataset, &
+                      material_property%material_electrical_conductivity, &
+                      material_property%material_elec_cond_dataset, &
                       keyword,error_str,option)
       case('ARCHIE_CEMENTATION_EXPONENT')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%archie_cementation_exponent)
         call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_SATURATION_EXPONENT')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%archie_saturation_exponent)
         call InputErrorMsg(input,option,keyword,error_str)
       case('ARCHIE_TORTUOSITY_CONSTANT')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%archie_tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_str)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call DatasetReadDoubleOrDataset(input, &
                       material_property%surface_electrical_conductivity, &
                       material_property%surf_elec_cond_dataset, &
                       keyword,error_str,option)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call InputReadDouble(input,option, &
                              material_property%waxman_smits_clay_conductivity)
         call InputErrorMsg(input,option,keyword,error_str)
@@ -1643,7 +1659,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
-  electrical_conductivity_index = 0
+  material_elec_conduct_index = 0
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
@@ -1714,12 +1730,12 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_soil_ref_press = num_soil_ref_press + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%electrical_conductivity) .or. &
+                      ptr%material_electrical_conductivity) .or. &
         associated(material_property_ptrs(i)%ptr%&
-                     electrical_conductivity_dataset)) then
-      if (electrical_conductivity_index == 0) then
+                     material_elec_cond_dataset)) then
+      if (material_elec_conduct_index == 0) then
         icount = icount + 1
-        electrical_conductivity_index = icount
+        material_elec_conduct_index = icount
       endif
       num_elec_cond = num_elec_cond + 1
     endif
@@ -1933,9 +1949,9 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
           material_property%soil_reference_pressure
       endif
     endif
-    if (electrical_conductivity_index > 0) then
-      material_auxvar%soil_properties(electrical_conductivity_index) = &
-        material_property%electrical_conductivity
+    if (material_elec_conduct_index > 0) then
+      material_auxvar%soil_properties(material_elec_conduct_index) = &
+        material_property%material_electrical_conductivity
     endif
     if (archie_cementation_exp_index > 0) then
       material_auxvar%soil_properties(archie_cementation_exp_index) = &
@@ -2668,7 +2684,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%permeability_dataset_yz)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
-  nullify(material_property%electrical_conductivity_dataset)
+  nullify(material_property%material_elec_cond_dataset)
   nullify(material_property%surf_elec_cond_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)

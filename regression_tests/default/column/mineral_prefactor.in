@@ -191,54 +191,6 @@ MATERIAL_PROPERTY NW
   ID 1
   POROSITY 0.20d0
   TORTUOSITY 1.d0
-  PERMEABILITY
-    PERM_X 0.64d-12
-    PERM_Y 0.64d-12
-    PERM_Z 0.64d-12
-  /
-  CHARACTERISTIC_CURVES default
-END
-
-MATERIAL_PROPERTY NE
-  ID 2
-  POROSITY 0.21d0
-  TORTUOSITY 1.d0
-  PERMEABILITY
-    PERM_X 1.75d-12
-    PERM_Y 1.75d-12
-    PERM_Z 1.75d-12
-  /
-  CHARACTERISTIC_CURVES default
-END
-
-MATERIAL_PROPERTY SW
-  ID 3
-  POROSITY 0.16d0
-  TORTUOSITY 1.d0
-  PERMEABILITY
-    PERM_X 0.75d-12
-    PERM_Y 0.75d-12
-    PERM_Z 0.75d-12
-  /
-  CHARACTERISTIC_CURVES default
-END
-
-MATERIAL_PROPERTY SE
-  ID 4
-  POROSITY 0.23d0
-  TORTUOSITY 1.d0
-  PERMEABILITY
-    PERM_X 0.85d-12
-    PERM_Y 0.85d-12
-    PERM_Z 0.85d-12
-  /
-  CHARACTERISTIC_CURVES default
-END
-
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
 END
 
 #=========================== output options ===================================

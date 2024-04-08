@@ -749,7 +749,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
 
 #if 1
   !== Well Model ==============================================
-  if (nwt_well_quasi_imp_coupled .and. associated(pmwell_ptr)) then
+  if (associated(pmwell_ptr)) then
     if (pmwell_ptr%well_on) then
       if (pmwell_ptr%tran_soln%tran_time <= option%time) then
         ! loads the source_sink object with well model transport sol'n
@@ -2202,7 +2202,7 @@ end subroutine NWTZeroMassBalanceDelta
 
 ! ************************************************************************** !
 
-subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
+subroutine NWTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
   !
   ! Sums up the amount of moles in each component.
   !
@@ -2216,8 +2216,10 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
 
 
   class(realization_subsurface_type) :: realization
+  PetscInt :: num_cells
   PetscInt :: max_size
   PetscReal :: sum_mol(max_size,4)
+  PetscInt, pointer, optional :: cell_ids(:)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
@@ -2232,7 +2234,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   PetscReal :: sum_mol_mnrl(max_size)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: nspecies
+  PetscInt :: nspecies, i
   PetscReal :: liquid_saturation, porosity, volume
 
   option => realization%option
@@ -2253,7 +2255,9 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
 
   nspecies = reaction_nw%params%nspecies
 
-  do local_id = 1, grid%nlmax
+   do i = 1, num_cells
+    local_id = i
+    if (present(cell_ids)) local_id = cell_ids(i)
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
     if (realization%patch%imat(ghosted_id) <= 0) cycle

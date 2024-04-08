@@ -20,12 +20,12 @@ import time
 
 def exodus_to_pflotran_mesh():
     start_time = time.time()
-    infilename = sys.argv[1]
-    outfilename = sys.argv[2]
     if len(sys.argv) != 3:
         print("ERROR: Command line arguments not provided.\n")
         print("Usage: python exodus2pflotran.py exodus_mesh_name.exo pflotran_mesh_name.h5\n")
         sys.exit(0)
+    infilename = sys.argv[1]
+    outfilename = sys.argv[2]
 
     print("Infile: %s Outfile: %s" %(infilename, outfilename))
 
@@ -76,10 +76,13 @@ def exodus_to_pflotran_mesh():
             cell_array = numpy.zeros((num_elem, (block_size[i,1]+1)), int)
 
         varname='connect'+str(i+1)
-        if (exofile.variables[varname].elem_type == 'HEX'):
+        element_type = exofile.variables[varname].elem_type
+        if (element_type.startswith('HEX')):
             num_vert_per_elem = 8
-        elif (exofile.variabbles[varname].elem_type == 'WEDGE'):
+        elif (element_type.startswith('WEDGE')):
             num_vert_per_elem = 6
+        else:
+            sys.exit('ERROR: Unknown element type: {}'.format(element_type))
                  
         block = exofile.variables[varname][:]
         

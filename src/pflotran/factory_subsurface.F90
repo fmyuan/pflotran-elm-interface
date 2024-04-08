@@ -372,7 +372,12 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   realization => simulation%realization
   option => realization%option
 
-! begin from old Init()
+  ! for coupling between geomechanics and ert
+  select case(option%geomech_subsurf_coupling)
+    case(GEOMECH_ERT_COUPLING)
+      call RealizationRegisterParameter(realization,'geomechanics_stress')
+      call RealizationRegisterParameter(realization,'geomechanics_strain')
+  end select
   call FactorySubsurfSetupRealization(simulation)
 
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
