@@ -44,7 +44,7 @@
       Max:   2.9930432567218E-02
       Min:   2.9784833065531E-02
      Mean:   2.9856803246148E-02
-        2:   2.9892014807477E-02
+        2:   2.9892014807478E-02
         3:   2.9856231500152E-02
         4:   2.9820504290361E-02
 -- CONCENTRATION: Aq. Conc. Am241 --
@@ -83,7 +83,7 @@
         3:         3
         4:         3
 -- SOLUTION: Flow --
-   Time (seconds):   6.1576239900003E-01
+   Time (seconds):   5.8437254199725E-01
    Time Steps:          150
    Newton Iterations:          200
    Linear Solver Iterations:          455
@@ -91,10 +91,10 @@
    Solution 2-Norm:   8.1094425005512E+06
    Residual 2-Norm:   1.5725369505892E-15
 -- SOLUTION: Transport --
-   Time (seconds):   6.5006689200006E-01
+   Time (seconds):   2.7333643099701E-01
    Time Steps:          163
    Newton Iterations:          163
    Linear Solver Iterations:          163
    Time Step Cuts:            0
    Solution 2-Norm:   6.6761940199300E-02
-   Residual 2-Norm:   8.9837870038928E-09
+   Residual 2-Norm:   8.9837870042166E-09

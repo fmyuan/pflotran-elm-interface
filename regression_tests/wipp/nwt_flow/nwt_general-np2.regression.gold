@@ -99,9 +99,9 @@
 -- CONCENTRATION: Total Bulk Conc. Am241 --
       Max:   2.9932887922210E-02
       Min:   2.9784893244124E-02
-     Mean:   2.9857342548834E-02
+     Mean:   2.9857342548835E-02
         2:   2.9892075213173E-02
-        3:   2.9856291823328E-02
+        3:   2.9856291823329E-02
         4:   2.9820564541336E-02
 -- CONCENTRATION: Aq. Conc. Am241 --
       Max:   3.0853184768064E-03
@@ -111,10 +111,10 @@
         3:   3.0853184768064E-03
         4:   3.0853184768064E-03
 -- CONCENTRATION: Mnrl. Conc. Am241 --
-      Max:   2.9007289297940E-02
+      Max:   2.9007289297941E-02
       Min:   2.8859294624529E-02
      Mean:   2.8931743926903E-02
-        2:   2.8966476590073E-02
+        2:   2.8966476590074E-02
         3:   2.8930693201398E-02
         4:   2.8894965920574E-02
 -- CONCENTRATION: Sorb. Conc. Am241 --
@@ -125,11 +125,11 @@
         3:   0.0000000000000E+00
         4:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
-      Max:   2.5042901437887E-06
+      Max:   2.5042901437888E-06
       Min:   2.4915133126551E-06
-     Mean:   2.4977680815793E-06
-        2:   2.5007666580427E-06
-        3:   2.4976773691655E-06
+     Mean:   2.4977680815794E-06
+        2:   2.5007666580428E-06
+        3:   2.4976773691656E-06
         4:   2.4945929242447E-06
 -- DISCRETE: Material ID --
       Max:         3
@@ -139,7 +139,7 @@
         3:         3
         4:         3
 -- SOLUTION: Flow --
-   Time (seconds):   3.8473797399774E-01
+   Time (seconds):   3.8078910299964E-01
    Time Steps:           90
    Newton Iterations:          136
    Linear Solver Iterations:          310
@@ -147,10 +147,10 @@
    Solution 2-Norm:   8.1094425006745E+06
    Residual 2-Norm:   2.8201965894824E-12
 -- SOLUTION: Transport --
-   Time (seconds):   3.6548221899966E-01
+   Time (seconds):   1.6116963499735E-01
    Time Steps:           90
    Newton Iterations:           90
    Linear Solver Iterations:           90
    Time Step Cuts:            0
    Solution 2-Norm:   6.6763148790940E-02
-   Residual 2-Norm:   2.4530837052121E-08
+   Residual 2-Norm:   2.4530837053974E-08
