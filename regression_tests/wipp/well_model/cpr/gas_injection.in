@@ -100,7 +100,7 @@ WELLBORE_MODEL
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 30
-    WELL_INDEX 1.d0
+    CASING 0.d0
     TOP_OF_HOLE    5.0d0 1.50d0 300.0d0  # [x,y,z] in meters
     BOTTOM_OF_HOLE 5.0d0 1.5d0  0.0d0  # [x,y,z] in meters
   /

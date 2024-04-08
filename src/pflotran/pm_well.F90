@@ -1385,18 +1385,18 @@ subroutine PMWellSetup(this)
   max_diameter = maxval(this%well%diameter)
   xy_span = well_grid%xy_span_multiplier*max_diameter
 
-  if (size(this%well_grid%WI_base) /= nsegments) then
-    if (size(this%well_grid%WI_base) == 1) then
-      temp_real = this%well_grid%WI_base(1)
-      deallocate(this%well_grid%WI_base)
-      allocate(this%well_grid%WI_base(nsegments))
-      this%well_grid%WI_base(:) = temp_real
+  if (size(this%well_grid%casing) /= nsegments) then
+    if (size(this%well_grid%casing) == 1) then
+      temp_real = this%well_grid%casing(1)
+      deallocate(this%well_grid%casing)
+      allocate(this%well_grid%casing(nsegments))
+      this%well_grid%casing(:) = temp_real
     else
       option%io_buffer = 'The number of values provided in &
-        &WELLBORE_MODEL,GRID,WELL_INDEX must match the number &
+        &WELLBORE_MODEL,GRID,CASING must match the number &
         &of well segments provided in &
         &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        &a single value is provided in WELLBORE_MODEL,GRID,WELL_INDEX, &
+        &a single value is provided in WELLBORE_MODEL,GRID,CASING, &
         &it will be applied to all segments of the well.'
       call PrintErrMsg(option)
     endif
@@ -2074,7 +2074,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
             call InputReadInt(input,option,well_grid%xy_span_multiplier)
             call InputErrorMsg(input,option,'XY_SEARCH_MULTIPLIER',error_string)
         !-----------------------------
-          case('WELL_INDEX')
+          case('CASING')
             num_read = 0
             do k = 1,read_max
               index_word = trim(input%buf)
@@ -2092,13 +2092,13 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
               num_read = num_read + 1
             enddo
             if (num_read == 0) then
-              option%io_buffer = 'At least one value for WELL_INDEX &
+              option%io_buffer = 'At least one value for CASING &
                 &must be provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
             write(*,*) 'num_read =', num_read
-            allocate(well_grid%WI_base(num_read))
-            well_grid%WI_base(1:num_read) = temp_well_index(1:num_read)
+            allocate(well_grid%casing(num_read))
+            well_grid%casing(1:num_read) = 1.d0 - temp_well_index(1:num_read)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2130,8 +2130,8 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
         !  num_errors = num_errors + 1
         !endif
       endif
-      if (.not.associated(well_grid%WI_base)) then
-        option%io_buffer = 'Keyword WELL_INDEX must be provided in &
+      if (.not.associated(well_grid%casing)) then
+        option%io_buffer = 'Keyword CASING must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
       endif
@@ -7680,12 +7680,16 @@ subroutine PMWellComputeWellIndex(pm_well)
   select case(pm_well%well%WI_model)
     case(PEACEMAN_ISO)
       do k = 1,pm_well%well_grid%nsegments
-        write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
-        write(dx_string,'(F7.4)') reservoir%dx(k)
+        if (pm_well%well_grid%casing(k) <= 0.d0) then
+          pm_well%well%WI(k) = 0.d0
+          cycle
+        endif
         temp_real = log(2.079d-1*reservoir%dx(k)/ &
                         (pm_well%well%diameter(k)/2.d0))
 
         if (temp_real <= 0.d0) then
+          write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
+          write(dx_string,'(F7.4)') reservoir%dx(k)
           option%io_buffer = 'Wellbore diameter (' // diameter_string // '&
           & m) is too large relative to reservoir dx (' // dx_string  //  '&
           & m). For the PEACEMAN_ISO model, wellbore diameter must be &
@@ -7699,7 +7703,10 @@ subroutine PMWellComputeWellIndex(pm_well)
 
     case(PEACEMAN_2D)
       do k = 1,pm_well%well_grid%nsegments
-        write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
+        if (pm_well%well_grid%casing(k) <= 0.d0) then
+          pm_well%well%WI(k) = 0.d0
+          cycle
+        endif
         r0 = 2.8d-1*(sqrt(sqrt(reservoir%ky(k)/reservoir%kx(k))* &
              reservoir%dx(k)**2 + sqrt(reservoir%kx(k)/ &
              reservoir%ky(k))*reservoir%dy(k)**2) / &
@@ -7709,6 +7716,7 @@ subroutine PMWellComputeWellIndex(pm_well)
         temp_real = log(r0/(pm_well%well%diameter(k)/2.d0))
 
         if (temp_real <= 0.d0) then
+          write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
           option%io_buffer = 'Wellbore diameter (' // diameter_string // ' m)&
           & is too large relative to reservoir discretization and &
           &permeability for the anisotropic PEACEMAN_2D well model.'
@@ -7723,7 +7731,10 @@ subroutine PMWellComputeWellIndex(pm_well)
       dy_tot = 0.d0
       dz_tot = 0.d0
       do k = 1,pm_well%well_grid%nsegments
-        write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
+        if (pm_well%well_grid%casing(k) <= 0.d0) then
+          pm_well%well%WI(k) = 0.d0
+          cycle
+        endif
         kyz = sqrt(reservoir%ky(k)/reservoir%kz(k))
         kzy = sqrt(reservoir%kz(k)/reservoir%ky(k))
         kzx = sqrt(reservoir%kz(k)/reservoir%kx(k))
@@ -7770,6 +7781,7 @@ subroutine PMWellComputeWellIndex(pm_well)
               (log(r0z/(pm_well%well%diameter(k)/2.d0)) + pm_well%well%skin(k))
         
         if (wix < 0.d0 .or. wiy < 0.d0 .or. wiz < 0.d0) then
+          write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
           option%io_buffer = 'Wellbore diameter (' // diameter_string // ' m)&
           & is too large relative to reservoir discretization and &
           &permeability for the default anisotropic PEACEMAN_3D well model.'
@@ -7781,7 +7793,7 @@ subroutine PMWellComputeWellIndex(pm_well)
       
   end select
 
-  pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%WI_base
+  pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%casing
 
 end subroutine PMWellComputeWellIndex
 

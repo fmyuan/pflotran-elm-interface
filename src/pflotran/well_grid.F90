@@ -15,7 +15,7 @@ type, public :: well_grid_type
     ! number of well connections
     PetscInt :: nconnections
     ! well index of each well segment [0,1]  0 = cased; 1 = open
-    PetscReal, pointer :: WI_base(:)
+    PetscReal, pointer :: casing(:)
     ! delta h discretization of each segment center [m]
     PetscReal, pointer :: dh(:)
     ! reservoir dz
@@ -79,7 +79,7 @@ function WellGridCreate()
     allocate(well_grid)
     well_grid%nsegments = UNINITIALIZED_INTEGER
     well_grid%nconnections = UNINITIALIZED_INTEGER
-    nullify(well_grid%WI_base)
+    nullify(well_grid%casing)
     nullify(well_grid%dh)
     nullify(well_grid%res_dz)
     nullify(well_grid%h)
@@ -170,7 +170,7 @@ subroutine WellGridAddConnectionsExplicit(cell_centroids,connections,&
   dual_segment = 1
   do isegment = 1,well_grid%nsegments
     if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
-    if (well_grid%WI_base(isegment) <= 0.d0) cycle
+    if (well_grid%casing(isegment) <= 0.d0) cycle
       local_id = well_grid%h_ghosted_id(isegment)
     ! For each local cell, check if a connection to a well cell exists. If 
     ! not, add it, and keep track of connections that are only well-related.

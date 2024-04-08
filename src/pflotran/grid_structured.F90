@@ -880,7 +880,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
     dual_segment = 1
     do isegment = 1,well_grid%nsegments
       if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
-      if (well_grid%WI_base(isegment) <= 0.d0) cycle
+      if (well_grid%casing(isegment) <= 0.d0) cycle
       local_id = well_grid%h_ghosted_id(isegment)
       ! For each local cell, check if a connection to a well cell exists. If 
       ! not, add it, and keep track of connections that are only well-related.

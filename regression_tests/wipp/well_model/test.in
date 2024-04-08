@@ -138,7 +138,7 @@ WELLBORE_MODEL
   #GAS_MOBILITY 1.0d-3        # mobility is kr/visc
   WELL_GRID
     NUMBER_OF_SEGMENTS 3
-    WELL_INDEX 1.0d0 1.0d0 1.0d0
+    CASING 0.0d0 0.0d0 0.0d0
     TOP_OF_HOLE    150.0d0 500.0d0 50.0d0  # [x,y,z] in meters
     BOTTOM_OF_HOLE 150.0d0 200.0d0 50.0d0  # [x,y,z] in meters
   /
