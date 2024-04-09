@@ -1846,7 +1846,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscReal, pointer :: dX_p(:)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
-  PetscInt :: gid, lid, acid, wid, eid, hid, iid, spid, apid, vpid
+  PetscInt :: gid, lid, acid, hid, iid, spid, apid, vpid
   PetscReal :: Psat, Pv, Prvap, Pa
   PetscReal :: xag, xwg, xal, xsl, xwl, xmolag, xmolwg, xmolal, &
                xmolsl, xmolwl, x_salt_dissolved

@@ -69,7 +69,6 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
