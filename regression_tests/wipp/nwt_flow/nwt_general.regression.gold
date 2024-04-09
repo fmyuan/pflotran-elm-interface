@@ -1,0 +1,116 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   5.6025084847072E+06
+      Min:   8.1218019015999E+05
+     Mean:   3.2068997345605E+06
+        3:   3.2064551317241E+06
+-- PRESSURE: Gas Pressure --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        3:   1.0000000000000E+00
+-- SATURATION: Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- GENERIC: Liquid Density --
+      Max:   1.2220823226513E+03
+      Min:   1.2202688750572E+03
+     Mean:   1.2211752622326E+03
+        3:   1.2211749256111E+03
+-- GENERIC: Gas Density --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- GENERIC: X_g^l --
+      Max:   3.8821521017910E-38
+      Min:   0.0000000000000E+00
+     Mean:   7.7703384455237E-39
+        3:   2.1377711334999E-41
+-- GENERIC: X_l^l --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        3:   1.0000000000000E+00
+-- GENERIC: X_g^g --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- GENERIC: X_l^g --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- GENERIC: Temperature --
+      Max:   1.9999975209414E+01
+      Min:   1.9999967212588E+01
+     Mean:   1.9999970237533E+01
+        3:   1.9999969579622E+01
+-- GENERIC: Liquid Energy --
+      Max:   1.5190911598232E+00
+      Min:   1.5087033089974E+00
+     Mean:   1.5139042761240E+00
+        3:   1.5139113416445E+00
+-- GENERIC: Gas Energy --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- DISCRETE: Thermodynamic State --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        3:         1
+-- CONCENTRATION: Total Bulk Conc. Am241 --
+      Max:   2.9932887922210E-02
+      Min:   2.9784893244124E-02
+     Mean:   2.9857342548834E-02
+        3:   2.9856291823328E-02
+-- CONCENTRATION: Aq. Conc. Am241 --
+      Max:   3.0853184768064E-03
+      Min:   3.0853184768064E-03
+     Mean:   3.0853184768064E-03
+        3:   3.0853184768064E-03
+-- CONCENTRATION: Mnrl. Conc. Am241 --
+      Max:   2.9007289297940E-02
+      Min:   2.8859294624529E-02
+     Mean:   2.8931743926903E-02
+        3:   2.8930693201398E-02
+-- CONCENTRATION: Sorb. Conc. Am241 --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
+      Max:   2.5042901437887E-06
+      Min:   2.4915133126551E-06
+     Mean:   2.4977680815793E-06
+        3:   2.4976773691655E-06
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        3:         3
+-- SOLUTION: Flow --
+   Time (seconds):   6.6803339999467E-02
+   Time Steps:           90
+   Newton Iterations:          136
+   Linear Solver Iterations:          136
+   Time Step Cuts:            0
+   Solution 2-Norm:   8.1094425006745E+06
+   Residual 2-Norm:   3.8302725696869E-12
+-- SOLUTION: Transport --
+   Time (seconds):   2.3445955999705E-02
+   Time Steps:           90
+   Newton Iterations:           90
+   Linear Solver Iterations:           90
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.6763148790940E-02
+   Residual 2-Norm:   2.4530837052120E-08

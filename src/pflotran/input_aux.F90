@@ -2030,7 +2030,7 @@ function getCommandLineArgumentCount()
   ! initialize to zero
   getCommandLineArgumentCount = 0
 
-#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT)
+#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT) || PETSC_VERSION_GE(3,21,0)
   getCommandLineArgumentCount = command_argument_count()
 #elif defined(PETSC_HAVE_GETARG)
   getCommandLineArgumentCount = iargc()
@@ -2056,7 +2056,7 @@ subroutine getCommandLineArgument(i,arg)
   integer*4 :: fortran_int
 
   fortran_int = i
-#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT)
+#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT) || PETSC_VERSION_GE(3,21,0)
   call get_command_argument(fortran_int,arg)
 #elif defined(PETSC_HAVE_GETARG)
   call getarg(fortran_int,arg)

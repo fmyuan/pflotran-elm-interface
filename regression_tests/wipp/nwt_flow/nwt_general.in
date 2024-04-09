@@ -1,0 +1,322 @@
+#================================= flow mode ==================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+    /
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
+    /
+  /
+  # CHECKPOINT
+  #   TIMES y 1.0d+00 2.0d+00 3.0d+00 4.0d+00
+  #   FORMAT HDF5
+  # /
+  # INPUT_RECORD_FILE
+END
+
+#==============================================================================
+SUBSURFACE
+
+#========================= numerical methods - flow ===========================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 10
+  /
+
+  NEWTON_SOLVER
+    USE_EUCLIDEAN_NORM_CONVERGENCE
+    MAXIMUM_NUMBER_OF_ITERATIONS 20
+  /
+
+  LINEAR_SOLVER
+    # SOLVER DIRECT
+    SOLVER ITERATIVE
+  /
+
+END
+
+#======================= numerical methods - transport ========================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    NUM_STEPS_AFTER_TS_CUT 2
+    DT_FACTOR 2.0 2.0 1.8 1.6 1.4 1.4 1.3 1.3 1.2 1.2 1.1 1.1
+  /
+
+  NEWTON_SOLVER
+    NWT_ITOL_RELATIVE_UPDATE
+      Am241  1.0d-01
+    /
+    NWT_ITOL_ABSOLUTE_UPDATE
+      Am241  1.0d-04
+    /
+    NWT_ITOL_SCALED_RESIDUAL
+      Am241  1.0d-03
+    /
+    NWT_ITOL_ABSOLUTE_RESIDUAL
+      Am241  1.0d-07
+    /
+    MAXIMUM_NUMBER_OF_ITERATIONS 12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+    #SOLVER ITERATIVE
+  /
+
+END
+
+#================================= regression =================================
+REGRESSION
+  CELL_IDS
+    3
+  /
+END
+
+#=============================== discretization ===============================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 5
+  DXYZ
+     1*1.0d+02
+     1*5.0d+01
+     1*1.0d+02
+  /
+END
+
+#============================== fluid properties ==============================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.0d-09
+END
+
+EOS WATER
+                    # ref_dens   ref_pres  compres
+  DENSITY EXPONENTIAL 1.2200d+03 101325.0d+00 3.1000d-10
+  VISCOSITY CONSTANT  2.10000d-03
+END
+
+EOS GAS
+  DENSITY IDEAL
+  VISCOSITY CONSTANT 8.93389d-06
+END
+
+#======================= thermal characteristic curves ========================
+THERMAL_CHARACTERISTIC_CURVES cct_repo
+  THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
+    THERMAL_CONDUCTIVITY_DRY 5.500d+00 W/m-C
+    THERMAL_CONDUCTIVITY_WET 7.000d+00 W/m-C
+  /
+END
+
+#============================ saturation functions ============================
+# Note: The liquid residual saturation must be set to zero, so
+#       that all liquid can flow out and make a dry-out condition.
+#       KRP11 must be used, because it sets capillary pressure to zero,
+#       allowing a full dry out condition.
+
+CHARACTERISTIC_CURVES cc_KRP4
+  SATURATION_FUNCTION BRAGFLO_KRP11
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP11_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.0d+00
+    GAS_RESIDUAL_SATURATION    1.000000d-01
+    TOLC 0.50d+00
+  /
+  PERMEABILITY_FUNCTION BRAGFLO_KRP11_GAS
+    LIQUID_RESIDUAL_SATURATION 0.0d+00
+    GAS_RESIDUAL_SATURATION    1.000000d-01
+    TOLC 0.50d+00
+  /
+END
+
+#============================ material properties =============================
+MATERIAL_PROPERTY REPO
+  ID 3
+  CHARACTERISTIC_CURVES cc_KRP4
+  POROSITY 3.000000d-01
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0d-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  HEAT_CAPACITY 8.30d+02 J/kg-C
+  THERMAL_CHARACTERISTIC_CURVES cct_repo
+  ROCK_DENSITY 2.650d+03 kg/m^3
+  PERMEABILITY
+    PERM_ISO 1.0d-12
+  /
+END
+
+#================================== regions ===================================
+REGION all
+  COORDINATES
+    -1.d+20 -1.d+20 -1.d+20
+     1.d+20  1.d+20  1.d+20
+  /
+END
+
+REGION rgs_repo_face_bot
+  FACE BOTTOM
+  COORDINATES
+    0.0d+00 0.0d+00 0.0d+00
+    1.0d+02 5.0d+01 0.0d+00
+  /
+END
+
+REGION rgs_repo_face_top
+  FACE TOP
+  COORDINATES
+    0.0d+00 0.0d+00 1.0d+02
+    1.0d+02 5.0d+01 1.0d+02
+  /
+END
+
+# REGION wp
+#   COORDINATES
+#     0.0d+00 0.0d+00 8.0d+01
+#     1.0d+02 5.0d+01 1.0d+02
+#   /
+# END
+
+REGION pt
+  COORDINATE 5.0d+01 2.5d+01 5.0d+01 # observation point
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL REPO
+  REGION all
+END
+
+#============================== flow conditions ===============================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+  /
+  DATUM 0.0d+00 0.0d+00 1.0d+02
+  LIQUID_PRESSURE     5.00000000d+06 Pa
+  TEMPERATURE         2.00000000d+01 C
+  MOLE_FRACTION       0.00000000d-06
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    TEMPERATURE DIRICHLET
+    LIQUID_FLUX NEUMANN
+    GAS_FLUX NEUMANN
+  /
+  TEMPERATURE         2.00000000d+01 C
+  LIQUID_FLUX         1.00000000d+00 m/yr
+  GAS_FLUX            0.00000000d+00 m/yr
+END
+
+# FLOW_CONDITION wp_heatsource
+#   TYPE
+#     RATE MASS_RATE
+#   /
+#   #     liquid  gas    energy
+#   RATE  0.0d+0  0.0d+0 1.0d-7 kg/s kg/s W
+# END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION transport_initial_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    # time[s]      constraint
+    0.0d+00        constraint_inventory_initial
+  /
+END
+
+#========================= initial condition couplers =========================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION all
+END
+
+#======================== boundary condition couplers =========================
+BOUNDARY_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION rgs_repo_face_bot
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION recharge
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION rgs_repo_face_top
+END
+
+#============================ source/sink couplers ============================
+# SOURCE_SINK
+#   FLOW_CONDITION wp_heatsource
+#   TRANSPORT_CONDITION transport_initial_condition
+#   REGION wp
+# END
+
+#=================================== times ====================================
+TIME
+  FINAL_TIME 5.0 yr
+  INITIAL_TIMESTEP_SIZE 1.0d-07 s
+  MAXIMUM_TIMESTEP_SIZE 1.0d+00 yr
+END
+
+#============================== output options ================================
+OBSERVATION
+  REGION pt
+END
+
+OUTPUT
+  OBSERVATION_FILE
+    PERIODIC TIME 1.0d-04 y between 1.0d-04 y and 1.0d-03 y
+    PERIODIC TIME 1.0d-03 y between 1.0d-03 y and 1.0d-02 y
+    PERIODIC TIME 1.0d-02 y between 1.0d-02 y and 1.0d-01 y
+    PERIODIC TIME 1.0d-01 y between 1.0d-01 y and 1.0d+00 y
+    PERIODIC TIME 1.0d+00 y between 1.0d+00 y and 5.0d+01 y
+    VARIABLES
+      LIQUID_PRESSURE
+    /
+  /
+END
+
+#================================= transport ==================================
+NUCLEAR_WASTE_CHEMISTRY
+
+  SPECIES
+    NAME                 Am241
+    SOLUBILITY           3.08531847680638d-03    # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 3.861d+04               # [mol/m^3-mnrl] (quartz)
+    ELEMENTAL_KD         0.0d+00                 # [m^3-water/m^3-bulk]
+  /
+
+  RADIOACTIVE_DECAY
+    5.08d-11 Am241
+  /
+
+  OUTPUT
+    ALL_SPECIES
+    ALL_CONCENTRATIONS
+    MINERAL_VOLUME_FRACTION
+  /
+
+  TRUNCATE_CONCENTRATION 1.0d-20
+
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT constraint_inventory_initial
+  CONCENTRATIONS
+    # species_name  concentration  constraint_type
+    # AQ is for aqueous concentration [mol/m^3-liq]
+    Am241           1.0d-01        AQ  # [mol/m^3-liq]
+  /
+END
+
+END_SUBSURFACE
+
+#==============================================================================
+#END_SUBSURFACE
+#==============================================================================
