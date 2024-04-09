@@ -1620,17 +1620,17 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
 
       if (hyd_auxvar%sat(gid) <= 0.d0) then
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
-                         hyd_auxvar%den_kg(lid) * hyd_auxvar_ss%h(lid)
+                         hyd_auxvar%den_kg(lid) * hyd_auxvar%H(lid)
       elseif (hyd_auxvar%sat(lid) <= 0.d0) then
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / &
-                         hyd_auxvar%den_kg(gid) * hyd_auxvar_ss%h(gid)
+                         hyd_auxvar%den_kg(gid) * hyd_auxvar%H(gid)
       else
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%mobility(lid)/mob_tot*&
                          hyd_auxvar%den(lid) / hyd_auxvar%den_kg(lid) * &
-                         hyd_auxvar_ss%h(lid)
+                         hyd_auxvar%H(lid)
         Res(energy_id) = Res(energy_id) + qsrc(wat_comp_id) * hyd_auxvar% &
                          mobility(gid)/mob_tot*hyd_auxvar%den(gid) / &
-                         hyd_auxvar%den_kg(gid) * hyd_auxvar_ss%h(gid)
+                         hyd_auxvar%den_kg(gid) * hyd_auxvar%H(gid)
       endif
   else
 
@@ -1690,7 +1690,7 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
   if (size(qsrc) == THREE_INTEGER) then
     if (flow_src_sink_type /= TOTAL_MASS_RATE_SS) then
       if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
-        enthalpy = hyd_auxvar_ss%h(wat_comp_id)
+        enthalpy = hyd_auxvar_ss%H(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
         Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         J = J + Je
@@ -1702,13 +1702,13 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
         ! air enthalpy is only a function of temperature
 
         internal_energy = hyd_auxvar_ss%u(air_comp_id)
-        enthalpy = hyd_auxvar_ss%h(air_comp_id)
+        enthalpy = hyd_auxvar_ss%H(air_comp_id)
         ! enthalpy units: MJ/kmol                       ! air component mass
         Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
         J = J + Je
       endif
+      Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
     endif
-    Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
     ! no derivative
   endif
 

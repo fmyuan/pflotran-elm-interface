@@ -2312,9 +2312,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = H_STATE
-          two_phase_epsilon = hydrate_phase_chng_epsilon
+          ! istatechng = PETSC_TRUE
+          ! global_auxvar%istate = H_STATE
+          ! two_phase_epsilon = hydrate_phase_chng_epsilon
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
@@ -2346,8 +2346,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = H_STATE
+          ! istatechng = PETSC_TRUE
+          ! global_auxvar%istate = H_STATE
         elseif (hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
@@ -2493,8 +2493,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
         else
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = H_STATE
+          ! istatechng = PETSC_TRUE
+          ! global_auxvar%istate = H_STATE
         endif
 
       else
@@ -2526,8 +2526,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = H_STATE
+          ! istatechng = PETSC_TRUE
+          ! global_auxvar%istate = H_STATE
         elseif (hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
           !istatechng = PETSC_TRUE
@@ -2565,8 +2565,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
         else
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = H_STATE
+          ! istatechng = PETSC_TRUE
+          ! global_auxvar%istate = H_STATE
         endif
 
       else
@@ -2710,8 +2710,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = L_STATE
       elseif (hyd_auxvar%sat(hid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%istate = H_STATE
+        ! istatechng = PETSC_TRUE
+        ! global_auxvar%istate = H_STATE
       elseif (hyd_auxvar%sat(gid) > 0.d0) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = G_STATE
