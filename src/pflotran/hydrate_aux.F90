@@ -2115,59 +2115,44 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_FALSE
         endif
       else !Frozen
-        if (hydrate_former /= HYDRATE_FORMER_NULL) then
-          if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + &
-            state_change_threshold)) then
-            if (hyd_auxvar%pres(lid) >= PE_hyd) then
-              istatechng = PETSC_TRUE
-              global_auxvar%istate = HA_STATE
-            else
-              ! Compute what gas saturation would be
-              call EOSGasDensity(hyd_auxvar%temp,Pa, &
-                     den_mol,drho_dT,drho_dP,ierr)
-              den_a= den_mol * hydrate_fmw_comp(2)
-              call HydrateBrineDensity(hyd_auxvar%temp,cell_pressure, &
-                             xsl, den_brine, option)
-              call HydrateDensityCompositeLiquid(hyd_auxvar%temp, &
-                                  den_brine,xal,den_liq)
-              sg_est =  (hyd_auxvar%xmass(acid,lid) - xal * (1.d0 + &
-                   state_change_threshold)) * &
-                   den_liq / den_a
-              if (sg_est < sg_min) then
-                    ! No state change
-                istatechng = PETSC_FALSE
-              else
-                sl_temp = 1.d0 - min(sg_est, 1.d-1)
-                sgt_temp = 0.d0
-                !MAN: hyd_auxvar%sat(tgid) should be 0
-                call characteristic_curves%saturation_function% &
-                              CapillaryPressure(sl_temp,Pc,dpc_dsatl,option)
-                Pc = min(Pc,Pc_entry / beta_gl + 1.d5)
-
-                ! State has changed, so update state and one primary variable
-                hyd_auxvar%pres(gid) = hyd_auxvar%pres(lid) + Pc
-                hyd_auxvar%sat(gid) = 1.d0 - sl_temp
-
-                istatechng = PETSC_TRUE
-                global_auxvar%istate = GA_STATE
-              endif
-            endif
-          else
-            istatechng = PETSC_FALSE
-          endif
-
-        else !Gas is air
-          if (hyd_auxvar%pres(vpid) <= hyd_auxvar%pres(spid)* &
-                (1.d0-window_epsilon)) then
-
+        if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + &
+          state_change_threshold)) then
+          if (hyd_auxvar%pres(lid) >= PE_hyd) then
             istatechng = PETSC_TRUE
-            global_auxvar%istate = GAI_STATE
-
+            global_auxvar%istate = HA_STATE
           else
+            ! Compute what gas saturation would be
+            call EOSGasDensity(hyd_auxvar%temp,Pa, &
+                  den_mol,drho_dT,drho_dP,ierr)
+            den_a= den_mol * hydrate_fmw_comp(2)
+            call HydrateBrineDensity(hyd_auxvar%temp,cell_pressure, &
+                                     xsl, den_brine, option)
+            call HydrateDensityCompositeLiquid(hyd_auxvar%temp, &
+                                  den_brine,xal,den_liq)
+            sg_est =  (hyd_auxvar%xmass(acid,lid) - xal * (1.d0 + &
+                       state_change_threshold)) * &
+                       den_liq / den_a
+            if (sg_est < sg_min) then
+                    ! No state change
+              istatechng = PETSC_FALSE
+            else
+              sl_temp = 1.d0 - min(sg_est, 1.d-1)
+              sgt_temp = 0.d0
+              !MAN: hyd_auxvar%sat(tgid) should be 0
+              call characteristic_curves%saturation_function% &
+                            CapillaryPressure(sl_temp,Pc,dpc_dsatl,option)
+              Pc = min(Pc,Pc_entry / beta_gl + 1.d5)
 
-            istatechng = PETSC_FALSE
+              ! State has changed, so update state and one primary variable
+              hyd_auxvar%pres(gid) = hyd_auxvar%pres(lid) + Pc
+              hyd_auxvar%sat(gid) = 1.d0 - sl_temp
 
+              istatechng = PETSC_TRUE
+              global_auxvar%istate = GA_STATE
+            endif
           endif
+        else
+          istatechng = PETSC_FALSE
         endif
       endif
     case(G_STATE)
@@ -2393,8 +2378,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
       endif
     case(GI_STATE)
-      if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd &
-          .and. hydrate_former == HYDRATE_FORMER_CH4) then
+      if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd) then
       !if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(gid) < PE_hyd &
       !    .and. hydrate_former == HYDRATE_FORMER_CH4) then
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
@@ -2408,29 +2392,17 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           !global_auxvar%istate = I_STATE
         endif
 
-      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_former == HYDRATE_FORMER_NULL) then
-
-        if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = G_STATE
-        else
-          istatechng = PETSC_FALSE
-        endif
-
-      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_former == HYDRATE_FORMER_CH4) then
+      elseif (hyd_auxvar%temp < Tf_ice .and. hydrate_former /= HYDRATE_FORMER_NULL) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGI_STATE
 
-      elseif ((hyd_auxvar%pres(apid) < PE_hyd .and. hydrate_former == HYDRATE_FORMER_CH4) &
-              .or. (hydrate_former == HYDRATE_FORMER_NULL)) then
+      elseif (hyd_auxvar%pres(apid) < PE_hyd) then
       !elseif ((hyd_auxvar%pres(gid) < PE_hyd .and. hydrate_former == HYDRATE_FORMER_CH4) &
       !        .or. (hydrate_former == HYDRATE_FORMER_NULL)) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = GAI_STATE
 
-      elseif (hydrate_former == HYDRATE_FORMER_CH4) then
+      elseif (hydrate_former /= HYDRATE_FORMER_NULL) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGAI_STATE
       endif
@@ -2443,19 +2415,12 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
        !  if (hyd_auxvar%pres(apid) < PE_hyd) then
        if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
            hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
-           state_change_threshold).and. hydrate_former == &
-           HYDRATE_FORMER_CH4) then
+           state_change_threshold)) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = HAI_STATE
        elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
                hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
-               state_change_threshold) .and. hydrate_former == &
-               HYDRATE_FORMER_CH4) then
-         istatechng = PETSC_TRUE
-         global_auxvar%istate = GAI_STATE
-       elseif (hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
-              state_change_threshold) .and. hydrate_former == &
-              HYDRATE_FORMER_NULL) then
+               state_change_threshold)) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = GAI_STATE
        else
@@ -2577,62 +2542,21 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
     case(GAI_STATE)
       !MAN: state transition doesn't naturally enter this state anymore.
       !     May be useful for initialization.
-      if (hydrate_former == HYDRATE_FORMER_CH4) then
-        if (hyd_auxvar%pres(apid) < PE_hyd) then !Gas phase is stable
+      if (hyd_auxvar%pres(apid) < PE_hyd) then !Gas phase is stable
         !if (hyd_auxvar%pres(gid) < PE_hyd) then !Gas phase is stable
-          if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0 &
-              .and. hyd_auxvar%sat(iid) > 0.d0) then
-
-            istatechng = PETSC_FALSE
-
-          elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) &
-                  > 0.d0) then
-
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = GA_STATE
-
-          elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) &
-                  > 0.d0) then
-
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = GI_STATE
-
-          elseif (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(iid) &
-                  > 0.d0) then
-
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = L_STATE
-
-          elseif (hyd_auxvar%sat(gid) > 0.d0) then
-
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = G_STATE
-
-          elseif (hyd_auxvar%sat(lid) > 0.d0) then
-
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = L_STATE
-
-          endif
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = HGAI_STATE
-        endif
-
-      else !Gas is air
         if (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0 &
             .and. hyd_auxvar%sat(iid) > 0.d0) then
 
           istatechng = PETSC_FALSE
 
         elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) &
-                > 0.d0) then
+                  > 0.d0) then
 
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
 
         elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(iid) &
-                > 0.d0) then
+                  > 0.d0) then
 
           istatechng = PETSC_TRUE
           global_auxvar%istate = GI_STATE
@@ -2653,11 +2577,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
 
-        else
-
-          istatechng = PETSC_FALSE
-
         endif
+      else
+        istatechng = PETSC_TRUE
+        global_auxvar%istate = HGAI_STATE
       endif
     case(HGAI_STATE)
 
@@ -4567,25 +4490,6 @@ subroutine HydrateEquilibrate(T,P,state,s_h,p_a,p_vap,p_sat,p_vap_brine, &
 
   select case(hydrate_former)
 
-  case (HYDRATE_FORMER_CH4)
-
-    call EOSGasHenry(T,p_sat,K_H,ierr)
-
-    p_vap = p_vap_brine
-    p_a = P - p_vap
-    
-    xmolal = p_a / K_H
-    xmolwl = 1.d0 - xmolal
-    xmolag =  p_a / P
-    xmolwg = 1.d0 - xmolag
-
-    xmolsl = 1.d3*(xsl/(1.d0-xsl))/hydrate_fmw_comp(3)
-    xmol_na = xmolsl
-    xmol_cl = xmolsl
-    xmolsl = xmolsl / (xmolsl + 1.d3 / hydrate_fmw_comp(1))
-    xmolsl = (1.d0 - xmolal)*xmolsl
-    xmolwl = 1.d0 - xmolal - xmolsl
-
   case (HYDRATE_FORMER_CO2)
     T_k = T + 273.15d0
     P_bar = max(P,1.01325d5)*1.d-5
@@ -4794,6 +4698,24 @@ subroutine HydrateEquilibrate(T,P,state,s_h,p_a,p_vap,p_sat,p_vap_brine, &
     ! MAN: This part messes up hmode
     p_a = xmolag * P
     p_vap = xmolwg * P
+
+  case default
+    call EOSGasHenry(T,p_sat,K_H,ierr)
+
+    p_vap = p_vap_brine
+    p_a = P - p_vap
+
+    xmolal = p_a / K_H
+    xmolwl = 1.d0 - xmolal
+    xmolag =  p_a / P
+    xmolwg = 1.d0 - xmolag
+
+    xmolsl = 1.d3*(xsl/(1.d0-xsl))/hydrate_fmw_comp(3)
+    xmol_na = xmolsl
+    xmol_cl = xmolsl
+    xmolsl = xmolsl / (xmolsl + 1.d3 / hydrate_fmw_comp(1))
+    xmolsl = (1.d0 - xmolal)*xmolsl
+    xmolwl = 1.d0 - xmolal - xmolsl
 
   end select
 
