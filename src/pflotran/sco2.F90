@@ -902,6 +902,10 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
     cur_connection_set => source_sink%connection_set
@@ -909,11 +913,8 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0 .or. &
-          associated(source_sink%flow_condition%well)) then
-        source_sink => source_sink%next
-        cycle
-      endif
+
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
 

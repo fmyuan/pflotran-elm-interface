@@ -3750,8 +3750,9 @@ subroutine PMWellSCO2Perturb(pm_well)
   type(material_auxvar_type), pointer :: material_auxvar
   type(grid_type), pointer :: res_grid
   type(option_type), pointer :: option
-  PetscInt :: idof, k
+  PetscInt :: idof, k, i
   PetscInt :: ghosted_id
+  PetscReal :: pres_bump
   PetscErrorCode :: ierr
 
   option => pm_well%option
@@ -3774,6 +3775,32 @@ subroutine PMWellSCO2Perturb(pm_well)
           pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
         well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
                     auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+
+        ! Make sure perturbation generates flow.
+        pres_bump = 0.d0
+        i = 0
+        do
+          call PMWellSolveFlow(pm_well,idof,ierr)
+          if (dabs(well%th_ql) > 0.d0 .or. &
+              dabs(well%th_qg) > 0.d0) then
+            if (any(dabs(well%gas%Q) > 0.d0) .or. &
+                any(dabs(well%liq%Q) > 0.d0)) exit
+            pres_bump = well%bh_p - pm_well%well%bh_p
+            pres_bump = pres_bump * 1.25d0
+            well%bh_p = well%bh_p + pres_bump
+            pm_well%realization%patch%aux%sco2% &
+                    auxvars(SCO2_WELL_DOF,ghosted_id)%pert = pres_bump
+            i = i + 1
+            if (i > 100) then
+              option%io_buffer = "Maximum number of iterations (100) to &
+                                  &recover vanishing well Jacobian exceeded."
+              call PrintErrMsg(option)
+            endif
+          else
+            exit
+          endif
+        enddo
+
       else
         sco2_auxvar => &
           pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
@@ -5139,32 +5166,6 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
-
-          ! Make sure perturbation generates flow.
-          ! pres_bump = 0.d0
-          ! i = 0
-          ! do
-          !   call this%UpdateFlowRates(ONE_INTEGER,ZERO_INTEGER,-999,ierr)
-          !   if (dabs(this%well%th_ql) > 0.d0 .or. &
-          !       dabs(this%well%th_qg) > 0.d0) then
-          !     if (any(dabs(this%well_pert(ONE_INTEGER)%gas%Q) > 0.d0)) exit
-          !     pres_bump = this%well_pert(ONE_INTEGER)%bh_p - &
-          !            this%well%bh_p
-          !     this%well_pert(ONE_INTEGER)%bh_p = &
-          !                            this%well_pert(ONE_INTEGER)%bh_p - pres_bump
-          !     pres_bump = pres_bump * 1.25d0
-          !     this%well_pert(ONE_INTEGER)%bh_p = &
-          !                            this%well_pert(ONE_INTEGER)%bh_p + pres_bump
-          !     i = i + 1
-          !     if (i > 100) then
-          !       option%io_buffer = "Maximum number of iterations exceeded to recover &
-          !                           &vanishing well Jacobian. "
-          !       call PrintMsg(this%option)
-          !     endif
-          !   else
-          !     exit
-          !   endif
-          ! enddo
 
           !Perturbed rates wrt well perturbation.
           well_pert => this%well_pert(SCO2_WELL_DOF)

@@ -982,8 +982,7 @@ grid_structured.o : \
   option.o \
   pflotran_constants.o \
   string.o \
-  utility.o \
-  well_grid.o
+  utility.o
 grid_unstructured.o : \
   connection.o \
   geometry.o \
@@ -994,8 +993,7 @@ grid_unstructured.o : \
   option.o \
   pflotran_constants.o \
   string.o \
-  utility.o \
-  well_grid.o
+  utility.o
 grid_unstructured_aux.o : \
   geometry.o \
   grid_unstructured_cell.o \
