@@ -2271,8 +2271,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           ! No state transition
             istatechng = PETSC_FALSE
           else
-            istatechng = PETSC_TRUE
-            global_auxvar%istate = GAI_STATE
+            !istatechng = PETSC_TRUE
+            !global_auxvar%istate = GAI_STATE
           endif
         else
           if (hyd_auxvar%temp > Tf_ice) then
@@ -2400,7 +2400,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       !elseif ((hyd_auxvar%pres(gid) < PE_hyd .and. hydrate_former == HYDRATE_FORMER_CH4) &
       !        .or. (hydrate_former == HYDRATE_FORMER_NULL)) then
         istatechng = PETSC_TRUE
-        global_auxvar%istate = GAI_STATE
+        global_auxvar%istate = GA_STATE
 
       elseif (hydrate_former /= HYDRATE_FORMER_NULL) then
         istatechng = PETSC_TRUE
@@ -2422,7 +2422,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
                state_change_threshold)) then
          istatechng = PETSC_TRUE
-         global_auxvar%istate = GAI_STATE
+         global_auxvar%istate = GA_STATE
        else
          if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
            istatechng = PETSC_FALSE
@@ -2599,7 +2599,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) &
               > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
         istatechng = PETSC_TRUE
-        global_auxvar%istate = GAI_STATE
+        global_auxvar%istate = GA_STATE
       elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) &
               > 0.d0 .and. hyd_auxvar%sat(iid) > 0.d0) then
         istatechng = PETSC_TRUE
