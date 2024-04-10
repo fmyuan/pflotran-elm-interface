@@ -144,7 +144,7 @@ module Material_module
             MaterialPropertyRead, &
             MaterialInitAuxIndices, &
             MaterialAssignPropertyToAux, &
-            MaterialSetup, &
+            MaterialSetupThermal, &
             MaterialUpdateAuxVars, &
             MaterialStoreAuxVars, &
             MaterialWeightAuxVars, &
@@ -1447,8 +1447,8 @@ end subroutine MaterialApplyMapping
 
 ! ************************************************************************** !
 
-subroutine MaterialSetup(material_parameter, material_property_array, &
-                         characteristic_curves_array, option)
+subroutine MaterialSetupThermal(material_parameter, material_property_array, &
+                                option)
   !
   ! Creates arrays for material parameter object
   !
@@ -1462,20 +1462,17 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
 
   type(material_parameter_type) :: material_parameter
   type(material_property_ptr_type) :: material_property_array(:)
-  type(characteristic_curves_ptr_type) :: characteristic_curves_array(:)
   type(option_type), pointer :: option
 
-  PetscInt :: num_characteristic_curves
   PetscInt :: num_mat_prop
   PetscInt :: i
 
   num_mat_prop = size(material_property_array)
-  num_characteristic_curves = size(characteristic_curves_array)
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE)
-    case(PNF_MODE)
-      option%io_buffer = 'MaterialSetup() should not be used in PNF mode'
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE,PNF_MODE)
+      option%io_buffer = 'MaterialSetupThermal should not be used in &
+        &Flow mode: ' // option%flowmode
       call PrintErrMsg(option)
     case default
       allocate(material_parameter%soil_heat_capacity(num_mat_prop))
@@ -1495,7 +1492,7 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
       enddo
   end select
 
-end subroutine MaterialSetup
+end subroutine MaterialSetupThermal
 
 ! ************************************************************************** !
 

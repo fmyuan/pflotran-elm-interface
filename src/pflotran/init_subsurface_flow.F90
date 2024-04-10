@@ -72,12 +72,11 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE, &
-           SCO2_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
+      case(G_MODE,H_MODE,SCO2_MODE)
+        call MaterialSetupThermal(realization%patch%aux% &
+                                    Material%material_parameter, &
+                                  patch%material_property_array, &
+                                  realization%option)
     end select
     pm_list => simulation%flow_process_model_coupler%pm_list
     if (associated(pm_list%next)) then
