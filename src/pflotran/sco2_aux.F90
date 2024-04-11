@@ -146,7 +146,7 @@ module SCO2_Aux_module
     PetscReal :: Ql   ! liquid exchange flux
     PetscReal :: Qg   ! gas exchange flux
     PetscReal :: bh_p ! bottom hole pressure
-    PetscReal :: pres_bump ! pressure change for initialization
+    PetscReal :: pressure_bump ! pressure change for initialization
   end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
@@ -369,7 +369,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%Ql = UNINITIALIZED_DOUBLE
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
     auxvar%well%bh_p = UNINITIALIZED_DOUBLE
-    auxvar%well%pres_bump = 0.d0 
+    auxvar%well%pressure_bump = 0.d0 
   endif
 
 end subroutine SCO2AuxVarInit

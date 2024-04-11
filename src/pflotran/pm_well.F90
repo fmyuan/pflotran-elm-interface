@@ -3759,6 +3759,36 @@ subroutine PMWellSCO2Perturb(pm_well)
 
   res_grid => pm_well%realization%patch%grid
 
+  ! Make sure well is actually flowing if injection/production rates
+  ! are specified.
+  pres_bump = 0.d0
+  i = 0
+  well => pm_well%well
+  do
+    call PMWellSolveFlow(pm_well,ZERO_INTEGER,ierr)
+    if (any(dabs(well%gas%Q) > 0.d0) .or. &
+          any(dabs(well%liq%Q) > 0.d0)) exit
+    if (well%th_ql > 0.d0 .or. &
+        well%th_qg > 0.d0) then
+      ! Injection well
+      pres_bump = 1.25d0 * (pres_bump + 1.d0)
+    elseif (well%th_ql < 0.d0 .or. &
+            well%th_qg < 0.d0) then
+      ! Extraction well
+      pres_bump = 1.25d0 * (pres_bump - 1.d0)
+    else
+      ! No need for this
+      exit
+    endif
+    well%bh_p = well%bh_p + pres_bump
+    i = i + 1
+    if (i > 100) then
+      option%io_buffer = "Exceeded maximum number of iterations (100) to &
+                          &recover vanishing well Jacobian."
+      call PrintErrMsg(option)
+    endif
+  enddo
+
   ! Go up the well: for each well segment that is on-process, update
   ! perturbed values for reservoir and well variables.
 
@@ -3775,37 +3805,13 @@ subroutine PMWellSCO2Perturb(pm_well)
           pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
         well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
                     auxvars(SCO2_WELL_DOF,ghosted_id)%pert
-
-        ! Make sure perturbation generates flow.
-        pres_bump = 0.d0
-        i = 0
-        do
-          call PMWellSolveFlow(pm_well,idof,ierr)
-          if (dabs(well%th_ql) > 0.d0 .or. &
-              dabs(well%th_qg) > 0.d0) then
-            if (any(dabs(well%gas%Q) > 0.d0) .or. &
-                any(dabs(well%liq%Q) > 0.d0)) exit
-            pres_bump = well%bh_p - pm_well%well%bh_p
-            pres_bump = pres_bump * 1.25d0
-            well%bh_p = well%bh_p + pres_bump
-            pm_well%realization%patch%aux%sco2% &
-                    auxvars(SCO2_WELL_DOF,ghosted_id)%pert = pres_bump
-            i = i + 1
-            if (i > 100) then
-              option%io_buffer = "Maximum number of iterations (100) to &
-                                  &recover vanishing well Jacobian exceeded."
-              call PrintErrMsg(option)
-            endif
-          else
-            exit
-          endif
-        enddo
-
+        sco2_auxvar%well%pressure_bump = pres_bump
       else
         sco2_auxvar => &
           pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
         well%bh_p = pm_well%well%bh_p
       endif
+      
       reservoir => well%reservoir
       
       material_auxvar => &
@@ -3848,18 +3854,6 @@ subroutine PMWellSCO2Perturb(pm_well)
       endif
     enddo
   enddo
-
-  ! do k = 1,pm_well%well_grid%nsegments
-  !   if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
-
-  !   ghosted_id = pm_well%well_grid%h_ghosted_id(k)
-
-  !   sco2_auxvar => &
-  !         pm_well%realization%patch%aux%sco2%auxvars(SCO2_WELL_DOF,ghosted_id)
-  !   well => pm_well%well_pert(SCO2_WELL_DOF)
-  !   well%bh_p = sco2_auxvar%well%bh_p
-  !   exit
-  ! enddo
 
   ! Now update fluxes associated with perturbed values
   do idof = 1,option%nflowdof

@@ -1214,6 +1214,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
                                  sco2_auxvar%pres(option%gas_phase))
             endif
+            dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
+            sco2_auxvar%well%pressure_bump = 0.d0
           endif
         endif
         dX_p2(well_index) = dX_p(well_index)
