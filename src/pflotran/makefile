@@ -32,7 +32,17 @@ PATH = /usr/local/gcc-x/netcdf-4.x-hdf5/bin:/usr/local/gcc-x/hdf5-1.10/bin:/usr/
 SRC_DIR = ./
 
 # make option to search for source files in $SRC_DIR
-VPATH = $(SRC_DIR)
+VPATH = $(SRC_DIR): \
+        $(SRC_DIR)/util/: \
+        $(SRC_DIR)/aux/: \
+        $(SRC_DIR)/eos/: \
+        $(SRC_DIR)/grid/: \
+        $(SRC_DIR)/dataset/: \
+        $(SRC_DIR)/properties/: \
+        $(SRC_DIR)/solver/: \
+        $(SRC_DIR)/misc/: \
+        $(SRC_DIR)/mode_preq/: \
+        $(SRC_DIR)/mode: 
 
 pflotran_src =
 common_src   =
@@ -151,12 +161,21 @@ include $(SRC_DIR)/pflotran_object_files.txt
 ###############################################################################
 
 # Concatentate dependency groups 
-pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) \
-	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj)
+pflotran_base_obj = $(util_obj) \
+    $(aux_obj) \
+    $(eos_obj) \
+    $(grid_obj) \
+    $(dataset_obj) \
+    $(properties_obj) \
+    $(solver_obj) \
+    $(misc_obj) \
+    $(mode_preq_obj) \
+    $(mode_obj) \
+#   $(mode_dependent_obj)
+#    $(factory_obj)
+#   $(io_obj) \
 
-pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
+pflotran_obj = $(pflotran_base_obj) #${pflotran_src}pflotran.o
 
 # PFLOTRAN executable
 pflotran : $(pflotran_obj)

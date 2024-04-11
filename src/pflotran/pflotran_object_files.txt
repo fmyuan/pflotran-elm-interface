@@ -1,97 +1,136 @@
 # this file contains all object files except pflotran.o, etc.
 
-# DO NOT place any object files that depend on the discretization within 
-# util_obj
+# DO NOT place any object files that depend on the discretization within util_obj
 util_obj  = \
-	${common_src}input_aux.o \
+	${common_src}debug.o \
+	${common_src}field.o \
+	${common_src}geometry.o \
+	${common_src}input_util.o \
 	${common_src}logging.o \
+	${common_src}lookup_table.o \
 	${common_src}option.o \
-	${common_src}option_flow.o \
-	${common_src}output_aux.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}time_storage.o \
 	${common_src}units.o \
+	${common_src}upwind_direction.o \
 	${common_src}utility.o \
 	${common_src}variables.o
+# DO NOT place any object files that depend on the discretization within util_obj
 
-# DO NOT place any object files that depend on the discretization within 
-# util_obj
+aux_obj  = \
+	${common_src}global_aux.o \
+	${common_src}hdf5_aux.o \
+	${common_src}material_aux.o \
+	${common_src}output_aux.o \
+	${common_src}simulation_aux.o
+
 eos_obj = \
 	${common_src}eos.o \
-	${common_src}eos_gas.o \
 	${common_src}eos_database.o \
-	${common_src}eos_water.o \
-
-mode_aux_obj = \
-	${common_src}auxiliary.o \
-	${common_src}auxvars_flow.o \
-	${common_src}auxvars_flow_energy.o \
-	${common_src}pm_base_aux.o \
-	${common_src}pm_base.o \
-	${common_src}pm_base_pointer.o \
-	${common_src}pm_subsurface_flow.o \
-	${common_src}pm_mpflow.o \
-	${common_src}mpflow_aux.o \
-	${common_src}inlinesurface_aux.o
-
-mode_obj = \
-	${common_src}global.o \
-	${common_src}mpflow.o \
-	${common_src}inlinesurface.o
-
-# DO NOT place any object files that depend on the discretization within 
-# util_obj
-shared_mode_aux_obj = \
-	${common_src}geometry.o \
-	${common_src}global_aux.o \
-	${common_src}lookup_table.o \
-	${common_src}material_aux.o
+	${common_src}eos_gas.o \
+	${common_src}eos_water.o
 
 grid_obj = \
-	${common_src}connection.o \
 	${common_src}communicator_base.o \
 	${common_src}communicator_structured.o \
 	${common_src}communicator_unstructured.o \
+	${common_src}connection.o \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
-	${common_src}grid.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o
-
-relations_obj = \
-	${common_src}saturation.o \
-	${common_src}characteristic_curves.o \
-	${common_src}characteristic_curves_base.o \
-	${common_src}characteristic_curves_common.o
-
-properties_obj = \
-	${common_src}fluid.o \
-	${common_src}material.o 
+	${common_src}grid_unstructured_polyhedra.o \
+	${common_src}grid.o \
+	${common_src}region.o
 
 dataset_obj = \
-	${common_src}dataset_ascii.o \
 	${common_src}dataset_base.o \
+	${common_src}dataset_ascii.o \
 	${common_src}dataset_common_hdf5.o \
 	${common_src}dataset_global_hdf5.o \
 	${common_src}dataset_map_hdf5.o \
 	${common_src}dataset.o \
 	${common_src}dataset_gridded_hdf5.o \
-	${common_src}time_storage.o 
+	${common_src}data_mediator_base.o \
+	${common_src}data_mediator.o \
+	${common_src}data_mediator_dataset.o \
+	${common_src}data_mediator_vec.o \
 
-srcsink_obj = \
-	${common_src}srcsink_sandbox.o \
-	${common_src}srcsink_sandbox_base.o \
-	${common_src}srcsink_sandbox_mass_rate.o \
-	${common_src}srcsink_sandbox_downreg.o
+properties_obj = \
+	${common_src}fluid.o \
+	${common_src}material.o \
+	${common_src}characteristic_curves.o \
+	${common_src}characteristic_curves_base.o \
+	${common_src}characteristic_curves_common.o
+
+
+solver_obj = \
+	${common_src}convergence.o \
+	${common_src}preconditioner_cpr.o \
+	${common_src}solver.o \
+	${common_src}solver_cpr.o
+
+misc_obj = \
+	${common_src}condition_flow.o \
+	${common_src}coupler.o \
+	${common_src}hydrostatic.o \
+	${common_src}integral_flux.o \
+	${common_src}observation.o \
+	${common_src}strata.o \
+	${common_src}waypoint.o
+
+mode_preq_obj = \
+	${common_src}realization_base.o \
+	${common_src}realization_subsurface.o
+
+
+mode_obj = \
+	${common_src}mode_aux.o \
+	${common_src}auxvars_flow.o \
+	${common_src}auxvars_flow_energy.o \
+	${common_src}mpflow_aux.o \
+	${common_src}mpflow.o \
+	${common_src}inlinesurface_aux.o \
+	${common_src}inlinesurface.o \
+	${common_src}option_flow.o \
+	${common_src}pm_base_pointer.o \
+	${common_src}pm_mpflow.o \
+	${common_src}pm_subsurface_flow.o \
+	${common_src}saturation.o
+
+factory_obj = \
+	${common_src}global.o \
+	${common_src}checkpoint.o \
+	${common_src}factory_pflotran.o \
+	${common_src}factory_subsurface.o \
+	${common_src}multisimulation.o \
+	${common_src}pm_base_aux.o \
+	${common_src}pm_base.o \
+	${common_src}pmc_base.o \
+	${common_src}pmc_subsurface.o \
+	${common_src}regression.o \
+	${common_src}simulation_subsurface.o \
+	${common_src}simulation_base.o \
+	${common_src}condition_control.o \
+	${common_src}init_common.o \
+	${common_src}init_subsurface.o \
+	${common_src}init_subsurface_flow.o \
+	${common_src}patch.o \
+	${common_src}realization_base.o \
+	${common_src}realization_subsurface.o \
+	${common_src}timestepper_base.o \
+	${common_src}timestepper_BE.o \
+	${common_src}timestepper_steady.o
+
+
 
 io_obj = \
 	${common_src}hdf5.o \
-	${common_src}hdf5_aux.o \
 	${common_src}output.o \
 	${common_src}output_common.o \
 	${common_src}output_ekg.o \
@@ -100,45 +139,3 @@ io_obj = \
 	${common_src}output_observation.o \
 	${common_src}output_tecplot.o
 
-misc_obj = \
-	${common_src}checkpoint.o \
-	${common_src}condition_flow.o \
-	${common_src}condition_control.o \
-	${common_src}convergence.o \
-	${common_src}coupler.o \
-	${common_src}data_mediator.o \
-	${common_src}data_mediator_dataset.o \
-	${common_src}data_mediator_vec.o \
-	${common_src}data_mediator_base.o \
-	${common_src}debug.o \
-	${common_src}factory_pflotran.o \
-	${common_src}factory_subsurface.o \
-	${common_src}field.o \
-	${common_src}hydrostatic.o \
-	${common_src}init_common.o \
-	${common_src}init_subsurface.o \
-	${common_src}init_subsurface_flow.o \
-	${common_src}integral_flux.o \
-	${common_src}multisimulation.o \
-	${common_src}observation.o \
-	${common_src}patch.o \
-	${common_src}pmc_base.o \
-	${common_src}pmc_subsurface.o \
-	${common_src}realization_base.o \
-	${common_src}realization_subsurface.o \
-	${common_src}region.o \
-	${common_src}regression.o \
-	${common_src}simulation_aux.o \
-	${common_src}simulation_base.o \
-	${common_src}simulation_subsurface.o \
-	${common_src}strata.o \
-	${common_src}timestepper_base.o \
-	${common_src}timestepper_BE.o \
-	${common_src}timestepper_steady.o \
-	${common_src}upwind_direction.o \
-	${common_src}waypoint.o
-
-solver_obj = \
-	${common_src}preconditioner_cpr.o \
-	${common_src}solver.o \
-	${common_src}solver_cpr.o

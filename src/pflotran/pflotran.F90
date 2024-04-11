@@ -41,7 +41,6 @@ program pflotran
   use Simulation_Base_class
   use Multi_Simulation_module
   use Factory_PFLOTRAN_module
-  use Factory_Subsurface_module
 
   use PFLOTRAN_Constants_module
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
@@ -67,6 +66,8 @@ program pflotran
     call PrintProvenanceToScreen()
   endif
 
+  ! multi-simulation loop
+
   do ! multi-simulation loop
     call PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
 
@@ -83,6 +84,7 @@ program pflotran
     call PFLOTRANFinalize(option)
     if (MultiSimulationDone(multisimulation)) exit
   enddo ! multi-simulation loop
+
   call OptionFinalize(option)
 
 end program pflotran
