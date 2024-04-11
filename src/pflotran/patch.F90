@@ -5367,6 +5367,76 @@ end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
 
+subroutine PatchUpdateNonuniformVelocity(patch,velocity,option)
+  !
+  ! Assigns nonuniform velocity in connection list
+  ! darcy velocities
+  ! Note: it's following what uniformvelocity and flow/tran-mediator-dataset are doing
+  ! Author: Fengming Yuan @ornl-ccsi/esd
+  ! Date: 03/15/2024
+  !
+
+  use Option_module
+  use Coupler_module
+  use Condition_module
+  use Connection_module
+
+  implicit none
+
+  type(patch_type), pointer :: patch
+  PetscReal :: velocity(:)
+  type(option_type), pointer :: option
+
+  type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn, sum_connection, iphase
+  PetscReal :: phase_velocity(3,option%transport%nphase)
+  PetscReal :: vdarcy
+
+  grid => patch%grid
+
+  do iphase = 0, option%transport%nphase-1
+    phase_velocity(1:3,iphase+1) = velocity(1+iphase*3:3+iphase*3)
+  enddo
+
+  ! Internal Flux Terms -----------------------------------
+  cur_connection_set => grid%internal_connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      do iphase = 1, option%transport%nphase
+        vdarcy = dot_product(phase_velocity(:,iphase), &
+                             cur_connection_set%dist(1:3,iconn))
+        patch%internal_velocities(iphase,sum_connection) = vdarcy
+      enddo
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      do iphase = 1, option%transport%nphase
+        vdarcy = dot_product(phase_velocity(:,iphase), &
+                             cur_connection_set%dist(1:3,iconn))
+        patch%boundary_velocities(iphase,sum_connection) = vdarcy
+      enddo
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+end subroutine PatchUpdateNonuniformVelocity
+
+! ************************************************************************** !
+
 subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                              output_option,vec,ivar,isubvar,isubvar2)
   !

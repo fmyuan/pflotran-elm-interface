@@ -2199,6 +2199,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Output_module
   use Output_Tecplot_module
   use Data_Mediator_Dataset_class
+  use Data_Mediator_Hdf5_List_class
   use EOS_module
   use EOS_Water_module
   use SrcSink_Sandbox_module
@@ -2284,7 +2285,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
-  class(data_global_hdf5_type), pointer :: dataset_global_hdf5
+  class(data_mediator_hdf5_list_type), pointer :: data_mediator_hdf5_list
   type(time_storage_type), pointer :: default_time_storage
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
@@ -2475,13 +2476,12 @@ subroutine SubsurfaceReadInput(simulation,input)
                       call StringToUpper(word)
                       select case(word)
                         case('INTERNAL_VELOCITY')
-                          dataset_global_hdf5_list => DatasetGlobalHdf5ListCreate()
-                          call InputReadWord(input,option,dataset_global_hdf5_list%name,PETSC_TRUE)
-                          call InputDefaultMsg(input,option,word)
-                          call DatasetGlobalHdf5ListRead(dataset_global_hdf5_list,input,option)
-                          call dataset_global_hdf5_list%AddToList(realization%nonuniform_velocity_dataset)
-                          nullify(dataset_global_hdf5)
-
+                          data_mediator_hdf5_list => DataMediatorDatasetCreate()
+                          call InputReadWord(input,option,data_mediator_hdf5_list%name,PETSC_TRUE)
+                          call InputDefaultMsg(input,option,'Flow Mass Transfer name')
+                          call DataMediatorHdf5ListRead(data_mediator_hdf5_list,input,option)
+                          call data_mediator_hdf5_list%AddToList(realization%nonuniform_velocity_dataset)
+                          nullify(data_mediator_hdf5_list)
                         case default
                           call InputKeywordUnrecognized(input,word, &
                                                     error_string,option)

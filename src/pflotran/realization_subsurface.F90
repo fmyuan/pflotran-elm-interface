@@ -17,6 +17,7 @@ module Realization_Subsurface_class
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Dataset_Base_class
+  use Data_Mediator_Hdf5_List_class
   use Fluid_module
   use Patch_module
   use Reaction_Aux_module
@@ -45,7 +46,7 @@ private
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
-    class(dataset_global_hdf5_list_type), pointer :: nonuniform_velocity_dataset
+    class(data_mediator_hdf5_list_type), pointer :: nonuniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
 
     class(reaction_rt_type), pointer :: reaction
@@ -1766,7 +1767,7 @@ subroutine RealizUpdateUniformVelocity(realization)
  
 end subroutine RealizUpdateUniformVelocity
 
-subroutine RealizUpdatenNonuniformVelocity(realization)
+subroutine RealizUpdateNonuniformVelocity(realization)
   !
   ! Assigns nonuniform velocity for transport
   !
@@ -1781,12 +1782,30 @@ subroutine RealizUpdatenNonuniformVelocity(realization)
 
   class(realization_subsurface_type) :: realization
 
-  call DatasetLoad(realization%nonuniform_velocity_dataset, &
-                     realization%option)
+  !call DatasetLoad(realization%nonuniform_velocity_dataset,realization%option)
   call PatchUpdateNonuniformVelocity(realization%patch, &
-                            realization%nonuniform_velocity_dataset%rarray, &
+                            realization%nonuniform_velocity_dataset%dataset%rarray, &
                             realization%option)
 
+#if 0
+! need thoughts here, either the above or following
+  cur_data_mediator => realization%nonuniform_velocity_dataset
+  do
+    if (.not.associated(cur_data_mediator)) exit
+    call RealizCreateTranMassTransferVec(realization)
+    select type(cur_data_mediator)
+      class is(data_mediator_dataset_type)
+        call DataMediatorDatasetInit(cur_data_mediator, &
+                                     realization%discretization, &
+                                     realization%datasets, &
+                                     realization%option)
+        call cur_data_mediator%Update(realization%field%tran_mass_transfer, &
+                                      realization%option)
+      class default
+    end select
+    cur_data_mediator => cur_data_mediator%next
+  enddo
+#endif
 end subroutine RealizUpdateNonuniformVelocity
 
 
@@ -1918,7 +1937,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
     endif
   endif
   if (associated(realization%nonuniform_velocity_dataset)) then
-    time_storage_ptr => realization%nonuniform_velocity_dataset%time_storage
+    time_storage_ptr => realization%nonuniform_velocity_dataset%dataset%time_storage
     if (associated(time_storage_ptr)) then
       if (time_storage_ptr%times(1) > 1.d-40 .or. &
           time_storage_ptr%max_time_index > 1) then
@@ -3002,6 +3021,8 @@ subroutine RealizationStrip(this)
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)
+
+  call this%nonuniform_velocity_dataset%strip()
 
   ! nullify since they are pointers to reaction_base in realization_base
   nullify(this%reaction)

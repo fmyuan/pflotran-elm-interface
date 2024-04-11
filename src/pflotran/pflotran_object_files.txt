@@ -238,6 +238,7 @@ misc_obj = \
 	${common_src}coupler.o \
 	${common_src}data_mediator.o \
 	${common_src}data_mediator_dataset.o \
+        ${common_src}data_mediator_hdf5_list.o \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \

@@ -1,4 +1,4 @@
-module Dataset_Global_Hdf5_list_class
+module Data_Mediator_Hdf5_List_class
 ! A generalized data_mediator_dataset class, i.e. not specifically for MASS TRANSFER
 
 #include "petsc/finclude/petscvec.h"
@@ -12,23 +12,23 @@ module Dataset_Global_Hdf5_list_class
 
   private
 
-  type, public, extends(data_mediator_base_type) :: dataset_global_hdf5_list_type
+  type, public, extends(data_mediator_base_type) :: data_mediator_hdf5_list_type
     PetscInt :: idx  ! index (order) in the list
     class(dataset_global_hdf5_type), pointer :: dataset
   contains
-    procedure, public :: Update => Update
-    procedure, public :: Strip => DatasetGlobalHd5ListStrip
-  end type data_mediator_dataset_type
+    procedure, public :: Update => DataMediatorHd5ListUpdate
+    procedure, public :: Strip => DataMediatorHd5ListStrip
+  end type data_mediator_hdf5_list_type
   
-  public :: DatasetGlobalHd5ListCreate, &
-            DatasetGlobalHd5ListRead, &
-            DatasetGlobalHd5ListInit
+  public :: DataMediatorHd5ListCreate, &
+            DataMediatorHd5ListRead, &
+            DataMediatorHd5ListInit
 
 contains
 
 ! ************************************************************************** !
 
-function DatasetGlobalHd5ListCreate()
+function DataMediatorHd5ListCreate()
   ! 
   ! Creates a data mediator object
   ! 
@@ -38,21 +38,21 @@ function DatasetGlobalHd5ListCreate()
   
   implicit none
 
-  class(data_mediator_dataset_type), pointer :: DatasetGlobalHd5ListCreate
+  class(data_mediator_hdf5_list_type), pointer :: DataMediatorHd5ListCreate
   
-  class(data_mediator_dataset_type), pointer :: data_mediator
+  class(data_mediator_hdf5_list_type), pointer :: data_mediator
   
   allocate(data_mediator)
   call DataMediatorBaseCreate(data_mediator)
-  data_mediator%idof = 0
+  data_mediator%idx = 0
   nullify(data_mediator%dataset)
-  DatasetGlobalHd5ListCreate => data_mediator
+  DataMediatorHd5ListCreate => data_mediator
 
-end function DatasetGlobalHd5ListCreate
+end function DataMediatorHd5ListCreate
 
 ! ************************************************************************** !
 
-subroutine DatasetGlobalHd5ListRead(data_mediator,input,option)
+subroutine DataMediatorHd5ListRead(data_mediator,input,option)
   ! 
   ! Reads in contents of a data mediator card
   ! 
@@ -66,7 +66,7 @@ subroutine DatasetGlobalHd5ListRead(data_mediator,input,option)
 
   implicit none
   
-  class(data_mediator_dataset_type) :: data_mediator
+  class(data_mediator_hdf5_list_type) :: data_mediator
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -101,11 +101,11 @@ subroutine DatasetGlobalHd5ListRead(data_mediator,input,option)
   enddo  
   call InputPopBlock(input,option)
 
-end subroutine DatasetGlobalHd5ListRead
+end subroutine DataMediatorHd5ListRead
 
 ! ************************************************************************** !
 
-subroutine DatasetGlobalHd5ListInit(data_mediator, discretization, &
+subroutine DataMediatorHd5ListInit(data_mediator, discretization, &
                                    available_datasets, option)
   ! 
   ! Initializes data mediator object opening dataset to
@@ -122,7 +122,7 @@ subroutine DatasetGlobalHd5ListInit(data_mediator, discretization, &
 
   implicit none
   
-  class(data_mediator_dataset_type) :: data_mediator
+  class(data_mediator_hdf5_list_type) :: data_mediator
   type(discretization_type) :: discretization
   class(dataset_base_type), pointer :: available_datasets
   type(option_type) :: option
@@ -180,11 +180,11 @@ subroutine DatasetGlobalHd5ListInit(data_mediator, discretization, &
 
 #endif
   
-end subroutine DatasetGlobalHd5ListInit
+end subroutine DataMediatorHd5ListInit
 
 ! ************************************************************************** !
 
-recursive subroutine DatasetGlobalHd5ListUpdate(this,data_mediator_vec,option)
+recursive subroutine DataMediatorHd5ListUpdate(this,data_mediator_vec,option)
   ! 
   ! Updates a data mediator object transfering data from
   ! the buffer into the PETSc Vec
@@ -197,7 +197,7 @@ recursive subroutine DatasetGlobalHd5ListUpdate(this,data_mediator_vec,option)
   
   implicit none
   
-  class(data_mediator_dataset_type) :: this
+  class(data_mediator_hdf5_list_type) :: this
   Vec :: data_mediator_vec
   type(option_type) :: option  
   
@@ -247,11 +247,11 @@ recursive subroutine DatasetGlobalHd5ListUpdate(this,data_mediator_vec,option)
   enddo
   call VecRestoreArrayF90(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
   
-end subroutine DatasetGlobalHd5ListUpdate
+end subroutine DataMediatorHd5ListUpdate
 
 ! ************************************************************************** !
 
-recursive subroutine DatasetGlobalHd5ListStrip(this)
+recursive subroutine DataMediatorHd5ListStrip(this)
   ! 
   ! Destroys a data mediator object
   ! 
@@ -261,7 +261,7 @@ recursive subroutine DatasetGlobalHd5ListStrip(this)
 
   implicit none
   
-  class(data_mediator_dataset_type) :: this
+  class(data_mediator_hdf5_list_type) :: this
   
   PetscErrorCode :: ierr
   
@@ -276,6 +276,6 @@ recursive subroutine DatasetGlobalHd5ListStrip(this)
   ! destroyed separately.
   nullify(this%dataset)
 
-end subroutine DatasetGlobalHd5ListStrip
+end subroutine DataMediatorHd5ListStrip
 
-end module Dataset_Global_Hdf5_List_class
+end module Data_Mediator_Hdf5_List_class
