@@ -456,7 +456,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   PetscReal :: Pv, Psat, Prvap, Pco2
   PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg, dt, dp_well
   PetscReal :: cell_pressure, sgt_max
-  PetscInt :: idof, welldof
+  PetscInt :: idof, nwelldof
 
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pbid, spid, tgid
@@ -484,7 +484,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   rvpid = option%reduced_vapor_pressure_id
 
   dp_well = 1.d-1
-  welldof = 0
+  nwelldof = 0
 
   call SCO2SaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
@@ -624,9 +624,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
 
   option%iflag = SCO2_UPDATE_FOR_DERIVATIVE
 
-  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) welldof = 1
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) nwelldof = 1
 
-  do idof = 1, option%nflowdof - welldof
+  do idof = 1, option%nflowdof - nwelldof
 
     if (sco2_central_diff_jacobian) then
 

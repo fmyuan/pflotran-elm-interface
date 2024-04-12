@@ -1438,22 +1438,18 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
         local_end = local_end - 1
       endif
 
-      if (associated(source_sink%flow_condition%well)) then
-        source_sink => source_sink%next
+      if (associated(source_sink%flow_aux_real_var)) then
+        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
       else
+        scale = 1.d0
+      endif
 
-        if (associated(source_sink%flow_aux_real_var)) then
-          scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-        else
-          scale = 1.d0
-        endif
+      qsrc=source_sink%flow_condition%sco2%rate%dataset%rarray(:)
+      flow_src_sink_type=source_sink%flow_condition%sco2%rate%itype
 
-        qsrc=source_sink%flow_condition%sco2%rate%dataset%rarray(:)
-        flow_src_sink_type=source_sink%flow_condition%sco2%rate%itype
-
-        ! Index 0 contains user-specified conditions
-        ! Index 1 contains auxvars to be used in src/sink calculations
-        call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+      ! Index 0 contains user-specified conditions
+      ! Index 1 contains auxvars to be used in src/sink calculations
+      call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                             sco2_auxvars_ss(ZERO_INTEGER,sum_connection), &
                             sco2_auxvars(ZERO_INTEGER,ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -1464,7 +1460,6 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                             sco2_parameter, &
                             grid%nG2A(ghosted_id), &
                             scale,Res,PETSC_FALSE)
-      endif
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
