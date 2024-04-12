@@ -815,7 +815,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   PetscReal :: proj, r, angle, angle_to_horiz
   PetscReal, allocatable :: temp_dx(:), temp_dy(:), temp_dz(:)
   PetscReal, allocatable :: temp_x(:), temp_y(:), temp_z(:)
-  PetscReal :: circle_center(3)
+  PetscReal :: circle_center(3), surface_origin(3)
   type(deviated_well_type), pointer :: well_segment
 
   num_entries = 10000
@@ -840,6 +840,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
       if (Initialized(well_segment%surface_origin(1))) then
         cur_location = well_segment%surface_origin
+        surface_origin = well_segment%surface_origin
       elseif (Initialized(well_segment%dxyz(1))) then
         delta_segment = sqrt(well_segment%dxyz(1)**2 + &
                              well_segment%dxyz(2)**2 + &
@@ -872,10 +873,10 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         well_casing => temp_casing
         nullify(temp_trajectory)
         nullify(temp_casing)
-        proj = sqrt((cur_location(1) - well_segment%surface_origin(1)) **2 + &
-                    (cur_location(2) - well_segment%surface_origin(2)) **2)
-        dz = cur_location(3) - well_segment%surface_origin(3)
-        angle = atan(proj,dz)
+        proj = sqrt((cur_location(1) - surface_origin(1)) **2 + &
+                    (cur_location(2) - surface_origin(2)) **2)
+        dz = cur_location(3) - surface_origin(3)
+        angle = atan(proj,-dz)
 
       elseif (Initialized(well_segment%radius_to_horizontal_x)) then
         r = well_segment%radius_to_horizontal_x
@@ -1012,7 +1013,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       well_segment => well_segment%next
     enddo
 
-    well_grid%tophole(:) = well_grid%deviated_well_segment_list%surface_origin
+    well_grid%tophole(:) = surface_origin
     well_grid%bottomhole(:) = well_trajectory(nsegments,:)
 
     ! Now refine based off of the grid.
