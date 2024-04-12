@@ -18,6 +18,10 @@ type, public :: well_grid_type
     PetscReal, pointer :: casing(:)
     ! delta h discretization of each segment center [m]
     PetscReal, pointer :: dh(:)
+    ! x-, y-, and z- deltas of each well segment
+    PetscReal, pointer :: dx(:)
+    PetscReal, pointer :: dy(:)
+    PetscReal, pointer :: dz(:)
     ! reservoir dz
     PetscReal, pointer :: res_dz(:)
     ! h coordinate of each segment center [m]
@@ -53,9 +57,22 @@ type, public :: well_grid_type
     PetscReal, pointer :: z_list(:)
     ! list of segment length values [m]
     PetscReal, pointer :: l_list(:)
+    type(deviated_well_type), pointer :: deviated_well_segment_list
 end type well_grid_type
 
+type, public :: deviated_well_type
+    PetscReal :: surface_origin(3)
+    PetscReal :: dxyz(3)
+    PetscReal :: radius_to_horizontal_x
+    PetscReal :: radius_to_horizontal_y
+    PetscReal :: radius_to_horizontal_angle(2)
+    PetscReal :: radius_to_vertical
+    PetscBool :: cased
+    type(deviated_well_type), pointer :: next
+end type deviated_well_type
+
 public :: WellGridCreate, &
+          WellSegmentInit, &
           WellGridAddConnectionsExplicit, &
           WellGridDestroy
 
@@ -81,6 +98,9 @@ function WellGridCreate()
     well_grid%nconnections = UNINITIALIZED_INTEGER
     nullify(well_grid%casing)
     nullify(well_grid%dh)
+    nullify(well_grid%dx)
+    nullify(well_grid%dy)
+    nullify(well_grid%dz)
     nullify(well_grid%res_dz)
     nullify(well_grid%h)
     nullify(well_grid%h_local_id)
@@ -97,10 +117,35 @@ function WellGridCreate()
     well_grid%well_res_ratio = 1
     nullify(well_grid%z_list)
     nullify(well_grid%l_list)
+    nullify(well_grid%deviated_well_segment_list)
   
     WellGridCreate => well_grid
   
 end function WellGridCreate
+
+! ************************************************************************** !
+
+subroutine WellSegmentInit(well_segment)
+  !
+  ! Initialize values for a well segment defined by a specific trajectory.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/11/2024
+  !
+
+  implicit none
+
+  type(deviated_well_type), pointer :: well_segment
+
+  well_segment%surface_origin(:) = UNINITIALIZED_DOUBLE
+  well_segment%dxyz(:) = UNINITIALIZED_DOUBLE
+  well_segment%radius_to_horizontal_x = UNINITIALIZED_DOUBLE
+  well_segment%radius_to_horizontal_y = UNINITIALIZED_DOUBLE
+  well_segment%radius_to_horizontal_angle(:) = UNINITIALIZED_DOUBLE
+  well_segment%radius_to_vertical = UNINITIALIZED_DOUBLE
+  well_segment%cased = PETSC_FALSE
+
+end subroutine WellSegmentInit
 
 ! ************************************************************************** !
 
