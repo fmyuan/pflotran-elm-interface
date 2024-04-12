@@ -332,6 +332,15 @@ subroutine PMRTSetup(this)
   PetscReal :: val
   PetscErrorCode :: ierr
 
+  call this%SetRealization()
+  if (.not.associated(this%realization%reaction)) then
+    this%option%io_buffer = 'SUBSURFACE_TRANSPORT MODE GIRT/OSRT is &
+      &specified in the SIMULATION block without the corresponding &
+      &process model without a corresponding CHEMISTRY block within &
+      &the SUBSURFACE block.'
+    call PrintErrMsg(this%option)
+  endif
+
   ! initialize densities and saturations
   call InitFlowGlobalAuxVar(this%realization,this%realization%option)
   call RTSetup(this%realization)
@@ -420,7 +429,7 @@ end subroutine PMRTSetup
 
 ! ************************************************************************** !
 
-subroutine PMRTSetRealization(this,realization)
+subroutine PMRTSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -431,17 +440,14 @@ subroutine PMRTSetRealization(this,realization)
   implicit none
 
   class(pm_rt_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
-  if (realization%reaction%use_log_formulation) then
-    this%solution_vec = realization%field%tran_log_xx
+  this%realization => RealizationCast(this%realization_base)
+  if (this%realization%reaction%use_log_formulation) then
+    this%solution_vec = this%realization%field%tran_log_xx
   else
-    this%solution_vec = realization%field%tran_xx
+    this%solution_vec = this%realization%field%tran_xx
   endif
-  this%residual_vec = realization%field%tran_r
+  this%residual_vec = this%realization%field%tran_r
 
 end subroutine PMRTSetRealization
 

@@ -151,13 +151,13 @@ module PM_Well_class
     ! well temperature [C]
     PetscReal, pointer :: temp(:)
     ! flag for output
-    PetscBool :: output_pl 
+    PetscBool :: output_pl
     ! flag for output
     PetscBool :: output_pg
     ! flag for output
     PetscBool :: output_sl
     ! flag for output
-    PetscBool :: output_sg 
+    PetscBool :: output_sg
     ! well liquid Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces
@@ -193,7 +193,7 @@ module PM_Well_class
     ! well species aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
     ! flag for output
-    PetscBool :: output_aqc 
+    PetscBool :: output_aqc
     ! flag for output
     PetscBool :: output_aqm
     ! well species aqueous concentration top of hole BC [mol/m3-liq]
@@ -323,15 +323,15 @@ module PM_Well_class
 
   type :: well_comm_type
     ! rank in PETSC_COMM_WORLD (from option%myrank)
-    PetscMPIInt :: petsc_rank 
-    PetscMPIInt, pointer :: petsc_rank_list(:) 
-    PetscMPIInt, pointer :: well_rank_list(:) 
+    PetscMPIInt :: petsc_rank
+    PetscMPIInt, pointer :: petsc_rank_list(:)
+    PetscMPIInt, pointer :: well_rank_list(:)
     ! WELL_COMM_WORLD
-    PetscMPIInt :: comm      
+    PetscMPIInt :: comm
     ! group in WELL_COMM_WORLD
-    PetscMPIInt :: group      
+    PetscMPIInt :: group
     ! rank in WELL_COMM_WORLD
-    PetscMPIInt :: rank        
+    PetscMPIInt :: rank
     ! size of WELL_COMM_WORLD
     PetscMPIInt :: commsize
   end type well_comm_type
@@ -796,7 +796,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   PetscInt, allocatable :: temp_id_list(:)
   PetscReal, allocatable :: temp_z_list(:)
   PetscInt, allocatable :: temp_repeated_list(:)
-  PetscInt :: cur_id, cum_z_int, cur_cum_z_int 
+  PetscInt :: cur_id, cum_z_int, cur_cum_z_int
   PetscInt :: repeated
   PetscInt :: num_entries
   PetscReal, allocatable :: dz_list(:), res_dz_list(:)
@@ -1208,7 +1208,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   !---------------------------------------------------------------------------
     if (option%driver%comm%size > 1) then
       option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
-        &is not supported yet for parallel simulations. Use & 
+        &is not supported yet for parallel simulations. Use &
         &WELL_GRID,NUMBER_OF_SEGMENTS option or WELL_GRID,&
         &SEGMENT_CENTER_Z_VALUES with SEGMENT_LENGTH_VALUES option to define &
         &the wellbore model grid.'
@@ -1220,9 +1220,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_id_list = -999
     temp_repeated_list = -999
     dummy_h%x = well_grid%bottomhole(1)
-    dummy_h%y = well_grid%bottomhole(2) 
+    dummy_h%y = well_grid%bottomhole(2)
 
-    k = 0; j = 0; cur_id = -999; repeated = 0; cum_z = 0; cur_cum_z_int = 0; 
+    k = 0; j = 0; cur_id = -999; repeated = 0; cum_z = 0; cur_cum_z_int = 0;
     ! search and peck procedure for finding reservoir z list within well
     do
       j = j + 1
@@ -1234,14 +1234,14 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
       if (cum_z_int > cur_cum_z_int) then
         call PrintProgressBarInt(diff_z,5,cum_z_int)
-        cur_cum_z_int = cum_z_int 
+        cur_cum_z_int = cum_z_int
       endif
-      
+
       if (j == 1) then
         cur_id = local_id
         k = 1
         temp_id_list(k) = local_id
-      endif 
+      endif
 
       if (local_id /= cur_id) then
         k = k + 1
@@ -1251,16 +1251,16 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
           call PrintErrMsgToDev(option, &
                            'if reducing to less than 10,000 is not an option.')
         endif
-        temp_id_list(k) = local_id 
+        temp_id_list(k) = local_id
         temp_repeated_list(k-1) = repeated
-        repeated = 0 
+        repeated = 0
         cur_id = local_id
       endif
       repeated = repeated + 1
     enddo
     temp_repeated_list(k) = repeated
 
-    well_grid%nsegments = k 
+    well_grid%nsegments = k
     nsegments = well_grid%nsegments
 
     allocate(well_grid%dh(nsegments))
@@ -1290,9 +1290,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         well_grid%h(k)%z = well_grid%bottomhole(3)+(well_grid%dh(k)*(0.5d0))
       else
         well_grid%h(k)%z = well_grid%h(k-1)%z + (well_grid%dh(k-1)*(0.5d0)) + &
-                           (well_grid%dh(k)*(0.5d0)) 
+                           (well_grid%dh(k)*(0.5d0))
       endif
-      
+
       well_grid%h_local_id(k) = temp_id_list(k)
       well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
@@ -1314,23 +1314,29 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   ! Use the provided z list to build the grid
 
     if (.not.associated(well_grid%l_list)) then
-      option%io_buffer = 'When providing SEGMENT_CENTER_Z_VALUES, you must & 
+      option%io_buffer = 'When providing SEGMENT_CENTER_Z_VALUES, you must &
                          &also provide a list of SEGMENT_LENGTH_VALUES that &
                          &contains the same number of values (i.e. one length &
                          &value for every z-center value).'
       call PrintErrMsg(option)
     endif
     if (.not.associated(well_grid%z_list)) then
-      option%io_buffer = 'When providing SEGMENT_LENGTH_VALUES, you must & 
+      option%io_buffer = 'When providing SEGMENT_LENGTH_VALUES, you must &
                          &also provide a list of SEGMENT_CENTER_Z_VALUES that &
                          &contains the same number of values (i.e. one &
                          &z-center value for every length value).'
       call PrintErrMsg(option)
     endif
     if (size(well_grid%l_list) /= size(well_grid%z_list)) then
+<<<<<<< HEAD
       option%io_buffer = 'The length of SEGMENT_LENGTH_VALUES must match the & 
                          &length of SEGMENT_CENTER_Z_VALUES (i.e. one z-center&
                          & value for every length value) provided in the &
+=======
+      option%io_buffer = 'The length of SEGMENT_LENGTH_VALUES must match the &
+                         &length of SEGMENT_CENTER_Z_VALUES (i.e. one z-center &
+                         &value for every length value) provided in the &
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
                          &WELLBORE_MODEL,WELL_GRID block.'
       call PrintErrMsg(option)
     endif
@@ -1366,8 +1372,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     ! if re-sorted doesn't match the given list, throw error
     do i = 1, nsegments
       if (well_grid%z_list(i) /= temp_z_list(i)) then
-        option%io_buffer = 'The list of SEGMENT_CENTER_Z_VALUES must be & 
-          &provided in ascending order. Ensure that the list of corresponding & 
+        option%io_buffer = 'The list of SEGMENT_CENTER_Z_VALUES must be &
+          &provided in ascending order. Ensure that the list of corresponding &
           &SEGMENT_LENGTH_VALUES is also modified accordingly.'
         call PrintErrMsg(option)
       endif
@@ -1403,7 +1409,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       temp_real2 = abs(temp_real - total_length)
       !write(*,*) temp_real2
       if (temp_real2 > 1.d-2) then
-        option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES & 
+        option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES &
           &(' // trim(string) // ' m) does not match the total length of the &
           &well according to the coordinates provided by WELLBORE_MODEL,&
           &TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE (' // trim(string2) // &
@@ -1413,11 +1419,11 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     endif
 
     !This could be way off if # of well cells per reservoir cell >> 1
-    !This could also lead to inconsisent well indices between the 
+    !This could also lead to inconsisent well indices between the
     !generated vs. read-in well.
     well_grid%res_dz(:) = well_grid%dh(:)
 
-  elseif (Initialized(well_grid%nsegments)) then 
+  elseif (Initialized(well_grid%nsegments)) then
   !---------------------------------------------------------------------------
   ! Build an equally-spaced grid based on nsegments:
 
@@ -1670,7 +1676,7 @@ subroutine PMWellSetup(this)
   well_grid%h_rank_id = h_all_rank_id
   well_grid%h_global_id = h_all_global_id
 
-  h_rank_id_unique(:) = UNINITIALIZED_INTEGER  
+  h_rank_id_unique(:) = UNINITIALIZED_INTEGER
 
   min_val = minval(h_all_rank_id)-1
   max_val = maxval(h_all_rank_id)
@@ -1687,13 +1693,13 @@ subroutine PMWellSetup(this)
     h_rank_id_unique(k) = min_val
   enddo
 
-  allocate(this%well_comm%petsc_rank_list(k)) 
+  allocate(this%well_comm%petsc_rank_list(k))
   allocate(this%well_comm%well_rank_list(k))
   this%well_comm%petsc_rank_list = UNINITIALIZED_INTEGER
   this%well_comm%well_rank_list = UNINITIALIZED_INTEGER
 
   this%well_comm%petsc_rank_list = h_rank_id_unique(1:k)
-  this%well_comm%commsize = k 
+  this%well_comm%commsize = k
   call MPI_Group_incl(option%driver%comm%group,this%well_comm%commsize, &
                       this%well_comm%petsc_rank_list,this%well_comm%group, &
                       ierr);CHKERRQ(ierr)
@@ -1707,8 +1713,12 @@ subroutine PMWellSetup(this)
   do j = 0,(this%well_comm%commsize-1)
     this%well_comm%well_rank_list(j+1) = j
   enddo
+<<<<<<< HEAD
     
   allocate(this%well%r0(nsegments))
+=======
+
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -1909,7 +1919,7 @@ subroutine PMWellSetup(this)
         &WELLBORE_MODEL,WELL_GRID,XY_SEARCH_MULTIPLIER (default value = 10).'
       call PrintErrMsg(option)
     endif
-    
+
   else
     option%io_buffer = 'WELLBORE_MODEL: &
       &Well grid resolution is adequate. No reservoir grid cell &
@@ -2819,8 +2829,23 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
         !-----------------------------
           case('SKIN_FACTOR')
             do k = 1,read_max
+<<<<<<< HEAD
               call InputReadDouble(input,option,temp(k))
               if (InputError(input)) exit
+=======
+              index_word = trim(input%buf)
+              call InputReadDouble(input,option,temp_well_index(k))
+              if (InputError(input)) then
+                at_index = 0; at_index = index(index_word,'@')
+                if (at_index > 0) then
+                  read(index_word(1:at_index-1), *) num_segs
+                  read(index_word(at_index+1:len(index_word)), *) index_val
+                  temp_well_index(k:k+num_segs-1) = index_val
+                  num_read = num_read + num_segs
+                endif
+                exit
+              endif
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
               num_read = num_read + 1
             enddo
             if (num_read == 0) then
@@ -2835,11 +2860,17 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
             call InputReadWord(input,option,word,PETSC_TRUE)
             select case(word)
               case('PEACEMAN_ISO')
+<<<<<<< HEAD
                 pm_well%well%WI_model = PEACEMAN_ISO 
               case('PEACEMAN_2D')
                 pm_well%well%WI_model = PEACEMAN_2D
               case('PEACEMAN_3D')
                 pm_well%well%WI_model = PEACEMAN_3D
+=======
+                pm_well%well%WI_model = PEACEMAN_ISO
+              case('PEACEMAN_ANISOTROPIC')
+                pm_well%well%WI_model = PEACEMAN_ANISOTROPIC
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
               case default
                 option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
                 &in the ' // trim(error_string) // ' block. Default is 3D &
@@ -3624,7 +3655,7 @@ end subroutine PMWellReadPass2
 
 ! ************************************************************************** !
 
-subroutine PMWellSetRealization(this,realization)
+subroutine PMWellSetRealization(this)
   !
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -3635,10 +3666,8 @@ subroutine PMWellSetRealization(this,realization)
   implicit none
 
   class(pm_well_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMWellSetRealization
 
@@ -4070,7 +4099,7 @@ subroutine PMWellInitializeTimestep(this)
   if (Initialized(this%intrusion_time_start) .and. &
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
-  
+
   call PMWellInitializeTimestepFlow(this,curr_time)
 
 end subroutine PMWellInitializeTimestep
@@ -4504,7 +4533,7 @@ subroutine PMWellUpdateStrata(pm_well,curr_time)
               (well_strata%active)) then
             pm_well%well_grid%strata_id(k) = well_strata%id
           endif
-      endif    
+      endif
       well_strata => well_strata%next
     enddo
   enddo
@@ -4557,9 +4586,14 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
+<<<<<<< HEAD
   option => pm_well%option
   well_comm => pm_well%well_comm 
   reservoir => pm_well%well%reservoir
+=======
+  option => this%option
+  well_comm => this%well_comm
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   res_grid => pm_well%realization%patch%grid
 
@@ -4629,10 +4663,17 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
   enddo
 
   if (wippflo_update_index < 0 .or. initialize_well_flow) then
+<<<<<<< HEAD
   if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
       root_rank = pm_well%well_comm%rank
   endif 
   call MPI_Bcast(root_rank,1,MPI_INTEGER,pm_well%well_grid%h_rank_id(1), &
+=======
+  if (option%myrank == this%well_grid%h_rank_id(1)) then
+      root_rank = this%well_comm%rank
+  endif
+  call MPI_Bcast(root_rank,1,MPI_INTEGER,this%well_grid%h_rank_id(1), &
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
                  option%mycomm,ierr);CHKERRQ(ierr)
 
   if (well_comm%commsize > 1) then
@@ -4727,10 +4768,17 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
         endif
       endif
     enddo
+<<<<<<< HEAD
     
     if (pm_well%well_comm%comm /= MPI_COMM_NULL) then
       call MPI_Bcast(reservoir%p_l,pm_well%well_grid%nsegments, &
                      MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
+=======
+
+    if (this%well_comm%comm /= MPI_COMM_NULL) then
+      call MPI_Bcast(this%reservoir%p_l,this%well_grid%nsegments, &
+                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
                      ierr);CHKERRQ(ierr)
       call MPI_Bcast(reservoir%p_g,pm_well%well_grid%nsegments, &
                      MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
@@ -5436,8 +5484,13 @@ subroutine PMWellUpdateFlowRates(this,well_pert,res_pert,segment_index,ierr)
   time = this%realization%option%time
 !  if (this%flow_soln%n_steps < 1) return
 
+<<<<<<< HEAD
   ! Need to limit well model timestepping 
   this%min_dt_flow = option%flow_dt * min_flow_dt_scale
+=======
+  ! Need to limit well model timestepping
+  this%min_dt_flow = this%option%flow_dt * min_flow_dt_scale
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   if (.not. this%well_on .and. Initialized(this%intrusion_time_start) .and. &
       time < this%intrusion_time_start) then
@@ -5477,6 +5530,7 @@ subroutine PMWellUpdateFlowRates(this,well_pert,res_pert,segment_index,ierr)
                         this%realization%option)
   endif
   this%dt_flow = this%realization%option%flow_dt
+<<<<<<< HEAD
   call PMWellSolveFlow(this,well_pert,ierr)
   this%print_output = PETSC_TRUE  
 
@@ -5484,11 +5538,19 @@ subroutine PMWellUpdateFlowRates(this,well_pert,res_pert,segment_index,ierr)
                                           this%well%liq%Q(:)! [kmol/s]
   this%srcsink_gas(well_pert,:)   = -1.d0 * &
                                           this%well%gas%Q(:)! [kmol/s]
+=======
+  call PMWellSolveFlow(this,ierr)
+  this%print_output = PETSC_TRUE
+
+  this%srcsink_brine(k,:) = -1.d0 * this%well%liq%Q(:)! [kmol/s]
+  this%srcsink_gas(k,:)   = -1.d0 * this%well%gas%Q(:)! [kmol/s]
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
 end subroutine PMWellUpdateFlowRates
 
 ! ************************************************************************** !
 
+<<<<<<< HEAD
 subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
   !
   ! This subroutine computes the well contribution to the reservoir residual 
@@ -5498,6 +5560,14 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
   ! Author: Michael Nole
   ! Date: 01/16/2023
   !
+=======
+subroutine PMWellCalcResidualValues(this,residual,ss_flow_vol_flux)
+!
+! This subroutine computes the well contribution to the reservoir residual when
+! called from the fully-coupled source/sink update in WIPP FLOW mode.
+! Author: Michael Nole
+! Date: 01/16/2023
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   implicit none
 
@@ -5533,6 +5603,7 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
         Res(wat_comp_id) = this%srcsink_water(UNPERT,k)
         Res(air_comp_id) = this%srcsink_gas(UNPERT,k)
 
+<<<<<<< HEAD
         call WIPPFloConvertUnitsToBRAGFlo(Res,this%realization%patch% &
                                           aux%Material% &
                                           auxvars(ghosted_id),this%option)
@@ -5542,6 +5613,13 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
       enddo
     case(SCO2_MODE)
       select case (this%well%well_model_type)
+=======
+    call WIPPFloConvertUnitsToBRAGFlo(Res,this%realization%patch%aux%Material% &
+                                      auxvars(ghosted_id),this%option)
+    residual(local_start:local_end) = residual(local_start:local_end) - Res(:)
+
+  enddo
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
         case(WELL_MODEL_HYDROSTATIC)
           ! Add residual for bottom hole cell
@@ -5591,6 +5669,7 @@ end subroutine PMWellModifyFlowResidual
 
 ! ************************************************************************** !
 
+<<<<<<< HEAD
 subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
   !
   ! This subroutine computes the well contribution to the reservoir 
@@ -5602,6 +5681,14 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
 
   use Option_module
   use SCO2_Aux_module, only : SCO2_WELL_DOF
+=======
+subroutine PMWellCalcJacobianValues(this,Jac,ierr)
+!
+! This subroutine computes the well contribution to the reservoir Jacobian when
+! called from the fully-coupled source/sink update in WIPP FLOW mode.
+! Author: Michael Nole
+! Date: 01/16/2023
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   implicit none
 
@@ -5964,7 +6051,7 @@ subroutine PMWellResidualFlow(pm_well)
         res_temp(pm_well%flow_soln%ndof*(i-1)+1) = &
              res_temp(pm_well%flow_soln%ndof*(i-1)+1) + &
              res_src_sink(ONE_INTEGER)
-  
+
         ! Flux Term
         if (i < pm_well%well_grid%nsegments) then
           call PMWellFlux(pm_well,pm_well%well,pm_well%well,iup,idn,res_flux, &
@@ -6054,9 +6141,15 @@ subroutine PMWellQISolveTran(pm_well)
 
   implicit none
 
+<<<<<<< HEAD
   class(pm_well_type) :: pm_well
   
   PetscReal :: curr_time 
+=======
+  class(pm_well_type) :: this
+
+  PetscReal :: curr_time
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
   PetscErrorCode :: ierr
 
   ierr = 0
@@ -6069,8 +6162,13 @@ subroutine PMWellQISolveTran(pm_well)
     call PMWellInitializeWellTran(pm_well)
   endif
 
+<<<<<<< HEAD
   call PMWellUpdatePropertiesTran(pm_well)
   pm_well%dt_tran = pm_well%option%tran_dt 
+=======
+  call PMWellUpdatePropertiesTran(this)
+  this%dt_tran = this%option%tran_dt
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   call PMWellSolveTran(pm_well,ierr)
   if (pm_well%tran_soln%cut_ts_flag) return
@@ -6189,8 +6287,8 @@ subroutine PMWellResidualTranSrcSink(pm_well)
   ! residual in [mol-species/sec]
 
   ! From the flow solution:
-  ! + Q goes into well from reservoir       
-  ! - Q goes out of well into reservoir     
+  ! + Q goes into well from reservoir
+  ! - Q goes out of well into reservoir
 
   well => pm_well%well
   resr => pm_well%well%reservoir
@@ -6203,8 +6301,13 @@ subroutine PMWellResidualTranSrcSink(pm_well)
       coef_Qin = 0.d0
       coef_Qout = well%liq%Q(isegment)*FMWH2O/den_avg
     else ! Q into well
+<<<<<<< HEAD
     !            [kmol-liq/sec]*[kg-liq/kmol-liq]/[kg-liq/m^3-liq]  
       coef_Qin = well%liq%Q(isegment)*FMWH2O/den_avg
+=======
+    !            [kmol-liq/sec]*[kg-liq/kmol-liq]/[kg-liq/m^3-liq]
+      coef_Qin = well%liq%Q(isegment)*FMWH2O/rho_avg
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
       coef_Qout = 0.d0
     endif
 
@@ -6680,13 +6783,17 @@ subroutine PMWellJacTranSrcSink(pm_well,Jblock,isegment)
   PetscInt :: istart, iend, ispecies
   PetscReal :: Qin, Qout
   PetscReal :: SSin, SSout, SS
+<<<<<<< HEAD
   PetscReal :: vol, den_avg 
+=======
+  PetscReal :: vol, rho_avg
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   ! units of Jac = [m^3-bulk/sec]
   ! units of volume = [m^3-bulk]
   ! units of liq%Q = [kmol-liq/sec]
-  ! units of FMWH2O = [kg-liq/kmol-liq] 
-  ! units of density = [kg-liq/m^3-liq] 
+  ! units of FMWH2O = [kg-liq/kmol-liq]
+  ! units of density = [kg-liq/m^3-liq]
   ! units of Qin = [m^3-liq/sec]
   ! units of SS = [m^3-bulk/sec]
 
@@ -6761,7 +6868,7 @@ subroutine PMWellJacTranFlux(pm_well,Jblock,isegment)
   ! area in [m2-bulk]
   ! q in [m3-liq/m2-bulk-sec]
   ! u in [m-liq/sec]
-  ! sat in [m2-liq/m2-void] 
+  ! sat in [m2-liq/m2-void]
 
   well => pm_well%well
 
@@ -6781,10 +6888,10 @@ subroutine PMWellJacTranFlux(pm_well,Jblock,isegment)
     ! define face values with arithmetic averages:
     area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
     area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
-    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1)) 
-    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))    
-    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1)) 
-    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1)) 
+    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1))
+    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))
+    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1))
+    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1))
 
     u_up = well%ql(isegment)/(sat_up*por_up)
     u_dn = well%ql(isegment-1)/(sat_dn*por_dn)
@@ -6796,9 +6903,9 @@ subroutine PMWellJacTranFlux(pm_well,Jblock,isegment)
     ! define face values with arithmetic averages:
     area_up = 0.5d0 * (well%area(isegment) + well%area(isegment+1))
     area_dn = well%area(isegment)
-    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1)) 
-    por_dn = well%phi(isegment)   
-    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1)) 
+    por_up = 0.5d0 * (well%phi(isegment) + well%phi(isegment+1))
+    por_dn = well%phi(isegment)
+    sat_up = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment+1))
     sat_dn = well%liq%s(isegment)
 
     u_up = well%ql(isegment)/(sat_up*por_up)
@@ -6811,9 +6918,9 @@ subroutine PMWellJacTranFlux(pm_well,Jblock,isegment)
     area_up = well%area(isegment)
     area_dn = 0.5d0 * (well%area(isegment) + well%area(isegment-1))
     por_up = well%phi(isegment)
-    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))    
+    por_dn = 0.5d0 * (well%phi(isegment) + well%phi(isegment-1))
     sat_up = well%liq%s(isegment)
-    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1)) 
+    sat_dn = 0.5d0 * (well%liq%s(isegment) + well%liq%s(isegment-1))
 
     u_up = well%ql_bc(2)/(sat_up*por_up)      ! top of hole ql = ql_bc(2)
     u_dn = well%ql(isegment-1)/(sat_dn*por_dn)
@@ -6984,7 +7091,7 @@ subroutine PMWellSolve(this,time,ierr)
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs if the solve
            ! routines are not entered, either due to an inactive well or due
-           ! to being on a process that doesn't contain a well segment.          
+           ! to being on a process that doesn't contain a well segment.
 
 
   if (Initialized(this%intrusion_time_start) .and. &
@@ -7000,12 +7107,17 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
+<<<<<<< HEAD
   elseif (this%flow_coupling == FULLY_IMPLICIT_WELL) then
     write(out_string,'(" FLOW Step          Fully-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
   else
     call PMWellSolveFlow(this,-999,ierr)
+=======
+  else
+    call PMWellSolveFlow(this,ierr)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
   endif
 
   !Debugging
@@ -7183,6 +7295,15 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
                               &converge in well model'
           call PrintErrMsgByRank(option)
         endif
+<<<<<<< HEAD
+=======
+
+          this%well%liq%Q(i) = this%well%liq%Q(i) + Q_liq(i,j)
+          this%well%liq%Q(j) = this%well%liq%Q(j) + Q_liq(j,i)
+
+          this%well%gas%Q(i) = this%well%gas%Q(i) + Q_gas(i,j)
+          this%well%gas%Q(j) = this%well%gas%Q(j) + Q_gas(j,i)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
       enddo
       rho_zero_liq = rho_kg_liq
       rho_zero_gas = rho_kg_gas
@@ -7233,6 +7354,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
           den_ave = well%gas%den(i)
         endif
 
+<<<<<<< HEAD
         ! Flowrate in kg/s
         well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pg_temp-well%pg(i))
@@ -7267,6 +7389,13 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pl_temp-well%pl(i))
+=======
+        !Average the surface area and cross-sectional area of the well
+        !(flux is into/out of the well in the radial direction at
+        !cell i, and into/out of the well in the axial direction at top.
+        area = pi*0.5*(this%well%diameter(i)*this%well_grid%dh(i) + &
+                       (this%well%diameter(i)/2.d0)**2)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
         res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
         upwind = res_pg_temp > well%pg(i)
@@ -7344,8 +7473,13 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         pm_well%realization%option%io_buffer = &
           ' Maximum timestep cuts reached in PM Well FLOW. Solution has not &
            &converged. Exiting.'
+<<<<<<< HEAD
         if (pm_well%print_well) then
           call PMWellOutput(pm_well)  
+=======
+        if (this%print_well) then
+          call PMWellOutput(this)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
         endif
         call PrintErrMsg(pm_well%realization%option)
       endif
@@ -7429,11 +7563,16 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
   enddo
 
+<<<<<<< HEAD
   endif
   
   if (pm_well%flow_coupling /= FULLY_IMPLICIT_WELL .and. &
      pm_well%flow_coupling /= QUASI_IMPLICIT_WELL) then
     call PMWellPostSolveFlow(pm_well)
+=======
+  if (.not. wippflo_well_quasi_imp_coupled) then
+    call PMWellPostSolveFlow(this)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   endif
 
@@ -7488,9 +7627,15 @@ subroutine PMWellSolveTran(pm_well,ierr)
         soln%cut_ts_flag = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
+<<<<<<< HEAD
         call PrintMsg(pm_well%option,out_string)
         call PMWellCutTimestepTran(pm_well)
         return 
+=======
+        call PrintMsg(this%option,out_string)
+        call PMWellCutTimestepTran(this)
+        return
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
       endif
       if (ts_cut > soln%max_ts_cut) then
         pm_well%realization%option%io_buffer = &
@@ -7521,10 +7666,17 @@ subroutine PMWellSolveTran(pm_well,ierr)
 
     ! try to increase the time step, if possible
     if (soln%converged) then
+<<<<<<< HEAD
       pm_well%dt_tran = soln%ts_ramp_factor * pm_well%dt_tran
     endif 
     if (pm_well%dt_tran > master_dt) then
       pm_well%dt_tran = master_dt
+=======
+      this%dt_tran = soln%ts_ramp_factor * this%dt_tran
+    endif
+    if (this%dt_tran > master_dt) then
+      this%dt_tran = master_dt
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
     endif
 
     ! if pm_well next time step will overstep master_dt, then correct it
@@ -7600,13 +7752,17 @@ subroutine PMWellUpdateSolutionTran(pm_well)
 
   PetscInt :: isegment
   PetscInt :: offset, istart, iend
-  PetscInt :: nspecies 
+  PetscInt :: nspecies
   PetscReal :: vol
 
   ! update in [mol/m3-bulk]
   ! volume in [m3-bulk]
 
+<<<<<<< HEAD
   nspecies = pm_well%nspecies 
+=======
+  nspecies = this%nspecies
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
   do isegment = 1,pm_well%well_grid%nsegments
 
@@ -7729,8 +7885,13 @@ subroutine PMWellNewtonFlow(pm_well)
 
     do i = 1,pm_well%well_grid%nsegments
       if (dabs(new_dx(i)) > 1.d15) then
+<<<<<<< HEAD
         pm_well%well_force_ts_cut = 1
         return        
+=======
+        this%well_force_ts_cut = 1
+        return
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
       endif
       if (isnan(new_dx(i))) then
         pm_well%well_force_ts_cut = 1
@@ -8133,9 +8294,15 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
 
   ! Update the residual
   soln%residual = 0.d0
+<<<<<<< HEAD
   if (any(pm_well%option%myrank == pm_well%well_grid%h_rank_id)) then
     soln%residual = fixed_accum/pm_well%dt_tran 
     call PMWellResidualTran(pm_well)
+=======
+  if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+    soln%residual = fixed_accum/this%dt_tran
+    call PMWellResidualTran(this)
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
 
     do k = 1,(pm_well%well_grid%nsegments*soln%ndof)
       ! Absolute Residual
@@ -8164,7 +8331,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
         endif
       enddo
     enddo
-  
+
     max_absolute_residual = maxval(dabs(soln%residual))
     loc_max_abs_residual = maxloc(dabs(soln%residual),1)
 
@@ -8511,7 +8678,7 @@ subroutine PMWellComputeWellIndex(pm_well)
 
         pm_well%well%WI(k) = sqrt((wix**2) + (wiy**2) + (wiz**2))
       enddo
-      
+
   end select
 
   pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%casing
@@ -9797,10 +9964,15 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     name = 'Well Liq. Pressure'
     units = 'Pa'
     call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                                 WELL_LIQ_PRESSURE) 
+                                 WELL_LIQ_PRESSURE)
   endif
+<<<<<<< HEAD
   
   if (pm_well%well%output_pg) then
+=======
+
+  if (this%well%output_pg) then
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
     name = 'Well Gas Pressure'
     units = 'Pa'
     call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
@@ -9836,7 +10008,7 @@ subroutine PMWellSetPlotVariables(list,pm_well)
       units = 'mol'
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                    WELL_AQ_MASS,i)
-    enddo  
+    enddo
   endif
 
   if (pm_well%well%liq%output_Q) then
@@ -9917,10 +10089,17 @@ subroutine PMWellOutputHeader(pm_well)
 
   ! First write out the well grid information
   write(fid,'(a)',advance="yes") '========= WELLBORE MODEL GRID INFORMATION &
+<<<<<<< HEAD
                                   &==================' 
   write(word,'(i5)') pm_well%well_grid%nsegments
   write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word) 
   write(word,'(i5)') pm_well%well_grid%nconnections 
+=======
+                                  &=================='
+  write(word,'(i5)') this%well_grid%nsegments
+  write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word)
+  write(word,'(i5)') this%well_grid%nconnections
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
   write(fid,'(a)',advance="yes") ' Number of connections: ' // trim(word)
   write(word,'(es10.3,es10.3,es10.3)') pm_well%well_grid%tophole(1), &
                           pm_well%well_grid%tophole(2), pm_well%well_grid% &
@@ -9940,14 +10119,14 @@ subroutine PMWellOutputHeader(pm_well)
     write(fid,'(a)',advance="yes") trim(word)
   enddo
   write(fid,'(a)',advance="yes") '===========================================&
-                                  &================='   
+                                  &================='
   write(fid,'(a)',advance="yes") ' Segment Number: Segment length [m] '
   do k = 1,pm_well%well_grid%nsegments
     write(word,'(i4,a3,es10.3,a1)') k,': (',pm_well%well_grid%dh(k),')'
     write(fid,'(a)',advance="yes") trim(word)
   enddo
   write(fid,'(a)',advance="yes") '===========================================&
-                                  &=================' 
+                                  &================='
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
@@ -10149,7 +10328,11 @@ subroutine PMWellMassBalance(pm_well)
   well => pm_well%well
   nsegments = pm_well%well_grid%nsegments
 
+<<<<<<< HEAD
   if (pm_well%well_comm%comm == MPI_COMM_NULL) then 
+=======
+  if (this%well_comm%comm == MPI_COMM_NULL) then
+>>>>>>> aecc6d1d6 (eliminated awkward select type for pm%SetRealization)
     well%mass_balance_liq = UNINITIALIZED_DOUBLE
     return
   endif
@@ -10162,7 +10345,7 @@ subroutine PMWellMassBalance(pm_well)
     if ((isegment > 1) .and. (isegment < nsegments)) then
     ! ----------------------------------------INTERIOR-FLUXES----------------
 
-      ! [kmol/sec] 
+      ! [kmol/sec]
       mass_rate_up = well%ql_kmol(isegment)
       mass_rate_dn = well%ql_kmol(isegment-1)
 
@@ -10175,7 +10358,7 @@ subroutine PMWellMassBalance(pm_well)
     else if (isegment == 1) then
     ! ----- bottom of well -----
 
-      ! [kmol/sec] 
+      ! [kmol/sec]
       mass_rate_up = well%ql_kmol(isegment)
       mass_rate_dn = well%ql_kmol_bc(1)
 
@@ -10188,7 +10371,7 @@ subroutine PMWellMassBalance(pm_well)
     else if (isegment == pm_well%well_grid%nsegments) then
     ! ----- top of well -----
 
-      ! [kmol/sec] 
+      ! [kmol/sec]
       mass_rate_up = well%ql_kmol_bc(2)
       mass_rate_dn = well%ql_kmol(isegment-1)
 

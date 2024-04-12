@@ -330,6 +330,7 @@ subroutine PMTHSetup(this)
 
   class(pm_th_type) :: this
 
+  call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &

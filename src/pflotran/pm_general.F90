@@ -683,6 +683,7 @@ subroutine PMGeneralSetup(this)
 
   class(pm_general_type) :: this
 
+  call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &

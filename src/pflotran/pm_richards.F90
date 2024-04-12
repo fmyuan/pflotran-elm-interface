@@ -261,6 +261,7 @@ subroutine PMRichardsSetup(this)
 
   class(pm_richards_type) :: this
 
+  call this%SetRealization()
   call RichardsSetup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 

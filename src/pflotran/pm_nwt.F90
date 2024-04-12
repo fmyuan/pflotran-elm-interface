@@ -471,6 +471,14 @@ subroutine PMNWTSetup(this)
   character(len=MAXWORDLENGTH) :: name_species
   character(len=MAXWORDLENGTH) :: name_cnvgcrit
 
+  call this%SetRealization()
+  if (.not.associated(this%realization%reaction_nw)) then
+    this%option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
+      &in the SIMULATION block without the corresponding &
+      &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
+    call PrintErrMsg(this%option)
+  endif
+
   ! initialize densities and saturations
   call InitFlowGlobalAuxVar(this%realization,this%realization%option)
   call NWTSetup(this%realization)
@@ -675,7 +683,7 @@ end subroutine PMNWTSetup
 
 ! ************************************************************************** !
 
-subroutine PMNWTSetRealization(this,realization)
+subroutine PMNWTSetRealization(this)
   !
   ! Author: Jenn Frederick
   ! Date: 03/08/2019
@@ -684,17 +692,14 @@ subroutine PMNWTSetRealization(this,realization)
   implicit none
 
   class(pm_nwt_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
+  this%realization => RealizationCast(this%realization_base)
   if (this%realization%reaction_nw%use_log_formulation) then
-    this%solution_vec = realization%field%tran_log_xx
+    this%solution_vec = this%realization%field%tran_log_xx
   else
-    this%solution_vec = realization%field%tran_xx
+    this%solution_vec = this%realization%field%tran_xx
   endif
-  this%residual_vec = realization%field%tran_r
+  this%residual_vec = this%realization%field%tran_r
 
 end subroutine PMNWTSetRealization
 

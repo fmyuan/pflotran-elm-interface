@@ -664,6 +664,7 @@ subroutine PMWIPPFloSetup(this)
 
   class(pm_wippflo_type) :: this
 
+  call this%SetRealization()
   call WIPPFloSetup(this%realization)
   if (associated(this%pmwss_ptr)) call this%pmwss_ptr%Setup()
   call PMSubsurfaceFlowSetup(this)

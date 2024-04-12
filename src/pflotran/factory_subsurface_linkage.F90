@@ -10,7 +10,7 @@ module Factory_Subsurface_Linkage_module
   private
 
   public :: &
-            FactSubLinkSetupPMApproach, &
+            FactSubLinkSetupPMCs, &
             FactSubLinkExtractPMsFromPMList, &
             FactSubLinkSetupPMCLinkages, &
             FactSubLinkAddPMCEvolvingStrata, &
@@ -21,7 +21,7 @@ contains
 
 ! ************************************************************************** !
 
-recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
+recursive subroutine FactSubLinkSetupPMCs(pmc,simulation)
 !
 ! Loops through all of the PMC's recursively and sets their realization,
 ! timestepper, and solver.
@@ -29,143 +29,41 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
 ! Author: Jenn Frederick, SNL
 ! Date: 04/04/2016
 !
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  use PMC_Base_class
-  use PMC_Subsurface_class
-  use PMC_Geophysics_class
-  use PM_Base_Pointer_module
   use PM_Base_class
-  use PM_Subsurface_Flow_class
-  use PM_RT_class
-  use PM_NWT_class
-  use PM_Waste_Form_class
-  use PM_WIPP_SrcSink_class
-  use PM_UFD_Decay_class
-  use PM_UFD_Biosphere_class
-  use PM_ERT_class
-  use PM_Well_class
-  use PM_Material_Transform_class
-  use PM_Parameter_class
-  use Option_module
-  use Simulation_Subsurface_class
-  use Realization_Subsurface_class
+  use PMC_Base_class
 
   implicit none
-
 
   class(pmc_base_type), pointer :: pmc
   class(simulation_subsurface_type) :: simulation
 
-  class(realization_subsurface_type), pointer :: realization
-  class(pm_base_type), pointer :: cur_pm, linked_pm
-  type(option_type), pointer :: option
-  PetscErrorCode :: ierr
-
-  realization => simulation%realization
-  option => realization%option
+  class(pm_base_type), pointer :: cur_pm
 
   if (.not.associated(pmc)) return
 
   pmc%waypoint_list => simulation%waypoint_list_subsurface
 
-  ! loop through this pmc's process models:
   cur_pm => pmc%pm_list
   do
     if (.not.associated(cur_pm)) exit
-    ! set realization
-    select type(cur_pm)
-      class is(pm_rt_type)
-        if (.not.associated(realization%reaction)) then
-          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE GIRT/OSRT is &
-            &specified in the SIMULATION block without the corresponding &
-            &process model without a corresponding CHEMISTRY block within &
-            &the SUBSURFACE block.'
-          call PrintErrMsg(option)
-        endif
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_nwt_type)
-        if (.not.associated(realization%reaction_nw)) then
-          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
-            &in the SIMULATION block without the corresponding &
-            &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
-          call PrintErrMsg(option)
-        endif
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_subsurface_flow_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_waste_form_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_ufd_decay_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_ufd_biosphere_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_ert_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_well_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_material_transform_type)
-        call cur_pm%SetRealization(realization)
-
-      class is(pm_parameter_type)
-        call cur_pm%SetRealization(realization)
-
-    end select
-
     cur_pm%output_option => simulation%output_option
+    cur_pm%realization_base => simulation%realization
     call cur_pm%Setup()
-
-    select type(cur_pm)
-      class is(pm_well_type)
-        if (option%coupled_well) then
-          linked_pm => simulation%process_model_list
-          do
-            if (.not. associated(linked_pm)) exit
-            select type(linked_pm)
-              class is(pm_subsurface_flow_type)
-                call MatSetOption(linked_pm%solver%m, &
-                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
-                                  ierr);CHKERRQ(ierr)
-                call PMWellModifyDummyFlowJacobian(cur_pm, &
-                                                  linked_pm%solver%m,ierr)
-                call MatAssemblyBegin(linked_pm%solver%m, &
-                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-                call MatAssemblyEnd(linked_pm%solver%m, &
-                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-                call MatSetOption(linked_pm%solver%m, &
-                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
-                                  ierr);CHKERRQ(ierr)
-            end select
-            linked_pm => linked_pm%next
-          enddo
-        endif
-    end select
-
     cur_pm => cur_pm%next
   enddo
 
   call pmc%SetupSolvers()
 
-  ! call this function for this pmc's child
   if (associated(pmc%child)) then
-    call FactSubLinkSetupPMApproach(pmc%child,simulation)
+    call FactSubLinkSetupPMCs(pmc%child,simulation)
   endif
 
-  ! call this function for this pmc's peer
   if (associated(pmc%peer)) then
-    call FactSubLinkSetupPMApproach(pmc%peer,simulation)
+    call FactSubLinkSetupPMCs(pmc%peer,simulation)
   endif
 
 
-end subroutine FactSubLinkSetupPMApproach
+end subroutine FactSubLinkSetupPMCs
 
 ! ************************************************************************** !
 

@@ -180,6 +180,7 @@ subroutine PMMphaseSetup(this)
 
   class(pm_mphase_type) :: this
 
+  call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &

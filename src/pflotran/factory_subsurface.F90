@@ -375,8 +375,8 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   ! the following recursive subroutine will also call each pmc child
   ! and each pms's peers
   if (associated(simulation%process_model_coupler_list)) then
-    call FactSubLinkSetupPMApproach(simulation%process_model_coupler_list, &
-                                    simulation)
+    call FactSubLinkSetupPMCs(simulation%process_model_coupler_list, &
+                              simulation)
   endif
 
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization

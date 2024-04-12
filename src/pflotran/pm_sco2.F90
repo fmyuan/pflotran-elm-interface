@@ -579,6 +579,7 @@ subroutine PMSCO2Setup(this)
 
   class(pm_sco2_type) :: this
 
+  call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
@@ -617,6 +618,21 @@ recursive subroutine PMSCO2InitializeRun(this)
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
   enddo
+
+  ! setup coupling in jacobian matrix for well model
+  if (option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%pmwell_ptr%solver%m, &
+                      MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    call PMWellModifyDummyFlowJacobian(cur_pm,this%pmwell_ptr%solver%m,ierr)
+    call MatAssemblyBegin(this%pmwell_ptr%solver%m, &
+                          MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%pmwell_ptr%solver%m, &
+                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%pmwell_ptr%solver%m, &
+                      MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+  endif
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)

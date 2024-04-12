@@ -207,6 +207,7 @@ subroutine PMPNFSetup(this)
 
   class(pm_pnf_type) :: this
 
+  call this%SetRealization()
   call PNFSetup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 

@@ -311,6 +311,7 @@ subroutine PMERTSetup(this)
 
   option => this%option
 
+  call this%SetRealization()
   call ERTSetup(this%realization)
 
   ! set the communicator
@@ -394,21 +395,18 @@ end function PMERTCast
 
 ! ************************************************************************** !
 
-subroutine PMERTSetRealization(this,realization)
+subroutine PMERTSetRealization(this)
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-
   use Realization_Subsurface_class
 
   implicit none
 
   class(pm_ert_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMERTSetRealization
 

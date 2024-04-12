@@ -375,6 +375,7 @@ subroutine PMZFlowSetup(this)
 
   class(pm_zflow_type) :: this
 
+  call this%SetRealization()
   call ZFlowSetup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 
