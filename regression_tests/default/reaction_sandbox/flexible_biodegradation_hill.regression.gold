@@ -1,34 +1,17 @@
 -- CONCENTRATION: Free Aaq --
-      Max:   5.8803523658635E-07
-      Min:   5.8803523658635E-07
-     Mean:   5.8803523658635E-07
         1:   5.8803523658635E-07
 -- CONCENTRATION: Free Baq --
-      Max:   2.5014700880716E-04
-      Min:   2.5014700880716E-04
-     Mean:   2.5014700880716E-04
         1:   2.5014700880716E-04
 -- CONCENTRATION: Free Caq --
-      Max:   3.2980604851920E-04
-      Min:   3.2980604851920E-04
-     Mean:   3.2980604851920E-04
         1:   3.2980604851920E-04
 -- CONCENTRATION: Free Daq --
-      Max:   9.9941206520969E-04
-      Min:   9.9941206520969E-04
-     Mean:   9.9941206520969E-04
         1:   9.9941206520969E-04
 -- CONCENTRATION: Xim --
-      Max:   1.1452894860909E-04
-      Min:   1.1452894860909E-04
-     Mean:   1.1452894860909E-04
         1:   1.1452894860909E-04
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
+   Time (seconds):   4.3376380996961E-02
    Time Steps:          169
    Newton Iterations:          520
    Linear Solver Iterations:          520

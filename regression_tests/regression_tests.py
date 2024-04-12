@@ -760,7 +760,6 @@ class RegressionTest(object):
             errors = []
             num_minor_fail = 0
             num_major_fail = 0
-            num_error = 0
 
             if self._debug:
                 print("--- Gold sections:")
@@ -793,7 +792,8 @@ class RegressionTest(object):
                                                testlog)
                         num_minor_fail += report[0]
                         num_major_fail += report[1]
-                        num_error += report[2]
+                        if report[2]:
+                            errors.append(_MISSING_INFO_ERROR)
                         if report[3]:
                             errors.append(_NAN_OR_INF_ERROR)
                     except Exception as error:

@@ -1,64 +1,29 @@
 -- GENERIC: pH --
-      Max:   6.3585671997723E+00
-      Min:   6.3585671997723E+00
-     Mean:   6.3585671997723E+00
         1:   6.3585671997723E+00
 -- CONCENTRATION: Total H+ --
-      Max:   9.0363596023187E-04
-      Min:   9.0363596023187E-04
-     Mean:   9.0363596023187E-04
         1:   9.0363596023187E-04
 -- CONCENTRATION: Total HCO3- --
-      Max:   2.6701164488727E-03
-      Min:   2.6701164488727E-03
-     Mean:   2.6701164488727E-03
         1:   2.6701164488727E-03
 -- CONCENTRATION: Total Ca++ --
-      Max:   9.8335136983854E-02
-      Min:   9.8335136983854E-02
-     Mean:   9.8335136983854E-02
         1:   9.8335136983854E-02
 -- CONCENTRATION: Free H+ --
-      Max:   5.3733682741845E-07
-      Min:   5.3733682741845E-07
-     Mean:   5.3733682741845E-07
         1:   5.3733682741845E-07
 -- CONCENTRATION: Free HCO3- --
-      Max:   1.2835779209605E-03
-      Min:   1.2835779209605E-03
-     Mean:   1.2835779209605E-03
         1:   1.2835779209605E-03
 -- CONCENTRATION: Free Ca++ --
-      Max:   9.7859438060130E-02
-      Min:   9.7859438060130E-02
-     Mean:   9.7859438060130E-02
         1:   9.7859438060130E-02
 -- VOLUME_FRACTION: Calcite VF --
-      Max:   7.5044882023616E-05
-      Min:   7.5044882023616E-05
-     Mean:   7.5044882023616E-05
         1:   7.5044882023616E-05
 -- RATE: Calcite Rate --
-      Max:   4.4317140458514E-14
-      Min:   4.4317140458514E-14
-     Mean:   4.4317140458514E-14
         1:   4.4317140458514E-14
 -- GENERIC: Calcite SI --
-      Max:   1.0000001156177E+00
-      Min:   1.0000001156177E+00
-     Mean:   1.0000001156177E+00
         1:   1.0000001156177E+00
 -- VOLUME_FRACTION: Calcite Area --
-      Max:   3.8330754666534E-01
-      Min:   3.8330754666534E-01
-     Mean:   3.8330754666534E-01
         1:   3.8330754666534E-01
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
+   Time (seconds):   6.2358860000131E-03
    Time Steps:           19
    Newton Iterations:           66
    Linear Solver Iterations:           66
