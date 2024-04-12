@@ -122,6 +122,9 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                    pm_well,pm_material_transform, &
                                    pm_parameter_list)
 
+  call FactSubLinkAddPMCEvolvingStrata(simulation)
+  call FactSubLinkAddPMCInversion(simulation)
+
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call FactorySubsurfaceInitSimulation(simulation)
 
@@ -402,24 +405,9 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
                                       output_snap_variable_list,option)
-
   call RegressionSetup(simulation%regression,realization)
-! end from old Init()
-
   call DiscretizationPrintInfo(realization%discretization, &
                                realization%patch%grid,option)
-
-  !----------------------------------------------------------------------------!
-  ! This section for setting up new process model approach
-  !----------------------------------------------------------------------------!
-  call FactSubLinkAddPMCEvolvingStrata(simulation)
-  call FactSubLinkAddPMCInversion(simulation)
-
-  ! For each ProcessModel, set:
-  ! - realization (subsurface or surface),
-  ! - stepper (flow/trans/surf_flow),
-  ! For each ProcessModelCoupler, set:
-  ! - SNES functions (Residual/Jacobian), or TS function (RHSFunction)
 
   cur_process_model_coupler_top => simulation%process_model_coupler_list
 
