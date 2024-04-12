@@ -3292,7 +3292,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscErrorCode :: ierr
   PetscReal, allocatable :: Coeff(:)
   PetscReal, allocatable :: concentration_old(:)
-  PetscReal :: inst_release_molality
+  PetscReal :: inst_release_molality, inst_release_bulk_conc
   PetscReal, pointer :: xx_p(:)
   ! implicit solution parameters
   PetscReal :: norm
@@ -3499,21 +3499,36 @@ subroutine PMWFInitializeTimestep(this)
         do f = 1, cur_waste_form%region%num_cells
           local_id = cur_waste_form%region%cell_ids(f)
           ghosted_id = grid%nL2G(local_id)
-          inst_release_molality = &                    ! [mol-rad/kg-water]
-            ! [mol-rad]
-            (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
-             cur_waste_form%volume * &                 ! [m^3-matrix]
-             cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
-             1.d3) / &                               ! [kg-matrix] -> [g-matrix]
-             ! [kg-water]
-            (material_auxvars(ghosted_id)%porosity * &         ! [-]
-             (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
-             material_auxvars(ghosted_id)%volume * &           ! [m^3]
-             global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
-          idof = cwfm%rad_species_list(k)%ispecies + &
-                 ((local_id - 1) * option%ntrandof)
-          xx_p(idof) = xx_p(idof) + &
-                       (inst_release_molality*cur_waste_form%scaling_factor(f))
+          if (option%itranmode == RT_MODE) then
+            inst_release_molality = &                    ! [mol-rad/kg-water]
+              ! [mol-rad]
+              (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
+               cur_waste_form%volume * &                 ! [m^3-matrix]
+               cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
+               1.d3) / &                               ! [kg-matrix] -> [g-matrix]
+               ! [kg-water]
+              (material_auxvars(ghosted_id)%porosity * &         ! [-]
+               (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
+               material_auxvars(ghosted_id)%volume * &           ! [m^3]
+               global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
+            idof = cwfm%rad_species_list(k)%ispecies + &
+                   ((local_id - 1) * option%ntrandof)
+            xx_p(idof) = xx_p(idof) + &
+                         (inst_release_molality*cur_waste_form%scaling_factor(f))
+          elseif (option%itranmode == NWT_MODE) then
+            inst_release_bulk_conc = &                    ! [mol-rad/m^3-bulk]
+              ! [mol-rad]
+              (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
+               cur_waste_form%volume * &                 ! [m^3-matrix]
+               cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
+               1.d3) / &                               ! [kg-matrix] -> [g-matrix]
+               ! [m^3-bulk]
+               material_auxvars(ghosted_id)%volume       ! [m^3-bulk]
+            idof = cwfm%rad_species_list(k)%ispecies + &
+                   ((local_id - 1) * option%ntrandof)
+            xx_p(idof) = xx_p(idof) + &
+                         (inst_release_bulk_conc*cur_waste_form%scaling_factor(f))
+          endif
         enddo
 
       enddo
@@ -3939,7 +3954,7 @@ subroutine PMWFSolve(this,time,ierr)
   PetscInt :: num_species
   PetscInt :: local_id, ghosted_id
   PetscInt :: idof
-  PetscReal :: inst_diss_molality
+  PetscReal :: inst_diss_molality, inst_diss_bulk_conc
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: xx_p(:), heat_source(:)
   PetscReal :: avg_temp_local, avg_temp_global
@@ -4008,18 +4023,31 @@ subroutine PMWFSolve(this,time,ierr)
                  cur_waste_form%mechanism%rad_species_list(j)%formula_weight * &! kg-rad/kmol-rad
                  cur_waste_form%rad_mass_fraction(j) * &      ! kg-rad/kg-bulk
                  1.d3)
-              inst_diss_molality = &                          ! mol-rad/kg-water
-                cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
-                this%realization%option%tran_dt / &           ! sec
-                ! [kg-water]
-                (material_auxvars(ghosted_id)%porosity * &        ! [-]
-                 global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * & ! [-]
-                 material_auxvars(ghosted_id)%volume * &          ! [m^3]
-                 global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)) ! [kg/m^3-water]
-              idof = cwfm%rad_species_list(j)%ispecies + &
-                     ((local_id - 1) * this%option%ntrandof)
-              xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
-                           (inst_diss_molality*cur_waste_form%scaling_factor(k))
+              if (option%itranmode == RT_MODE) then
+                inst_diss_molality = &                          ! mol-rad/kg-water
+                  cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
+                  this%realization%option%tran_dt / &           ! sec
+                  ! [kg-water]
+                  (material_auxvars(ghosted_id)%porosity * &        ! [-]
+                   global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * & ! [-]
+                   material_auxvars(ghosted_id)%volume * &          ! [m^3]
+                   global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)) ! [kg/m^3-water]
+                idof = cwfm%rad_species_list(j)%ispecies + &
+                       ((local_id - 1) * this%option%ntrandof)
+                xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
+                             (inst_diss_molality*cur_waste_form%scaling_factor(k))
+              elseif (option%itranmode == NWT_MODE) then
+                inst_diss_bulk_conc = &                         ! mol-rad/m^3-bulk
+                  ! [mol-rad]
+                  cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
+                  this%realization%option%tran_dt / &           ! sec
+                  ! [m^3-bulk]
+                  material_auxvars(ghosted_id)%volume           ! [m^3-bulk]
+                idof = cwfm%rad_species_list(j)%ispecies + &
+                       ((local_id - 1) * this%option%ntrandof)
+                xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
+                             (inst_diss_bulk_conc*cur_waste_form%scaling_factor(k))
+              endif
               vec_p(i) = 0.d0
               if (k == 1) then
                 ! update the cumulative mass now, not at next timestep:
