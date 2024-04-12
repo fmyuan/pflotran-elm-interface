@@ -39,6 +39,7 @@ module PM_General_class
                            PMGeneralReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMGeneralReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMGeneralInitializeSolver
+    procedure, public :: Setup => PMGeneralSetup
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -668,6 +669,31 @@ end subroutine PMGeneralReadNewtonSelectCase
 
 ! ************************************************************************** !
 
+subroutine PMGeneralSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use General_module
+  use Material_module
+
+  implicit none
+
+  class(pm_general_type) :: this
+
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call GeneralSetup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMGeneralSetup
+
+! ************************************************************************** !
+
 subroutine PMGeneralInitializeSolver(this)
   !
   ! Author: Glenn Hammond
@@ -1097,7 +1123,7 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
            dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
            changed = PETSC_TRUE
           endif
-        case(GP_STATE)  
+        case(GP_STATE)
           pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
           if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
             dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO

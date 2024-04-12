@@ -32,6 +32,7 @@ module PM_ZFlow_class
                            PMZFlowReadSimOptionsBlock
     procedure, public :: ReadTSBlock => PMZFlowReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMZFlowReadNewtonSelectCase
+    procedure, public :: Setup => PMZFlowSetup
     procedure, public :: InitializeRun => PMZFlowInitializeRun
     procedure, public :: InitializeTimestep => PMZFlowInitializeTimestep
     procedure, public :: Residual => PMZFlowResidual
@@ -358,6 +359,26 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
   end select
 
 end subroutine PMZFlowReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMZFlowSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use ZFlow_module
+
+  implicit none
+
+  class(pm_zflow_type) :: this
+
+  call ZFlowSetup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMZFlowSetup
 
 ! ************************************************************************** !
 

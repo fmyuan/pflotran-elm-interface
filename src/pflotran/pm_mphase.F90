@@ -15,6 +15,7 @@ module PM_Mphase_class
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMMphaseReadSimOptionsBlock
     procedure, public :: InitializeSolver => PMMphaseInitializeSolver
+    procedure, public :: Setup => PMMphaseSetup
     procedure, public :: InitializeTimestep => PMMphaseInitializeTimestep
     procedure, public :: Residual => PMMphaseResidual
     procedure, public :: Jacobian => PMMphaseJacobian
@@ -161,6 +162,33 @@ subroutine PMMphaseInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMMphaseInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMMphaseSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Material_module
+  use Mphase_module
+  use co2_sw_module, only : init_span_wagner
+
+  implicit none
+
+  class(pm_mphase_type) :: this
+
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call init_span_wagner(this%realization%option)
+  call MphaseSetup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMMphaseSetup
 
 ! ************************************************************************** !
 

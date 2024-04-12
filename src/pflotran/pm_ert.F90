@@ -299,8 +299,9 @@ subroutine PMERTSetup(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-  use ZFlow_Aux_module
+  use ERT_module
   use Option_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -309,6 +310,8 @@ subroutine PMERTSetup(this)
   type(option_type), pointer :: option
 
   option => this%option
+
+  call ERTSetup(this%realization)
 
   ! set the communicator
   this%comm1 => this%realization%comm1

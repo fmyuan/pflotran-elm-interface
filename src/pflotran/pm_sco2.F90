@@ -46,6 +46,7 @@ module PM_SCO2_class
                            PMSCO2ReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMSCO2ReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMSCO2InitializeSolver
+    procedure, public :: Setup => PMSCO2Setup
     procedure, public :: InitializeRun => PMSCO2InitializeRun
     procedure, public :: InitializeTimestep => PMSCO2InitializeTimestep
     procedure, public :: Residual => PMSCO2Residual
@@ -561,6 +562,31 @@ subroutine PMSCO2InitializeSolver(this)
   this%solver%newton_max_iterations = 16
 
 end subroutine PMSCO2InitializeSolver
+
+! ************************************************************************** !
+
+subroutine PMSCO2Setup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Material_module
+  use SCO2_module
+
+  implicit none
+
+  class(pm_sco2_type) :: this
+
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call SCO2Setup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMSCO2Setup
 
 ! ************************************************************************** !
 

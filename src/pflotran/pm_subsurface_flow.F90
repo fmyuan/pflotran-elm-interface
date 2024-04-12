@@ -48,10 +48,10 @@ module PM_Subsurface_Flow_class
 
   contains
 !geh: commented out subroutines can only be called externally
-    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: ReadTSBlock => PMSubsurfaceFlowReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMSubsurfaceFlowReadNewtonSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
+    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
@@ -335,12 +335,14 @@ subroutine PMSubsurfaceFlowSetup(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Discretization_module
-  use Communicator_Structured_class
-  use Communicator_Unstructured_class
-  use Grid_module
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
+  use Condition_Control_module
+  use Discretization_module
+  use Grid_module
+  use Init_Subsurface_Flow_module
   use Option_module
 
   implicit none
@@ -348,6 +350,16 @@ subroutine PMSubsurfaceFlowSetup(this)
   class(pm_subsurface_flow_type) :: this
 
   class(characteristic_curves_type), pointer :: cur_cc
+
+  ! assign initial conditionsRealizAssignFlowInitCond
+  call CondControlAssignFlowInitCond(this%realization)
+  ! override initial conditions if they are to be read from a file
+  if (len_trim(this%option%initialize_flow_filename) > 1) then
+    call InitSubsurfFlowReadInitCond(this%realization, &
+                                     this%option%initialize_flow_filename)
+  endif
+
+  call this%UpdateAuxvars()
 
   ! set the communicator
   this%comm1 => this%realization%comm1

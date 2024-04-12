@@ -313,7 +313,10 @@ subroutine PMRTSetup(this)
   use Communicator_Structured_class
   use Communicator_Unstructured_class
 #endif
+  use Condition_Control_module
   use Grid_module
+  use Init_Subsurface_Tran_module
+  use Reactive_Transport_module
   use Reactive_Transport_Aux_module, only : reactive_transport_param_type
   use Material_module
   use Variables_module, only : TORTUOSITY
@@ -328,6 +331,10 @@ subroutine PMRTSetup(this)
   PetscBool :: lflag
   PetscReal :: val
   PetscErrorCode :: ierr
+
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(this%realization,this%realization%option)
+  call RTSetup(this%realization)
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
 
@@ -406,6 +413,8 @@ subroutine PMRTSetup(this)
            this%realization%reaction%ncomp))
   allocate(this%max_volfrac_change( &
            this%realization%reaction%mineral%nkinmnrl))
+
+  call CondControlAssignRTTranInitCond(this%realization)
 
 end subroutine PMRTSetup
 
