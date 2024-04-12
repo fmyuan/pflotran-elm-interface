@@ -1,44 +1,21 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   2.0132500000000E+05
-      Min:   2.0132500000000E+05
-     Mean:   2.0132500000000E+05
         1:   2.0132500000000E+05
 -- SATURATION: Liquid Saturation --
-      Max:   1.0000000000000E+00
-      Min:   1.0000000000000E+00
-     Mean:   1.0000000000000E+00
         1:   1.0000000000000E+00
 -- CONCENTRATION: Total O2(aq) --
-      Max:   1.0000000000000E-03
-      Min:   1.0000000000000E-03
-     Mean:   1.0000000000000E-03
         1:   1.0000000000000E-03
 -- CONCENTRATION: Total CO3-- --
-      Max:   1.0000000000000E-03
-      Min:   1.0000000000000E-03
-     Mean:   1.0000000000000E-03
         1:   1.0000000000000E-03
 -- CONCENTRATION: Total H2(aq) --
-      Max:   1.0000000000000E-03
-      Min:   1.0000000000000E-03
-     Mean:   1.0000000000000E-03
         1:   1.0000000000000E-03
 -- CONCENTRATION: Total Fe++ --
-      Max:   1.0000000000000E-03
-      Min:   1.0000000000000E-03
-     Mean:   1.0000000000000E-03
         1:   1.0000000000000E-03
 -- CONCENTRATION: Total Tracer --
-      Max:   3.2378415318990E-06
-      Min:   3.2378415318990E-06
-     Mean:   3.2378415318990E-06
         1:   3.2378415318990E-06
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Flow --
+   Time (seconds):   3.3820621004452E-02
    Time Steps:          279
    Newton Iterations:          279
    Linear Solver Iterations:            0
@@ -46,6 +23,7 @@
    Solution 2-Norm:   2.0132500000000E+05
    Residual 2-Norm:   0.0000000000000E+00
 -- SOLUTION: Transport --
+   Time (seconds):   3.6425983003483E-02
    Time Steps:          279
    Newton Iterations:          279
    Linear Solver Iterations:          242
