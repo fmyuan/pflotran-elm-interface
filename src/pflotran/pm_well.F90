@@ -392,7 +392,8 @@ module PM_Well_class
             PMWellReadGrid, &
             PMWellReadPass2, &
             PMWellQISolveTran, &
-            PMWellUpdateReservoirSrcSinkFlow
+            PMWellUpdateReservoirSrcSinkFlow, &
+            PMWellModifyDummyFlowJacobian
 
   contains
 
@@ -2681,23 +2682,30 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
       endif
       if (.not.associated(well_grid%casing) .and. .not. &
           associated(well_grid%deviated_well_segment_list)) then
-        option%io_buffer = 'Keyword CASING must be provided in &
+        option%io_buffer = 'Either keyword CASING or DEVIATED_WELL_TRAJECTORY &
+                           &must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
       endif
-      if (Uninitialized(well_grid%tophole(1)) .or. &
+      if ((Uninitialized(well_grid%tophole(1)) .or. &
           Uninitialized(well_grid%tophole(2)) .or. &
-          Uninitialized(well_grid%tophole(3))) then
-        option%io_buffer = 'ERROR: TOP_OF_HOLE must be specified &
-                           &in the ' // trim(error_string) // ' block.'
+          Uninitialized(well_grid%tophole(3))) .and. .not. &
+          associated(well_grid%deviated_well_segment_list)) then
+        option%io_buffer = 'ERROR: Either keyword TOP_OF_HOLE &
+                           &or DEVIATED_WELL_TRAJECTORY &
+                           &must be provided in &
+                           &the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
-      if (Uninitialized(well_grid%bottomhole(1)) .or. &
+      if ((Uninitialized(well_grid%bottomhole(1)) .or. &
           Uninitialized(well_grid%bottomhole(2)) .or. &
-          Uninitialized(well_grid%bottomhole(3))) then
-        option%io_buffer = 'ERROR: BOTTOM_OF_HOLE must be specified &
-                           &in the ' // trim(error_string) // ' block.'
+          Uninitialized(well_grid%bottomhole(3))) .and. .not. &
+          associated(well_grid%deviated_well_segment_list)) then
+        option%io_buffer = 'ERROR: Either keywordk BOTTOM_OF_HOLE &
+                           &or DEVIATED_WELL_TRAJECTORY &
+                           &must be provided in &
+                           &the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -5807,6 +5815,104 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
     end select
 
 end subroutine PMWellModifyFlowJacobian
+
+! ************************************************************************** !
+
+subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
+  !
+  ! This subroutine computes the a dummy Jacobian for initializing a 
+  ! simulation with enough connectivity.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/16/2023
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  Mat :: Jac
+  PetscErrorCode :: ierr
+
+  type(option_type), pointer :: option
+  PetscInt :: ghosted_id
+  PetscReal, allocatable :: J_block(:,:)
+  PetscInt :: j,k,idof,irow
+  PetscInt :: local_row_index, local_col_index
+  PetscReal :: J_well
+
+  option => this%option
+
+  if (this%flow_coupling /= FULLY_IMPLICIT_WELL) return
+  if (this%well_comm%comm == MPI_COMM_NULL) return
+
+  select case (this%option%iflowmode)
+    case(SCO2_MODE)
+
+      allocate(J_block(option%nflowdof,option%nflowdof))
+
+      J_block = 0.d0
+      
+      ! Perturbations
+      do k = 1,this%well_grid%nsegments
+        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+
+        J_block = 0.d0
+        ghosted_id = this%well_grid%h_ghosted_id(k)
+        do idof = 1,option%nflowdof-1
+          ! Compute dRwell / dXres
+          if (this%well_grid%h_rank_id(1) == option%myrank) then
+            local_row_index = this%well_grid%h_ghosted_id(1)* &
+                              option%nflowdof-1
+            local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
+            J_well = UNINITIALIZED_DOUBLE
+            call MatSetValuesLocal(Jac,1,local_row_index,1, &
+                                   local_col_index,J_well, &
+                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
+
+          ! Compute dRres / dXres
+          do irow = 1,option%nflowdof-1
+            J_block(irow,idof) = UNINITIALIZED_DOUBLE
+          enddo
+        enddo
+        if (any(dabs(J_block) > 0.d0)) then
+          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+        endif
+
+        !Perturbed rates wrt well perturbation.
+
+        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+  
+        J_block = 0.d0
+  
+        ghosted_id = this%well_grid%h_ghosted_id(k)
+
+        ! Compute dRwell / dPwell
+        if (k == 1) then
+          J_block(option%nflowdof,option%nflowdof) = UNINITIALIZED_DOUBLE
+        endif
+  
+        ! Compute dRres / dPwell
+        do j = 0,option%nflowdof-2
+          ! Just change 1 column
+          local_row_index = (ghosted_id-1)*option%nflowdof + j
+          local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
+          J_well = UNINITIALIZED_DOUBLE
+          call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                  J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+        enddo
+  
+        if (any(dabs(J_block) > 0.d0)) then
+          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+        endif
+      enddo
+    end select
+
+end subroutine PMWellModifyDummyFlowJacobian
 
 ! ************************************************************************** !
 

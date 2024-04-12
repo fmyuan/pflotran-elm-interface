@@ -901,19 +901,9 @@ subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
     case(STRUCTURED_GRID)
       call DMSetMatType(dm_ptr%dm,mat_type,ierr);CHKERRQ(ierr)
       call DMCreateMatrix(dm_ptr%dm,Matrix,ierr);CHKERRQ(ierr)
-      if (option%coupled_well) then
-        call MatSetOption(Matrix,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
-                    ierr);CHKERRQ(ierr)
-      endif
     case(UNSTRUCTURED_GRID)
       call UGridDMCreateMatrix(discretization%grid%unstructured_grid, &
                                  dm_ptr%ugdm,mat_type,Matrix,option)
-      if (discretization%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-        if (option%coupled_well) then
-          call MatSetOption(Matrix,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
-                    ierr);CHKERRQ(ierr)
-        endif
-      endif
   end select
   call MatSetOption(Matrix,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
                     ierr);CHKERRQ(ierr)

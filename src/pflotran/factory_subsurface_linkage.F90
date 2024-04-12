@@ -58,8 +58,9 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
   class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: realization
-  class(pm_base_type), pointer :: cur_pm
+  class(pm_base_type), pointer :: cur_pm, linked_pm
   type(option_type), pointer :: option
+  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -121,6 +122,33 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
 
     cur_pm%output_option => simulation%output_option
     call cur_pm%Setup()
+
+    select type(cur_pm)
+      class is(pm_well_type)
+        if (option%coupled_well) then
+          linked_pm => simulation%process_model_list
+          do
+            if (.not. associated(linked_pm)) exit
+            select type(linked_pm)
+              class is(pm_subsurface_flow_type)
+                call MatSetOption(linked_pm%solver%m, &
+                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                                  ierr);CHKERRQ(ierr)
+                call PMWellModifyDummyFlowJacobian(cur_pm, &
+                                                  linked_pm%solver%m,ierr)
+                call MatAssemblyBegin(linked_pm%solver%m, &
+                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+                call MatAssemblyEnd(linked_pm%solver%m, &
+                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+                call MatSetOption(linked_pm%solver%m, &
+                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                                  ierr);CHKERRQ(ierr)
+            end select
+            linked_pm => linked_pm%next
+          enddo
+        endif
+    end select
+
     cur_pm => cur_pm%next
   enddo
 
