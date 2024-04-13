@@ -323,7 +323,7 @@ subroutine MaterialAuxInitSoilPropertyMap(aux,index,ivar,name)
   type(material_type) :: aux
   PetscInt :: index
   PetscInt :: ivar
-  character(len=*) name
+  character(len=*) :: name
 
   if (index > 0) then
     aux%soil_properties_ivar(index) = ivar
