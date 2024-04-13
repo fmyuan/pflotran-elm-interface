@@ -5,6 +5,7 @@ module Grid_Unstructured_Aux_module
   use petscvec
   use Grid_Unstructured_Cell_module
   use Geometry_module
+  use Well_Grid_module
 
   use PFLOTRAN_Constants_module
 
@@ -282,6 +283,7 @@ function UGridCreate()
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
   unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
+
   
   UGridCreate => unstructured_grid
 

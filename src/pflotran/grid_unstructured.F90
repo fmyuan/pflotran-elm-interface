@@ -2087,7 +2087,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       dual_id = unstructured_grid%cell_neighbors_local_ghosted(idual,local_id)
       ! count all ghosted connections (dual_id < 0)
       ! only count connection with cells of larger ids to avoid double counts
-!geh: we need to cound all local connection, but just once (local_id < dual_id) and all
+!geh: we need to count all local connections, but just once (local_id < dual_id) and all
 !      ghosted connections (dual_id < 0)
       if (dual_id < 0 .or. local_id < dual_id) then
 !geh: Nope      if (dual_id > 0 .and. local_id < dual_id) then !sp
@@ -2095,7 +2095,6 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       endif
     enddo
   enddo
-
 
   connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
 

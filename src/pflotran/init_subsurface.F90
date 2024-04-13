@@ -1300,6 +1300,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(WF_MODE)
         matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
       case(SCO2_MODE)
+        if (option%coupled_well) then
+          dof_is_active(option%nflowdof) = PETSC_FALSE
+        endif
         matrix_zeroing => patch%aux%SCO2%matrix_zeroing
     end select
     call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &

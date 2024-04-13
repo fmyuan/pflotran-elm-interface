@@ -27,6 +27,9 @@ SIMULATION
     END
 
     WELL_MODEL well01
+      OPTIONS
+        TYPE WIPP_DARCY
+      /
     END
     
   END
@@ -187,29 +190,27 @@ WELLBORE_MODEL
   # Uncommenting PRINT_WELL_FILE will create the .well file at each time step
   #PRINT_WELL_FILE
 
-  WELL_MODEL_TYPE
-    WIPP_DARCY
-  /
-
   # Note the SEGMENT_CENTER_Z_VALUES must be provided in ascending order!
   WELL_GRID
     NUMBER_OF_SEGMENTS 14
+    CASING 0.d0 0.d0 0.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0
+    # cased = 1;  uncased = 0
     TOP_OF_HOLE    5.d0 15.d0 150.0d0   # [x,y,z] in meters
     BOTTOM_OF_HOLE 5.d0 15.d0  10.0d0   # [x,y,z] in meters
   /
 
   WELL
     DIAMETER 0.03d0
-    FRICTION_COEFFICIENT 0.d0
-    WELL_INDEX 1.d0 1.d0 1.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0  # cased = 0;  uncased = 1
-    WELL_INDEX_MODEL PEACEMAN_ANISOTROPIC
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_2D
     #WELL_INDEX_MODEL PEACEMAN_ISO
   /
 
   WELL_BOUNDARY_CONDITIONS
     BOTTOM_OF_HOLE
-      LIQUID_RATE 0.d0 m/s
-      GAS_RATE 0.d0 m/s
+      LIQUID_VELOCITY 0.d0 m/s
+      GAS_VELOCITY 0.d0 m/s
     /
     TOP_OF_HOLE
       LIQUID_PRESSURE 100500.d0 Pa # (under-pressurized relative to 101325Pa)

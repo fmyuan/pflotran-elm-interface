@@ -58,8 +58,9 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
   class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: realization
-  class(pm_base_type), pointer :: cur_pm
+  class(pm_base_type), pointer :: cur_pm, linked_pm
   type(option_type), pointer :: option
+  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -121,6 +122,33 @@ recursive subroutine FactSubLinkSetupPMApproach(pmc,simulation)
 
     cur_pm%output_option => simulation%output_option
     call cur_pm%Setup()
+
+    select type(cur_pm)
+      class is(pm_well_type)
+        if (option%coupled_well) then
+          linked_pm => simulation%process_model_list
+          do
+            if (.not. associated(linked_pm)) exit
+            select type(linked_pm)
+              class is(pm_subsurface_flow_type)
+                call MatSetOption(linked_pm%solver%m, &
+                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                                  ierr);CHKERRQ(ierr)
+                call PMWellModifyDummyFlowJacobian(cur_pm, &
+                                                  linked_pm%solver%m,ierr)
+                call MatAssemblyBegin(linked_pm%solver%m, &
+                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+                call MatAssemblyEnd(linked_pm%solver%m, &
+                                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+                call MatSetOption(linked_pm%solver%m, &
+                                  MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                                  ierr);CHKERRQ(ierr)
+            end select
+            linked_pm => linked_pm%next
+          enddo
+        endif
+    end select
+
     cur_pm => cur_pm%next
   enddo
 
@@ -273,6 +301,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_Material_Transform_class
   use PM_WIPP_Flow_class
   use PM_NWT_class
+  use PM_SCO2_class
   use PM_Parameter_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
@@ -313,8 +342,9 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCSubsurfGeophys(simulation,pm_geop, &
                                          'PMCSubsurfaceGeophysics')
   endif
-
+  
   input => InputCreate(IN_UNIT,option%input_filename,option)
+
   call FactorySubsurfReadRequiredCards(simulation,input)
   call FactorySubsurfReadInput(simulation,input)
 
@@ -346,6 +376,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
         class is (pm_wippflo_type)
           ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
           pm_flow%pmwell_ptr => pm_well
+        class is (pm_sco2_type)
+          pm_flow%pmwell_ptr => pm_well
       end select
     endif
     if (associated(pm_tran)) then
@@ -356,7 +388,6 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
       end select
     endif
   endif
-
   if (associated(pm_flow)) then
     select type(pm_flow)
       class is (pm_wippflo_type)
@@ -1017,11 +1048,16 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   call InputFindStringErrorMsg(input,option,string)
   call pm_well%ReadPMBlock(input)
 
-  if (option%iflowmode /= WF_MODE) then
-     option%io_buffer = 'The WELLBORE_MODEL process model can only be &
-                        &used with WIPP_FLOW mode at the moment.'
-     call PrintErrMsg(option)
-  endif
+  select case(option%iflowmode)
+
+    case (WF_MODE, SCO2_MODE)
+
+    case default
+      option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
+               &only be used with WIPP_FLOW mode and SCO2 mode.'
+      call PrintErrMsg(option)
+  end select
+
   if ( (option%itranmode /= NULL_MODE) .and. &
        (option%itranmode /= NWT_MODE) ) then
        option%io_buffer = 'The WELLBORE_MODEL process model can only be &

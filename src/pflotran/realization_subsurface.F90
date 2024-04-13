@@ -396,6 +396,7 @@ subroutine RealizationCreateDiscretization(realization)
   call GridPrintExtents(grid,option)
   call GridPrintSize(grid,option)
 
+
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
   call VecSet(field%porosity0,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
@@ -475,7 +476,6 @@ subroutine RealizationCreateDiscretization(realization)
 end subroutine RealizationCreateDiscretization
 
 ! ************************************************************************** !
-
 subroutine RealizationPassPtrsToPatches(realization)
   !
   ! Sets patch%field => realization%field

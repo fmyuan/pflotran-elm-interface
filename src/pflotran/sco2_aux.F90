@@ -43,7 +43,6 @@ module SCO2_Aux_module
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
 
-
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
 
@@ -105,6 +104,9 @@ module SCO2_Aux_module
   ! Temperature is always DOF 4
   PetscInt, parameter, public :: SCO2_TEMPERATURE_DOF = 4
 
+  ! Well DOF
+  PetscInt, public :: SCO2_WELL_DOF = UNINITIALIZED_INTEGER
+
   ! Indexing the equations/residuals
   PetscInt, parameter, public :: SCO2_WATER_EQUATION_INDEX = 1
   PetscInt, parameter, public :: SCO2_CO2_EQUATION_INDEX = 2
@@ -126,6 +128,26 @@ module SCO2_Aux_module
 
   ! DOF map
   PetscInt, public, pointer :: dof_to_primary_variable(:,:)
+
+  ! Well
+  PetscInt, public :: sco2_well_coupling = UNINITIALIZED_INTEGER
+  PetscInt, parameter, public :: SCO2_FULLY_IMPLICIT_WELL = ONE_INTEGER
+  PetscInt, parameter, public :: SCO2_QUASI_IMPLICIT_WELL = TWO_INTEGER
+  PetscInt, parameter, public :: SCO2_SEQUENTIAL_WELL = THREE_INTEGER
+
+  type, public :: sco2_well_aux_type
+    ! These are useful for printing
+    PetscReal :: pl   ! liquid pressure
+    PetscReal :: pg   ! gas pressure
+    PetscReal :: sl   ! liquid saturation
+    PetscReal :: sg   ! gas saturation
+    PetscReal :: dpl  ! reservoir-well liquid pressure differential
+    PetscReal :: dpg  ! reservoir-well gas pressure differential
+    PetscReal :: Ql   ! liquid exchange flux
+    PetscReal :: Qg   ! gas exchange flux
+    PetscReal :: bh_p ! bottom hole pressure
+    PetscReal :: pressure_bump ! pressure change for initialization
+  end type sco2_well_aux_type
 
   type, public :: sco2_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
@@ -153,6 +175,7 @@ module SCO2_Aux_module
     PetscReal, pointer :: tortuosity(:) ! (iphase)
     PetscReal :: perm_base
     PetscReal :: pert
+    type(sco2_well_aux_type), pointer :: well
   end type sco2_auxvar_type
 
   type, public :: sco2_parameter_type
@@ -199,7 +222,14 @@ module SCO2_Aux_module
             SCO2BrineDensity, &
             SCO2Henry, &
             SCO2SaltDensity, &
-            SCO2Equilibrate
+            SCO2Equilibrate, &
+            SCO2DensityCompositeLiquid, &
+            SCO2WaterDensity, &
+            SCO2ViscosityWater, &
+            SCO2ViscosityCO2, &
+            SCO2ViscosityBrine, &
+            SCO2ViscosityLiquid, &
+            SCO2ViscosityGas
 
 
 contains
@@ -327,6 +357,20 @@ subroutine SCO2AuxVarInit(auxvar,option)
   allocate(auxvar%tortuosity(option%nphase))
   auxvar%tortuosity = 1.d0
 
+  ! Well model variables
+  if (sco2_well_coupling > ZERO_INTEGER) then
+    allocate(auxvar%well)
+    auxvar%well%pl = UNINITIALIZED_DOUBLE
+    auxvar%well%pg = UNINITIALIZED_DOUBLE
+    auxvar%well%sl = UNINITIALIZED_DOUBLE
+    auxvar%well%sg = UNINITIALIZED_DOUBLE
+    auxvar%well%dpl = UNINITIALIZED_DOUBLE
+    auxvar%well%dpg = UNINITIALIZED_DOUBLE
+    auxvar%well%Ql = UNINITIALIZED_DOUBLE
+    auxvar%well%Qg = UNINITIALIZED_DOUBLE
+    auxvar%well%bh_p = UNINITIALIZED_DOUBLE
+    auxvar%well%pressure_bump = 0.d0 
+  endif
 
 end subroutine SCO2AuxVarInit
 
@@ -369,6 +413,7 @@ subroutine SCO2AuxVarCopy(auxvar,auxvar2,option)
   auxvar2%effective_permeability = auxvar%effective_permeability
   auxvar2%tortuosity = auxvar%tortuosity
   auxvar2%pert = auxvar%pert
+  if (sco2_well_coupling > ZERO_INTEGER) auxvar2%well = auxvar%well
 
 end subroutine SCO2AuxVarCopy
 
@@ -409,9 +454,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                xmolsl, xmolwl, salt_mass
   PetscReal :: sigma, beta_gl
   PetscReal :: Pv, Psat, Prvap, Pco2
-  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg,dt
+  PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg, dt, dp_well
   PetscReal :: cell_pressure, sgt_max
-  PetscInt :: idof
+  PetscInt :: idof, nwelldof
 
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pbid, spid, tgid
@@ -437,6 +482,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   co2_pressure_id = option%co2_pressure_id
   vpid = option%vapor_pressure_id
   rvpid = option%reduced_vapor_pressure_id
+
+  dp_well = 1.d-1
+  nwelldof = 0
 
   call SCO2SaltSolubility(sco2_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
@@ -564,12 +612,21 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     pert(SCO2_TEMPERATURE_DOF) = dt
   endif
 
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    x(SCO2_WELL_DOF) = sco2_auxvar(ZERO_INTEGER)%well%bh_p
+    pert(SCO2_WELL_DOF) = dp_well
+    sco2_auxvar(SCO2_WELL_DOF)%well%bh_p = x(SCO2_WELL_DOF) + &
+                                           pert(SCO2_WELL_DOF)
+    sco2_auxvar(SCO2_WELL_DOF)%pert = pert(SCO2_WELL_DOF)
+  endif
 
   ! SCO2_UPDATE_FOR_DERIVATIVE indicates call from perturbation
 
   option%iflag = SCO2_UPDATE_FOR_DERIVATIVE
 
-  do idof = 1, option%nflowdof
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) nwelldof = 1
+
+  do idof = 1, option%nflowdof - nwelldof
 
     if (sco2_central_diff_jacobian) then
 
@@ -591,6 +648,9 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                            material_auxvar, &
                            characteristic_curves,sco2_parameter, &
                            natural_id,option)
+    if (idof /= SCO2_WELL_DOF .and. Initialized(SCO2_WELL_DOF)) then
+      sco2_auxvar(idof)%well%bh_p = sco2_auxvar(ZERO_INTEGER)%well%bh_p
+    endif
   enddo
 
 end subroutine SCO2AuxVarPerturb
@@ -1103,6 +1163,12 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   sco2_auxvar%xmass(co2_id,pid) = 0.d0
   sco2_auxvar%xmass(sid,pid) = 1.d0
 
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    ! This is an initialization hack:
+    if(x(SCO2_LIQUID_PRESSURE_DOF) /= x(SCO2_WELL_DOF))then
+      sco2_auxvar%well%bh_p = x(SCO2_WELL_DOF)
+    endif
+  endif
 
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)

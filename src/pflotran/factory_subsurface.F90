@@ -108,7 +108,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                        pm_material_transform, &
                                        pm_parameter_list)
 
-  call FactorySubsurfaceSetFlowMode(pm_flow,option)
+  call FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
 
   realization => RealizationCreate(option)
@@ -152,7 +152,7 @@ end subroutine FactSubInitCommandLineSettings
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
+subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
   !
   ! Sets the flow mode (richards, vadose, mph, etc.)
   !
@@ -175,11 +175,13 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   use PM_SCO2_class
   use ZFlow_Aux_module
   use PM_PNF_class
+  use PM_Well_class
 
   implicit none
 
   type(option_type) :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
+  class(pm_well_type), pointer :: pm_well
 
   option%liquid_phase = 1
   option%gas_phase = 2 ! always set gas phase to 2 for transport
@@ -271,7 +273,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
     class is (pm_sco2_type)
-      call PMSCO2SetFlowMode(pm_flow,option)
+      call PMSCO2SetFlowMode(pm_flow,pm_well,option)
     class default
       option%io_buffer = ''
       call PrintErrMsg(option)

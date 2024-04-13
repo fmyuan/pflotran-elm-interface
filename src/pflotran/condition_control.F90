@@ -1169,6 +1169,10 @@ subroutine CondControlAssignFlowInitCond(realization)
                 xx_p(ibegin + SCO2_TEMPERATURE_DOF) = &
                     sco2%temperature%dataset%rarray(1)
               endif
+              if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+                xx_p(ibegin + SCO2_WELL_DOF) = &
+                    sco2%liquid_pressure%dataset%rarray(1)
+              endif
               patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo

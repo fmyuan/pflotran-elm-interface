@@ -605,7 +605,8 @@ end subroutine DiscretizationRead
 ! ************************************************************************** !
 
 subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
-                                    o_nphase, o_ngeomechdof, o_n_stress_strain_dof, option)
+                                   o_nphase, o_ngeomechdof, &
+                                   o_n_stress_strain_dof, option)
 
   !
   ! creates distributed, parallel meshes/grids

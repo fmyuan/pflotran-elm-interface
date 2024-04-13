@@ -553,6 +553,7 @@ factory_subsurface_linkage.o : \
   pm_pnf.o \
   pm_richards_ts.o \
   pm_rt.o \
+  pm_sco2.o \
   pm_subsurface_flow.o \
   pm_th_ts.o \
   pm_ufd_biosphere.o \
@@ -669,6 +670,7 @@ factory_subsurface_read.o : \
   units.o \
   utility.o \
   waypoint.o \
+  well_grid.o \
   wipp.o
 field.o : \
   pflotran_constants.o
@@ -997,7 +999,8 @@ grid_unstructured_aux.o : \
   grid_unstructured_cell.o \
   option.o \
   pflotran_constants.o \
-  utility.o
+  utility.o \
+  well_grid.o
 grid_unstructured_cell.o : \
   geometry.o \
   option.o \
@@ -1656,6 +1659,7 @@ output_hdf5.o : \
   pflotran_provenance.o \
   reaction_aux.o \
   realization_base.o \
+  region.o \
   string.o \
   utility.o \
   variables.o
@@ -2191,6 +2195,7 @@ pm_sco2.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   saturation_function.o \
@@ -2374,6 +2379,7 @@ pm_well.o : \
   pflotran_constants.o \
   pm_base.o \
   realization_subsurface.o \
+  sco2_aux.o \
   strata.o \
   string.o \
   transport_constraint.o \
@@ -2381,6 +2387,7 @@ pm_well.o : \
   transport_constraint_nwt.o \
   utility.o \
   variables.o \
+  well_grid.o \
   wipp_flow_aux.o
 pm_wipp_flow.o : \
   checkpoint.o \
@@ -3308,6 +3315,7 @@ sco2.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_subsurface.o \
   saturation_function.o \
   sco2_aux.o \
@@ -3783,6 +3791,11 @@ waypoint.o : \
   output_aux.o \
   pflotran_constants.o \
   string.o \
+  utility.o
+well_grid.o : \
+  geometry.o \
+  option.o \
+  pflotran_constants.o \
   utility.o
 wipp.o : \
   characteristic_curves_base.o \
