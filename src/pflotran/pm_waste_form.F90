@@ -3499,36 +3499,40 @@ subroutine PMWFInitializeTimestep(this)
         do f = 1, cur_waste_form%region%num_cells
           local_id = cur_waste_form%region%cell_ids(f)
           ghosted_id = grid%nL2G(local_id)
-          if (option%itranmode == RT_MODE) then
-            inst_release_molality = &                    ! [mol-rad/kg-water]
-              ! [mol-rad]
-              (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
-               cur_waste_form%volume * &                 ! [m^3-matrix]
-               cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
-               1.d3) / &                               ! [kg-matrix] -> [g-matrix]
-               ! [kg-water]
-              (material_auxvars(ghosted_id)%porosity * &         ! [-]
-               (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
-               material_auxvars(ghosted_id)%volume * &           ! [m^3]
-               global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
-            idof = cwfm%rad_species_list(k)%ispecies + &
-                   ((local_id - 1) * option%ntrandof)
-            xx_p(idof) = xx_p(idof) + &
-                         (inst_release_molality*cur_waste_form%scaling_factor(f))
-          elseif (option%itranmode == NWT_MODE) then
-            inst_release_bulk_conc = &                    ! [mol-rad/m^3-bulk]
-              ! [mol-rad]
-              (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
-               cur_waste_form%volume * &                 ! [m^3-matrix]
-               cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
-               1.d3) / &                               ! [kg-matrix] -> [g-matrix]
-               ! [m^3-bulk]
-               material_auxvars(ghosted_id)%volume       ! [m^3-bulk]
-            idof = cwfm%rad_species_list(k)%ispecies + &
-                   ((local_id - 1) * option%ntrandof)
-            xx_p(idof) = xx_p(idof) + &
-                         (inst_release_bulk_conc*cur_waste_form%scaling_factor(f))
-          endif
+          select case(option%itranmode)
+            case(RT_MODE)
+              inst_release_molality = &                    ! [mol-rad/kg-water]
+                ! [mol-rad]
+                (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
+                 cur_waste_form%volume * &                 ! [m^3-matrix]
+                 cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
+                 1.d3) / &                               ! [kg-matrix] -> [g-matrix]
+                 ! [kg-water]
+                (material_auxvars(ghosted_id)%porosity * &         ! [-]
+                 (global_auxvars(ghosted_id)%sat(LIQUID_PHASE)+1.d-20) * &  ! [-]
+                 material_auxvars(ghosted_id)%volume * &           ! [m^3]
+                 global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE))  ! [kg/m^3-water]
+              idof = cwfm%rad_species_list(k)%ispecies + &
+                     ((local_id - 1) * option%ntrandof)
+              xx_p(idof) = xx_p(idof) + &
+                           (inst_release_molality*cur_waste_form%scaling_factor(f))
+            case(NWT_MODE)
+              inst_release_bulk_conc = &                    ! [mol-rad/m^3-bulk]
+                ! [mol-rad]
+                (cur_waste_form%inst_release_amount(k) * & ! [mol-rad/g-matrix]
+                 cur_waste_form%volume * &                 ! [m^3-matrix]
+                 cwfm%matrix_density * &                   ! [kg-matrix/m^3-matrix]
+                 1.d3) / &                               ! [kg-matrix] -> [g-matrix]
+                 ! [m^3-bulk]
+                 material_auxvars(ghosted_id)%volume       ! [m^3-bulk]
+              idof = cwfm%rad_species_list(k)%ispecies + &
+                     ((local_id - 1) * option%ntrandof)
+              xx_p(idof) = xx_p(idof) + &
+                           (inst_release_bulk_conc*cur_waste_form%scaling_factor(f))
+            case default
+              option%io_buffer = 'Waste form not implemented with current transport mode.'
+              call PrintErrMsg(option)
+          end select
         enddo
 
       enddo
