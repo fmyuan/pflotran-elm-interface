@@ -2,6 +2,8 @@ module Spline_module
 
 #include "petsc/finclude/petscsys.h"
 
+  implicit none
+
   public
 
 contains
