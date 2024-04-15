@@ -2279,7 +2279,8 @@ subroutine PMWellReadPMBlock(this,input)
   enddo
   call InputPopBlock(input,option)
 
-  if (this%nphase == 0) then
+  if (this%nphase == 0 .and. &
+      this%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
     option%io_buffer = 'The number of fluid phases must be indicated &
       &in the WELLBORE_MODEL block using one of these keywords: &
       &SINGLE_PHASE, TWO_PHASE.'
@@ -7155,7 +7156,11 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
       rho_kg_gas = den_mol * fmw_comp(TWO_INTEGER)
 
       num_iteration = 0
-      delta_z = pm_well%well_grid%h(i)%z - pm_well%well_grid%h(i-1)%z
+      if (i == 1) then
+        delta_z = pm_well%well_grid%h(i)%z - pm_well%well_grid%bottomhole(3)
+      else
+        delta_z = pm_well%well_grid%h(i)%z - pm_well%well_grid%h(i-1)%z
+      endif
       do
         pl = pl0 + 0.5d0*(rho_kg_liq+rho_zero_liq) * &
               gravity * delta_z
