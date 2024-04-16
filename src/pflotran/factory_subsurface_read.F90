@@ -532,6 +532,8 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
+      case('OPTIONS')
+        call pm%ReadSimulationOptionsBlock(input)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'
@@ -608,6 +610,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use Option_module
   use Discretization_module
   use Grid_module
+  use Grid_Unstructured_Aux_module
   use Input_Aux_module
   use String_module
   use Patch_module
@@ -619,6 +622,8 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Init_Common_module
+  use Well_Grid_module
+  use PM_Well_class
 
   implicit none
 
@@ -633,6 +638,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+
   PetscBool :: found
   PetscBool :: qerr
 
@@ -663,6 +669,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
       patch%grid => discretization%grid
       realization%patch => patch
   end select
+
   call InputPopBlock(input,option)
 
   ! optional required cards - yes, an oxymoron, but we need to know if

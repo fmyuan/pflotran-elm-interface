@@ -182,7 +182,8 @@ grid_obj = \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o
+	${common_src}grid_unstructured_polyhedra.o \
+	${common_src}well_grid.o
 
 relations_obj = \
 	${common_src}saturation_function.o \

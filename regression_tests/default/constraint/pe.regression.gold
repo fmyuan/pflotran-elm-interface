@@ -1,29 +1,15 @@
 -- GENERIC: pH --
-      Max:   7.2400000000009E+00
-      Min:   7.2400000000009E+00
-     Mean:   7.2400000000009E+00
         1:   7.2400000000009E+00
 -- GENERIC: pe --
-      Max:   8.4510899999991E+00
-      Min:   8.4510899999991E+00
-     Mean:   8.4510899999991E+00
         1:   8.4510899999991E+00
 -- CONCENTRATION: Free H+ --
-      Max:   5.7392049654185E-08
-      Min:   5.7392049654185E-08
-     Mean:   5.7392049654185E-08
         1:   5.7392049654185E-08
 -- CONCENTRATION: Free O2(aq) --
-      Max:   2.1814687157296E-24
-      Min:   2.1814687157296E-24
-     Mean:   2.1814687157296E-24
         1:   2.1814687157296E-24
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
+   Time (seconds):   0.0000000000000E+00
    Time Steps:            0
    Newton Iterations:            0
    Linear Solver Iterations:            0

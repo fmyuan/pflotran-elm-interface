@@ -168,10 +168,12 @@ module Condition_module
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
             FlowSubConditionCreate, &
             FlowGeneralConditionCreate, &
+            FlowSCO2ConditionCreate, &
             FlowConditionGeneralRead, &
             FlowConditionHydrateRead, &
             FlowConditionSCO2Read, &
             FlowGeneralSubConditionPtr, &
+            FlowSCO2SubConditionPtr, &
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &

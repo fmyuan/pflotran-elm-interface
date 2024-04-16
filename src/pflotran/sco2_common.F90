@@ -1150,7 +1150,7 @@ end subroutine SCO2AuxVarComputeAndSrcSink
 ! ************************************************************************** !
 
 subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,J)
+                               soil_heat_capacity,option,well_dof,J)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -1168,6 +1168,7 @@ subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
+  PetscInt :: well_dof
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
@@ -1187,7 +1188,7 @@ subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
 
 
   if (sco2_central_diff_jacobian) then
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2Accumulation(sco2_auxvar(idof),global_auxvar, &
                             material_auxvar,soil_heat_capacity,option, &
                             res_pert_plus)
@@ -1197,18 +1198,18 @@ subroutine SCO2AccumDerivative(sco2_auxvar,global_auxvar,material_auxvar, &
                             soil_heat_capacity,option, &
                             res_pert_minus)
 
-       do irow = 1, option%nflowdof
+       do irow = 1, option%nflowdof - well_dof
          J(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
                          sco2_auxvar(idof)%pert)
        enddo !irow
     enddo ! idof
   else
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2Accumulation(sco2_auxvar(idof),global_auxvar, &
                             material_auxvar,soil_heat_capacity,option, &
                             res_pert_plus)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         J(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
                         sco2_auxvar(idof)%pert
       enddo !irow
@@ -1226,7 +1227,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
                                  material_auxvar_dn, &
                                  thermal_cc_dn, &
                                  area, dist, upwind_direction_, &
-                                 option,Jup,Jdn)
+                                 option,well_dof,Jup,Jdn)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -1249,6 +1250,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
+  PetscInt :: well_dof
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -1282,7 +1284,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
 
   ! upgradient derivatives
   if(sco2_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_dof
         call SCO2Flux(sco2_auxvar_up(idof),global_auxvar_up, &
                      material_auxvar_up, &
                      thermal_cc_up, &
@@ -1304,13 +1306,13 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
                      option,v_darcy,res_pert_minus, &
                      PETSC_FALSE, & ! update the upwind direction
                      count_upwind_direction_flip)
-        do irow = 1, option%nflowdof
+        do irow = 1, option%nflowdof - well_dof
           Jup(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/(2.d0 * &
                             sco2_auxvar_up(idof)%pert)
         enddo !irow
       enddo ! idof
   else
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2Flux(sco2_auxvar_up(idof),global_auxvar_up, &
                     material_auxvar_up, &
                     thermal_cc_up, &
@@ -1322,7 +1324,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
                     PETSC_FALSE, & ! update the upwind direction
                     count_upwind_direction_flip)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jup(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
                          sco2_auxvar_up(idof)%pert
       enddo !irow
@@ -1331,7 +1333,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
 
   ! downgradient derivatives
   if (sco2_central_diff_jacobian) then
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2Flux(sco2_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                     material_auxvar_up, &
                     thermal_cc_up, &
@@ -1354,14 +1356,14 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
                     PETSC_FALSE, & ! update the upwind direction
                     count_upwind_direction_flip)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0* &
                           sco2_auxvar_dn(idof)%pert)
 
       enddo !irow
     enddo ! idof
   else
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2Flux(sco2_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                     material_auxvar_up, &
                     thermal_cc_up, &
@@ -1373,7 +1375,7 @@ subroutine SCO2FluxDerivative(sco2_auxvar_up,global_auxvar_up, &
                     PETSC_FALSE, & ! update the upwind direction
                     count_upwind_direction_flip)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jdn(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
                           sco2_auxvar_dn(idof)%pert
       enddo !irow
@@ -1390,7 +1392,7 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                 material_auxvar_dn, &
                                 thermal_cc_dn, &
                                 area,dist,upwind_direction_, &
-                                option,Jdn)
+                                option,well_dof,Jdn)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
@@ -1417,6 +1419,7 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
+  PetscInt :: well_dof
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
   PetscReal :: v_darcy(option%nphase)
@@ -1447,7 +1450,7 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   ! downgradient derivatives
   if (sco2_central_diff_jacobian) then
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2BCFlux(ibndtype,auxvar_mapping,auxvars, &
                       sco2_auxvar_up,global_auxvar_up, &
                       sco2_auxvar_dn(idof),global_auxvar_dn, &
@@ -1469,13 +1472,13 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                       count_upwind_direction_flip)
 
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
                           sco2_auxvar_dn(idof)%pert)
       enddo !irow
     enddo ! idof
   else
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2BCFlux(ibndtype,auxvar_mapping,auxvars, &
                       sco2_auxvar_up,global_auxvar_up, &
                       sco2_auxvar_dn(idof),global_auxvar_dn, &
@@ -1486,7 +1489,7 @@ subroutine SCO2BCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                       PETSC_FALSE, & ! update the upwind direction
                       count_upwind_direction_flip)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jdn(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
                           sco2_auxvar_dn(idof)%pert
       enddo !irow
@@ -1501,7 +1504,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
                                  sco2_auxvar,global_auxvar, &
                                  global_auxvar_ss,characteristic_curves, &
                                  sco2_parameter, natural_id,material_auxvar, &
-                                 scale,Jac)
+                                 scale,well_dof,Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -1525,6 +1528,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
   PetscInt :: natural_id
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: scale
+  PetscInt :: well_dof
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
   PetscReal :: qsrc(option%nflowdof)
@@ -1556,7 +1560,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
 
   ! downgradient derivatives
   if (sco2_central_diff_jacobian) then
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2AuxVarCopy(sco2_auxvar_ss(ZERO_INTEGER), &
                              sco2_auxvar_ss(ONE_INTEGER), option)
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
@@ -1576,13 +1580,13 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
                         sco2_parameter, natural_id, scale, res_pert_minus, &
                         PETSC_FALSE)
 
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jac(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
                           sco2_auxvar(idof)%pert)
       enddo !irow
     enddo ! idof
   else
-    do idof = 1, option%nflowdof
+    do idof = 1, option%nflowdof - well_dof
       call SCO2AuxVarCopy(sco2_auxvar_ss(ZERO_INTEGER), &
                              sco2_auxvar_ss(ONE_INTEGER), option)
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
@@ -1591,7 +1595,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
                         material_auxvar,characteristic_curves, &
                         sco2_parameter, natural_id, scale, res_pert_plus, &
                         PETSC_FALSE)
-      do irow = 1, option%nflowdof
+      do irow = 1, option%nflowdof - well_dof
         Jac(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
                           sco2_auxvar(idof)%pert
       enddo !irow

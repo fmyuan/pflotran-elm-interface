@@ -4,7 +4,7 @@ module PM_SCO2_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-
+  use PM_Well_class
   use PFLOTRAN_Constants_module
 
   private
@@ -40,6 +40,7 @@ module PM_SCO2_class
     PetscReal :: abs_update_inf_tol(MAX_DOF,MAX_STATE)
     PetscReal :: rel_update_inf_tol(MAX_DOF,MAX_STATE)
     PetscReal :: damping_factor
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMSCO2ReadSimOptionsBlock
@@ -110,7 +111,7 @@ end function PMSCO2Create
 
 ! ************************************************************************** !
 
-subroutine PMSCO2SetFlowMode(pm,option)
+subroutine PMSCO2SetFlowMode(pm,pm_well,option)
   !
   ! Sets the flow mode to SCO2 mode
   !
@@ -123,11 +124,14 @@ subroutine PMSCO2SetFlowMode(pm,option)
                               LIQUID_MASS_FRACTION, LIQUID_SALT_MASS_FRAC, &
                               TEMPERATURE, LIQUID_SATURATION, GAS_SATURATION, &
                               PRECIPITATE_SATURATION, POROSITY
-  use SCO2_Aux_module, only : sco2_thermal
+  use SCO2_Aux_module, only : sco2_thermal, sco2_well_coupling, &
+                              SCO2_FULLY_IMPLICIT_WELL, SCO2_WELL_DOF
+  use PM_Well_class
 
   implicit none
 
   class(pm_sco2_type) :: pm
+  class(pm_well_type), pointer :: pm_well
   type(option_type) :: option
 
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
@@ -212,6 +216,24 @@ subroutine PMSCO2SetFlowMode(pm,option)
     option%nflowdof = 3
   endif
 
+  if (associated(pm_well)) then
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+        option%io_buffer = 'Currently, SCO2 mode can only be &
+                  &used with the HYDROSTATIC well model.'
+        call PrintErrMsg(option)
+      endif
+      sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
+      option%nflowdof = option%nflowdof + 1
+      option%coupled_well = PETSC_TRUE
+      SCO2_WELL_DOF = option%nflowdof
+    else
+      option%io_buffer = 'Currently, only FULLY_IMPLICIT &
+                  &wellbore coupling is implemented for SCO2 Mode.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
   ! Components: water, co2, salt
   option%nflowspec = 3
   option%water_id = 1
@@ -228,6 +250,7 @@ subroutine PMSCO2SetFlowMode(pm,option)
   pm%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, CO2_PRESSURE, &
                         LIQUID_MASS_FRACTION, GAS_SATURATION,TEMPERATURE]
   pm%damping_factor = -1.d0
+  nullify(pm%pmwell_ptr)
 
   pm%residual_abs_inf_tol = residual_abs_inf_tol
   pm%residual_scaled_inf_tol = residual_scaled_inf_tol
@@ -603,6 +626,12 @@ subroutine PMSCO2InitializeTimestep(this)
                                  ZERO_INTEGER)
 
   call SCO2InitializeTimestep(this%realization)
+  if (associated(this%pmwell_ptr)) then
+    call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                         -999,this%option%ierror)
+    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
+    call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
+  endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMSCO2InitializeTimestep
@@ -789,7 +818,7 @@ subroutine PMSCO2Residual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  call SCO2Residual(snes,xx,r,this%realization,ierr)
+  call SCO2Residual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMSCO2Residual
 
@@ -811,7 +840,7 @@ subroutine PMSCO2Jacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call SCO2Jacobian(snes,xx,A,B,this%realization,ierr)
+  call SCO2Jacobian(snes,xx,A,B,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMSCO2Jacobian
 
@@ -854,7 +883,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   class(characteristic_curves_type), pointer :: characteristic_curves
   PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
   PetscInt :: liq_pressure_index, gas_pressure_index, co2_frac_index, &
-              gas_sat_index, co2_pressure_index, salt_index, temperature_index
+              gas_sat_index, co2_pressure_index, salt_index, &
+              temperature_index, well_index
   PetscInt :: local_id, ghosted_id, offset
   PetscInt :: lid
   PetscReal :: dP, dsg, Pc_max, Psb, Pvb, rho_b, Pc, Pc_entry
@@ -897,7 +927,14 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
 
-      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
+      if (sco2_thermal) then
+        temperature_index = offset + FOUR_INTEGER
+        if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FIVE_INTEGER
+        endif
+      elseif (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FOUR_INTEGER
+      endif
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1139,16 +1176,51 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         if ((X_p(temperature_index) + dX_p(temperature_index)) + T273K >= &
            H2O_CRITICAL_TEMPERATURE) then
-          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-           &greater than (or equal to) the critical temperature of water.'
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 &
+                             &mode: greater than (or equal to) the critical &
+                             &temperature of water.'
           call PrintErrMsg(option)
         endif
         if ((X_p(temperature_index) + dX_p(temperature_index)) <= 0.d0) then
-          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 mode: &
-           &less than (or equal to) the freezing temperature of water.'
+          option%io_buffer = 'Error: Temperature is out of bounds for SCO2 &
+                            &mode: less than (or equal to) the freezing &
+                            &temperature of water.'
           call PrintErrMsg(option)
         endif
       endif
+
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
+                                dX_p(well_index))
+        if (this%pmwell_ptr%well_grid%h_rank_id(ONE_INTEGER) == &
+            option%myrank) then
+          if (ghosted_id == this%pmwell_ptr%well_grid% &
+              h_ghosted_id(ONE_INTEGER)) then
+            ! if (this%pmwell_ptr%well%th_ql > 0.d0 .or. &
+            !     this%pmwell_ptr%well%th_qg > 0.d0) then
+            !   if (this%pmwell_ptr%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
+            !       sco2_auxvar%pres(option%gas_phase) + &
+            !       dX_p(liq_pressure_index)) then
+            !     dX_p(well_index) = (sco2_auxvar%pres(option%gas_phase) + &
+            !                        dX_p(liq_pressure_index)) - &
+            !                        (this%pmwell_ptr%well%pg(ONE_INTEGER) +  &
+            !                        dX_p(well_index))
+            !     dX_p(well_index) = dX_p(well_index) * 1.1d0
+            !   endif
+            ! endif
+
+            ! MAN: this is a hack to get the well to initialize properly
+            if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
+              dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
+                                 sco2_auxvar%pres(option%gas_phase))
+            endif
+            dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
+            sco2_auxvar%well%pressure_bump = 0.d0
+          endif
+        endif
+        dX_p2(well_index) = dX_p(well_index)
+      endif
+
     enddo
 
     if (this%damping_factor > 0.d0) then
@@ -1171,7 +1243,14 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       gas_sat_index = offset + TWO_INTEGER
       salt_index = offset + THREE_INTEGER
 
-      if (sco2_thermal) temperature_index = offset + FOUR_INTEGER
+      if (sco2_thermal) then
+        temperature_index = offset + FOUR_INTEGER
+        if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+          well_index = offset + FIVE_INTEGER
+        endif
+      elseif (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        well_index = offset + FOUR_INTEGER
+      endif
 
       select case(global_auxvars(ghosted_id)%istate)
 
@@ -1273,6 +1352,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call PrintErrMsg(option)
         endif
       endif
+
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        ! MAN: Add in update truncation for fully implicit well
+      endif
+      
     enddo
 
     if (this%damping_factor > 0.d0) then
@@ -1430,6 +1514,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   ! Author: Michael Nole
   ! Date: 01/26/24
   !
+                                  
   use Convergence_module
   use SCO2_Aux_module
   use Global_Aux_module
@@ -1519,18 +1604,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   state_string = &
     ['Liquid State        ','Gas State           ', &
      'Trapped Gas State   ','Liquid-Gas State    ']
-  !    !Without Energy
-  !    dof_string = &
-  !    reshape(['Liquid Pressure  ','CO2 Fraction     ', &
-  !             'Salt Mass Frac   ', &
-	!       'Gas Pressure     ','CO2 Partial Pres ', &
-  !             'Salt Mass Frac   ', &
-  !             'Gas Pressure     ','Gas Saturation   ', &
-  !             'Salt Mass Frac   ', &
-  !             'Gas Pressure     ','Liquid Pressure  ', &
-  !             'Salt Mass Frac   '], &
-  !            shape(dof_string))
-  ! With Energy
   dof_string = &
     reshape(['Liquid Pressure  ','CO2 Fraction     ', &
              'Salt Mass Frac   ', 'Temperature      ', &
@@ -1581,20 +1654,50 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           accumulation = accum2_p(ival)
           update = dX_p(ival)
 
-          ! STOMP convergence criteria
-          if (idof == FOUR_INTEGER) then
-            res_scaled = 1.d-1 * min(dabs(update) / &
-                         (sco2_auxvar%temp + 237.15d0), &
-                         dabs(residual/(accumulation + epsilon)))
-            ! find max value regardless of convergence
+          if (sco2_thermal) then
+            if (idof == FOUR_INTEGER) then
+              res_scaled = 1.d-1 * min(dabs(update) / &
+                           (sco2_auxvar%temp + 237.15d0), &
+                           dabs(residual/(accumulation + epsilon)))
+              ! find max value regardless of convergence
+              if (converged_scaled_residual_real(idof,istate) < &
+                  res_scaled) then
+                converged_scaled_residual_real(idof,istate) = res_scaled
+                converged_scaled_residual_cell(idof,istate) = natural_id
+              endif
+            elseif (idof == FIVE_INTEGER) then
+              ! There is a fully implicit well, in DOF 5
+              ! Just check update
+              res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              ! res_scaled = min(dabs(update) / &
+              !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+              !              dabs(residual/(accumulation + epsilon)))
+
+              ! find max value regardless of convergence
+              if (converged_scaled_residual_real(idof,istate) < &
+                  res_scaled) then
+                converged_scaled_residual_real(idof,istate) = res_scaled
+                converged_scaled_residual_cell(idof,istate) = natural_id
+              endif
+            endif
+          elseif (idof == FOUR_INTEGER) then
+            ! There is a fully implicit well, in DOF 4
+            ! Just check update
+            res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            ! res_scaled = min(dabs(update) / &
+            !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
+            !                dabs(residual/(accumulation + epsilon)))
+              ! find max value regardless of convergence
             if (converged_scaled_residual_real(idof,istate) < &
                 res_scaled) then
               converged_scaled_residual_real(idof,istate) = res_scaled
               converged_scaled_residual_cell(idof,istate) = natural_id
             endif
+          endif
 
-          else
-
+          ! STOMP convergence criteria
           select case (istate)
             case(SCO2_LIQUID_STATE)
 
@@ -1780,8 +1883,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
           end select
 
-          endif
-
           if (res_scaled > this%residual_scaled_inf_tol(idof)) then
             converged_scaled = PETSC_FALSE
           endif
@@ -1882,6 +1983,13 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
+    
+    ! Send out updated well BHP
+    if (associated(this%pmwell_ptr)) then
+      if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then
+        call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
+      endif
+    endif
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX
@@ -2162,8 +2270,6 @@ subroutine PMSCO2MaxChange(this)
       max_change_global(1:max_change_index)
     endif
   endif
-
-
 
   ! MAN: check these
   this%max_pressure_change = maxval(max_change_global(1:3))

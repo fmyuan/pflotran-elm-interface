@@ -732,6 +732,13 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
     ! SCO2_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = SCO2_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
+    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+      ! MAN: this is a hack to get well to initialize properly
+      if (xx_loc_p(ghosted_end) /= &
+          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)) then
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(ghosted_end)
+      endif
+    endif
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
     call SCO2AuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                            sco2_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -752,6 +759,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                  sco2_parameter,natural_id,option)
 
     endif
+    
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -894,6 +902,10 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
     cur_connection_set => source_sink%connection_set
@@ -901,6 +913,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+
       if (patch%imat(ghosted_id) <= 0) cycle
 
       flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
@@ -1093,7 +1106,7 @@ end subroutine SCO2UpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine SCO2Residual(snes,xx,r,realization,ierr)
+subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   !
   ! Computes the residual
   !
@@ -1112,6 +1125,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_module
   use Upwind_Direction_module
+  use PM_Well_class
 
   implicit none
 
@@ -1119,6 +1133,7 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1161,7 +1176,6 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
-
 
   discretization => realization%discretization
   option => realization%option
@@ -1245,6 +1259,20 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+        if (dabs(pm_well%well%th_qg) > 0.d0) then
+          accum_p2(local_end) = pm_well%well%th_qg
+        elseif (dabs(pm_well%well%th_ql) > 0.d0) then
+          accum_p2(local_end) = pm_well%well%th_ql
+        else
+          accum_p2(local_end) = 0.d0
+        endif
+        r_p(local_end) = 0.d0
+      endif
+    endif
+  endif
   call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
@@ -1254,6 +1282,8 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
   do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
+      if (.not. Initialized(cur_connection_set%face_id(iconn))) cycle
+      if (cur_connection_set%area(iconn) <= 0.d0) cycle
       sum_connection = sum_connection + 1
 
       ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -1370,12 +1400,27 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
+  
+  ! Update well source/sink terms
+  if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+        call pm_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+      endif
+    endif
+  endif
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
+
     cur_connection_set => source_sink%connection_set
 
     do iconn = 1, cur_connection_set%num_connections
@@ -1384,8 +1429,14 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
+      
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
+
+      if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+        ! nflowdof is padded with an extra dof for potential wells
+        local_end = local_end - 1
+      endif
 
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
@@ -1399,16 +1450,16 @@ subroutine SCO2Residual(snes,xx,r,realization,ierr)
       ! Index 0 contains user-specified conditions
       ! Index 1 contains auxvars to be used in src/sink calculations
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
-                          sco2_auxvars_ss(ZERO_INTEGER,sum_connection), &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          global_auxvars_ss(sum_connection), &
-                          material_auxvars(ghosted_id), &
-                          patch%characteristic_curves_array( &
-                          patch%cc_id(ghosted_id))%ptr, &
-                          sco2_parameter, &
-                          grid%nG2A(ghosted_id), &
-                          scale,Res,PETSC_FALSE)
+                            sco2_auxvars_ss(ZERO_INTEGER,sum_connection), &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id), &
+                            global_auxvars(ghosted_id), &
+                            global_auxvars_ss(sum_connection), &
+                            material_auxvars(ghosted_id), &
+                            patch%characteristic_curves_array( &
+                            patch%cc_id(ghosted_id))%ptr, &
+                            sco2_parameter, &
+                            grid%nG2A(ghosted_id), &
+                            scale,Res,PETSC_FALSE)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -1473,7 +1524,7 @@ end subroutine SCO2Residual
 
 ! ************************************************************************** !
 
-subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
+subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   !
   ! Computes the Jacobian
   !
@@ -1491,6 +1542,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Material_Aux_module
   use Upwind_Direction_module
+  use PM_Well_class
 
   implicit none
 
@@ -1498,6 +1550,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1535,6 +1588,12 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: well_dof
+  PetscInt :: deactivate_row
+
+  well_dof = ZERO_INTEGER
+  deactivate_row = UNINITIALIZED_INTEGER
+  if (associated(pm_well)) well_dof = ONE_INTEGER
 
   patch => realization%patch
   grid => patch%grid
@@ -1580,7 +1639,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                            patch%characteristic_curves_array( &
                            patch%cc_id(ghosted_id))%ptr, &
                            sco2_parameter,natural_id,option)
-
   enddo
 
   ! Accumulation terms ------------------------------------
@@ -1593,7 +1651,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
-                              option,Jup)
+                              option,well_dof,Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -1617,6 +1675,9 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
+      if (.not. Initialized(cur_connection_set%face_id(iconn))) cycle
+      if (cur_connection_set%area(iconn) <= 0.d0) cycle
+      
       sum_connection = sum_connection + 1
 
       ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -1642,7 +1703,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
-                     option,Jup,Jdn)
+                     option,well_dof,Jup,Jdn)
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1707,7 +1768,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
-                      option,Jdn)
+                      option,well_dof,Jdn)
 
       Jdn = -Jdn
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
@@ -1732,6 +1793,10 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     cur_connection_set => source_sink%connection_set
 
@@ -1741,7 +1806,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0 .or. &
+          associated(source_sink%flow_condition%well)) cycle
 
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
@@ -1759,7 +1825,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                           patch%cc_id(ghosted_id))%ptr, &
                         sco2_parameter, grid%nG2A(ghosted_id),&
                         material_auxvars(ghosted_id), &
-                        scale,Jup)
+                        scale,well_dof,Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1767,6 +1833,32 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+
+  ! Well Terms
+  ! Need to update all well source/sink terms wrt
+  ! perturbation in bottom pressure 
+  if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+        ! Perturb the well and well's reservoir variables.
+        call pm_well%Perturb()
+
+        ! Go through and update the well contributions to the Jacobian:
+        ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi 
+        call pm_well%ModifyFlowJacobian(A,ierr)
+
+        ! Deactivate unused rows
+        if (all(pm_well%well%liq%Q == 0.d0) .and. &
+            all(pm_well%well%gas%Q == 0.d0)) then
+          if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
+            deactivate_row = pm_well%well_grid%h_ghosted_id(1) * &
+                             option%nflowdof
+          endif
+        endif
+
+      endif
+    endif
+  endif  
 
   if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1790,6 +1882,12 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,ierr)
                             inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
+    if (Initialized(deactivate_row)) then
+      deactivate_row = deactivate_row - 1
+      call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+    endif
   endif
 
   if (realization%debug%matview_Matrix) then
