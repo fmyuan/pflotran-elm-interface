@@ -170,7 +170,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     case(H_MODE)
       !call HydrostaticHDF5DatasetError(condition%hydrate%temperature, &
       !                                 condition%name,option)
-      !call HydrostaticHDF5DatasetError(condition%hydrate%mole_fraction, &
+      !call HydrostaticHDF5DatasetError(condition%hydrate%mass_fraction, &
       !                                 condition%name,option)
       !call HydrostaticHDF5DatasetError(condition%hydrate%liquid_pressure, &
       !                                 condition%name,option)
@@ -183,12 +183,12 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           temperature_gradient(1:3) = &
             condition%hydrate%temperature%gradient%rarray(1:3)
         endif
-        if (associated(condition%hydrate%mole_fraction)) then
+        if (associated(condition%hydrate%mass_fraction)) then
           concentration_at_datum = &
-            condition%hydrate%mole_fraction%dataset%rarray(1)
-          if (associated(condition%hydrate%mole_fraction%gradient)) then
+            condition%hydrate%mass_fraction%dataset%rarray(1)
+          if (associated(condition%hydrate%mass_fraction%gradient)) then
             concentration_gradient(1:3) = &
-            condition%hydrate%mole_fraction%gradient%rarray(1:3)
+            condition%hydrate%mass_fraction%gradient%rarray(1:3)
           endif
         endif
       endif
@@ -205,7 +205,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
       ! for liquid state
       coupler%flow_aux_mapping(HYDRATE_LIQUID_PRESSURE_INDEX) = 1
-      coupler%flow_aux_mapping(HYDRATE_LIQ_MOLE_FRACTION_INDEX) = 2
+      coupler%flow_aux_mapping(HYDRATE_LIQ_MASS_FRACTION_INDEX) = 2
       coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
       ! for two-phase state
       coupler%flow_aux_mapping(HYDRATE_GAS_PRESSURE_INDEX) = 1

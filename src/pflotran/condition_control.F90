@@ -555,8 +555,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Mole fraction ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -575,8 +575,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -720,8 +720,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Liquid Mole Fraction ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -858,8 +858,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                 case(L_STATE)
                   xx_p(ibegin+HYDRATE_LIQUID_PRESSURE_DOF) = &
                     hydrate%liquid_pressure%dataset%rarray(1)
-                  xx_p(ibegin+HYDRATE_L_STATE_X_MOLE_DOF) = &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_L_STATE_X_MASS_DOF) = &
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(G_STATE)
@@ -867,7 +867,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     hydrate%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_G_STATE_AIR_PRESSURE_DOF) = &
                     hydrate%gas_pressure%dataset%rarray(1) * &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(H_STATE)
@@ -938,7 +938,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                       hydrate%liquid_pressure%dataset%rarray(1)
                   endif
                   xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%liquid_saturation%dataset%rarray(1)
                 case(HGA_STATE)
