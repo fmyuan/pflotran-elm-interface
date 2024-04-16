@@ -4027,31 +4027,35 @@ subroutine PMWFSolve(this,time,ierr)
                  cur_waste_form%mechanism%rad_species_list(j)%formula_weight * &! kg-rad/kmol-rad
                  cur_waste_form%rad_mass_fraction(j) * &      ! kg-rad/kg-bulk
                  1.d3)
-              if (option%itranmode == RT_MODE) then
-                inst_diss_molality = &                          ! mol-rad/kg-water
-                  cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
-                  this%realization%option%tran_dt / &           ! sec
-                  ! [kg-water]
-                  (material_auxvars(ghosted_id)%porosity * &        ! [-]
-                   global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * & ! [-]
-                   material_auxvars(ghosted_id)%volume * &          ! [m^3]
-                   global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)) ! [kg/m^3-water]
-                idof = cwfm%rad_species_list(j)%ispecies + &
-                       ((local_id - 1) * this%option%ntrandof)
-                xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
-                             (inst_diss_molality*cur_waste_form%scaling_factor(k))
-              elseif (option%itranmode == NWT_MODE) then
-                inst_diss_bulk_conc = &                         ! mol-rad/m^3-bulk
-                  ! [mol-rad]
-                  cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
-                  this%realization%option%tran_dt / &           ! sec
-                  ! [m^3-bulk]
-                  material_auxvars(ghosted_id)%volume           ! [m^3-bulk]
-                idof = cwfm%rad_species_list(j)%ispecies + &
-                       ((local_id - 1) * this%option%ntrandof)
-                xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
-                             (inst_diss_bulk_conc*cur_waste_form%scaling_factor(k))
-              endif
+              select case(option%itranmode)
+                case(RT_MODE)
+                  inst_diss_molality = &                          ! mol-rad/kg-water
+                    cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
+                    this%realization%option%tran_dt / &           ! sec
+                    ! [kg-water]
+                    (material_auxvars(ghosted_id)%porosity * &        ! [-]
+                     global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * & ! [-]
+                     material_auxvars(ghosted_id)%volume * &          ! [m^3]
+                     global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)) ! [kg/m^3-water]
+                  idof = cwfm%rad_species_list(j)%ispecies + &
+                         ((local_id - 1) * this%option%ntrandof)
+                  xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
+                               (inst_diss_molality*cur_waste_form%scaling_factor(k))
+                case(NWT_MODE)
+                  inst_diss_bulk_conc = &                         ! mol-rad/m^3-bulk
+                    ! [mol-rad]
+                    cur_waste_form%instantaneous_mass_rate(j) * & ! mol-rad/sec
+                    this%realization%option%tran_dt / &           ! sec
+                    ! [m^3-bulk]
+                    material_auxvars(ghosted_id)%volume           ! [m^3-bulk]
+                  idof = cwfm%rad_species_list(j)%ispecies + &
+                         ((local_id - 1) * this%option%ntrandof)
+                  xx_p(idof) = xx_p(idof) + &                     ! mol-rad/kg-water
+                               (inst_diss_bulk_conc*cur_waste_form%scaling_factor(k))
+                case default
+                  option%io_buffer = 'Waste form not implemented with current transport mode.'
+                  call PrintErrMsg(option)
+              end select
               vec_p(i) = 0.d0
               if (k == 1) then
                 ! update the cumulative mass now, not at next timestep:
