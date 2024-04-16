@@ -1944,7 +1944,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: x(option%nflowdof)
   PetscReal :: PE_hyd, dP, Tf_ice, dTfs, T_temp
   PetscReal :: h_sat_eff,g_sat_eff,i_sat_eff
-  PetscReal :: K_H_tilde
   PetscReal :: Pc_entry, cell_pressure, sg_min, sh_min
   PetscReal :: sl_temp, sgt_temp, sg_est
   PetscReal :: Pc, Pv, Prvap, Pa, Psat
