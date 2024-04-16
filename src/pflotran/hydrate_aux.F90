@@ -1701,29 +1701,42 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                  sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
+  if (hydrate_eff_sat_scaling) then
+    l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
+                hyd_auxvar%sat(gid))
+    g_sat_eff = 1.d0 - l_sat_eff
+  else
+    l_sat_eff = hyd_auxvar%sat(lid)
+    g_sat_eff = hyd_auxvar%sat(gid)
+  endif
+  
   ! Relative Permeability
-  if (hyd_auxvar%sat(lid) > 0.d0 .or. &
-      hyd_auxvar%sat(gid) > 0.d0) then
-    if (hydrate_eff_sat_scaling) then
-      l_sat_eff = hyd_auxvar%sat(lid)/(hyd_auxvar%sat(lid)+ &
-                  hyd_auxvar%sat(gid))
-      g_sat_eff = 1.d0 - l_sat_eff
+  if (hyd_auxvar%sat(lid) > 0.d0) then
+    if (hyd_auxvar%sat(lid) >= 1.d0) then
+      hyd_auxvar%kr(lid) = 1.d0
     else
-      l_sat_eff = hyd_auxvar%sat(lid)
-      g_sat_eff = hyd_auxvar%sat(gid)
+      call characteristic_curves%liq_rel_perm_function% &
+               RelativePermeability(l_sat_eff,hyd_auxvar%kr(lid), &
+                                    dkrl_dsatl,option)
     endif
-
-    call characteristic_curves%liq_rel_perm_function% &
-             RelativePermeability(l_sat_eff,hyd_auxvar%kr(lid), &
-                                  dkrl_dsatl,option)
-    call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(l_sat_eff,hyd_auxvar%kr(gid), &
-                                dkrg_dsatl,option)
   else
     hyd_auxvar%kr(lid) = 0.d0
-    hyd_auxvar%kr(gid) = 0.d0
   endif
   hyd_auxvar%kr(lid) = min(max(hyd_auxvar%kr(lid),1.d-24),1.d0)
+  hyd_auxvar%mobility(lid) = hyd_auxvar%kr(lid) / hyd_auxvar%visc(lid)
+
+  if (hyd_auxvar%sat(gid) > 0.d0) then
+    if (hyd_auxvar%sat(gid) >=1.d0) then
+      hyd_auxvar%kr(gid) = 1.d0
+    else
+      call characteristic_curves%gas_rel_perm_function% &
+           RelativePermeability(1.d0 - g_sat_eff,hyd_auxvar%kr(gid),dkrg_dsatl,option)
+      hyd_auxvar%kr(gid) = max(0.d0,hyd_auxvar%kr(gid))
+    endif
+  else
+    hyd_auxvar%kr(gid) = 0.d0
+  endif
+  hyd_auxvar%mobility(gid) = hyd_auxvar%kr(gid) / hyd_auxvar%visc(gid)
   
   ! Convert to molar density: liquid
   mw_mix = hyd_auxvar%xmol(wid,lid) * hydrate_fmw_comp(1) + &
