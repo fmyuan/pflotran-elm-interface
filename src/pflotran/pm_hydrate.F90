@@ -1877,16 +1877,16 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
      'GI State      ','AI State      ','HGA State     ','HAI State     ', &
      'HGI State     ','GAI State     ','Quad State    ']
   character(len=17), parameter :: dof_string(3,15) = &
-    reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
+    reshape(['Liquid Pressure  ','Air Mass Fraction','Temperature      ', &
              'Gas Pressure     ','Air Pressure     ','Temperature      ', &
-             'Gas Pressure     ','Air Mole Frac Hyd','Temperature      ', &
-             'Gas Pressure     ','Air Mole Frac Ice','Temperature      ', &
+             'Gas Pressure     ','Air Mass Frac Hyd','Temperature      ', &
+             'Gas Pressure     ','Air Mass Frac Ice','Temperature      ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
              'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
              'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
              'Gas Pressure     ','Ice Saturation   ','Temperature      ', &
-             'Gas Pressure     ','Air Mole Fraction','Liquid Saturation', &
+             'Gas Pressure     ','Air Mass Fraction','Liquid Saturation', &
              'Liquid Saturation','Hydrate Sat      ','Temperature      ', &
              'Gas Pressure     ','Liquid Saturation','Ice Saturation   ', &
              'Hydrate Sat      ','Ice Saturation   ','Temperature      ', &

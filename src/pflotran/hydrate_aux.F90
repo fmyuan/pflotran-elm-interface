@@ -77,7 +77,7 @@ module Hydrate_Aux_module
   PetscInt, parameter, public :: HYDRATE_GAS_SATURATION_DOF = 2
 
   PetscInt, parameter, public :: HYDRATE_ENERGY_DOF = 3
-  PetscInt, parameter, public :: HYDRATE_L_STATE_X_MOLE_DOF = 2
+  PetscInt, parameter, public :: HYDRATE_L_STATE_X_MASS_DOF = 2
 
   PetscInt, parameter, public :: HYDRATE_STATE_INDEX = 1
   PetscInt, parameter, public :: HYDRATE_LIQUID_EQUATION_INDEX = 1
@@ -87,9 +87,9 @@ module Hydrate_Aux_module
   PetscInt, parameter, public :: HYDRATE_LIQUID_PRESSURE_INDEX = 2
   PetscInt, parameter, public :: HYDRATE_GAS_PRESSURE_INDEX = 3
   PetscInt, parameter, public :: HYDRATE_AIR_PRESSURE_INDEX = 4
-  PetscInt, parameter, public :: HYDRATE_LIQ_MOLE_FRACTION_INDEX = 5
-  PetscInt, parameter, public :: HYDRATE_HYD_MOLE_FRACTION_INDEX = 6
-  PetscInt, parameter, public :: HYDRATE_ICE_MOLE_FRACTION_INDEX = 7
+  PetscInt, parameter, public :: HYDRATE_LIQ_MASS_FRACTION_INDEX = 5
+  PetscInt, parameter, public :: HYDRATE_HYD_MASS_FRACTION_INDEX = 6
+  PetscInt, parameter, public :: HYDRATE_ICE_MASS_FRACTION_INDEX = 7
   PetscInt, parameter, public :: HYDRATE_TEMPERATURE_INDEX = 8
   PetscInt, parameter, public :: HYDRATE_GAS_SATURATION_INDEX = 9
   PetscInt, parameter, public :: HYDRATE_LIQ_SATURATION_INDEX = 10
@@ -312,16 +312,16 @@ function HydrateAuxCreate(option)
   ! GI_STATE,AI_STATE,HGA_STATE,HAI_STATE,HGI_STATE,GAI_STATE,HGAI_STATE
   dof_to_primary_variable(1:3,1:15) = &
              !L_STATE
-    reshape([HYDRATE_LIQUID_PRESSURE_INDEX, HYDRATE_LIQ_MOLE_FRACTION_INDEX, &
+    reshape([HYDRATE_LIQUID_PRESSURE_INDEX, HYDRATE_LIQ_MASS_FRACTION_INDEX, &
              HYDRATE_TEMPERATURE_INDEX, &
              !G_STATE
              HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_AIR_PRESSURE_INDEX, &
              HYDRATE_TEMPERATURE_INDEX, &
              !H_STATE
-             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_HYD_MOLE_FRACTION_INDEX, &
+             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_HYD_MASS_FRACTION_INDEX, &
              HYDRATE_TEMPERATURE_INDEX, &
              !I_STATE
-             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_ICE_MOLE_FRACTION_INDEX, &
+             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_ICE_MASS_FRACTION_INDEX, &
              HYDRATE_TEMPERATURE_INDEX, &
              !GA_STATE
              HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_GAS_SATURATION_INDEX, &
@@ -339,7 +339,7 @@ function HydrateAuxCreate(option)
              HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_TWO_INDEX, &
              HYDRATE_TEMPERATURE_INDEX, &
              !AI_STATE 3INDEX = Sl
-             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_LIQ_MOLE_FRACTION_INDEX, &
+             HYDRATE_GAS_PRESSURE_INDEX, HYDRATE_LIQ_MASS_FRACTION_INDEX, &
              HYDRATE_THREE_INDEX, &
              !HGA_STATE
              HYDRATE_LIQ_SATURATION_INDEX, HYDRATE_HYD_SATURATION_INDEX, &
@@ -688,7 +688,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 !     Primary variables: Pl, Xma, T
 !
       hyd_auxvar%pres(lid) = x(HYDRATE_LIQUID_PRESSURE_DOF)
-      hyd_auxvar%xmass(acid,lid) = x(HYDRATE_L_STATE_X_MOLE_DOF)
+      hyd_auxvar%xmass(acid,lid) = x(HYDRATE_L_STATE_X_MASS_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
 
       T_temp = hyd_auxvar%temp - Tf_ice
@@ -1709,7 +1709,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     l_sat_eff = hyd_auxvar%sat(lid)
     g_sat_eff = hyd_auxvar%sat(gid)
   endif
-  
+
   ! Relative Permeability
   if (hyd_auxvar%sat(lid) > 0.d0) then
     if (hyd_auxvar%sat(lid) >= 1.d0) then
@@ -2757,7 +2757,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !
 
         x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = hyd_auxvar%xmass(acid,lid)
+        x(HYDRATE_L_STATE_X_MASS_DOF) = hyd_auxvar%xmass(acid,lid)
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(G_STATE)
@@ -2929,7 +2929,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 !  PetscReal, parameter :: perturbation_tolerance = 1.d-11
   PetscReal, parameter :: min_perturbation = 1.d-10
 
-  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
+  PetscReal, parameter :: min_mass_fraction_pert = 1.d-12
   PetscReal, parameter :: min_pres_pert = 1.d-3
   PetscReal, parameter :: min_temp_pert = 8.66d-9
   PetscReal, parameter :: min_xmass_pert = 1.d-14
@@ -3012,13 +3012,13 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       endif
       x(HYDRATE_LIQUID_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-      x(HYDRATE_L_STATE_X_MOLE_DOF) = &
+      x(HYDRATE_L_STATE_X_MASS_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%xmass(option%air_id,option%liquid_phase)
       x(HYDRATE_ENERGY_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%temp
 
       pert(HYDRATE_LIQUID_PRESSURE_DOF) = dpl
-      pert(HYDRATE_L_STATE_X_MOLE_DOF) = dxa
+      pert(HYDRATE_L_STATE_X_MASS_DOF) = dxa
       pert(HYDRATE_ENERGY_DOF) = dt
 
     case(G_STATE)
@@ -3156,7 +3156,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
     case(AI_STATE)
       x(HYDRATE_LIQUID_PRESSURE_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-      x(HYDRATE_L_STATE_X_MOLE_DOF) = &
+      x(HYDRATE_L_STATE_X_MASS_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%xmass(option%air_id,option%liquid_phase)
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%sat(lid)
@@ -3164,11 +3164,11 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
          perturbation_tolerance*x(HYDRATE_LIQUID_PRESSURE_DOF) + &
          min_perturbation
 
-      if (x(HYDRATE_L_STATE_X_MOLE_DOF) > &
+      if (x(HYDRATE_L_STATE_X_MASS_DOF) > &
            1.d3 * perturbation_tolerance) then
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
+        pert(HYDRATE_L_STATE_X_MASS_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance
+        pert(HYDRATE_L_STATE_X_MASS_DOF) = perturbation_tolerance
       endif
       if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
         pert(HYDRATE_ENERGY_DOF) = -1.d0 * perturbation_tolerance

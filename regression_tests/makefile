@@ -99,7 +99,7 @@ STANDARD_CFG = \
 	default/velocity/velocity.cfg \
 	default/zflow/zflow.cfg \
 	general/general.cfg \
-	general/hydrate/hydrate.cfg \
+	hydrate/hydrate.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_strain_tets/uniaxial_strain_tets.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
