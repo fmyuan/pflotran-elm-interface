@@ -620,17 +620,13 @@ recursive subroutine PMSCO2InitializeRun(this)
   enddo
 
   ! setup coupling in jacobian matrix for well model
-  if (option%coupled_well .and. associated(this%pmwell_ptr)) then
-    call MatSetOption(this%pmwell_ptr%solver%m, &
-                      MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+  if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
                       ierr);CHKERRQ(ierr)
-    call PMWellModifyDummyFlowJacobian(cur_pm,this%pmwell_ptr%solver%m,ierr)
-    call MatAssemblyBegin(this%pmwell_ptr%solver%m, &
-                          MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%pmwell_ptr%solver%m, &
-                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatSetOption(this%pmwell_ptr%solver%m, &
-                      MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+    call PMWellModifyDummyFlowJacobian(this%pmwell_ptr,this%solver%m,ierr)
+    call MatAssemblyBegin(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
                       ierr);CHKERRQ(ierr)
   endif
 
@@ -1398,7 +1394,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
         ! MAN: Add in update truncation for fully implicit well
       endif
-      
+
     enddo
 
     if (this%damping_factor > 0.d0) then
@@ -1556,7 +1552,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   ! Author: Michael Nole
   ! Date: 01/26/24
   !
-                                  
+
   use Convergence_module
   use SCO2_Aux_module
   use Global_Aux_module
@@ -2025,7 +2021,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
-    
+
     ! Send out updated well BHP
     if (associated(this%pmwell_ptr)) then
       if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then
