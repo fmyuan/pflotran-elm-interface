@@ -230,14 +230,14 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   PetscReal :: solubility       ! [mol/m^3-liq]
   type(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
-  PetscBool :: dry_out
+  !PetscBool :: dry_out
   PetscReal :: ele_kd            ! [m^3-water/m^3-bulk]
   PetscReal :: total_bulk_conc   ! [mol/m^3-bulk]
   PetscReal :: aqueous_eq_conc   ! [mol/m^3-liq]
   PetscReal :: ppt_mass_conc     ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc    ! [mol/m^3-bulk]
 
-  PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
+  !PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
   PetscReal :: aqueous_mass_conc ! [mol/m^3-bulk]
   PetscReal :: por, sat
   PetscBool :: super_saturated
