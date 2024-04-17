@@ -293,6 +293,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Creep_Closure_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
+  use String_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -741,6 +742,19 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
   endif
+
+  i = 0
+  do local_id = 1, grid%nlmax
+    if (patch%imat(grid%nL2G(local_id)) <= 0) i = i + 1
+  enddo
+  call MPI_Allreduce(MPI_IN_PLACE,i,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+  option%io_buffer = new_line('a') // &
+    'Number of active grid cells: '// StringWrite(grid%nmax-i) // &
+    new_line('a')// &
+    'Number of inactive grid cells: '// StringWrite(i)// &
+    new_line('a')
+  call PrintMsg(option)
 
 end subroutine InitSubsurfAssignMatProperties
 
