@@ -471,7 +471,7 @@ subroutine InputReadInt1(input, option, int)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForInt(input%buf,int,found,input%ierr)
+    call InputParseDbaseForInt(input%buf,int,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -508,7 +508,7 @@ subroutine InputReadInt2(string, option, int, ierr)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForInt(string,int,found,ierr)
+    call InputParseDbaseForInt(string,int,found,option,ierr)
   endif
 
   if (.not.found) then
@@ -605,7 +605,7 @@ subroutine InputReadDouble1(input, option, double)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForDouble(input%buf,double,found,input%ierr)
+    call InputParseDbaseForDouble(input%buf,double,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -644,7 +644,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForDouble(string,double,found,ierr)
+    call InputParseDbaseForDouble(string,double,found,option,ierr)
   endif
 
   if (.not.found) then
@@ -1209,7 +1209,7 @@ subroutine InputReadCardDbaseCompatible(input, option, word)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForWord(input%buf,word,found,input%ierr)
+    call InputParseDbaseForWord(input%buf,word,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -2416,7 +2416,7 @@ end subroutine InputReadASCIIDbase
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForInt(buffer,value,found,ierr)
+subroutine InputParseDbaseForInt(buffer,value,found,option,ierr)
   !
   ! Parses database for an integer value
   !
@@ -2430,6 +2430,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscInt :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2441,7 +2442,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupInt(word,value,ierr)
+    call DbaseLookupInt(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2453,7 +2454,7 @@ end subroutine InputParseDbaseForInt
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
+subroutine InputParseDbaseForDouble(buffer,value,found,option,ierr)
   !
   ! Parses database for an double precision value
   !
@@ -2467,6 +2468,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscReal :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2478,7 +2480,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupDouble(word,value,ierr)
+    call DbaseLookupDouble(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2490,7 +2492,7 @@ end subroutine InputParseDbaseForDouble
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForWord(buffer,value,found,ierr)
+subroutine InputParseDbaseForWord(buffer,value,found,option,ierr)
   !
   ! Parses database for a word
   !
@@ -2504,6 +2506,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   character(len=MAXWORDLENGTH) :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2515,7 +2518,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupWord(word,value,ierr)
+    call DbaseLookupWord(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2527,7 +2530,7 @@ end subroutine InputParseDbaseForWord
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupInt(keyword,value,ierr)
+subroutine DbaseLookupInt(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2540,6 +2543,7 @@ subroutine DbaseLookupInt(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2561,6 +2565,10 @@ subroutine DbaseLookupInt(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading an "integer value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
@@ -2568,7 +2576,7 @@ end subroutine DbaseLookupInt
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupDouble(keyword,value,ierr)
+subroutine DbaseLookupDouble(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2581,6 +2589,7 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   PetscReal :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2602,6 +2611,10 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading a "floating point value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
@@ -2609,7 +2622,7 @@ end subroutine DbaseLookupDouble
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupWord(keyword,value,ierr)
+subroutine DbaseLookupWord(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2622,6 +2635,7 @@ subroutine DbaseLookupWord(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2643,6 +2657,10 @@ subroutine DbaseLookupWord(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading a "string value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
