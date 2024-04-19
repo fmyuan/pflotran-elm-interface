@@ -344,12 +344,83 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Grid_module
   use Init_Subsurface_Flow_module
   use Option_module
+  use Matrix_Zeroing_module
+  use Patch_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
 
+  type(patch_type), pointer :: patch
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
+  PetscBool, allocatable :: dof_is_active(:)
+  PetscBool :: inactive_cells_exist
+
   class(characteristic_curves_type), pointer :: cur_cc
+
+  patch => this%realization%patch
+
+  nullify(matrix_zeroing)
+  allocate(dof_is_active(this%option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  inactive_cells_exist = PETSC_FALSE
+
+  select case(this%option%iflowmode)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      matrix_zeroing => patch%aux%Richards%matrix_zeroing
+    case(ZFLOW_MODE)
+      matrix_zeroing => patch%aux%ZFlow%matrix_zeroing
+    case(PNF_MODE)
+      matrix_zeroing => patch%aux%PNF%matrix_zeroing
+    case(TH_MODE,TH_TS_MODE)
+      matrix_zeroing => patch%aux%TH%matrix_zeroing
+    case(MPH_MODE)
+      matrix_zeroing => patch%aux%Mphase%matrix_zeroing
+    case(G_MODE)
+      matrix_zeroing => patch%aux%General%matrix_zeroing
+    case(H_MODE)
+      matrix_zeroing => patch%aux%Hydrate%matrix_zeroing
+    case(WF_MODE)
+      matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
+    case(SCO2_MODE)
+      if (this%option%coupled_well) then
+        dof_is_active(this%option%nflowdof) = PETSC_FALSE
+      endif
+      matrix_zeroing => patch%aux%SCO2%matrix_zeroing
+  end select
+  call PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
+                            inactive_cells_exist,this%option)
+  select case(this%option%iflowmode)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      patch%aux%Richards%matrix_zeroing => matrix_zeroing
+      patch%aux%Richards%inactive_cells_exist = inactive_cells_exist
+    case(ZFLOW_MODE)
+      patch%aux%ZFlow%matrix_zeroing => matrix_zeroing
+      patch%aux%ZFlow%inactive_cells_exist = inactive_cells_exist
+    case(PNF_MODE)
+      patch%aux%PNF%matrix_zeroing => matrix_zeroing
+      patch%aux%PNF%inactive_cells_exist = inactive_cells_exist
+    case(TH_MODE,TH_TS_MODE)
+      patch%aux%TH%matrix_zeroing => matrix_zeroing
+      patch%aux%TH%inactive_cells_exist = inactive_cells_exist
+    case(MPH_MODE)
+      patch%aux%Mphase%matrix_zeroing => matrix_zeroing
+      patch%aux%Mphase%inactive_cells_exist = inactive_cells_exist
+    case(G_MODE)
+      patch%aux%General%matrix_zeroing => matrix_zeroing
+      patch%aux%General%inactive_cells_exist = inactive_cells_exist
+    case(H_MODE)
+      patch%aux%Hydrate%matrix_zeroing => matrix_zeroing
+      patch%aux%Hydrate%inactive_cells_exist = inactive_cells_exist
+    case(WF_MODE)
+      patch%aux%WIPPFlo%matrix_zeroing => matrix_zeroing
+      patch%aux%WIPPFlo%inactive_cells_exist = inactive_cells_exist
+    case(SCO2_MODE)
+      patch%aux%SCO2%matrix_zeroing => matrix_zeroing
+      patch%aux%SCO2%inactive_cells_exist = inactive_cells_exist
+  end select
+  deallocate(dof_is_active)
+  nullify(matrix_zeroing)
 
   ! assign initial conditionsRealizAssignFlowInitCond
   call CondControlAssignFlowInitCond(this%realization)

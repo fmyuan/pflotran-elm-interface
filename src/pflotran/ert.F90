@@ -58,6 +58,7 @@ subroutine ERTSetup(realization)
   PetscBool :: require_electrical_conductivity
   PetscBool :: archies_parameters_defined
   PetscBool :: error_found
+  PetscBool :: dof_is_active(1)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -201,6 +202,10 @@ subroutine ERTSetup(realization)
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%ERT%matrix_zeroing, &
+                            patch%aux%ERT%inactive_cells_exist,option)
 
 end subroutine ERTSetup
 

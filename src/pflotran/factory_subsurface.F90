@@ -380,7 +380,6 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   endif
 
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
-  call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
                                       output_snap_variable_list,option)
   call RegressionSetup(simulation%regression,realization)
