@@ -1492,25 +1492,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           liq_sat_index = offset + ONE_INTEGER
           hyd_sat_index = offset + TWO_INTEGER
           temp_index = offset + THREE_INTEGER
-
-          !Limit changes in liquid saturation
-          dP = 1.d-1
-          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
-                                dX_p(liq_sat_index))
-          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
-             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
-          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
-             dX_p(liq_sat_index) = - X_p(liq_sat_index)
-
-          !Limit changes in hydrate saturation
-          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
-             dX_p(hyd_sat_index))
-
-          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
-             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
-          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
-
+          
           if ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
               X_p(liq_sat_index) + dX_p(liq_sat_index)) > 1.d0) then
             s_extra = 1.d0 - ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
@@ -1518,6 +1500,26 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
             dX_p(hyd_sat_index) = dX_p(hyd_sat_index) + s_extra / 2.d0
             dX_p(liq_sat_index) = dX_p(liq_sat_index) + s_extra / 2.d0
           endif
+
+          !Limit changes in liquid saturation
+          ! dP = 1.d-1
+          ! dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+          !                       dX_p(liq_sat_index))
+          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+          !    dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+          !    dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+          ! !Limit changes in hydrate saturation
+          ! dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+          !    dX_p(hyd_sat_index))
+
+          ! if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+          !    dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          ! if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+          !    dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+          
 
           ! Limit changes in temperature
           if (hyd_auxvar%sat(hid) > epsilon) then
@@ -1939,6 +1941,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         ghosted_id = grid%nL2G(local_id)
         natural_id = grid%nG2A(ghosted_id)
         if (patch%imat(ghosted_id) <= 0) cycle
+        hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
         istate = global_auxvars(ghosted_id)%istate
         do idof = 1, option%nflowdof
           ival = offset+idof

@@ -20,7 +20,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_immiscible = PETSC_FALSE
   PetscBool, public :: hydrate_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: hydrate_restrict_state_chng = PETSC_FALSE
-  PetscReal, public :: window_epsilon = 0.d0 !1.d-4 !0.d0
+  PetscReal, public :: window_epsilon = 1.d-2 !1.d-4 !0.d0
   PetscReal, public :: hydrate_phase_chng_epsilon = 0.d0 !1.d-6
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
   PetscInt, public :: hydrate_max_it_before_damping = UNINITIALIZED_INTEGER
@@ -1955,7 +1955,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: drho_dP, drho_dT
   PetscInt :: apid, cpid, vpid, spid, rvpid
   PetscInt :: gid, lid, hid, iid, acid, wid, tgid, pwid, pbid, pid, sid
-  PetscReal :: state_change_threshold
   PetscInt :: old_state,new_state
   PetscBool :: istatechng
   PetscReal :: dpc_dsatl
@@ -1965,7 +1964,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
 
   ierr = 0
-  state_change_threshold = 0.d0
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -2080,8 +2078,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       if (hyd_auxvar%sat(iid) == 0.d0) then !Not frozen
         cell_pressure = max(hyd_auxvar%pres(lid),hyd_auxvar%pres(vpid))
         ! Check if dissolved air exceeds solubility
-        if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + &
-            state_change_threshold)) then
+        if (hyd_auxvar%xmass(acid,lid) > xal) then
           call HydrateBrineDensity(hyd_auxvar%temp,cell_pressure, &
                                    xsl, den_brine, option)
           call HydrateDensityCompositeLiquid(hyd_auxvar%temp, &
@@ -2098,8 +2095,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                              xsl, den_brine, option)
             call HydrateDensityCompositeLiquid(hyd_auxvar%temp, &
                                   den_brine,xal,den_liq)
-            sg_est =  (hyd_auxvar%xmass(acid,lid) - xal * (1.d0 + &
-                   state_change_threshold)) * &
+            sg_est =  (hyd_auxvar%xmass(acid,lid) - xal) * &
                    den_liq / den_a
             if (sg_est < sg_min) then
                     ! No state change
@@ -2127,8 +2123,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_FALSE
         endif
       else !Frozen
-        if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + &
-          state_change_threshold)) then
+        if (hyd_auxvar%xmass(acid,lid) > xal) then
           if (hyd_auxvar%pres(lid) >= PE_hyd) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = HA_STATE
@@ -2141,8 +2136,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                                      xsl, den_brine, option)
             call HydrateDensityCompositeLiquid(hyd_auxvar%temp, &
                                   den_brine,xal,den_liq)
-            sg_est =  (hyd_auxvar%xmass(acid,lid) - xal * (1.d0 + &
-                       state_change_threshold)) * &
+            sg_est =  (hyd_auxvar%xmass(acid,lid) - xal) * &
                        den_liq / den_a
             if (sg_est < sg_min) then
                     ! No state change
@@ -2172,7 +2166,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                 hyd_auxvar%pres(apid)
       prvap = hyd_auxvar%pres(rvpid)
 
-      if (pv > prvap * (1.d0 + state_change_threshold)) then
+      if (pv > prvap) then
         if (hyd_auxvar%temp >= Tf_ice .and. &
             hyd_auxvar%pres(apid) < PE_hyd) then
           ! Aqueous phase appears, transition state. Update primary variables
@@ -2180,9 +2174,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
 
-          sl_temp = (pv - prvap * (1.d0 + &
-                     state_change_threshold)) / (prvap * (1.d0 + &
-                     state_change_threshold))
+          sl_temp = (pv - prvap) / prvap
           hyd_auxvar%m_salt(1) = hyd_auxvar%m_salt(2) / &
                                 (hyd_auxvar%den_kg(lid) * &
                                 sl_temp * &
@@ -2278,7 +2270,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = G_STATE
       else
-        if (hyd_auxvar%pres(apid) < PE_hyd) then
+        if (hyd_auxvar%pres(apid) < PE_hyd * (1.d0 + window_epsilon)) then
           if (hyd_auxvar%temp > Tf_ice) then
           ! No state transition
             istatechng = PETSC_FALSE
@@ -2303,7 +2295,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         endif
       endif
     case(HG_STATE)
-      if (hyd_auxvar%pres(apid) > PE_hyd) then
+      if (hyd_auxvar%pres(apid) > PE_hyd * (1.d0 - window_epsilon)) then
       !if (hyd_auxvar%pres(gid) > PE_hyd) then
 
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0) then
@@ -2338,7 +2330,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     case(HA_STATE)
       !if (hyd_auxvar%pres(gid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
-      if (hyd_auxvar%pres(apid) > PE_hyd .and. hyd_auxvar%temp > Tf_ice) then
+      if (hyd_auxvar%pres(apid) > PE_hyd * (1.d0 - window_epsilon) &
+         .and. hyd_auxvar%temp > Tf_ice) then
 
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -2426,13 +2419,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
        !       pres(lid)*(1.d0-window_epsilon)) then
        !  if (hyd_auxvar%pres(apid) < PE_hyd) then
        if (hyd_auxvar%pres(lid) >= PE_hyd .and. &
-           hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
-           state_change_threshold)) then
+           hyd_auxvar%xmass(acid,lid) >= xal) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = HAI_STATE
        elseif (hyd_auxvar%pres(lid) <= PE_hyd .and. &
-               hyd_auxvar%xmass(acid,lid) >= xal * (1.d0 + &
-               state_change_threshold)) then
+               hyd_auxvar%xmass(acid,lid) >= xal) then
          istatechng = PETSC_TRUE
          global_auxvar%istate = GA_STATE
        else
@@ -2481,7 +2472,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     case(HAI_STATE)
 
-      if (hyd_auxvar%pres(apid) >= PE_hyd*(1.d0-window_epsilon)) then
+      if (hyd_auxvar%pres(apid) >= PE_hyd) then
       !if (hyd_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
         if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(hid) > 0.d0 &
             .and. hyd_auxvar%sat(iid) > 0.d0) then
