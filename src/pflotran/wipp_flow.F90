@@ -69,6 +69,7 @@ subroutine WIPPFloSetup(realization)
   PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
@@ -179,11 +180,18 @@ subroutine WIPPFloSetup(realization)
     enddo
   endif
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%WIPPFlo%matrix_zeroing, &
+                            patch%aux%WIPPFlo%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   wippflo_ts_count = 0
   wippflo_ts_cut_count = 0
   wippflo_ni_count = 0
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine WIPPFloSetup
 

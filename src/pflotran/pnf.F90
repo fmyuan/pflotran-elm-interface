@@ -52,6 +52,7 @@ subroutine PNFSetup(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
+  PetscBool :: dof_is_active(1)
 
   PetscInt :: ghosted_id, iconn, sum_connection
 
@@ -101,6 +102,11 @@ subroutine PNFSetup(realization)
   call PNFSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
   call PNFSetPlotVariables(realization,list)
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%PNF%matrix_zeroing, &
+                            patch%aux%PNF%inactive_cells_exist,option)
 
   PNF_ts_count = 0
   PNF_ts_cut_count = 0
