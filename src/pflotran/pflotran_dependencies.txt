@@ -543,7 +543,6 @@ factory_subsurface_linkage.o : \
   pflotran_constants.o \
   pm_auxiliary.o \
   pm_base.o \
-  pm_base_pointer.o \
   pm_ert.o \
   pm_inversion.o \
   pm_material_transform.o \
@@ -1156,7 +1155,6 @@ init_subsurface.o : \
   logging.o \
   material.o \
   material_aux.o \
-  matrix_zeroing.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -1761,6 +1759,7 @@ patch.o : \
   material.o \
   material_aux.o \
   material_transform.o \
+  matrix_zeroing.o \
   mphase_aux.o \
   nw_transport_aux.o \
   nw_transport_equilibrium.o \
@@ -2207,6 +2206,7 @@ pm_subsurface_flow.o : \
   integral_flux.o \
   material.o \
   material_aux.o \
+  matrix_zeroing.o \
   option.o \
   patch.o \
   pflotran_constants.o \
