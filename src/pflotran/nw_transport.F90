@@ -1027,6 +1027,16 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   call VecRestoreArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
+  ! Mass Transfer
+  if (field%tran_mass_transfer /= PETSC_NULL_VEC) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecGetArrayF90(field%tran_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_mass_transfer,vec_p, &
+                            ierr);CHKERRQ(ierr)
+    call VecAXPY(r,-1.d0,field%tran_mass_transfer,ierr);CHKERRQ(ierr)
+  endif
+
   if (realization%debug%vecview_residual) then
     string = 'NWTresidual'
     call DebugCreateViewer(realization%debug,string,option,viewer)
