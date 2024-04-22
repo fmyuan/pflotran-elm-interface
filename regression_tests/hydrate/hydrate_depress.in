@@ -4,6 +4,9 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE HYDRATE
+      OPTIONS
+        WINDOW_EPSILON 0.d0
+      /
     /
   /
 END
