@@ -46,6 +46,7 @@ module PM_SCO2_class
                            PMSCO2ReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMSCO2ReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMSCO2InitializeSolver
+    procedure, public :: Setup => PMSCO2Setup
     procedure, public :: InitializeRun => PMSCO2InitializeRun
     procedure, public :: InitializeTimestep => PMSCO2InitializeTimestep
     procedure, public :: Residual => PMSCO2Residual
@@ -564,6 +565,32 @@ end subroutine PMSCO2InitializeSolver
 
 ! ************************************************************************** !
 
+subroutine PMSCO2Setup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Material_module
+  use SCO2_module
+
+  implicit none
+
+  class(pm_sco2_type) :: this
+
+  call this%SetRealization()
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call SCO2Setup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMSCO2Setup
+
+! ************************************************************************** !
+
 recursive subroutine PMSCO2InitializeRun(this)
   !
   ! Initializes the time stepping
@@ -591,6 +618,17 @@ recursive subroutine PMSCO2InitializeRun(this)
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
   enddo
+
+  ! setup coupling in jacobian matrix for well model
+  if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    call PMWellModifyDummyFlowJacobian(this%pmwell_ptr,this%solver%m,ierr)
+    call MatAssemblyBegin(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+  endif
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
@@ -1356,7 +1394,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
         ! MAN: Add in update truncation for fully implicit well
       endif
-      
+
     enddo
 
     if (this%damping_factor > 0.d0) then
@@ -1514,7 +1552,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   ! Author: Michael Nole
   ! Date: 01/26/24
   !
-                                  
+
   use Convergence_module
   use SCO2_Aux_module
   use Global_Aux_module
@@ -1983,7 +2021,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
-    
+
     ! Send out updated well BHP
     if (associated(this%pmwell_ptr)) then
       if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then

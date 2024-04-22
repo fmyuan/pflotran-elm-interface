@@ -63,6 +63,7 @@ subroutine HydrateSetup(realization)
   PetscInt :: idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
@@ -204,12 +205,18 @@ subroutine HydrateSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call HydrateSetPlotVariables(realization,list)
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%Hydrate%matrix_zeroing, &
+                            patch%aux%Hydrate%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   hydrate_ts_count = 0
   hydrate_ts_cut_count = 0
   hydrate_ni_count = 0
-
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine HydrateSetup
 

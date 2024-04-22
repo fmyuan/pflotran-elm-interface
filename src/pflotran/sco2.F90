@@ -60,6 +60,7 @@ subroutine SCO2Setup(realization)
   PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
 
   type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
@@ -234,11 +235,21 @@ subroutine SCO2Setup(realization)
   list => realization%output_option%output_obs_variable_list
   call SCO2SetPlotVariables(realization,list)
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  if (option%coupled_well) then
+    dof_is_active(option%nflowdof) = PETSC_FALSE
+  endif
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%SCO2%matrix_zeroing, &
+                            patch%aux%SCO2%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   sco2_ts_count = 0
   sco2_ts_cut_count = 0
   sco2_ni_count = 0
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine SCO2Setup
 
@@ -532,7 +543,7 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
 
     if (patch%imat(ghosted_id) <= 0) cycle
     volume = material_auxvars(ghosted_id)%volume
-    
+
 
     do iphase = 1,num_phase
       do icomp = 1,num_comp
@@ -759,7 +770,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                  sco2_parameter,natural_id,option)
 
     endif
-    
+
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -1400,7 +1411,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-  
+
   ! Update well source/sink terms
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
@@ -1429,7 +1440,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      
+
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
 
@@ -1677,7 +1688,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
     do iconn = 1, cur_connection_set%num_connections
       if (.not. Initialized(cur_connection_set%face_id(iconn))) cycle
       if (cur_connection_set%area(iconn) <= 0.d0) cycle
-      
+
       sum_connection = sum_connection + 1
 
       ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -1836,7 +1847,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
 
   ! Well Terms
   ! Need to update all well source/sink terms wrt
-  ! perturbation in bottom pressure 
+  ! perturbation in bottom pressure
   if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
@@ -1844,7 +1855,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         call pm_well%Perturb()
 
         ! Go through and update the well contributions to the Jacobian:
-        ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi 
+        ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
         call pm_well%ModifyFlowJacobian(A,ierr)
 
         ! Deactivate unused rows
@@ -1858,7 +1869,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
 
       endif
     endif
-  endif  
+  endif
 
   if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

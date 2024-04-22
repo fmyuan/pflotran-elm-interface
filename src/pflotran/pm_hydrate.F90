@@ -35,6 +35,7 @@ module PM_Hydrate_class
                            PMHydrateReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMHydrateInitializeSolver
+    procedure, public :: Setup => PMHydrateSetup
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -831,6 +832,33 @@ subroutine PMHydrateInitializeSolver(this)
   this%solver%newton_max_iterations = 8
 
 end subroutine PMHydrateInitializeSolver
+
+! ************************************************************************** !
+
+subroutine PMHydrateSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Hydrate_module
+  use Material_module
+
+  implicit none
+
+  class(pm_hydrate_type) :: this
+
+  call this%SetRealization()
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call HydrateSetup(this%realization)
+  call PMHydrateAssignParameters(this%realization,this)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMHydrateSetup
 
 ! ************************************************************************** !
 

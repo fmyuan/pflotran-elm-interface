@@ -2691,7 +2691,7 @@ end subroutine PMWFSetRegionScaling
 
 ! ************************************************************************** !
 
-subroutine PMWFSetRealization(this,realization)
+subroutine PMWFSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 08/26/15
@@ -2703,14 +2703,11 @@ subroutine PMWFSetRealization(this,realization)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): waste form process model object
-! realization (input): subsurface realization object
 ! ----------------------------------------------------------
   class(pm_waste_form_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 ! ----------------------------------------------------------
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMWFSetRealization
 
@@ -2779,6 +2776,7 @@ subroutine PMWFSetup(this)
   PetscInt, pointer :: ranks(:)
 ! -------------------------------------------------------
 
+  call this%SetRealization()
   option => this%realization%option
   reaction => this%realization%reaction
 

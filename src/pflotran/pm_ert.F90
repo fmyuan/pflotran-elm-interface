@@ -299,8 +299,9 @@ subroutine PMERTSetup(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-  use ZFlow_Aux_module
+  use ERT_module
   use Option_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -309,6 +310,9 @@ subroutine PMERTSetup(this)
   type(option_type), pointer :: option
 
   option => this%option
+
+  call this%SetRealization()
+  call ERTSetup(this%realization)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -391,21 +395,18 @@ end function PMERTCast
 
 ! ************************************************************************** !
 
-subroutine PMERTSetRealization(this,realization)
+subroutine PMERTSetRealization(this)
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-
   use Realization_Subsurface_class
 
   implicit none
 
   class(pm_ert_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMERTSetRealization
 

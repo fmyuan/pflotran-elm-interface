@@ -61,6 +61,7 @@ module Realization_Subsurface_class
   end interface
 
   public :: RealizationCreate, &
+            RealizationCast, &
             RealizationStrip, &
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
@@ -164,6 +165,30 @@ function RealizationCreate2(option)
   RealizationCreate2 => realization
 
 end function RealizationCreate2
+
+! ************************************************************************** !
+
+function RealizationCast(realization_base)
+  !
+  ! Casts a realization base to subsurface if in fact it is subsurface
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/12/24
+
+
+  implicit none
+
+  class(realization_base_type), pointer :: realization_base
+
+  class(realization_subsurface_type), pointer :: RealizationCast
+
+  nullify(RealizationCast)
+  select type(r=>realization_base)
+    class is(realization_subsurface_type)
+      RealizationCast => r
+  end select
+
+end function RealizationCast
 
 ! ************************************************************************** !
 

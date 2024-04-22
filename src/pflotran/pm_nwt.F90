@@ -458,6 +458,9 @@ subroutine PMNWTSetup(this)
   !
 
   use String_module
+  use Init_Subsurface_Tran_module
+  use Condition_Control_module
+  use NW_Transport_module
 
   implicit none
 
@@ -467,6 +470,18 @@ subroutine PMNWTSetup(this)
   PetscInt :: k, j
   character(len=MAXWORDLENGTH) :: name_species
   character(len=MAXWORDLENGTH) :: name_cnvgcrit
+
+  call this%SetRealization()
+  if (.not.associated(this%realization%reaction_nw)) then
+    this%option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
+      &in the SIMULATION block without the corresponding &
+      &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
+    call PrintErrMsg(this%option)
+  endif
+
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(this%realization,this%realization%option)
+  call NWTSetup(this%realization)
 
   reaction_nw => this%realization%reaction_nw
 
@@ -662,11 +677,13 @@ subroutine PMNWTSetup(this)
   enddo
   this%controls%itol_abs_update = this%controls%cnvg_criteria_value
 
+  call CondControlAssignNWTranInitCond(this%realization)
+
 end subroutine PMNWTSetup
 
 ! ************************************************************************** !
 
-subroutine PMNWTSetRealization(this,realization)
+subroutine PMNWTSetRealization(this)
   !
   ! Author: Jenn Frederick
   ! Date: 03/08/2019
@@ -675,17 +692,14 @@ subroutine PMNWTSetRealization(this,realization)
   implicit none
 
   class(pm_nwt_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
+  this%realization => RealizationCast(this%realization_base)
   if (this%realization%reaction_nw%use_log_formulation) then
-    this%solution_vec = realization%field%tran_log_xx
+    this%solution_vec = this%realization%field%tran_log_xx
   else
-    this%solution_vec = realization%field%tran_xx
+    this%solution_vec = this%realization%field%tran_xx
   endif
-  this%residual_vec = realization%field%tran_r
+  this%residual_vec = this%realization%field%tran_r
 
 end subroutine PMNWTSetRealization
 
@@ -1055,7 +1069,7 @@ subroutine PMNWTUpdateTimestep(this,update_dt, &
   PetscReal, parameter :: pert = 1.d-20
 
   if (update_dt .and. iacceleration /= 0) then
-  
+
     ! this overrides the default setting of iacceleration = 5
     ! by default size(tfac) is 13, so this is safe
     dtt = dt
@@ -1269,10 +1283,10 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_abs_update
   PetscInt :: loc_max_rel_update
-  PetscInt :: i 
+  PetscInt :: i
   PetscInt :: local_id, offset, idof, index
   PetscBool :: converged_flag
-  
+
   PetscBool :: idof_is_positive(this%option%ntrandof, &
                                          this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof, &
@@ -1283,7 +1297,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscBool :: idof_cnvgd_due_to_scaled_res(this%option%ntrandof, &
                                             this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof, &
-                                         this%realization%patch%grid%nlmax)  
+                                         this%realization%patch%grid%nlmax)
   PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
   PetscBool :: rsn_rUP(this%option%ntrandof)
   PetscBool :: rsn_aUP(this%option%ntrandof)
@@ -1378,7 +1392,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       tempreal = dabs((dX_p(index))/X0_p(index))
       if (tempreal < this%controls%itol_rel_update(idof)) then
         idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
-      endif 
+      endif
       species_max_relative_update(idof) = &
           max(species_max_relative_update(idof),tempreal)
     !-----------------------------------------------------------------
@@ -1386,7 +1400,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       tempreal = dabs(dX_p(index))
       if (tempreal < this%controls%itol_abs_update(idof)) then
         idof_cnvgd_due_to_abs_update(idof,local_id) = PETSC_TRUE
-      endif 
+      endif
       species_max_absolute_update(idof) = &
           max(species_max_absolute_update(idof),tempreal)
     !-----------------------------------------------------------------
@@ -1406,9 +1420,9 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
       species_max_scaled_residual(idof) = &
           max(species_max_scaled_residual(idof),tempreal)
     !-----------------------------------------------------------------
-    enddo 
+    enddo
   enddo
-  
+
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
@@ -1476,14 +1490,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   sR_str  = '   sR:'
   sign_str = ' -'
   rsn_string = ''
-  
+
   if (all(idof_cnvgd(:,1))) then
     aUP_str = ' *aUP:'
     rsn_string = trim(rsn_string) // ' aUP,'
   endif
   if (all(idof_cnvgd(:,2))) then
     rUP_str = ' *rUP:'
-    rsn_string = trim(rsn_string) // ' rUP,' 
+    rsn_string = trim(rsn_string) // ' rUP,'
   endif
   if (all(idof_cnvgd(:,3))) then
     aR_str = '  *aR:'
@@ -1492,12 +1506,12 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   if (all(idof_cnvgd(:,4))) then
     sR_str = '  *sR:'
     rsn_string = trim(rsn_string) // ' sR,'
-  endif  
+  endif
   if (all(idof_cnvgd(:,5))) then
     sign_str = ' +'
     rsn_string = trim(rsn_string) // ' +'
   endif
-  
+
   if (converged_flag .eqv. PETSC_TRUE) then
     option%converged = PETSC_TRUE
     option%convergence = CONVERGENCE_CONVERGED
@@ -1544,14 +1558,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     enddo
     call PrintMsg(option,out_string)
   endif
-  
+
   ! finalize convergence and reset option flags:
   if (option%convergence == CONVERGENCE_CONVERGED) then
     out_string = ' NW TRANS converged!   Rsn ->' // trim(rsn_string)
     call PrintMsg(option,out_string)
     option%convergence = CONVERGENCE_OFF
     option%converged = PETSC_FALSE
-  endif 
+  endif
 
 end subroutine PMNWTCheckConvergence
 

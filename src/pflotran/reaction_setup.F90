@@ -750,6 +750,7 @@ subroutine ReactionSetupKinetics(reaction,option)
         enddo
       enddo
     enddo
+
     if (found) then
       option%io_buffer = 'Isotherm reactions can only be simulated for &
         &species without secondary aqueous complexes.  See comments above.'

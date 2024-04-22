@@ -82,6 +82,7 @@ subroutine NWTSetup(realization)
   use Connection_module
   use Fluid_module
   use Output_Aux_module
+  use Patch_module
 
   implicit none
 
@@ -100,6 +101,8 @@ subroutine NWTSetup(realization)
   PetscInt :: iphase
   PetscInt :: flag(3)
   PetscInt :: nspecies, nphase
+  PetscInt :: ndof
+  PetscBool, allocatable :: dof_is_active(:)
 
   grid => realization%patch%grid
   reaction_nw => realization%reaction_nw
@@ -242,6 +245,18 @@ subroutine NWTSetup(realization)
                                             cur_material_property%internal_id
     enddo
   endif
+
+  if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
+    ndof = realization%reaction_nw%params%nspecies
+  else
+    ndof = 1
+  endif
+  allocate(dof_is_active(ndof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(realization%patch,dof_is_active, &
+                  realization%patch%aux%NWT%matrix_zeroing, &
+                  realization%patch%aux%NWT%inactive_cells_exist,option)
+  deallocate(dof_is_active)
 
 end subroutine NWTSetup
 
@@ -412,7 +427,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
     boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
- 
+
     do
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
@@ -451,7 +466,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                 nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
                                              nwt_auxvar%mnrl_vol_frac(ispecies)
                 equilibrate = PETSC_FALSE
-              endif 
+              endif
             enddo
         !---------------------------------------------------
           case(DIRICHLET_ZERO_GRADIENT_BC)
@@ -460,7 +475,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
               nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
                                                           xx_loc_p(istart:iend)
               equilibrate = PETSC_TRUE
-            else 
+            else
               do ispecies = 1,reaction_nw%params%nspecies
                 nwt_auxvars_bc(sum_connection)%total_bulk_conc(ispecies) = &
                                            nwt_auxvar%total_bulk_conc(ispecies)
@@ -473,7 +488,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                 nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = &
                                              nwt_auxvar%mnrl_vol_frac(ispecies)
                 equilibrate = PETSC_FALSE
-              enddo 
+              enddo
             endif
 
         !---------------------------------------------------
@@ -505,7 +520,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
             nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(ispecies) = ppt_mass
             nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(ispecies) = ppt_mass/ &
                                   (material_auxvars(ghosted_id)%porosity * &
-                                   reaction_nw%species_mnrl_mol_den(ispecies)) 
+                                   reaction_nw%species_mnrl_mol_den(ispecies))
           enddo
         endif
 
@@ -889,14 +904,14 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
         offset = (local_id_up-1)*nspecies
         istart = offset + 1
         iend = offset + nspecies
-        if (reaction_nw%screening_run) then 
+        if (reaction_nw%screening_run) then
           if (any(reaction_nw%params%dirichlet_material_ids == &
                   realization%patch%imat(ghosted_id_up))) then
             r_p(istart:iend) = r_p(istart:iend) ! do not modify
-          else 
+          else
             r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
           endif
-        else 
+        else
           r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
         endif
       endif
@@ -909,10 +924,10 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
           if (any(reaction_nw%params%dirichlet_material_ids == &
                  realization%patch%imat(ghosted_id_dn))) then
             r_p(istart:iend) = r_p(istart:iend) ! do not modify
-          else 
+          else
             r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
           endif
-        else 
+        else
           r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
         endif
       endif
@@ -975,10 +990,10 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
         if (any(reaction_nw%params%dirichlet_material_ids == &
                 realization%patch%imat(ghosted_id_dn))) then
           r_p(istart:iend) = r_p(istart:iend) ! do not modify
-        else 
+        else
           r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
         endif
-      else 
+      else
         r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
       endif
       ! note: Don't need to worry about Res_up because that is outside of
@@ -1220,7 +1235,7 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
       ! density_avg = [kg-liq/m3]
       density_avg = source_sink%flow_condition%well%aux_real(1)
       ! qsrc = [m^3-liq/sec]
-      qsrc = qsrc/density_avg 
+      qsrc = qsrc/density_avg
   !---------------------------------------------------------------
     case default
       if (associated(ss_flow_vol_fluxes)) then
@@ -1233,7 +1248,7 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   !---------------------------------------------------------------
   end select
 
-  coef_in = 0.d0; coef_out = 0.d0 
+  coef_in = 0.d0; coef_out = 0.d0
   if (qsrc > 0.d0) then                  ! source of fluid flux
     ! represents inside of the domain
     coef_in = 0.d0
@@ -1728,7 +1743,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%boundary_velocities(:,sum_connection), &
                       reaction_nw,option,JacUp,JacDn)
- 
+
       JacDn = -JacDn
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
@@ -1872,7 +1887,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
       ! density_avg = [kg-liq/m3]
       density_avg = source_sink%flow_condition%well%aux_real(1)
       ! qsrc = [m^3-liq/sec]
-      qsrc = qsrc/density_avg       
+      qsrc = qsrc/density_avg
   !--------------------------------------------------------------
     case default
       if (associated(ss_flow_vol_fluxes)) then
@@ -2138,11 +2153,11 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                                   (u + harmonic_D_over_dist(ispecies))
       Jac_dn(ispecies,ispecies) = (area) * &
                                   (0.d0 - harmonic_D_over_dist(ispecies))
-    else 
+    else
       Jac_up(ispecies,ispecies) = (area) * &
                                   (0.d0 + harmonic_D_over_dist(ispecies))
       Jac_dn(ispecies,ispecies) = (area) * &
-                                  (u - harmonic_D_over_dist(ispecies))      
+                                  (u - harmonic_D_over_dist(ispecies))
     endif
   enddo
 

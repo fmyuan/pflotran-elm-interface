@@ -64,6 +64,7 @@ subroutine GeneralSetup(realization)
   PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
@@ -248,11 +249,18 @@ subroutine GeneralSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call GeneralSetPlotVariables(realization,list)
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%General%matrix_zeroing, &
+                            patch%aux%General%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   general_ts_count = 0
   general_ts_cut_count = 0
   general_ni_count = 0
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine GeneralSetup
 
@@ -747,7 +755,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
-  material_property_array => patch%material_property_array  
+  material_property_array => patch%material_property_array
   material_parameter => patch%aux%Material%material_parameter
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -1364,7 +1372,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  material_property_array => patch%material_property_array  
+  material_property_array => patch%material_property_array
 
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop

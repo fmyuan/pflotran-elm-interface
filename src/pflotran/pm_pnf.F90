@@ -20,6 +20,7 @@ module PM_PNF_class
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMPNFReadSimOptionsBlock
     procedure, public :: ReadTSBlock => PMPNFReadTSSelectCase
+    procedure, public :: Setup => PMPNFSetup
     procedure, public :: InitializeRun => PMPNFInitializeRun
     procedure, public :: InitializeTimestep => PMPNFInitializeTimestep
     procedure, public :: UpdateTimestep => PMPNFUpdateTimestep
@@ -190,6 +191,27 @@ subroutine PMPNFReadTSSelectCase(this,input,keyword,found, &
   end select
 
 end subroutine PMPNFReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMPNFSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use PNF_module
+
+  implicit none
+
+  class(pm_pnf_type) :: this
+
+  call this%SetRealization()
+  call PNFSetup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMPNFSetup
 
 ! ************************************************************************** !
 

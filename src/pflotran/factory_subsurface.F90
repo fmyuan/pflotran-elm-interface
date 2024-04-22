@@ -98,9 +98,6 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_well)
   nullify(pm_parameter_list)
 
-  ! process command line arguments specific to subsurface
-  call FactSubInitCommandLineSettings(option)
-
   call FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
@@ -122,33 +119,17 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                    pm_well,pm_material_transform, &
                                    pm_parameter_list)
 
-  ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
+  call FactSubLinkAddPMCEvolvingStrata(simulation)
+  call FactSubLinkAddPMCInversion(simulation)
+
+  ! FactorySubsurfaceInitSimulation() must be called after pmc linkages
+  ! are set above.
   call FactorySubsurfaceInitSimulation(simulation)
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
 end subroutine FactorySubsurfaceInitPostPetsc
-
-! ************************************************************************** !
-
-subroutine FactSubInitCommandLineSettings(option)
-  !
-  ! Initializes PFLTORAN subsurface output
-  ! filenames, etc.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  use Option_module
-  use Input_Aux_module
-
-  implicit none
-
-  type(option_type) :: option
-
-end subroutine FactSubInitCommandLineSettings
 
 ! ************************************************************************** !
 
@@ -366,8 +347,6 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_base_type), pointer :: cur_process_model_coupler_top
-
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
@@ -388,47 +367,24 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   ! initialize global auxiliary variable object
   call GlobalSetup(realization)
 
-  ! always call the flow side since a velocity field still has to be
-  ! set if no flow exists
-  call InitSubsurfFlowSetupRealization(simulation)
-  if (option%ntrandof > 0) then
-    call InitSubsurfTranSetupRealization(realization)
+  if (option%iflowmode == NULL_MODE .and. &
+      len_trim(realization%nonuniform_velocity_filename) > 0) then
+    call InitCommonReadVelocityField(realization)
   endif
-  if (option%ngeopdof > 0) then
-    call InitSubsurfGeopSetupRealization(realization)
-  endif
-
-  ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
-  call InitSubsurfaceSetupZeroArrays(realization)
-  call OutputVariableAppendDefaults(realization%output_option% &
-                                      output_snap_variable_list,option)
-
-  call RegressionSetup(simulation%regression,realization)
-! end from old Init()
-
-  call DiscretizationPrintInfo(realization%discretization, &
-                               realization%patch%grid,option)
-
-  !----------------------------------------------------------------------------!
-  ! This section for setting up new process model approach
-  !----------------------------------------------------------------------------!
-  call FactSubLinkAddPMCEvolvingStrata(simulation)
-  call FactSubLinkAddPMCInversion(simulation)
-
-  ! For each ProcessModel, set:
-  ! - realization (subsurface or surface),
-  ! - stepper (flow/trans/surf_flow),
-  ! For each ProcessModelCoupler, set:
-  ! - SNES functions (Residual/Jacobian), or TS function (RHSFunction)
-
-  cur_process_model_coupler_top => simulation%process_model_coupler_list
 
   ! the following recursive subroutine will also call each pmc child
   ! and each pms's peers
-  if (associated(cur_process_model_coupler_top)) then
-    call FactSubLinkSetupPMApproach(cur_process_model_coupler_top, &
-                                    simulation)
+  if (associated(simulation%process_model_coupler_list)) then
+    call FactSubLinkSetupPMCs(simulation%process_model_coupler_list, &
+                              simulation)
   endif
+
+  ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
+  call OutputVariableAppendDefaults(realization%output_option% &
+                                      output_snap_variable_list,option)
+  call RegressionSetup(simulation%regression,realization)
+  call DiscretizationPrintInfo(realization%discretization, &
+                               realization%patch%grid,option)
 
   ! point the top process model coupler to Output
   simulation%process_model_coupler_list%Output => Output

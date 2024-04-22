@@ -87,6 +87,7 @@ module PM_WIPP_Flow_class
                            PMWIPPFloReadSimOptionsBlock
     procedure, public :: ReadTSBlock => PMWIPPFloReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMWIPPFloReadNewtonSelectCase
+    procedure, public :: Setup => PMWIPPFloSetup
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
     procedure, public :: InitializeTimestep => PMWIPPFloInitializeTimestep
     procedure, public :: Residual => PMWIPPFloResidual
@@ -650,6 +651,28 @@ end subroutine PMWIPPFloReadNewtonSelectCase
 
 ! ************************************************************************** !
 
+subroutine PMWIPPFloSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use WIPP_Flow_module
+
+  implicit none
+
+  class(pm_wippflo_type) :: this
+
+  call this%SetRealization()
+  call WIPPFloSetup(this%realization)
+  if (associated(this%pmwss_ptr)) call this%pmwss_ptr%Setup()
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMWIPPFloSetup
+
+! ************************************************************************** !
+
 recursive subroutine PMWIPPFloInitializeRun(this)
   !
   ! Initializes the WIPP_FLOW mode run.
@@ -1059,7 +1082,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
     endif
     ! (jmf 3/13/2023) this call to InitializeTimestep() doesn't seem to be needed
     ! since within InitializeTimestep() there was a line that always
-    ! kicks you out if quasi-implicit flow is turned on 
+    ! kicks you out if quasi-implicit flow is turned on
     !call this%pmwell_ptr%InitializeTimestep()
   endif
 
@@ -2141,7 +2164,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 !      elseif (Uninitialized(this%pmwell_ptr%intrusion_time_start)) then
 !        this%pmwell_ptr%well_on = PETSC_TRUE
 !      endif
-!    endif   
+!    endif
     call this%pmwell_ptr%InitializeTimestep()
     if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
       call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &

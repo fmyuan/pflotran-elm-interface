@@ -137,6 +137,7 @@ subroutine THSetupPatch(realization)
   PetscInt :: i, iphase, material_id, icct
   PetscBool :: error_found
   PetscReal :: tempreal
+  PetscBool :: dof_is_active(2)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -391,6 +392,10 @@ subroutine THSetupPatch(realization)
     iphase = cur_fluid_property%phase_id
     cur_fluid_property => cur_fluid_property%next
   enddo
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%TH%matrix_zeroing, &
+                            patch%aux%TH%inactive_cells_exist,option)
 
 end subroutine THSetupPatch
 

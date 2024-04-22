@@ -30,6 +30,7 @@ module PM_Richards_class
                            PMRichardsReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMRichardsReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMRichardsInitializeTimestep
+    procedure, public :: Setup => PMRichardsSetup
     procedure, public :: Residual => PMRichardsResidual
     procedure, public :: Jacobian => PMRichardsJacobian
     procedure, public :: UpdateTimestep => PMRichardsUpdateTimestep
@@ -244,6 +245,27 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
   end select
 
 end subroutine PMRichardsReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMRichardsSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Richards_module
+
+  implicit none
+
+  class(pm_richards_type) :: this
+
+  call this%SetRealization()
+  call RichardsSetup(this%realization)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMRichardsSetup
 
 ! ************************************************************************** !
 

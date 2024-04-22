@@ -487,7 +487,6 @@ factory_subsurface.o : \
   init_subsurface_flow.o \
   init_subsurface_geophysics.o \
   init_subsurface_transport.o \
-  input_aux.o \
   logging.o \
   option.o \
   output.o \
@@ -544,7 +543,6 @@ factory_subsurface_linkage.o : \
   pflotran_constants.o \
   pm_auxiliary.o \
   pm_base.o \
-  pm_base_pointer.o \
   pm_ert.o \
   pm_inversion.o \
   pm_material_transform.o \
@@ -1157,7 +1155,6 @@ init_subsurface.o : \
   logging.o \
   material.o \
   material_aux.o \
-  matrix_zeroing.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -1171,40 +1168,14 @@ init_subsurface.o : \
   variables.o \
   wipp.o
 init_subsurface_flow.o : \
-  co2_sw.o \
-  condition_control.o \
   discretization.o \
   field.o \
-  general.o \
   grid.o \
   hdf5.o \
-  hydrate.o \
-  init_common.o \
-  material.o \
-  mphase.o \
   option.o \
   patch.o \
   pflotran_constants.o \
-  pm_base.o \
-  pm_general.o \
-  pm_hydrate.o \
-  pm_mphase.o \
-  pm_pnf.o \
-  pm_richards.o \
-  pm_richards_ts.o \
-  pm_sco2.o \
-  pm_th.o \
-  pm_th_ts.o \
-  pm_wipp_flow.o \
-  pm_zflow.o \
-  pnf.o \
-  realization_subsurface.o \
-  richards.o \
-  sco2.o \
-  simulation_subsurface.o \
-  th.o \
-  wipp_flow.o \
-  zflow.o
+  realization_subsurface.o
 init_subsurface_geophysics.o : \
   ert.o \
   option.o \
@@ -1788,6 +1759,7 @@ patch.o : \
   material.o \
   material_aux.o \
   material_transform.o \
+  matrix_zeroing.o \
   mphase_aux.o \
   nw_transport_aux.o \
   nw_transport_equilibrium.o \
@@ -2019,12 +1991,14 @@ pm_material_transform.o : \
   string.o \
   variables.o
 pm_mphase.o : \
+  co2_sw.o \
   connection.o \
   coupler.o \
   eos_water.o \
   global_aux.o \
   grid.o \
   input_aux.o \
+  material.o \
   mphase.o \
   mphase_aux.o \
   option.o \
@@ -2042,6 +2016,7 @@ pm_nwt.o : \
   checkpoint.o \
   communicator_base.o \
   condition.o \
+  condition_control.o \
   convergence.o \
   coupler.o \
   data_mediator.o \
@@ -2050,6 +2025,7 @@ pm_nwt.o : \
   global.o \
   grid.o \
   hdf5.o \
+  init_subsurface_transport.o \
   input_aux.o \
   integral_flux.o \
   material.o \
@@ -2160,6 +2136,7 @@ pm_rt.o : \
   global.o \
   grid.o \
   hdf5.o \
+  init_subsurface_transport.o \
   input_aux.o \
   integral_flux.o \
   material.o \
@@ -2224,10 +2201,12 @@ pm_subsurface_flow.o : \
   global.o \
   grid.o \
   hdf5.o \
+  init_subsurface_flow.o \
   input_aux.o \
   integral_flux.o \
   material.o \
   material_aux.o \
+  matrix_zeroing.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -2253,6 +2232,7 @@ pm_th.o : \
   global_aux.o \
   grid.o \
   input_aux.o \
+  material.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -2611,8 +2591,6 @@ pnf.o : \
   field.o \
   global_aux.o \
   grid.o \
-  material.o \
-  material_aux.o \
   matrix_zeroing.o \
   option.o \
   output_aux.o \
@@ -2625,7 +2603,6 @@ pnf.o : \
 pnf_aux.o : \
   characteristic_curves.o \
   global_aux.o \
-  material_aux.o \
   matrix_zeroing.o \
   option.o \
   pflotran_constants.o \
