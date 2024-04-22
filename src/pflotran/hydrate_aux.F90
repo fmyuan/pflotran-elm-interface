@@ -932,7 +932,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       if (T_temp <= 0.d0) then
         ! Clausius-Clayperon equation
-        Pc = -(T_temp) * (L_ICE * ICE_DENSITY * 1.d6) / (Tf_ice + 273.15d0)
+        Pc = -(T_temp) * (L_ICE * ICE_DENSITY * 1.d6) / (Tf_ice + T273K)
         ! Get the corresponding liquid saturation
         call HydrateComputeSatHysteresis(characteristic_curves, &
                                     Pc, &
@@ -1108,7 +1108,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       if (T_temp <= 0.d0) then
         ! Clausius-Clayperon equation
-        Pc = -(T_temp) * (L_ICE * ICE_DENSITY * 1.d6) / (Tf_ice + 273.15d0)
+        Pc = -(T_temp) * (L_ICE * ICE_DENSITY * 1.d6) / (Tf_ice + T273K)
         ! Get the corresponding liquid saturation
         call HydrateComputeSatHysteresis(characteristic_curves, &
                                     Pc, &
@@ -3882,7 +3882,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   PetscReal :: T_temp, dTf, Tf_ice
   PetscReal :: a, b, c, T_k
 
-  T_temp = T + 273.15d0
+  T_temp = T + T273K
   T_k = T_temp
   dP = 0.d0
 
@@ -3970,11 +3970,11 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
       Tf_ice = dTf
       !Sloan compilation fit (Clathrate Hydrates of Natural Gases)
     !   if (T < TQD) then
-    !     PE = 1.1046 + 0.04449 * (T_temp - 273.15) + 0.000629 * &
-    !          (T_temp - 273.15) ** 2
+    !     PE = 1.1046 + 0.04449 * (T_temp - T273K) + 0.000629 * &
+    !          (T_temp - T273K) ** 2
     !   else
-    !     PE = 1.2241 + 0.13700 * (T_temp - 273.15) ** 2 - 0.0015018 * (T_temp - &
-    !           273.15) ** 3 + 0.0001733 * (T_temp - 273.15) ** 4
+    !     PE = 1.2241 + 0.13700 * (T_temp - T273K) ** 2 - 0.0015018 * (T_temp - &
+    !           T273K) ** 3 + 0.0001733 * (T_temp - T273K) ** 4
     !  endif
       if (T_k < 275.4d0) then
         a = 1.29916148d0
@@ -4160,7 +4160,7 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
           case(3)
             T3 = (log((delta_pressure)*1.d-6) + 8.1938174346)/0.0334940999
         end select
-        T3 = T + 273.15d0
+        T3 = T + T273K
       endif
     case(HYDRATE_FORMER_CO2)
       if (P_ln < 0.d0) then
@@ -4222,7 +4222,7 @@ subroutine CalcFreezingTempDepression(sat,Tf_ice,characteristic_curves,dTf,optio
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta
     class default
    end select
-  dTf = Pc/(L_ICE * dw * 1.d6) * (Tf_ice + 273.15d0)
+  dTf = Pc/(L_ICE * dw * 1.d6) * (Tf_ice + T273K)
 
 end subroutine CalcFreezingTempDepression
 
@@ -4271,7 +4271,7 @@ subroutine GibbsThomsonHydrate(sat,Hf,rho,Tb,dTf,characteristic_curves,&
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta
     class default
   end select
-  dTf = (Tb+273.15)*Pc/(Hf * rho * 1000.d0)
+  dTf = (Tb+T273K)*Pc/(Hf * rho * 1000.d0)
 
 
 end subroutine GibbsThomsonHydrate
@@ -4496,13 +4496,13 @@ subroutine HydrateEquilibrate(T,P,state,s_h,p_a,p_vap,p_sat,p_vap_brine, &
   select case(hydrate_former)
 
   case (HYDRATE_FORMER_CO2)
-    T_k = T + 273.15d0
+    T_k = T + T273K
     P_bar = max(P,1.01325d5)*1.d-5
 
     T_bound(1) = 99.d0
     T_bound(2) = 101.d0 !109.d0
 
-    T_bound = T_bound + 273.15d0
+    T_bound = T_bound + T273K
 
     ! Salinity offset
     nacl_param = cxi(1)*T_k + cxi(2)/T_k + cxi(3)/(T_k**2)
@@ -4530,7 +4530,7 @@ subroutine HydrateEquilibrate(T,P,state,s_h,p_a,p_vap,p_sat,p_vap_brine, &
       xmolwg = y0 + a1*exp(-tau1*P_bar) + a2*exp(-tau2*P_bar)
       xmolwg = max(min(xmolwg,1.d0),0.d0)
 
-      Hc = 6.305d-4 * exp(2.4d3*((1.d0/T_k)-(1.d0/298.15d0)))
+      Hc = 6.305d-4 * exp(2.4d3*((1.d0/T_k)-(1.d0/T298K)))
       pva = max(P-p_vap_brine,0.d0)/1.d5
 
       ! mole fraction of CO2 in the liquid phase
@@ -4892,7 +4892,7 @@ subroutine HydrateWaterSaturationPressure(T,P_sat)
   PetscInt :: i
 
   ! Meyer et al.
-  T_r = (T + 273.15) / T_c
+  T_r = (T + T273K) / T_c
   T_rx = 1.d0 - T_r
 
   P_sat = 0.d0
@@ -4937,7 +4937,7 @@ subroutine HydrateBrineSaturationPressure(T, x_salt, P_sat)
   PetscReal :: a, b, c
   PetscInt :: i
 
-  T_k = T + 273.15d0
+  T_k = T + T273K
   x_salt_molal = 1.d3 * x_salt / (hydrate_fmw_comp(3) * (1.d0 - x_salt))
 
   a = 1.d0
@@ -4952,7 +4952,7 @@ subroutine HydrateBrineSaturationPressure(T, x_salt, P_sat)
 
   c = 1.d0 / (a + b * T_k)
 
-  T_eq = exp(c * log(T_k)) - 273.15d0
+  T_eq = exp(c * log(T_k)) - T273K
 
   call HydrateWaterSaturationPressure(T_eq, P_sat)
 
@@ -4981,7 +4981,7 @@ subroutine HydrateWaterSubregion(T,P,isubr)
 
   PetscReal :: T_k, P_sat, T_r
 
-  T_k = T + 273.15
+  T_k = T + T273K
 
   if (T_k <= T_c) then
     call HydrateWaterSaturationPressure(T,P_sat)
@@ -5103,7 +5103,7 @@ subroutine HydrateWaterDensity(T,P,isubr,rho_l,rho_v,option)
 
   rho_l = 0.d0
   rho_v = 0.d0
-  T_r = (T + 273.15)/T_c
+  T_r = (T + T273K)/T_c
   P_r = P/P_c
 
   beta_l = L_coeff(1) + L_coeff(2) * T_r + L_coeff(3) * (T_r ** 2)
@@ -5313,7 +5313,7 @@ subroutine HydrateViscosityWater(T, P, rho_w, visc, option)
   PetscReal :: visc_a, rho_l, rho_vap
   PetscInt :: i,j,ix,isubr
 
-  T_r = (T + 273.15) / T_ref
+  T_r = (T + T273K) / T_ref
   rho_r = rho_w / rho_ref
   P_r = P / P_ref
 
@@ -5381,7 +5381,7 @@ subroutine HydrateViscosityCO2(T, rho_co2, visc)
   PetscReal :: ecs, visc_0, visc_ex
   PetscInt :: i
 
-  T_k = T + 273.15
+  T_k = T + T273K
   T_r = T_k / T_ref
 
   ecs = 0.d0
@@ -5512,7 +5512,7 @@ function HydrateEnthalpyCompositeLiquid(T, x_salt, x_a, h_brine, h_a)
   Hc_pert = HydrateHenryCO2(T_pert, x_salt)
   dHc = log(Hc_pert / Hc) / dT
 
-  T_k = T + 273.15d0
+  T_k = T + T273K
   h_sol = -IDEAL_GAS_CONSTANT * 1.d3 * (T_k **2) * dHc / hydrate_fmw_comp(2)
 
   ! J/kg
@@ -5605,7 +5605,7 @@ subroutine HydrateDiffusionCoeff(T,P,xsl,viscl,hydrate_parameter,option)
   sid = option%salt_id
 
   ! CO2 diffusion through the gas phase
-  T_k = T + 273.15
+  T_k = T + T273K
   P_bar = P * 1.d-5
 
   eps = sqrt(c_w(2)*c_co2(2))
@@ -5920,7 +5920,7 @@ subroutine HydrateComputeEffectiveDiffusion(hydrate_parameter, hyd_auxvar, optio
     case(ONE_INTEGER)
 
       ! Salt effective_diffusion_coeff in liquid
-      T_scaled = (hyd_auxvar%temp + 273.15d0) / SALT_REFERENCE_TEMPERATURE
+      T_scaled = (hyd_auxvar%temp + T273K) / SALT_REFERENCE_TEMPERATURE
       hyd_auxvar%effective_diffusion_coeff(sid,lid) = &
                  hydrate_parameter%diffusion_coefficient(sid,lid) * T_scaled * &
                 (LIQUID_REFERENCE_VISCOSITY / hyd_auxvar%visc(lid)) * &
@@ -5976,7 +5976,7 @@ subroutine HydrateSaltEnthalpy(T,H)
   PetscReal :: T_k
   PetscInt :: i
 
-  T_k = T + 273.15d0
+  T_k = T + T273K
 
   H = -1.24858d-4
 
@@ -6032,7 +6032,7 @@ subroutine HydrateVaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal :: T_k, mw_mix
 
-  T_k = T + 273.15d0 ! K
+  T_k = T + T273K ! K
   mw_mix = x_salt*hydrate_fmw_comp(3) + (1.d0-x_salt)*hydrate_fmw_comp(1)
 
   if (Pc > epsilon) then

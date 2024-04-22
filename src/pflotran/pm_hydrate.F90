@@ -242,10 +242,10 @@ subroutine PMHydrateSetFlowMode(option)
   option%vapor_pressure_id = 6
   option%saturation_pressure_id = 7
   option%reduced_vapor_pressure_id = 8
-  
+
   option%pure_water_phase = 5
   option%pure_brine_phase = 6
-  
+
 
   option%water_id = 1
   option%air_id = 2
@@ -1227,7 +1227,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
         class default
       end select
       Pc_entry = 0.d0
-      
+
       select case(global_auxvars(ghosted_id)%istate)
         case(L_STATE)
           liq_pressure_index = offset + ONE_INTEGER
@@ -1273,7 +1273,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
               (dX_p(air_pressure_index)/epsilon < epsilon)) then
             dX_p(air_pressure_index) = 0.d0
           endif
-          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4) 
+          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
           dX_p(air_pressure_index) = sign(min(dabs(dP), &
                                      dabs(dX_p(air_pressure_index))), &
                                      dX_p(air_pressure_index))
@@ -1520,7 +1520,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           liq_sat_index = offset + ONE_INTEGER
           hyd_sat_index = offset + TWO_INTEGER
           temp_index = offset + THREE_INTEGER
-          
+
           if ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
               X_p(liq_sat_index) + dX_p(liq_sat_index)) > 1.d0) then
             s_extra = 1.d0 - ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
@@ -1547,7 +1547,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           ! if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
           !    dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
-          
+
 
           ! Limit changes in temperature
           if (hyd_auxvar%sat(hid) > epsilon) then
@@ -1898,7 +1898,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscBool :: rho_flag
-  PetscReal, parameter :: T_ref = 273.15d0
+  PetscReal, parameter :: T_ref = T273K
   PetscReal, parameter :: epsilon = 1.d-14
 
   character(len=14), parameter :: state_string(15) = &
