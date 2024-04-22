@@ -1,27 +1,12 @@
 -- CONCENTRATION: Total A --
-      Max:   6.0311548469613E-06
-      Min:   6.0311548469613E-06
-     Mean:   6.0311548469613E-06
         1:   6.0311548469613E-06
 -- CONCENTRATION: Total B --
-      Max:   6.0311548469613E-05
-      Min:   6.0311548469613E-05
-     Mean:   6.0311548469613E-05
         1:   6.0311548469613E-05
 -- CONCENTRATION: Total C --
-      Max:   1.9141177930601E-04
-      Min:   1.9141177930601E-04
-     Mean:   1.9141177930601E-04
         1:   1.9141177930601E-04
 -- CONCENTRATION: Total D --
-      Max:   8.4234551839190E-04
-      Min:   8.4234551839190E-04
-     Mean:   8.4234551839190E-04
         1:   8.4234551839190E-04
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
    Time (seconds):   1.7846424999334E-02
