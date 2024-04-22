@@ -651,7 +651,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   class(pm_well_type), pointer :: pmwell_ptr
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  PetscReal, pointer :: xx_p(:), log_xx_p(:), vec_p(:)
   PetscReal, pointer :: r_p(:), fixed_accum_p(:)
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
   PetscInt :: local_id, local_id_up, local_id_dn
@@ -1027,7 +1027,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   call VecRestoreArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 
-  ! Mass Transfer
+  ! Mass Transfer (Adds mass from the waste form process model)
   if (field%tran_mass_transfer /= PETSC_NULL_VEC) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
     ! indicates mass being added to system.
