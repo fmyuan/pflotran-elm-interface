@@ -6,8 +6,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE HYDRATE
-      OPTIONS
-      /
     /
   /
 END
