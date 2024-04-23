@@ -391,7 +391,6 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
     call PrintMsg(this%option,'  Strata updated.')
     call InitSubsurfAssignMatIDsToRegns(this%realization)
     call InitSubsurfAssignMatProperties(this%realization)
-    call InitSubsurfaceSetupZeroArrays(this%realization)
   else
     call PrintMsg(this%option,'  No strata update requested at this time.')
   endif

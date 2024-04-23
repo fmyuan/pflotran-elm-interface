@@ -35,6 +35,7 @@ module PM_Hydrate_class
                            PMHydrateReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMHydrateInitializeSolver
+    procedure, public :: Setup => PMHydrateSetup
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -839,6 +840,33 @@ end subroutine PMHydrateInitializeSolver
 
 ! ************************************************************************** !
 
+subroutine PMHydrateSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Hydrate_module
+  use Material_module
+
+  implicit none
+
+  class(pm_hydrate_type) :: this
+
+  call this%SetRealization()
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call HydrateSetup(this%realization)
+  call PMHydrateAssignParameters(this%realization,this)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMHydrateSetup
+
+! ************************************************************************** !
+
 recursive subroutine PMHydrateInitializeRun(this)
   !
   ! Initializes the time stepping
@@ -1335,7 +1363,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
 
           call HydrateComputeSaltSolubility(hyd_auxvar%temp,xsl)
-          call HydrateBrineSaturationPressure(X_p(temp_index) + dX_p(temp_index),xsl,Psat)
+          call HydrateBrineSaturationPressure(X_p(temp_index) + &
+                                              dX_p(temp_index),xsl,Psat)
           if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < Psat) then
              dX_p(gas_pressure_index) = Psat - X_p(gas_pressure_index)
           endif
@@ -1882,7 +1911,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscBool :: rho_flag
-  PetscReal, parameter :: T_ref = 273.15d0
+  PetscReal, parameter :: T_ref = T273K
   PetscReal, parameter :: epsilon = 1.d-14
 
   character(len=14), parameter :: state_string(15) = &

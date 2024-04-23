@@ -313,7 +313,10 @@ subroutine PMRTSetup(this)
   use Communicator_Structured_class
   use Communicator_Unstructured_class
 #endif
+  use Condition_Control_module
   use Grid_module
+  use Init_Subsurface_Tran_module
+  use Reactive_Transport_module
   use Reactive_Transport_Aux_module, only : reactive_transport_param_type
   use Material_module
   use Variables_module, only : TORTUOSITY
@@ -328,6 +331,19 @@ subroutine PMRTSetup(this)
   PetscBool :: lflag
   PetscReal :: val
   PetscErrorCode :: ierr
+
+  call this%SetRealization()
+  if (.not.associated(this%realization%reaction)) then
+    this%option%io_buffer = 'SUBSURFACE_TRANSPORT MODE GIRT/OSRT is &
+      &specified in the SIMULATION block without the corresponding &
+      &process model without a corresponding CHEMISTRY block within &
+      &the SUBSURFACE block.'
+    call PrintErrMsg(this%option)
+  endif
+
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(this%realization,this%realization%option)
+  call RTSetup(this%realization)
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
 
@@ -407,11 +423,13 @@ subroutine PMRTSetup(this)
   allocate(this%max_volfrac_change( &
            this%realization%reaction%mineral%nkinmnrl))
 
+  call CondControlAssignRTTranInitCond(this%realization)
+
 end subroutine PMRTSetup
 
 ! ************************************************************************** !
 
-subroutine PMRTSetRealization(this,realization)
+subroutine PMRTSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -422,17 +440,14 @@ subroutine PMRTSetRealization(this,realization)
   implicit none
 
   class(pm_rt_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
-  if (realization%reaction%use_log_formulation) then
-    this%solution_vec = realization%field%tran_log_xx
+  this%realization => RealizationCast(this%realization_base)
+  if (this%realization%reaction%use_log_formulation) then
+    this%solution_vec = this%realization%field%tran_log_xx
   else
-    this%solution_vec = realization%field%tran_xx
+    this%solution_vec = this%realization%field%tran_xx
   endif
-  this%residual_vec = realization%field%tran_r
+  this%residual_vec = this%realization%field%tran_r
 
 end subroutine PMRTSetRealization
 

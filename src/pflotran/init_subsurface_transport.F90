@@ -9,7 +9,8 @@ module Init_Subsurface_Tran_module
   private
 
 
-  public :: InitSubsurfTranSetupRealization
+  public :: InitSubsurfTranSetupRealization, &
+            InitFlowGlobalAuxVar
 
 contains
 

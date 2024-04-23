@@ -48,10 +48,10 @@ module PM_Subsurface_Flow_class
 
   contains
 !geh: commented out subroutines can only be called externally
-    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: ReadTSBlock => PMSubsurfaceFlowReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMSubsurfaceFlowReadNewtonSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
+    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
@@ -335,19 +335,33 @@ subroutine PMSubsurfaceFlowSetup(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Discretization_module
-  use Communicator_Structured_class
-  use Communicator_Unstructured_class
-  use Grid_module
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
+  use Condition_Control_module
+  use Discretization_module
+  use Grid_module
+  use Init_Subsurface_Flow_module
   use Option_module
+  use Matrix_Zeroing_module
+  use Patch_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
 
   class(characteristic_curves_type), pointer :: cur_cc
+
+  ! assign initial conditionsRealizAssignFlowInitCond
+  call CondControlAssignFlowInitCond(this%realization)
+  ! override initial conditions if they are to be read from a file
+  if (len_trim(this%option%initialize_flow_filename) > 1) then
+    call InitSubsurfFlowReadInitCond(this%realization, &
+                                     this%option%initialize_flow_filename)
+  endif
+
+  call this%UpdateAuxvars()
 
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -413,30 +427,25 @@ end subroutine PMSubsurfaceFlowSetup
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowSetRealization(this,realization)
+subroutine PMSubsurfaceFlowSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Realization_Subsurface_class
-  use Option_module
-  use Grid_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
+  this%realization => RealizationCast(this%realization_base)
   ! scale pressures down to the range near saturation (0 to 1)
   if (this%option%flow%scale_all_pressure) then
-    this%solution_vec = realization%field%flow_scaled_xx
+    this%solution_vec = this%realization%field%flow_scaled_xx
   else
-    this%solution_vec = realization%field%flow_xx
+    this%solution_vec = this%realization%field%flow_xx
   endif
-  this%residual_vec = realization%field%flow_r
+  this%residual_vec = this%realization%field%flow_r
 
 end subroutine PMSubsurfaceFlowSetRealization
 

@@ -64,6 +64,7 @@ subroutine ZFlowSetup(realization)
   PetscBool :: error_found
   PetscInt :: flag(10)
   PetscInt :: temp_int, idof, imat
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
@@ -252,14 +253,22 @@ subroutine ZFlowSetup(realization)
   XXFlux => ZFlowFluxHarmonicPermOnly
   XXBCFlux => ZFlowBCFluxHarmonicPermOnly
 
-  zflow_ts_count = 0
-  zflow_ts_cut_count = 0
-  zflow_ni_count = 0
   if (Initialized(zflow_debug_cell_id) .and. &
       option%comm%size > 1) then
     option%io_buffer = 'Cannot debug cells in parallel.'
     call PrintErrMsg(option)
   endif
+
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%ZFlow%matrix_zeroing, &
+                            patch%aux%ZFlow%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  zflow_ts_count = 0
+  zflow_ts_cut_count = 0
+  zflow_ni_count = 0
 
 end subroutine ZFlowSetup
 

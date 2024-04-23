@@ -299,8 +299,9 @@ subroutine PMERTSetup(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-  use ZFlow_Aux_module
+  use ERT_module
   use Option_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -309,6 +310,9 @@ subroutine PMERTSetup(this)
   type(option_type), pointer :: option
 
   option => this%option
+
+  call this%SetRealization()
+  call ERTSetup(this%realization)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -391,21 +395,18 @@ end function PMERTCast
 
 ! ************************************************************************** !
 
-subroutine PMERTSetRealization(this,realization)
+subroutine PMERTSetRealization(this)
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-
   use Realization_Subsurface_class
 
   implicit none
 
   class(pm_ert_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMERTSetRealization
 
@@ -460,6 +461,7 @@ recursive subroutine PMERTInitializeRun(this)
   PetscInt :: iconn, sum_connection
   PetscInt :: local_id, ghosted_id
   PetscInt :: i
+  Vec :: natural_vec
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
@@ -647,6 +649,40 @@ recursive subroutine PMERTInitializeRun(this)
                          option%mycomm,ierr);CHKERRQ(ierr)
     endif
   endif
+
+  call DiscretizationCreateVector(this%realization%discretization,ONEDOF, &
+                                  natural_vec,NATURAL,option)
+  call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+  do i = 1, size(this%survey%ipos_electrode)
+    local_id = this%survey%ipos_electrode(i)
+    if (local_id <= 0) cycle ! not on process
+    call VecSetValue(natural_vec,grid%nG2A(grid%nL2G(local_id)),1.d0, &
+                     ADD_VALUES,ierr);CHKERRQ(ierr)
+  enddo
+  call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+  ! are all electrodes mapped?
+  call VecNorm(natural_vec,NORM_1,tempreal,ierr);CHKERRQ(ierr)
+  i = size(this%survey%ipos_electrode) - int(tempreal+1.d-1)
+  if (i > 0) then
+    option%io_buffer = StringWrite(i) // ' unmapped ERT electrodes.'
+    call PrintErrMsg(option)
+  endif
+  if (i < 0) then
+    option%io_buffer = 'Over-mapped ERT electrodes.'
+    call PrintErrMsg(option)
+  endif
+  option%io_buffer = StringWrite(int(tempreal+1.d-1)) // &
+    ' (of ' //  StringWrite(size(this%survey%ipos_electrode)) // &
+    ') ERT electrodes mapped to cells.'
+  call PrintMsg(option)
+  ! is more than one electrode mapped in a cell
+  call VecNorm(natural_vec,NORM_INFINITY,tempreal,ierr);CHKERRQ(ierr)
+  if (tempreal > 1.d0) then
+    option%io_buffer = 'More than one ERT electrode mapped to cell.'
+    call PrintErrMsg(option)
+  endif
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
   ! ensure that electrodes are not placed in inactive cells
   flag = PETSC_FALSE

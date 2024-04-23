@@ -319,15 +319,23 @@ subroutine PMTHSetup(this)
   ! Date: 03/90/13
   !
 
-  use Discretization_module
   use Communicator_Structured_class
   use Communicator_Unstructured_class
+  use Discretization_module
   use Grid_module
+  use Material_module
+  use TH_module
 
   implicit none
 
   class(pm_th_type) :: this
 
+  call this%SetRealization()
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call THSetup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 
   ! set up communicator

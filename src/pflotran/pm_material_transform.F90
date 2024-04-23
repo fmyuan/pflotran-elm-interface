@@ -87,7 +87,7 @@ end function PMMaterialTransformCreate
 
 ! ************************************************************************** !
 
-subroutine PMMTransformSetRealization(this, realization)
+subroutine PMMTransformSetRealization(this)
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
@@ -97,14 +97,11 @@ subroutine PMMTransformSetRealization(this, realization)
   ! INPUT ARGUMENTS:
   ! ================
   ! this (input/output): material transform process model object
-  ! realization (input): pointer to subsurface realization object
   ! ----------------------------------
   class(pm_material_transform_type) :: this
-  class(realization_subsurface_type), pointer :: realization
   ! ----------------------------------
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMMTransformSetRealization
 
@@ -165,6 +162,7 @@ subroutine PMMaterialTransformSetup(this)
   PetscBool :: found
   ! ----------------------------------
 
+  call this%SetRealization()
   patch => this%realization%patch
   option => this%realization%option
   grid => patch%grid
@@ -372,7 +370,7 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
   option%io_buffer = 'pflotran card:: MATERIAL_TRANSFORM_GENERAL'
   call PrintMsg(option)
   option%flow%store_state_variables_in_global = PETSC_TRUE
-  
+
   input%ierr = 0
 
   nullify(prev_material_transform)
@@ -473,7 +471,7 @@ subroutine PMMaterialTransformInitializeTS(this)
   ! --------------------------------
 
   if (.not.this%option%ntrandof > 0) call GlobalWeightAuxVars(this%realization,1.d0)
-  
+
 end subroutine PMMaterialTransformInitializeTS
 
 ! ************************************************************************** !
@@ -685,7 +683,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
         ! endif
         if (associated(material_transform%bats_transform)) then
           call material_transform%bats_transform%ModifyPerm(material_aux, &
-            m_transform_aux%bt_aux,global_aux,option)    
+            m_transform_aux%bt_aux,global_aux,option)
         endif
       endif
     endif

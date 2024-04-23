@@ -131,8 +131,9 @@ subroutine RTSetup(realization)
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase, local_id, i
+  PetscInt :: iphase, local_id, i, ndof
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
 
   option => realization%option
   patch => realization%patch
@@ -452,6 +453,18 @@ subroutine RTSetup(realization)
     call RTSetPlotVariables(list,reaction,option, &
                             realization%output_option%tunit)
   endif
+
+  if (option%transport%reactive_transport_coupling == &
+      GLOBAL_IMPLICIT) then
+    ndof = realization%reaction%ncomp
+  else
+    ndof = 1
+  endif
+  allocate(dof_is_active(ndof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%RT%matrix_zeroing, &
+                            patch%aux%RT%inactive_cells_exist,option)
+  deallocate(dof_is_active)
 
 end subroutine RTSetup
 

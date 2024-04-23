@@ -142,6 +142,8 @@ subroutine RichardsSetupPatch(realization)
   type(richards_auxvar_type), pointer :: rich_auxvars_ss(:)
   type(region_type), pointer :: region
   type(coupler_type), pointer :: coupler
+  PetscBool :: dof_is_active(1)
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -352,6 +354,11 @@ subroutine RichardsSetupPatch(realization)
     enddo
 
   endif
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%Richards%matrix_zeroing, &
+                            patch%aux%Richards%inactive_cells_exist,option)
 
 end subroutine RichardsSetupPatch
 

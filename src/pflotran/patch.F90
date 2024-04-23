@@ -122,7 +122,8 @@ module Patch_module
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection, &
-            PatchGetSolublePorosityValue
+            PatchGetSolublePorosityValue, &
+            PatchCreateZeroArray
 
 contains
 
@@ -11613,6 +11614,102 @@ subroutine PatchUnsupportedVariable4(ivar,option)
   call PatchUnsupportedVariable('','',ivar,option)
 
 end subroutine PatchUnsupportedVariable4
+
+! ************************************************************************** !
+
+subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
+                                inactive_cells_exist,option)
+  !
+  ! Computes the zeroed rows for inactive grid cells
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/13/07, 03/02/16, 12/04/19
+  !       moved from init subsurface to patch - 04/19/24
+  !
+  use Grid_module
+  use Option_module
+  use String_module
+  use Matrix_Zeroing_module
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(patch_type) :: patch
+  PetscBool :: dof_is_active(:)
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
+  PetscBool :: inactive_cells_exist
+  type(option_type) :: option
+
+  PetscInt :: ncount, idof
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: ndof, n_active_dof
+  PetscInt :: n_inactive_rows
+
+  type(grid_type), pointer :: grid
+  PetscInt :: flag
+  PetscErrorCode :: ierr
+
+  flag = 0
+  grid => patch%grid
+  ndof = size(dof_is_active)
+  n_active_dof = 0
+  do idof = 1, ndof
+    if (dof_is_active(idof)) n_active_dof = n_active_dof + 1
+  enddo
+
+  n_inactive_rows = 0
+  inactive_cells_exist = PETSC_FALSE
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      n_inactive_rows = n_inactive_rows + ndof
+    else if (n_active_dof < ndof) then
+      n_inactive_rows = n_inactive_rows + (ndof-n_active_dof)
+    endif
+  enddo
+
+  call MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
+
+  ncount = 0
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      do idof = 1, ndof
+        ncount = ncount + 1
+        ! 1-based indexing
+        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        ! 0-based indexing
+        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+          (ghosted_id-1)*ndof+idof-1
+      enddo
+    else if (n_active_dof < ndof) then
+      do idof = 1, ndof
+        if (dof_is_active(idof)) cycle
+        ncount = ncount + 1
+        ! 1-based indexing
+        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        ! 0-based indexing
+        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+          (ghosted_id-1)*ndof+idof-1
+      enddo
+    endif
+  enddo
+
+  call MPI_Allreduce(n_inactive_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  if (flag > 0) then
+    inactive_cells_exist = PETSC_TRUE
+  endif
+
+  if (ncount /= n_inactive_rows) then
+    option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
+    call PrintErrMsgByRank(option)
+  endif
+
+end subroutine PatchCreateZeroArray
 
 ! ************************************************************************** !
 

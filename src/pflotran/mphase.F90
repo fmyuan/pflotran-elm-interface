@@ -133,6 +133,7 @@ subroutine MphaseSetupPatch(realization)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
   PetscReal :: tempreal
+  PetscBool :: dof_is_active(3)
 
   option => realization%option
   patch => realization%patch
@@ -251,6 +252,11 @@ subroutine MphaseSetupPatch(realization)
   mphase%num_aux_ss = sum_connection
 
   option%flow%numerical_derivatives = PETSC_TRUE
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%Mphase%matrix_zeroing, &
+                            patch%aux%Mphase%inactive_cells_exist,option)
 
 end subroutine MphaseSetupPatch
 

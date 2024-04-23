@@ -87,7 +87,7 @@ module PM_UFD_Decay_class
     type(element_type), pointer :: element_list
   contains
 !geh: commented out subroutines can only be called externally
-    procedure, public :: Setup => PMUFDDecayInit
+    procedure, public :: Setup => PMUFDDecaySetup
     procedure, public :: ReadPMBlock => PMUFDDecayReadPMBlock
     procedure, public :: SetRealization => PMUFDDecaySetRealization
     procedure, public :: InitializeRun => PMUFDDecayInitializeRun
@@ -204,14 +204,7 @@ module PM_UFD_Decay_class
 ! --------------------------------------------------------------
 
   public :: PMUFDDecayCreate, &
-            PMUFDDecayInit !, &
-!            PMUFDDecayInitializeTimestepA, &
-!            PMUFDDecayInitializeTimestepB, &
-!            PMUFDDecayInitializeRun, &
-!            PMUFDDecayUpdateSolution, &
-!            PMUFDDecayUpdatePropertiesNI, &
-!            PMUFDDecayTimeCut, &
-!            PMUFDDecayDestroy
+            PMUFDDecaySetup !, &
 
 contains
 
@@ -875,7 +868,7 @@ end function GetElementKdFromIndices
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecayInit(this)
+subroutine PMUFDDecaySetup(this)
   !
   ! Initializes variables associated with the UFD decay process model
   !
@@ -950,6 +943,7 @@ subroutine PMUFDDecayInit(this)
   PetscInt :: g, ig, p, ip, d, id,cell
 ! -----------------------------------------------------------------------
 
+  call this%SetRealization()
   option => this%realization%option
   grid => this%realization%patch%grid
   if (associated(this%realization%reaction)) then
@@ -1286,11 +1280,11 @@ subroutine PMUFDDecayInit(this)
   this%element_solubility = 0.d0
 #endif
 
-end subroutine PMUFDDecayInit
+end subroutine PMUFDDecaySetup
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecaySetRealization(this,realization)
+subroutine PMUFDDecaySetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
@@ -1302,14 +1296,11 @@ subroutine PMUFDDecaySetRealization(this,realization)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
-! realization (input): pointer to subsurface realization object
 ! ----------------------------------------------------------
   class(pm_ufd_decay_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 ! ----------------------------------------------------------
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMUFDDecaySetRealization
 

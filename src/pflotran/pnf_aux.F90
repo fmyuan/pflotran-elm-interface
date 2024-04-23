@@ -155,7 +155,6 @@ subroutine PNFAuxVarCompute(x,pnf_auxvar,global_auxvar, &
   use Option_module
   use Global_Aux_module
   use Characteristic_Curves_module
-  use Material_Aux_module
 
   implicit none
 
@@ -167,7 +166,6 @@ subroutine PNFAuxVarCompute(x,pnf_auxvar,global_auxvar, &
 
   pnf_auxvar%head = x(PNF_LIQUID_PRESSURE_DOF)
   global_auxvar%temp = option%flow%reference_temperature
-
 
 end subroutine PNFAuxVarCompute
 

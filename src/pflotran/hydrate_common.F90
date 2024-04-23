@@ -350,7 +350,6 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-      
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
@@ -425,7 +424,6 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-      
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
@@ -1069,7 +1067,6 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
     !                             density_ave[kmol phase/m^3 phase]
     tot_mass_flux = q * density_kg_ave
-    
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &
@@ -1223,7 +1220,6 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
     !                             density_ave[kmol phase/m^3 phase]
     tot_mass_flux = q * density_kg_ave
-    
     ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
     !                                 xmol[kmol comp/kmol phase]
     wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &

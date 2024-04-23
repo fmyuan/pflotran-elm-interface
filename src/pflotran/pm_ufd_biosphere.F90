@@ -254,21 +254,18 @@ end function PMUFDBUnsuppRadCreate
 
 ! *************************************************************************** !
 
-subroutine PMUFDBSetRealization(this,realization)
+subroutine PMUFDBSetRealization(this)
   !
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
   !
-
   use Realization_Subsurface_class
 
   implicit none
 
   class(pm_ufd_biosphere_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMUFDBSetRealization
 
@@ -910,6 +907,7 @@ subroutine PMUFDBSetup(this)
   class(ERB_base_type), pointer :: prev_ERB
   class(ERB_base_type), pointer :: next_ERB
 
+  call this%SetRealization()
   call PMUFDBAssociateRegion(this,this%realization%patch%region_list)
   call PMUFDBSupportedRadCheckRT(this)
   call PMUFDBAscUnsuppRadWithSuppRad(this)

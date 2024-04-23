@@ -110,6 +110,7 @@ subroutine PMParameterSetup(this)
   type(parameter_type), pointer :: cur_parameter
   character(len=MAXWORDLENGTH) :: parameter_name
 
+  call this%SetRealization()
   parameter_name = this%parameter%name
   ! destroy the placeholder providing name
   call ParameterDestroy(this%parameter)
@@ -230,7 +231,7 @@ end subroutine PMParameterRead
 
 ! ************************************************************************** !
 
-subroutine PMParameterSetRealization(this,realization)
+subroutine PMParameterSetRealization(this)
   !
   ! Sets the realization pointer
   !
@@ -240,10 +241,8 @@ subroutine PMParameterSetRealization(this,realization)
   use Realization_Subsurface_class
 
   class(pm_parameter_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMParameterSetRealization
 
