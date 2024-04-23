@@ -1136,7 +1136,7 @@ subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
     return
-  else if (liquid_saturation >= 1.d0) then
+  elseif (liquid_saturation >= 9.99d-1) then
     capillary_pressure = 0.d0
     return
   endif

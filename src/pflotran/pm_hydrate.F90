@@ -628,12 +628,12 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-      case('USE_GOVERNORS')
-        hydrate_use_governors = PETSC_TRUE
+      case('NO_GOVERNORS')
+        hydrate_use_governors = PETSC_FALSE
       case('CHECK_SOLUTION_UPDATES')
         hydrate_check_updates = PETSC_TRUE
-      case('USE_FULL_CONVERGENCE_CRITERIA')
-        hydrate_full_convergence = PETSC_TRUE
+      case('USE_LIMITED_CONVERGENCE_CRITERIA')
+        hydrate_full_convergence = PETSC_FALSE
       case('NO_UPDATE_TRUNCATION')
         hydrate_truncate_updates = PETSC_FALSE
       case('CENTRAL_DIFFERENCE_JACOBIAN')
@@ -1543,22 +1543,22 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
 
           !Limit changes in liquid saturation
-          ! dP = 1.d-1
-          ! dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
-          !                       dX_p(liq_sat_index))
-          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
-          !    dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
-          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
-          !    dX_p(liq_sat_index) = - X_p(liq_sat_index)
+           dP = 1.d-1
+           dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                 dX_p(liq_sat_index))
+           if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+              dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+           if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+              dX_p(liq_sat_index) = - X_p(liq_sat_index)
 
-          ! !Limit changes in hydrate saturation
-          ! dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
-          !    dX_p(hyd_sat_index))
+           !Limit changes in hydrate saturation
+           dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+              dX_p(hyd_sat_index))
 
-          ! if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
-          !    dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
-          ! if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-          !    dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+              dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
 
 
