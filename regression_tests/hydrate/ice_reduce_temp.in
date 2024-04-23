@@ -5,7 +5,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE HYDRATE
       OPTIONS
-        RESTRICT_STATE_CHANGE
+#        RESTRICT_STATE_CHANGE
       /
     /
   /
@@ -186,7 +186,7 @@ FLOW_CONDITION L
     TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 15.d6
-  MASS_FRACTION 5.d-3
+  MASS_FRACTION 2.d-3
   TEMPERATURE 1.d0
 END
 #=========================== condition couplers ===============================
