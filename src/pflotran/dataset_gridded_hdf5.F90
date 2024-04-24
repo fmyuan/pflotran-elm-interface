@@ -183,7 +183,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   integer(HSIZE_T) :: attribute_dim(3)
   integer(HSIZE_T) :: offset(4), length(4), stride(4)
   integer(HSIZE_T) :: num_data_values
-  integer(SIZE_T) size_t_int
+  integer(SIZE_T) :: size_t_int
   integer :: ndims_h5
   PetscInt :: i, temp_int, temp_array(4)
   PetscInt :: num_spatial_dims, time_dim, num_times

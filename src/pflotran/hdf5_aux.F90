@@ -1088,7 +1088,7 @@ subroutine HDF5ReadDbase(filename,option)
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
   integer(HSIZE_T) :: num_values_in_dataset
-  integer(SIZE_T) size_t_int
+  integer(SIZE_T) :: size_t_int
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
   integer :: num_objects

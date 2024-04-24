@@ -254,7 +254,7 @@ end subroutine XERMSG
 !***FIRST EXECUTABLE STATEMENT  PCHDOC
       RETURN
 !------------- LAST LINE OF PCHDOC FOLLOWS -----------------------------
-      END
+      END SUBROUTINE
 
 !DECK PCHIM
       SUBROUTINE PCHIM (N, X, F, D, INCFD, IERR)
@@ -752,7 +752,7 @@ end subroutine XERMSG
       CALL XERMSG ('SLATEC', 'CHFDV', 'INTERVAL ENDPOINTS EQUAL', IERR, 1)
       RETURN
 !------------- LAST LINE OF CHFDV FOLLOWS ------------------------------
-      END
+      END SUBROUTINE
 
 !DECK PCHFD
       SUBROUTINE PCHFD (N, X, F, D, INCFD, SKIP, NE, XE, FE, DE, IERR)
@@ -1073,6 +1073,6 @@ end subroutine XERMSG
          'ERROR RETURN FROM CHFDV -- FATAL', IERR, 2)
       RETURN
 !------------- LAST LINE OF PCHFD FOLLOWS ------------------------------
-      END
+      END SUBROUTINE
 
 end module slatec_pchip_module
