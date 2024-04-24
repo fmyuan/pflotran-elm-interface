@@ -1543,33 +1543,33 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
 
           !Limit changes in liquid saturation
-           dP = 1.d-1
-           dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
-                                 dX_p(liq_sat_index))
-           if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
-              dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
-           if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
-              dX_p(liq_sat_index) = - X_p(liq_sat_index)
+          ! dP = 1.d-1
+          ! dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))),&
+          !                       dX_p(liq_sat_index))
+          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+          !    dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+          !    dX_p(liq_sat_index) = - X_p(liq_sat_index)
 
            !Limit changes in hydrate saturation
-           dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
-              dX_p(hyd_sat_index))
+           !dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))),&
+           !   dX_p(hyd_sat_index))
 
-           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
-              dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
-           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+           !if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+           !   dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+           !if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+           !   dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
 
 
           ! Limit changes in temperature
-          if (hyd_auxvar%sat(hid) > epsilon) then
-            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
-                               dX_p(temp_index))
-          else
-            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
-                               dX_p(temp_index))
-          endif
+          !if (hyd_auxvar%sat(hid) > epsilon) then
+          !  dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+          !                     dX_p(temp_index))
+          !else
+          !  dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+          !                     dX_p(temp_index))
+          !endif
 
         case(HAI_STATE)
           gas_pressure_index = offset + ONE_INTEGER
@@ -2000,6 +2000,14 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
           if (R > this%residual_abs_inf_tol(idof)) then
             converged_absolute = PETSC_FALSE
+          endif
+
+          if (global_auxvars(ghosted_id)%istate == HA_STATE .and. &
+              hyd_auxvar%sat(hid) > 9.9d-1 .and. &
+              (idof == 3)) then
+            if (R < this%residual_abs_inf_tol(idof) * 1.d2) then
+              converged_absolute = PETSC_TRUE
+            endif
           endif
 
           ! find max value regardless of convergence
