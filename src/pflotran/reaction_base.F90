@@ -3,6 +3,8 @@ module Reaction_Base_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
+  implicit none
+
   private
 
   type, public :: reaction_base_type

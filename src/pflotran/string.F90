@@ -975,7 +975,7 @@ function StringWriteESArray2(format_string,es_array)
 
   character(len=:), allocatable :: StringWriteESArray2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: es_array(:)
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1025,7 +1025,7 @@ function StringWriteI2(format_string,i)
 
   character(len=:), allocatable :: StringWriteI2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscInt :: i
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1089,7 +1089,7 @@ function StringWriteES2(format_string,es)
 
   character(len=:), allocatable :: StringWriteES2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: es
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1133,7 +1133,7 @@ function StringWriteF2(format_string,f)
 
   character(len=:), allocatable :: StringWriteF2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: f
 
   character(len=MAXSTRINGLENGTH) :: string

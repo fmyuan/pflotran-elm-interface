@@ -2,6 +2,9 @@ module Block_Solve_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+
+  implicit none
+
   private
 
   public :: bl3dfac, &
@@ -76,7 +79,12 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 
   character(len=1) :: trans
   PetscReal, parameter :: one = 1.d0
-  PetscReal anorm
+  PetscReal :: anorm
+  PetscInt :: info
+  PetscInt :: j
+#ifdef CONDNR
+  PetscInt :: i, l
+#endif
 
 !************************************************************************
 

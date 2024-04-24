@@ -3,6 +3,8 @@ module co2eos_module
   use petscsys
   use Utility_module, only : Equal
 
+  implicit none
+
   private
 
   public HENRY_co2_noderiv,VISCO2,duanco2,denmix,Henry_duan_sun, &
