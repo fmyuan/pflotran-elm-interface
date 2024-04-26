@@ -73,6 +73,8 @@ ifdef cw
   catch_warnings_as_errors = 1
 endif
 
+MYFLAGS += ${FC_DEFINE_FLAG}PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT
+
 ifdef match_tough2
   MYFLAGS += ${FC_DEFINE_FLAG}MATCH_TOUGH2
 endif
