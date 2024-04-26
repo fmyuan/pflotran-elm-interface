@@ -9,7 +9,7 @@
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.5202319996206E-03
+   Time (seconds):   3.7700000000000E-04
    Time Steps:           10
    Newton Iterations:           10
    Linear Solver Iterations:           10

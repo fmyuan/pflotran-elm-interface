@@ -51,7 +51,7 @@
       Min:   1.3497086861826E-07
      Mean:   1.9364874175114E-04
         1:   1.3573125032557E-06
-        3:   1.0041924685084E-05
+        3:   1.0041924685085E-05
         5:   8.0405600290099E-05
         7:   7.3106382075303E-05
         9:   3.8161871571506E-04
@@ -80,6 +80,7 @@
        13:   2.9832127523320E-03  1.9579304677356E-02  1.4442990245235E-02
        15:   1.2554794451968E-03  9.3420965062739E-03 -3.0339357755587E-04
 -- SOLUTION: Flow --
+   Time (seconds):   6.3820000000000E-03
    Time Steps:           26
    Newton Iterations:           79
    Linear Solver Iterations:          584
@@ -87,9 +88,10 @@
    Solution 2-Norm:   4.0386061042008E+05
    Residual 2-Norm:   1.0488558507850E-15
 -- SOLUTION: Transport --
+   Time (seconds):   2.3850000000000E-03
    Time Steps:           26
    Newton Iterations:           39
    Linear Solver Iterations:           65
    Time Step Cuts:            0
    Solution 2-Norm:   1.2369889831469E-03
-   Residual 2-Norm:   1.2572804023487E-14
+   Residual 2-Norm:   1.2572803765828E-14

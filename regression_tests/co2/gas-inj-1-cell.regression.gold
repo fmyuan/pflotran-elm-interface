@@ -1,33 +1,33 @@
 -- PRESSURE: Liquid Pressure --
         1:   1.1998076212879E+07
 -- PRESSURE: Gas Pressure --
-        1:   2.5981367516773E+07
+        1:   2.5981367516452E+07
 -- PRESSURE: CO2 Partial Pressure --
-        1:   2.5980920226625E+07
+        1:   2.5980920226304E+07
 -- PRESSURE: Vapor Pressure --
-        1:   4.4729014789142E+02
+        1:   4.4729014795173E+02
 -- SATURATION: Liquid Saturation --
-        1:   3.9656866264819E-03
+        1:   3.9656866265583E-03
 -- SATURATION: Gas Saturation --
-        1:   9.9603431337352E-01
+        1:   9.9603431337344E-01
 -- SATURATION: Salt Precipitate Saturation --
-        1:   1.5979517298279E-01
+        1:   1.5979517298234E-01
 -- SATURATION: Trapped Gas Saturation --
         1:   0.0000000000000E+00
 -- GENERIC: Liquid Density --
-        1:   1.2139724736243E+03
+        1:   1.2139724736242E+03
 -- GENERIC: Gas Density --
-        1:   9.6757725323200E+02
+        1:   9.6757725323052E+02
 -- GENERIC: X_g^l --
-        1:   8.1377774379010E-03
+        1:   8.1377774378869E-03
 -- GENERIC: X_l^l --
-        1:   8.9309243591215E-01
+        1:   8.9309243591216E-01
 -- GENERIC: X_s^l --
-        1:   9.8769786649948E-02
+        1:   9.8769786649950E-02
 -- GENERIC: X_g^g --
         1:   9.9998278419534E-01
 -- GENERIC: X_l^g --
-        1:   1.7215804657078E-05
+        1:   1.7215804659521E-05
 -- GENERIC: Temperature --
         1:   2.0000000000000E+01
 -- GENERIC: Liquid Energy --
@@ -39,10 +39,10 @@
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   6.4981525993971E-02
+   Time (seconds):   2.1871000000000E-02
    Time Steps:          167
    Newton Iterations:          459
    Linear Solver Iterations:          459
    Time Step Cuts:            0
-   Solution 2-Norm:   2.8617919051826E+07
-   Residual 2-Norm:   1.3702816937152E-11
+   Solution 2-Norm:   2.8617919051535E+07
+   Residual 2-Norm:   1.3811174739076E-11

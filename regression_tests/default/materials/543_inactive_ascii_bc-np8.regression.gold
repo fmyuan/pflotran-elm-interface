@@ -61,7 +61,7 @@
        43:   0.0000000000000E+00
        46:   0.0000000000000E+00
        44:   4.7585209401621E-05
-       45:   6.4759117656477E-05
+       45:   6.4759117656476E-05
        49:   2.8568779167115E-04
        50:   1.9457229060901E-04
        51:   0.0000000000000E+00
@@ -110,16 +110,18 @@
        59:         0
        60:         0
 -- SOLUTION: Flow --
+   Time (seconds):   9.3670000000000E-03
    Time Steps:           10
    Newton Iterations:           30
    Linear Solver Iterations:          138
    Time Step Cuts:            0
    Solution 2-Norm:   1.8356143214694E+06
-   Residual 2-Norm:   3.2962804998446E-12
+   Residual 2-Norm:   3.2962803348457E-12
 -- SOLUTION: Transport --
+   Time (seconds):   4.1870000000000E-03
    Time Steps:           10
    Newton Iterations:           18
    Linear Solver Iterations:           18
    Time Step Cuts:            0
    Solution 2-Norm:   4.7597861546945E-04
-   Residual 2-Norm:   1.8573958823538E-14
+   Residual 2-Norm:   1.8573962805246E-14

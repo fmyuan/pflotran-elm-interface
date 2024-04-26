@@ -6,19 +6,19 @@
         3:   1.8536284447109E+05
         5:   1.3142249237751E+05
 -- SATURATION: Gas Saturation --
-      Max:   7.7015656544258E-01
+      Max:   7.7015656544259E-01
       Min:   0.0000000000000E+00
-     Mean:   3.6804686856293E-01
+     Mean:   3.6804686856292E-01
         1:   0.0000000000000E+00
-        3:   3.9357041356431E-01
-        5:   7.7015656544258E-01
+        3:   3.9357041356436E-01
+        5:   7.7015656544259E-01
 -- GENERIC: Temperature --
-      Max:   2.5001131646062E+01
-      Min:   2.5000293036201E+01
-     Mean:   2.5000850969013E+01
-        1:   2.5000974819095E+01
-        3:   2.5001071794024E+01
-        5:   2.5000293036201E+01
+      Max:   2.5001131646079E+01
+      Min:   2.5000293036205E+01
+     Mean:   2.5000850969025E+01
+        1:   2.5000974819113E+01
+        3:   2.5001071794038E+01
+        5:   2.5000293036205E+01
 -- DISCRETE: Thermodynamic State --
       Max:         3
       Min:         1
@@ -48,12 +48,12 @@
         3:   5.5500000000000E-13
         5:   5.5500000000000E-13
 -- CONCENTRATION: Free Tracer --
-      Max:   9.9999984267522E-11
-      Min:   9.9997661736463E-11
-     Mean:   9.9998128454657E-11
-        1:   9.9999984267522E-11
-        3:   9.9997662068534E-11
-        5:   9.9997662210207E-11
+      Max:   9.9999984269130E-11
+      Min:   9.9997661737409E-11
+     Mean:   9.9998128454886E-11
+        1:   9.9999984269130E-11
+        3:   9.9997662069658E-11
+        5:   9.9997662210962E-11
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -62,18 +62,18 @@
         3:         1
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   2.0509516999994E-02
+   Time (seconds):   4.5640000000000E-03
    Time Steps:           23
    Newton Iterations:           81
    Linear Solver Iterations:           81
    Time Step Cuts:            1
    Solution 2-Norm:   4.4958644269153E+05
-   Residual 2-Norm:   6.3771804346564E-16
+   Residual 2-Norm:   7.9911393720301E-16
 -- SOLUTION: Transport --
-   Time (seconds):   5.3675520000098E-03
+   Time (seconds):   7.4100000000000E-04
    Time Steps:           23
    Newton Iterations:           23
    Linear Solver Iterations:           23
    Time Step Cuts:            0
-   Solution 2-Norm:   2.2360261285700E-10
-   Residual 2-Norm:   3.0916907133144E-29
+   Solution 2-Norm:   2.2360261285751E-10
+   Residual 2-Norm:   1.7849884655832E-29

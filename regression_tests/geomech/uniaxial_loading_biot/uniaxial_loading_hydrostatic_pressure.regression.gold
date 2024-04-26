@@ -47,10 +47,10 @@
        95:  -5.9046962851508E+05
       104:  -5.9291470900341E+05
 -- SOLUTION: Geomechanics --
-   Time (seconds):   1.2597859700008E-01
+   Time (seconds):   2.4911000000000E-02
    Time Steps:            1
    Newton Iterations:            2
    Solver Iterations:           13
    Time Step Cuts:            0
    Solution 2-Norm:   3.3669363068801E-02
-   Residual 2-Norm:   2.2348997444078E-07
+   Residual 2-Norm:   2.2387451134947E-07

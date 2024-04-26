@@ -1,0 +1,63 @@
+-- GENERIC: Temperature --
+      Max:   1.2005556287060E+01
+      Min:   1.1962900253397E+01
+     Mean:   1.1989959181981E+01
+        2:   1.2005556287060E+01
+-- PRESSURE: Liquid Pressure --
+      Max:   9.4891915808660E+06
+      Min:   9.3919236902319E+06
+     Mean:   9.4459608000966E+06
+        2:   9.4567671291919E+06
+-- PRESSURE: Gas Pressure --
+      Max:   9.4891915808660E+06
+      Min:   9.3950585907755E+06
+     Mean:   9.4470057669445E+06
+        2:   9.4567671291919E+06
+-- SATURATION: Liquid Saturation --
+      Max:   5.9996843725560E-01
+      Min:   5.8818800643985E-01
+     Mean:   5.9600451957029E-01
+        2:   5.9985711501541E-01
+-- SATURATION: Gas Saturation --
+      Max:   1.7724364910470E-02
+      Min:   0.0000000000000E+00
+     Mean:   5.9081216368232E-03
+        2:   0.0000000000000E+00
+-- SATURATION: Hydrate Saturation --
+      Max:   4.0014288498459E-01
+      Min:   3.9408762864968E-01
+     Mean:   3.9808735879289E-01
+        2:   4.0014288498459E-01
+-- SATURATION: Ice Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- GENERIC: X_g^l --
+      Max:   3.0776174813828E-03
+      Min:   3.0288309101637E-03
+     Mean:   3.0602446735657E-03
+        2:   3.0742856291508E-03
+-- GENERIC: X_l^l --
+      Max:   9.9697116908984E-01
+      Min:   9.9692238251862E-01
+     Mean:   9.9693975532643E-01
+        2:   9.9692571437085E-01
+-- GENERIC: Porosity --
+      Max:   2.9999243406572E-01
+      Min:   2.9992653715896E-01
+     Mean:   2.9996290252031E-01
+        2:   2.9996973633625E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        2:         1
+-- SOLUTION: Flow --
+   Time (seconds):   4.4430000000000E-03
+   Time Steps:           33
+   Newton Iterations:           53
+   Linear Solver Iterations:           53
+   Time Step Cuts:            1
+   Solution 2-Norm:   1.3396835499273E+07
+   Residual 2-Norm:   5.6875905970496E-07

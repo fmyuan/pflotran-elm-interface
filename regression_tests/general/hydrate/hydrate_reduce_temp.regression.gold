@@ -1,0 +1,63 @@
+-- GENERIC: Temperature --
+      Max:   1.1665532370476E+01
+      Min:  -5.1557073924959E-04
+     Mean:   5.9841784976787E+00
+        2:   6.2875186932989E+00
+-- PRESSURE: Liquid Pressure --
+      Max:   3.0008764690912E+07
+      Min:   3.0000013223274E+07
+     Mean:   3.0002940828303E+07
+        2:   3.0000044570723E+07
+-- PRESSURE: Gas Pressure --
+      Max:   3.0008764690912E+07
+      Min:   3.0000013223274E+07
+     Mean:   3.0002940828303E+07
+        2:   3.0000044570723E+07
+-- SATURATION: Liquid Saturation --
+      Max:   7.9692927852829E-01
+      Min:   1.5813027128427E-01
+     Mean:   5.8212903029667E-01
+        2:   7.9132754107744E-01
+-- SATURATION: Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- SATURATION: Hydrate Saturation --
+      Max:   2.2936202388997E-01
+      Min:   2.0307072147171E-01
+     Mean:   2.1370173476141E-01
+        2:   2.0867245892256E-01
+-- SATURATION: Ice Saturation --
+      Max:   6.1250770482576E-01
+      Min:   0.0000000000000E+00
+     Mean:   2.0416923494192E-01
+        2:   0.0000000000000E+00
+-- GENERIC: X_g^l --
+      Max:   4.6455962353784E-03
+      Min:   1.1723793605674E-03
+     Mean:   3.1664067661212E-03
+        2:   3.6812447024179E-03
+-- GENERIC: X_l^l --
+      Max:   9.9882762063943E-01
+      Min:   9.9535440376462E-01
+     Mean:   9.9683359323388E-01
+        2:   9.9631875529758E-01
+-- DISCRETE: Thermodynamic State --
+      Max:        12
+      Min:         7
+     Mean:   8.6666666666667E+00
+        2:         7
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        2:         1
+-- SOLUTION: Flow --
+   Time (seconds):   5.7170000000000E-03
+   Time Steps:           35
+   Newton Iterations:           73
+   Linear Solver Iterations:           73
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.1966618380617E+07
+   Residual 2-Norm:   4.1803735969746E-11

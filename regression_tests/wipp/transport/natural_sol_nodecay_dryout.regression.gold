@@ -35,7 +35,7 @@
         3:   7.2799561535049E-03
 -- CONCENTRATION: Total Bulk Conc. PU239L --
       Max:   7.0654025025241E-03
-      Min:   7.0653609417014E-03
+      Min:   7.0653609417013E-03
      Mean:   7.0653878805082E-03
         3:   7.0654025025241E-03
 -- CONCENTRATION: Aq. Conc. AM241L --
@@ -84,7 +84,7 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   3.0020553002942E-02
+   Time (seconds):   6.4430000000000E-03
    Time Steps:          111
    Newton Iterations:          167
    Linear Solver Iterations:          167
@@ -92,10 +92,10 @@
    Solution 2-Norm:   3.3697420348111E+06
    Residual 2-Norm:   2.7767149169039E-15
 -- SOLUTION: Transport --
-   Time (seconds):   3.7574706001124E-02
+   Time (seconds):   8.0320000000000E-03
    Time Steps:          125
    Newton Iterations:          376
    Linear Solver Iterations:          376
    Time Step Cuts:            0
    Solution 2-Norm:   2.2684505398398E-02
-   Residual 2-Norm:   3.0693319402325E-13
+   Residual 2-Norm:   3.0693316315829E-13

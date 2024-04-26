@@ -107,10 +107,10 @@
         1:         1
         2:         1
 -- SOLUTION: Transport --
-   Time (seconds):   4.6650628999487E-02
+   Time (seconds):   1.7084000000000E-02
    Time Steps:           67
    Newton Iterations:          241
    Linear Solver Iterations:          241
    Time Step Cuts:            0
    Solution 2-Norm:   1.5556349186258E+02
-   Residual 2-Norm:   5.5446629951916E-19
+   Residual 2-Norm:   5.5446711799638E-19
