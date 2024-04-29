@@ -2394,7 +2394,7 @@ subroutine OutputMassBalance(realization_base)
                realization_base%option%nphase)
   PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
   PetscReal, allocatable :: global_total_mass(:,:), total_mass(:,:)
-  PetscReal :: global_water_mass, global_total_mass_sum
+  PetscReal :: global_total_mass_sum
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
@@ -2458,15 +2458,41 @@ subroutine OutputMassBalance(realization_base)
         case(TH_MODE,TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-        case(G_MODE,H_MODE)
+        case(H_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
-                                    'kg','',icol)
+                                    'kg','',icol)     
           call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+                                    'kg','',icol) 
+        case(G_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
+                                    'kg','',icol)  
+          if (option%nphase > 2) then
+            call OutputWriteToHeader(fid,'Global Salt Mass in Liquid Phase', &
+                                      'kg','',icol)         
+            call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Salt Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Water Mass in Precipitate Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Air Mass in Precipitate Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Salt Mass in Precipitate Phase', &
+                                      'kg','',icol)
+          else   
+            call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+                                      'kg','',icol)
+          endif
         case(WF_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
@@ -2607,17 +2633,37 @@ subroutine OutputMassBalance(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE,H_MODE)
+          case(H_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
-
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
+          case(G_MODE) 
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Air Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            if (option%nphase > 2) then
+              string = trim(coupler%name) // ' Salt Mass'
+              call OutputWriteToHeader(fid,string,'kg','',icol)
+              string = trim(coupler%name) // ' Water Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Air Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Salt Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            else
+              string = trim(coupler%name) // ' Water Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Air Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            endif
           case(WF_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -2721,8 +2767,31 @@ subroutine OutputMassBalance(realization_base)
         cur_mbr => output_option%mass_balance_region_list
         do
           if (.not.associated(cur_mbr)) exit
-          string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'
-          call OutputWriteToHeader(fid,string,'kg','',icol)
+          string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'         
+          if (option%nflowdof > 0) then
+            select case(option%iflowmode)
+              case(SCO2_MODE)
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         'CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         'Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+              case(G_MODE)
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                          'Air Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                if (option%nphase > 2) then
+                  string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           'Salt Mass'
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                 endif
+              case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE,PNF_MODE)
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+            end select
+          endif
           if (option%ntrandof > 0) then
             select case(option%itranmode)
               case(RT_MODE)
@@ -2809,17 +2878,6 @@ subroutine OutputMassBalance(realization_base)
             end select
 
           endif
-          if (option%nflowdof > 0) then
-            select case(option%iflowmode)
-              case(SCO2_MODE)
-                string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                         'CO2 Mass'
-                call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                         'Salt Mass'
-                call OutputWriteToHeader(fid,string,'kg','',icol)
-            end select
-          endif
           cur_mbr => cur_mbr%next
         enddo
       endif
@@ -2865,7 +2923,9 @@ subroutine OutputMassBalance(realization_base)
             call MphaseComputeMassBalance(realization_base,sum_kg(:,:), &
                                           sum_trapped(:))
           case(G_MODE)
-            call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+            call GeneralComputeMassBalance(realization_base, &
+                                           realization_base%patch%grid%nlmax, &
+                                           sum_kg(:,:))
           case(H_MODE)
             call HydrateComputeMassBalance(realization_base,sum_kg(:,:))
           case(WF_MODE)
@@ -3468,13 +3528,52 @@ subroutine OutputMassBalance(realization_base)
     cur_mbr => output_option%mass_balance_region_list
     do
       if (.not.associated(cur_mbr)) exit
-      if (option%nflowdof == 0 .or. option%iflowmode /= SCO2_MODE) then
-        call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
-                                     cur_mbr%num_cells,patch,option, &
-                                     global_water_mass)
-        if (OptionIsIORank(option)) then
-          write(fid,110,advance="no") global_water_mass
-        endif
+      if (option%nflowdof > 0) then 
+        select type(realization_base)
+          class is(realization_subsurface_type)
+            allocate(total_mass(option%nflowspec,option%nphase))
+            allocate(global_total_mass(option%nflowspec,option%nphase))
+            total_mass = 0.d0
+            select case(option%iflowmode)
+              case(G_MODE)
+                call GeneralComputeMassBalance(realization_base,cur_mbr%num_cells,&
+                                               total_mass(:,:),cur_mbr%region_cell_ids)
+
+              case(SCO2_MODE)
+                call SCO2ComputeComponentMassBalance(realization_base, &
+                                          cur_mbr%num_cells,option%nflowspec, &
+                                          option%nphase,total_mass, &
+                                          cur_mbr%region_cell_ids)
+
+              case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE)        
+                call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
+                                               cur_mbr%num_cells,patch,option, &
+                                               total_mass(1,1))
+              case default
+                !error message
+            !    if (OptionIsIORank(option)) then
+            !      write(fid,110,advance="no") global_water_mass
+            !    endif
+            end select
+          class default
+            option%io_buffer = 'Unrecognized realization class &
+                                    &in MassBalance().'
+            call PrintErrMsg(option)
+        end select
+        select case(option%iflowmode)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE)
+            int_mpi = option%nflowspec*option%nphase
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            if (OptionIsIORank(option)) then
+              do i =1,option%nflowspec
+                global_total_mass_sum = sum(global_total_mass(i,:))
+                write(fid,110,advance="no") global_total_mass_sum
+              enddo
+            endif
+        end select
+        deallocate(total_mass,global_total_mass)          
       endif
       if (option%ntrandof > 0) then
         select case(option%itranmode)
@@ -3572,41 +3671,6 @@ subroutine OutputMassBalance(realization_base)
             endif
             deallocate(total_mass,global_total_mass)
         end select
-      endif
-      if (option%nflowdof > 0) then
-        allocate(total_mass(option%nflowspec,option%nphase))
-        allocate(global_total_mass(option%nflowspec,option%nphase))
-        total_mass = 0.d0
-        select case(option%iflowmode)
-          case(SCO2_MODE)
-            select type(realization_base)
-              class is(realization_subsurface_type)
-                call SCO2ComputeComponentMassBalance(realization_base, &
-                                          cur_mbr%num_cells,option%nflowspec, &
-                                          option%nphase,total_mass, &
-                                          cur_mbr%region_cell_ids)
-                int_mpi = option%nflowspec*option%nphase
-                call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                        MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
-                        option%mycomm,ierr);CHKERRQ(ierr)
-
-                if (OptionIsIORank(option)) then
-                  do i =1,option%nflowspec
-                    global_total_mass_sum = sum(global_total_mass(i,:))
-                    write(fid,110,advance="no") global_total_mass_sum
-                  enddo
-                endif
-              class default
-                option%io_buffer = 'Unrecognized realization class &
-                                    &in MassBalance().'
-                call PrintErrMsg(option)
-            end select
-          case default
-            !MAN: might need to report if a flow mode isn't covered, but
-            !     shouldn't throw an error.
-        end select
-
-        deallocate(total_mass,global_total_mass)
       endif
       cur_mbr => cur_mbr%next
     enddo

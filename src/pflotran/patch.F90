@@ -11271,7 +11271,7 @@ end subroutine PatchCouplerInputRecord
 ! **************************************************************************** !
 
 subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
-                                     global_water_mass)
+                                     total_water_mass)
   !
   ! Calculates the water mass in a region in kg
   !
@@ -11289,20 +11289,16 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   PetscInt :: num_cells
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
-  PetscReal :: global_water_mass
+  PetscReal :: total_water_mass
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water, kg_water
   PetscInt :: k
   PetscInt :: local_id, ghosted_id
-  PetscErrorCode :: ierr
-  PetscReal :: local_water_mass
 
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  local_water_mass = 0.d0
-  global_water_mass = 0.d0
 
   ! Loop through all cells in the region:
   do k = 1,num_cells
@@ -11314,13 +11310,8 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
                den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
-    local_water_mass = local_water_mass + kg_water
+    total_water_mass = total_water_mass + kg_water
   enddo ! Cell loop
-
-  ! Sum the local_water_mass across all processes that own the region:
-  call MPI_Allreduce(local_water_mass,global_water_mass,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
-                     ierr);CHKERRQ(ierr)
 
 end subroutine PatchGetWaterMassInRegion
 

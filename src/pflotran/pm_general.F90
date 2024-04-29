@@ -1932,7 +1932,8 @@ subroutine PMGeneralComputeMassBalance(this,mass_balance_array)
   class(pm_general_type) :: this
   PetscReal :: mass_balance_array(:)
 
-  call GeneralComputeMassBalance(this%realization,mass_balance_array)
+  call GeneralComputeMassBalance(this%realization,this%realization_base%patch%grid%nlmax, &
+                                 mass_balance_array)
 
 end subroutine PMGeneralComputeMassBalance
 
