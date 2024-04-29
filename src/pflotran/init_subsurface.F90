@@ -748,11 +748,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   enddo
   call MPI_Allreduce(MPI_IN_PLACE,i,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
-  option%io_buffer = new_line('a') // &
+  option%io_buffer = NL // &
     'Number of active grid cells: '// StringWrite(grid%nmax-i) // &
-    new_line('a')// &
-    'Number of inactive grid cells: '// StringWrite(i)// &
-    new_line('a')
+    NL // 'Number of inactive grid cells: '// StringWrite(i)// NL 
   call PrintMsg(option)
 
 end subroutine InitSubsurfAssignMatProperties
