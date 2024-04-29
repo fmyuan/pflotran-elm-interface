@@ -81,6 +81,7 @@ checkpoint.o : \
   option_checkpoint.o \
   pflotran_constants.o \
   realization_subsurface.o \
+  sco2.o \
   string.o \
   units.o \
   utility.o \

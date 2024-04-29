@@ -25,14 +25,18 @@ module Characteristic_Curves_Base_module
     PetscReal :: Sr
     PetscReal :: pcmax
     PetscReal :: Sgt_max ! max trapped gas saturation
+    PetscReal :: Sm ! Matching point Sl for Webb extensions
+    PetscReal :: Pcm ! Matching point Pc for Webb extensions
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
     PetscBool :: calc_vapor_pressure
+    PetscBool :: extended
   contains
     procedure, public :: Init => SFBaseInit
     procedure, public :: Verify => SFBaseVerify
     procedure, public :: Test => SFBaseTest
     procedure, public :: SetupPolynomials => SFBaseSetupPolynomials
+    procedure, public :: SetupExtension => SFBaseSetupExtension
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: EffectiveSaturation => SFBaseEffectiveSaturation
@@ -118,9 +122,12 @@ subroutine SFBaseInit(this)
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
   this%Sgt_max = UNINITIALIZED_DOUBLE
+  this%Sm = UNINITIALIZED_DOUBLE
+  this%Pcm = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   this%calc_int_tension = PETSC_FALSE
   this%calc_vapor_pressure = PETSC_FALSE
+  this%extended = PETSC_FALSE
 
 end subroutine SFBaseInit
 
@@ -216,6 +223,26 @@ end subroutine SFBaseSetupPolynomials
 
 ! ************************************************************************** !
 
+subroutine SFBaseSetupExtension(this,option,error_string)
+
+  ! Sets up unsaturated extensions
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  option%io_buffer = 'SF Unsaturated Extensions not supported for ' // &
+                     trim(error_string)
+  call PrintErrMsg(option)
+
+end subroutine SFBaseSetupExtension
+
+! ************************************************************************** !
+
 subroutine RPFBaseSetupPolynomials(this,option,error_string)
 
   ! Sets up polynomials for smoothing relative permeability functions
@@ -236,7 +263,8 @@ end subroutine RPFBaseSetupPolynomials
 ! ************************************************************************** !
 
 subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -246,6 +274,8 @@ subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   option%io_buffer = 'SFBaseCapillaryPressure must be extended.'
   call PrintErrMsg(option)
@@ -255,7 +285,8 @@ end subroutine SFBaseCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFBaseSaturation(this,capillary_pressure, &
-                            liquid_saturation,dsat_dpres,option)
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -265,6 +296,8 @@ subroutine SFBaseSaturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   option%io_buffer = 'SFBaseSaturation must be extended.'
   call PrintErrMsg(option)

@@ -400,7 +400,8 @@ end subroutine SFVGInit
 ! **************************************************************************** !
 
 subroutine SFVGCapillaryPressure(this, liquid_saturation, &
-                                   capillary_pressure, dPc_dSatl, option)
+                                 capillary_pressure, dPc_dSatl, option, &
+                                 trapped_gas_saturation, Sl_min)
 
   implicit none
 
@@ -408,6 +409,14 @@ subroutine SFVGCapillaryPressure(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The loop invariant sat_func_VG_type capillary pressure &
+                  &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   call this%Pc(liquid_saturation, capillary_pressure, dPc_dSatl)
 end subroutine SFVGCapillaryPressure
@@ -415,7 +424,8 @@ end subroutine SFVGCapillaryPressure
 ! **************************************************************************** !
 
 subroutine SFVGSaturation(this, capillary_pressure, &
-                            liquid_saturation, dsat_dpres, option)
+                            liquid_saturation, dsat_dpres, option,&
+                            trapped_gas_saturation, Sl_min)
 
   implicit none
 
@@ -423,6 +433,8 @@ subroutine SFVGSaturation(this, capillary_pressure, &
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   call this%Sl(capillary_pressure, liquid_saturation, dsat_dpres)
   dsat_dpres = -dsat_dpres ! Replicating existing reversed signed behaivor
@@ -1581,7 +1593,7 @@ pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
   Se_mrt_comp = 1d0 - Se_mrt
   Se_mrt_comp_m = Se_mrt_comp**this%m
   f = max(1d0 - Se_mrt_comp_m,0.d0)
-  
+
   Kr = sqrt(Se)*f*f
   if (f > 0.d0) then
     dKr_dSl = this%dSe_dSl * Kr / Se * &

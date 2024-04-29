@@ -354,11 +354,20 @@ end function
 ! **************************************************************************** !
 
 subroutine SFWIPPCapillaryPressure(this, liquid_saturation, capillary_pressure,&
-                                         dpc_dsatl, option)
-  class(sf_WIPP_type)              :: this
-  PetscReal, intent(in)            :: liquid_saturation
-  PetscReal, intent(out)           :: capillary_pressure, dpc_dsatl
-  type(option_type), intent(inout) :: option
+                                   dpc_dsatl, option, &
+                                   trapped_gas_saturation, Sl_min)
+  class(sf_WIPP_type)                :: this
+  PetscReal, intent(in)              :: liquid_saturation
+  PetscReal, intent(out)             :: capillary_pressure, dpc_dsatl
+  type(option_type), intent(inout)   :: option
+  PetscReal, intent(in), optional    :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sf_WIPP_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (liquid_saturation <= this%Swj) then
     call this%KPCPc(liquid_saturation, capillary_pressure, dpc_dsatl)
@@ -370,11 +379,14 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SFWIPPSaturation(this, capillary_pressure, liquid_saturation, &
-                                  dsat_dpres, option)
+                                  dsat_dpres, option,&
+                                  trapped_gas_saturation, Sl_min)
   class(sf_WIPP_type)              :: this
   PetscReal, intent(in)            :: capillary_pressure
   PetscReal, intent(out)           :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   if (capillary_pressure >= this%Pcj) then
     call this%KPCSw(capillary_pressure, liquid_saturation)
