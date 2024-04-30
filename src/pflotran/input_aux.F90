@@ -906,13 +906,13 @@ subroutine InputPrintKeywordLog(input,option,print_error)
   if (option%keyword_logging) then
     if (present(print_error)) then
       if (print_error) then
-        option%io_buffer = new_line('a') // &
+        option%io_buffer = NL // &
                            ' ---------------------------------------&
                            &---------------------------------------' // &
-                           new_line('a')
+                           NL
         call PrintMsg(option)
         option%io_buffer = &
-           ' Helpful information for debugging the input deck:' // new_line('a')
+           ' Helpful information for debugging the input deck:' // NL
         call PrintMsg(option)
         option%io_buffer = '     Filename : ' // trim(input%path) // &
                                                 trim(input%filename)
@@ -936,7 +936,7 @@ subroutine InputPrintKeywordLog(input,option,print_error)
 
   if (option%keyword_logging .and. present(print_error)) then
     if (print_error) then
-      option%io_buffer = new_line('a') // &
+      option%io_buffer = NL // &
                          ' ---------------------------------------&
                          &---------------------------------------'
       call PrintMsg(option)
@@ -2565,7 +2565,7 @@ subroutine DbaseLookupInt(keyword,value,option,ierr)
   endif
 
   if (.not.found) then
-    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
       trim(keyword) // &
       '" (for reading an "integer value") is not found in the database.'
     call PrintMsg(option)
@@ -2611,7 +2611,7 @@ subroutine DbaseLookupDouble(keyword,value,option,ierr)
   endif
 
   if (.not.found) then
-    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
       trim(keyword) // &
       '" (for reading a "floating point value") is not found in the database.'
     call PrintMsg(option)
@@ -2657,7 +2657,7 @@ subroutine DbaseLookupWord(keyword,value,option,ierr)
   endif
 
   if (.not.found) then
-    option%io_buffer = new_line('a') // 'ERROR: DBASE keyword "' // &
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
       trim(keyword) // &
       '" (for reading a "string value") is not found in the database.'
     call PrintMsg(option)
@@ -2803,9 +2803,9 @@ subroutine InputCheckSupported3(input,option,keyword,error_string, &
   option%io_buffer = 'Keyword "' // trim(keyword) // '" in ' // &
     trim(error_string) // &
     ' not supported for the current combination of process models.' // &
-    new_line('a') // '  Process models in simulation: ' // &
+    NL // '  Process models in simulation: ' // &
     OptionGetEmployedClassesString(option) // &
-    new_line('a') // '  Required process model(s): ' // &
+    NL // '  Required process model(s): ' // &
     OptionListClassesString(required_classes,option)
   call PrintErrMsg(option)
 

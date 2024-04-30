@@ -350,6 +350,9 @@ module PFLOTRAN_Constants_module
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
 
+  ! characters
+  character(len=1), parameter, public :: NL = new_line('a')
+
   interface Uninitialized
     module procedure UninitializedInteger
     module procedure UninitializedDouble

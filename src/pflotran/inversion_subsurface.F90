@@ -1430,15 +1430,13 @@ subroutine InvSubsurfWriteIterationInfoLoc(this)
   class(inversion_subsurface_type) :: this
 
   character(len=:), allocatable :: string
-  character(len=:), allocatable :: nl
   character(len=80) :: divider
 
-  allocate(nl,source = new_line('a'))
   write(divider,'(40("=+"))')
-  allocate(string,source = nl // trim(divider) // nl)
+  allocate(string,source = NL // trim(divider) // NL)
   call this%driver%PrintMsg(string)
   call InvSubsurfWriteIterationInfo(this)
-  string = nl // divider // nl
+  string = NL // divider // NL
   call this%driver%PrintMsg(string)
 
 end subroutine InvSubsurfWriteIterationInfoLoc

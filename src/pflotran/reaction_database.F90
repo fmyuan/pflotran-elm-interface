@@ -1066,7 +1066,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   enddo
 
   if (icount /= ncomp_secondary) then
-    call PrintMsgNoAdvance(option,new_line('a') // 'Species read from the &
+    call PrintMsgNoAdvance(option,NL // 'Species read from the &
       &reaction database with reactions associated with them in the &
       &database:')
     cur_pri_aq_spec => reaction%primary_species_list
