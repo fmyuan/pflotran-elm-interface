@@ -700,12 +700,35 @@ subroutine PMGeneralSetup(this)
 
   class(pm_general_type) :: this
 
+  type(material_property_type), pointer :: material_property
+  PetscInt :: i
+  PetscBool, pointer :: bool_array(:)
+
   call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
          this%realization%option)
+
   call GeneralSetup(this%realization)
+
+  ! map soluble materials (must be sandwiched between GeneralSetup and
+  ! PMSubsurfaceFlowSetup
+  i = size(this%realization%patch%material_property_array)
+  allocate(bool_array(i))
+  bool_array = PETSC_FALSE
+  if (associated(this%soluble_materials)) then
+    do i = 1, size(this%soluble_materials)
+      material_property => &
+        MaterialPropGetPtrFromArray(this%soluble_materials(i), &
+                                    this%realization%patch% &
+                                      material_property_array)
+      bool_array(material_property%internal_id) = PETSC_TRUE
+    enddo
+  endif
+  this%realization%patch%aux%General%general_parameter% &
+    material_is_soluble => bool_array
+
   call PMSubsurfaceFlowSetup(this)
 
 end subroutine PMGeneralSetup
@@ -730,44 +753,6 @@ subroutine PMGeneralInitializeSolver(this)
   this%solver%newton_max_iterations = 8
 
 end subroutine PMGeneralInitializeSolver
-
-! ************************************************************************** !
-
-subroutine PMGeneralSetup(this)
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/29/24
-
-  use Material_module
-
-  implicit none
-
-  class(pm_general_type) :: this
-
-  type(material_property_type), pointer :: material_property
-  PetscInt :: i
-  PetscBool, pointer :: bool_array(:)
-
-  call PMSubsurfaceFlowSetup(this)
-
-Setup routine needs to be pushed earlier when general.F90:Setup is called
-
-  i = size(this%realization%patch%material_property_array)
-  allocate(bool_array(i))
-  bool_array = PETSC_FALSE
-  if (associated(this%soluble_materials)) then
-    do i = 1, size(this%soluble_materials)
-      material_property => &
-        MaterialPropGetPtrFromArray(this%soluble_materials(i), &
-                                    this%realization%patch% &
-                                      material_property_array)
-      bool_array(material_property%internal_id) = PETSC_TRUE
-    enddo
-  endif
-  this%realization%patch%aux%General%general_parameter% &
-    material_is_soluble => bool_array
-
-end subroutine PMGeneralSetup
 
 ! ************************************************************************** !
 
