@@ -1259,6 +1259,7 @@ subroutine PMWellSetup(this)
   else
     k = 0
   endif
+  !k = 0
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
@@ -3366,16 +3367,38 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   type(grid_type), pointer :: res_grid
   type(option_type), pointer :: option
   type(well_comm_type), pointer :: well_comm
-  PetscInt :: TAG, peer, root_rank
-  PetscInt :: k, indx
+  PetscInt :: k, indx, vec_size
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
+  PetscInt, allocatable :: rank_vec_length(:)
 
   option => this%option
   well_comm => this%well_comm 
 
   res_grid => this%realization%patch%grid
-
+  this%reservoir%p_l = -1.d20
+  this%reservoir%p_g = -1.d20
+  this%reservoir%s_l = -1.d20
+  this%reservoir%s_g = -1.d20
+  this%reservoir%mobility_l = -1.d20
+  this%reservoir%mobility_g = -1.d20
+  this%reservoir%kr_l = -1.d20
+  this%reservoir%kr_g = -1.d20
+  this%reservoir%rho_l = -1.d20
+  this%reservoir%rho_g = -1.d20
+  this%reservoir%visc_l = -1.d20
+  this%reservoir%visc_g = -1.d20
+  this%reservoir%e_por = -1.d20
+  this%reservoir%kx = -1.d20
+  this%reservoir%ky = -1.d20
+  this%reservoir%kz = -1.d20
+  this%reservoir%volume = -1.d20
+  this%reservoir%dx = -1.d20
+  this%reservoir%dy = -1.d20
+  this%reservoir%dz = -1.d20
+  this%reservoir%aqueous_conc = -1.d20
+  this%reservoir%aqueous_mass = -1.d20
+  allocate(rank_vec_length(size(this%well_comm%petsc_rank_list)))
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
   else
@@ -3433,173 +3456,54 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
             this%reservoir%aqueous_conc(:,k) * this%reservoir%e_por(k) * &
             this%reservoir%volume(k) * this%reservoir%s_l(k)
     endif
-
+  
   enddo
-
-  if (wippflo_update_index < 0 .or. initialize_well_flow) then
-  if (option%myrank == this%well_grid%h_rank_id(1)) then
-      root_rank = this%well_comm%rank
-  endif 
-  call MPI_Bcast(root_rank,1,MPI_INTEGER,this%well_grid%h_rank_id(1), &
-                 option%mycomm,ierr);CHKERRQ(ierr)
-
-  if (well_comm%commsize > 1) then
-    do k = 1,this%well_grid%nsegments
-      TAG = k
-      if (this%well_grid%h_rank_id(k) /= this%well_grid%h_rank_id(1)) then
-        if (option%myrank == this%well_grid%h_rank_id(k)) then
-          peer = this%well_grid%h_rank_id(1)
-        endif
-        if (option%myrank == this%well_grid%h_rank_id(1)) then
-          peer = this%well_grid%h_rank_id(k)
-        endif
-        if ((option%myrank == this%well_grid%h_rank_id(k)) .or. &
-            (option%myrank == this%well_grid%h_rank_id(1))) then
-          call MPI_Sendrecv_replace(this%reservoir%p_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%p_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%s_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%s_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%mobility_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%mobility_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%kr_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%kr_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%rho_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%rho_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%visc_l(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%visc_g(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%e_por(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%kx(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%ky(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%kz(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%volume(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%dx(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%dy(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          call MPI_Sendrecv_replace(this%reservoir%dz(k),1, &
-                 MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                 MPI_STATUS_IGNORE,ierr)
-          if (this%transport) then
-            call MPI_Sendrecv_replace(this%reservoir%aqueous_conc(:,k), &
-                   this%nspecies,MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG, &
-                   option%mycomm,MPI_STATUS_IGNORE,ierr)
-            call MPI_Sendrecv_replace(this%reservoir%aqueous_mass(:,k), &
-                   this%nspecies,MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG, &
-                   option%mycomm,MPI_STATUS_IGNORE,ierr)
-          endif
-        endif
-      endif
-    enddo
-    
-    if (this%well_comm%comm /= MPI_COMM_NULL) then
-      call MPI_Bcast(this%reservoir%p_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%p_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%s_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%s_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%mobility_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%mobility_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%kr_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%kr_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%rho_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%rho_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%visc_l,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%visc_g,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%e_por,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%kx,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%ky,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%kz,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%volume,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%dx,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%dy,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      call MPI_Bcast(this%reservoir%dz,this%well_grid%nsegments, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-      if (this%transport) then
-        do k = 1,this%well_grid%nsegments
-          call MPI_Bcast(this%reservoir%aqueous_conc(:,k),this%nspecies, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-          call MPI_Bcast(this%reservoir%aqueous_mass(:,k),this%nspecies, &
-                     MPI_DOUBLE_PRECISION,root_rank,this%well_comm%comm, &
-                     ierr);CHKERRQ(ierr)
-        enddo
-      endif
-    endif
-  endif
+  vec_size = this%well_grid%nsegments
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_l,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_g,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%e_por,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kx,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%ky,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kz,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%volume,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dx,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dy,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
+                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+  if (this%transport) then
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
   endif
 
 end subroutine PMWellUpdateReservoir
@@ -5535,7 +5439,7 @@ subroutine PMWellSolveTran(this,ierr)
       endif
 
       soln%residual = 0.d0
-      if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+      if (any(this%option%myrank == this%well_grid%h_rank_id) .or. this%option%myrank == 0) then
         ! Get fixed accumulation term (not yet divided by dt)
         do k = 1,this%well_grid%nsegments
           istart = soln%ndof*(k-1)+1
@@ -5794,7 +5698,8 @@ subroutine PMWellNewtonTran(this,n_iter)
   PetscInt :: nm, dummy
   PetscInt :: indx(this%nspecies*this%well_grid%nsegments)
 
-  if (.not. any(this%option%myrank == this%well_grid%h_rank_id)) return
+  if (.not. any(this%option%myrank == this%well_grid%h_rank_id) .or. &
+      .not.(this%option%myrank == 0)) return
 
   nm = this%nspecies * this%well_grid%nsegments
 
@@ -6156,7 +6061,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
 
   ! Update the residual
   soln%residual = 0.d0
-  if (any(this%option%myrank == this%well_grid%h_rank_id)) then
+  if (any(this%option%myrank == this%well_grid%h_rank_id) .or. this%option%myrank == 0) then
     soln%residual = fixed_accum/this%dt_tran 
     call PMWellResidualTran(this)
 

@@ -2143,7 +2143,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 !      endif
 !    endif   
     call this%pmwell_ptr%InitializeTimestep()
-    if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
+    if (any(this%pmwell_ptr%well_grid%h_rank_id == option%myrank) .or. option%myrank == 0) then
         call PMWellUpdateRates(this%pmwell_ptr,ZERO_INTEGER,ierr)
     endif
   endif
