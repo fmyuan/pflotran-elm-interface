@@ -516,6 +516,14 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
+              if (general_salt) then
+                if (initial_condition%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) == &
+                    AT_SOLUBILITY_BC .and. &
+                    patch%aux%General%general_parameter% &
+                      material_is_soluble(patch%imat(ghosted_id))) then
+                  xx_p(offset+FOUR_INTEGER) = patch%aux%Material%auxvars(ghosted_id)%porosity_0
+                endif
+              endif
               patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif

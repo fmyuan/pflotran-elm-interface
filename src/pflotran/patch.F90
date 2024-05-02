@@ -123,7 +123,6 @@ module Patch_module
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection, &
-            PatchGetSolublePorosityValue, &
             PatchCreateZeroArray
 
 contains
@@ -1489,7 +1488,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(flow_general_condition_type), pointer :: general
 
   PetscBool :: dof1, dof2, dof3, dof4
-  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol, xmol2, por
+  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol, xmol2
   PetscReal :: relative_humidity
   PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure, &
                precipitate_sat
@@ -1504,7 +1503,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_local(option%nflowdof)
   PetscInt :: dof_count_global(option%nflowdof)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
-  PetscBool :: soluble
 
   num_connections = coupler%connection_set%num_connections
 
@@ -2072,14 +2070,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           elseif (associated(general%salt_mole_fraction)) then
             select case(general%salt_mole_fraction%itype)
               case(AT_SOLUBILITY_BC)
-                 call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-                 if (soluble) then
-                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                 else
-                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
-                 endif
+                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                  dof4 = PETSC_TRUE
-                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
               case default
                  string = GetSubConditionType(general%salt_mole_fraction%itype)
                  option%io_buffer = &
@@ -2228,14 +2221,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             elseif (associated(general%salt_mole_fraction)) then
               select case(general%salt_mole_fraction%itype)
                 case(AT_SOLUBILITY_BC)
-                  call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-                  if (soluble) then
-                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                  else
-                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.0d-10
-                  end if
+                  coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                   dof4 = PETSC_TRUE
-                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
                 case default
                   string = GetSubConditionType(general%salt_mole_fraction%itype)
                   option%io_buffer = &
@@ -2321,14 +2309,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         elseif (associated(general%salt_mole_fraction)) then
           select case(general%salt_mole_fraction%itype)
             case(AT_SOLUBILITY_BC)
-               call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-               if (soluble) then
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-               else
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
-               endif
+               coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                dof4 = PETSC_TRUE
-               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
             case default
                string = GetSubConditionType(general%salt_mole_fraction%itype)
                option%io_buffer = &
@@ -5331,52 +5314,6 @@ subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
   end select
 
 end subroutine PatchGetCouplerValueFromDataset
-
-! ************************************************************************** !
-
-subroutine PatchGetSolublePorosityValue(coupler,patch,iconn,porosity,soluble)
-
-  !
-  ! Gets porosity and soluble material boolean for a given connection.
-  !
-  ! Author: David Fukuyama
-  ! Date: 09/18/23
-  !
-
-  use Coupler_module
-  use Grid_module
-  use Material_Aux_module
-  use Material_module
-
-  implicit none
-
-  type(coupler_type) :: coupler
-  type(patch_type) :: patch
-  type(grid_type),pointer :: grid
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-
-  PetscInt :: iconn
-  PetscReal :: porosity
-  PetscBool :: soluble
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-
-  if (.not.associated(patch%aux%General)) then
-    stop 'General not associated in PatchGetCouplerValueFromDataset'
-  endif
-
-  grid => patch%grid
-  material_auxvars => patch%aux%Material%auxvars
-  material_property_array => patch%material_property_array
-
-  local_id = coupler%connection_set%id_dn(iconn)
-  ghosted_id = grid%nL2G(local_id)
-  soluble = patch%aux%General%general_parameter% &
-              material_is_soluble(patch%imat(ghosted_id))
-  porosity = material_auxvars(ghosted_id)%porosity_0
-
-end subroutine PatchGetSolublePorosityValue
 
 ! ************************************************************************** !
 

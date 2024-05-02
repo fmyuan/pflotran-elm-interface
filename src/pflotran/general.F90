@@ -859,6 +859,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                 case(DIRICHLET_BC,HYDROSTATIC_BC)
                   real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
                   xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                case(AT_SOLUBILITY_BC)
+                  if (material_is_soluble) then
+                    xxbc(idof) = material_auxvars(ghosted_id)%porosity_0
+                  else
+                    real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                  endif
               end select
             enddo
           case(TWO_PHASE_STATE,LGP_STATE)
@@ -936,6 +943,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                         call PrintErrMsg(option)
                       endif
                   end select
+                case(AT_SOLUBILITY_BC)
+                  if (material_is_soluble) then
+                    xxbc(idof) = material_auxvars(ghosted_id)%porosity_0
+                  else
+                    real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                  endif
                 case(NEUMANN_BC)
                 case default
                   if (material_is_soluble) then
