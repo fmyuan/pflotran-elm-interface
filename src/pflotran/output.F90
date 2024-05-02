@@ -835,7 +835,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      category,units,id,subvar)
         if ((option%iflowmode == G_MODE .and. option%nflowdof == 4) .or. &
-             option%iflowmode == SCO2_MODE) then
+             option%iflowmode == SCO2_MODE .or. option%iflowmode == H_MODE) then
           word = 'WSL'
           call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                   option)

@@ -774,6 +774,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       dtt = time_step_max_growth_factor*dt
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
+      governed_dt = -999.d0
     endif
 
     ! Inform user that time step is being limited by a state variable.

@@ -658,10 +658,10 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   PetscInt :: ghosted_start, ghosted_end
   PetscInt :: offset
   PetscInt :: istate
-  PetscInt :: wat_comp_id, air_comp_id
+  PetscInt :: wat_comp_id, air_comp_id, lid, salt_id
   PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), &
@@ -881,6 +881,8 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
+  lid = option%liquid_phase
+  salt_id = option%salt_id
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
@@ -965,6 +967,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                 + qsrc_vol(air_comp_id))
       endif
       xxss(3) = hyd_auxvar_ss%temp
+      xxss(4) = hyd_auxvar_ss%xmass(salt_id,lid)
 
       cell_pressure = maxval(hyd_auxvar%pres(option% &
                            liquid_phase:option%gas_phase))
@@ -974,6 +977,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         xxss(1) = cell_pressure
         xxss(2) = hyd_auxvar%sat(air_comp_id)
         xxss(3) = hyd_auxvar%temp
+        xxss(4) = hyd_auxvar%xmass(salt_id,lid)
       endif
 
       if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
@@ -1169,7 +1173,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
 
   character(len=MAXSTRINGLENGTH) :: string
 
