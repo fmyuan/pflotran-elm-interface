@@ -1253,12 +1253,13 @@ subroutine PMWellSetup(this)
   min_val = minval(h_all_rank_id)-1
   max_val = maxval(h_all_rank_id)
   !Always include rank 0 in comm
-  if (min_val > -1) then
-    h_rank_id_unique(1) = 0
-    k = 1
-  else
-    k = 0
-  endif
+!  if (min_val > -1) then
+!    h_rank_id_unique(1) = 0
+!    k = 1
+!  else
+!    k = 0
+!  endif
+  k = 0
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
@@ -3372,8 +3373,8 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
 
   option => this%option
   well_comm => this%well_comm 
-
   res_grid => this%realization%patch%grid
+
   this%reservoir%p_l = -1.d20
   this%reservoir%p_g = -1.d20
   this%reservoir%s_l = -1.d20
@@ -3396,6 +3397,7 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   this%reservoir%dz = -1.d20
   this%reservoir%aqueous_conc = -1.d20
   this%reservoir%aqueous_mass = -1.d20
+
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
   else
@@ -3453,11 +3455,12 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
             this%reservoir%aqueous_conc(:,k) * this%reservoir%e_por(k) * &
             this%reservoir%volume(k) * this%reservoir%s_l(k)
     endif
-  
   enddo
-  print *, 'rank ', option%myrank, 'before allreduce'
+
   vec_size = this%well_grid%nsegments
   if (well_comm%commsize > 1) then
+    ! Updates reservoir property vector in place using the maximum value.
+    ! The rank-updated value will be larger then the initialized value (-1.d20)
     call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
     call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
@@ -3505,7 +3508,7 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
                          MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
     endif
   endif
-  print *, 'rank ', option%myrank, 'after allreduce.'
+
 end subroutine PMWellUpdateReservoir
 
 ! ************************************************************************** !
@@ -5439,7 +5442,7 @@ subroutine PMWellSolveTran(this,ierr)
       endif
 
       soln%residual = 0.d0
-      if (any(this%option%myrank == this%well_grid%h_rank_id) .or. this%option%myrank == 0) then
+      if (any(this%option%myrank == this%well_grid%h_rank_id)) then
         ! Get fixed accumulation term (not yet divided by dt)
         do k = 1,this%well_grid%nsegments
           istart = soln%ndof*(k-1)+1
@@ -6040,7 +6043,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscReal :: max_update
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
   PetscInt :: loc_max_update
-  PetscInt :: k,n,j,S,TAG,last_rank
+  PetscInt :: k,n,j,S,TAG,last_rank,first_rank
   PetscInt :: isegment, ispecies
   PetscErrorCode :: ierr
 
@@ -6111,6 +6114,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   endif
 
   call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
+  first_rank = this%well_comm%well_rank_list(1)
   last_rank = this%well_comm%well_rank_list(this%well_comm%commsize)
   if (this%well_comm%commsize > 1) then
     TAG = 0
@@ -6122,7 +6126,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
       call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+2, &
                     this%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == 0) then
+    if (this%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
                     last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
@@ -6156,7 +6160,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
       call MPI_Send(max_scaled_residual,1,MPI_DOUBLE_PRECISION,0,TAG+2, &
                     this%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == 0) then
+    if (this%well_comm%rank == first_rank) then
       call MPI_Recv(max_update,1,MPI_DOUBLE_PRECISION, &
                     last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
@@ -6183,7 +6187,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
       call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+1, &
                     this%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == 0) then
+    if (this%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_residual,S,MPI_LOGICAL, &
                     last_rank,TAG,this%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
