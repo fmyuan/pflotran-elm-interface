@@ -2625,22 +2625,22 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0 &
             .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > &
-                0.d0) then
+        elseif (hyd_auxvar%sat(hid) > epsilon .and. hyd_auxvar%sat(lid) > &
+                epsilon) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HA_STATE
-        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > &
-                0.d0) then
+        elseif (hyd_auxvar%sat(hid) > epsilon .and. hyd_auxvar%sat(gid) > &
+                epsilon) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
-        elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > &
-                0.d0) then
+        elseif (hyd_auxvar%sat(gid) > epsilon .and. hyd_auxvar%sat(lid) > &
+                epsilon) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
-        elseif (hyd_auxvar%sat(lid) > 0.d0) then
+        elseif (hyd_auxvar%sat(lid) > epsilon) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
-        elseif (hyd_auxvar%sat(gid) > 0.d0) then
+        elseif (hyd_auxvar%sat(gid) > epsilon) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
         else
@@ -6166,6 +6166,11 @@ subroutine HydrateComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl,&
 
   ! Add trapped gas to the liquid saturation before sending into the Pc function
   Sl_eff = Sl + Sgt
+
+  if (Sl_eff > 9.99d-1) then
+    Pc = 0.d0
+    return
+  endif
 
   call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
                                                             dpc_dsatl,option)

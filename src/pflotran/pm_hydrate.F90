@@ -100,12 +100,13 @@ function PMHydrateCreate()
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
   PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
-  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-7
 
   PetscReal, parameter :: residual_abs_inf_tol(4) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol, &
                              s_mass_abs_inf_tol/)
-  PetscReal, parameter :: residual_scaled_inf_tol(4) = 1.d-6
+  PetscReal, parameter :: residual_scaled_inf_tol(4) = (/1.d-6, &
+                             1.d-6, 1.d-6, 1.d-8/)
 
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: abs_update_inf_tol(4,15) = &
@@ -639,13 +640,14 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
   PetscBool :: found
   PetscReal :: tempreal
-  PetscInt :: lid, gid, eid
+  PetscInt :: lid, gid, eid, sid
 
   option => this%option
 
-  lid = 1 !option%liquid_phase
-  gid = 2 !option%gas_phase
-  eid = 3 !option%energy_id
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  eid = option%energy_id
+  sid = option%salt_id
 
   error_string = 'HYDRATE Newton Solver'
 
@@ -705,6 +707,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       case('ENERGY_RESIDUAL_ABS_INF_TOL')
         call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
         call InputErrorMsg(input,option,keyword,error_string)
+      case('SALT_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(sid))
+        call InputErrorMsg(input,option,keyword,error_string)
 
       ! Scaled Residual
       case('ITOL_SCALED_RESIDUAL')
@@ -722,6 +727,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
       case('ENERGY_RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SALT_RESIDUAL_SCALED_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(sid))
         call InputErrorMsg(input,option,keyword,error_string)
 
       ! All Updates
