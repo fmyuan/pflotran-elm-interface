@@ -1259,7 +1259,6 @@ subroutine PMWellSetup(this)
   else
     k = 0
   endif
-  k = 0
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
@@ -5699,8 +5698,7 @@ subroutine PMWellNewtonTran(this,n_iter)
   PetscInt :: nm, dummy
   PetscInt :: indx(this%nspecies*this%well_grid%nsegments)
 
-  if (.not. any(this%option%myrank == this%well_grid%h_rank_id) .or. &
-      .not.(this%option%myrank == 0)) return
+  if (.not. any(this%option%myrank == this%well_grid%h_rank_id)) return
 
   nm = this%nspecies * this%well_grid%nsegments
 
@@ -6062,7 +6060,7 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
 
   ! Update the residual
   soln%residual = 0.d0
-  if (any(this%option%myrank == this%well_grid%h_rank_id) .or. this%option%myrank == 0) then
+  if (any(this%option%myrank == this%well_grid%h_rank_id)) then
     soln%residual = fixed_accum/this%dt_tran 
     call PMWellResidualTran(this)
 
