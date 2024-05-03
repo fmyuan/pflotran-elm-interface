@@ -1259,7 +1259,7 @@ subroutine PMWellSetup(this)
   else
     k = 0
   endif
-  !k = 0
+  k = 0
   do while (min_val < max_val)
     k = k + 1
     min_val = minval(h_all_rank_id, mask=h_all_rank_id > min_val)
@@ -3370,7 +3370,6 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   PetscInt :: k, indx, vec_size
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
-  PetscInt, allocatable :: rank_vec_length(:)
 
   option => this%option
   well_comm => this%well_comm 
@@ -3398,7 +3397,6 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   this%reservoir%dz = -1.d20
   this%reservoir%aqueous_conc = -1.d20
   this%reservoir%aqueous_mass = -1.d20
-  allocate(rank_vec_length(size(this%well_comm%petsc_rank_list)))
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
   else
@@ -3458,54 +3456,57 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     endif
   
   enddo
+  print *, 'rank ', option%myrank, 'before allreduce'
   vec_size = this%well_grid%nsegments
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_l,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_g,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%e_por,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kx,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%ky,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kz,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%volume,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dx,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dy,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
-                     MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-  if (this%transport) then
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,vec_size,&
+  if (well_comm%commsize > 1) then
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,vec_size,&
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_l,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_g,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_l,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_g,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_l,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_g,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_l,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_g,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_l,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_g,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%e_por,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kx,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%ky,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kz,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%volume,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dx,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dy,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    if (this%transport) then
+      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,vec_size,&
+                         MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,vec_size,&
+                         MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    endif
   endif
-
+  print *, 'rank ', option%myrank, 'after allreduce.'
 end subroutine PMWellUpdateReservoir
 
 ! ************************************************************************** !
