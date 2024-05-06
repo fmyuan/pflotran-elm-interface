@@ -605,6 +605,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: K_H_tilde
   PetscReal :: Hg_mixture_fractioned
   PetscReal :: H_hyd, U_ice, PE_hyd, du_ice_dT, du_ice_dP
+  PetscReal :: dT_PE
   PetscReal :: aux(1)
   PetscReal :: hw
   PetscReal :: dpor_dp
@@ -894,6 +895,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(hid) = 1.d0
       hyd_auxvar%sat(iid) = 0.d0
+
+      call HydrateSaltSolubility(hyd_auxvar%temp, salt_solubility)
+      x_salt_dissolved = min(hyd_auxvar%m_salt(1),salt_solubility)
+      !Bulk hydrate formation temperature
+      call HydrateSalinityOffset(x_salt_dissolved,dT_PE)
+      T_temp = hyd_auxvar%temp - dT_PE
 
       call HydratePE(T_temp,hyd_auxvar%sat(hid),PE_hyd,dP, &
               characteristic_curves, material_auxvar, option)
@@ -1255,6 +1262,11 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                       h_sat_eff,i_sat_eff)
 
+      call HydrateSaltSolubility(hyd_auxvar%temp, salt_solubility)
+      x_salt_dissolved = min(hyd_auxvar%m_salt(1),salt_solubility)
+      !Bulk hydrate formation temperature
+      call HydrateSalinityOffset(x_salt_dissolved,dT_PE)
+      T_temp = hyd_auxvar%temp - dT_PE
       call HydratePE(T_temp, h_sat_eff, PE_hyd, &
                 dP, characteristic_curves, material_auxvar,option)
 
@@ -1373,14 +1385,9 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateSaltSolubility(hyd_auxvar%temp, salt_solubility)
       x_salt_dissolved = min(hyd_auxvar%m_salt(1),salt_solubility)
-      !Bulk freezing temperature
-      call HydrateIceSalinityOffset(x_salt_dissolved,Tf_ice)
-
-      !if (hyd_auxvar%sat(lid) + hyd_auxvar%sat(hid) > 1.d0) then
-      !  hyd_auxvar%sat(lid) = 1.d0 - hyd_auxvar%sat(hid)
-      !endif
-
-      T_temp = hyd_auxvar%temp - Tf_ice
+      !Bulk hydrate formation temperature
+      call HydrateSalinityOffset(x_salt_dissolved,dT_PE)
+      T_temp = hyd_auxvar%temp - dT_PE
 
       hyd_auxvar%sat(gid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(hid)
       hyd_auxvar%sat(gid) = max(hyd_auxvar%sat(gid),0.d0)
@@ -2124,7 +2131,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: xag, xwg, xal, xsl, xwl, xmolag, xmolwg, xmolal, &
                xmolsl, xmolwl
   PetscReal :: salt_solubility, sigma
-  PetscReal :: den_mol, den_a, den_brine, den_liq
+  PetscReal :: den_mol, den_a, den_brine, den_liq, dT_PE
   PetscReal :: drho_dP, drho_dT
   PetscInt :: apid, cpid, vpid, spid, rvpid
   PetscInt :: gid, lid, hid, iid, acid, wid, tgid, pwid, pbid, pid, sid
@@ -2216,14 +2223,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
                                     h_sat_eff,i_sat_eff)
 
-  call HydrateIceSalinityOffset(xsl,dTfs)
-
-  Tf_ice = dTfs !Bulk freezing temperature
-
-  T_temp = hyd_auxvar%temp - Tf_ice
-
+  call HydrateSalinityOffset(xsl,dT_PE)
+  T_temp = hyd_auxvar%temp - dT_PE
   call HydratePE(T_temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar, option)
+
   call HydrateEquilibrate(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
                           global_auxvar%istate, &
                           hyd_auxvar%sat(hid), &
@@ -2233,6 +2237,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                           xag, xwg, xal, xsl, xwl, &
                           xmolag, xmolwg, xmolal, xmolsl, xmolwl, &
                           characteristic_curves, material_auxvar, option)
+
+  call HydrateIceSalinityOffset(xsl,dTfs)
+
+  Tf_ice = dTfs !Bulk freezing temperature
 
   !Update State
 
@@ -2625,22 +2633,22 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0 &
             .and. hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(hid) > epsilon .and. hyd_auxvar%sat(lid) > &
-                epsilon) then
+        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > &
+                0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HA_STATE
-        elseif (hyd_auxvar%sat(hid) > epsilon .and. hyd_auxvar%sat(gid) > &
-                epsilon) then
+        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > &
+                0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
-        elseif (hyd_auxvar%sat(gid) > epsilon .and. hyd_auxvar%sat(lid) > &
-                epsilon) then
+        elseif (hyd_auxvar%sat(gid) > 0.d0 .and. hyd_auxvar%sat(lid) > &
+                0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
-        elseif (hyd_auxvar%sat(lid) > epsilon) then
+        elseif (hyd_auxvar%sat(lid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
-        elseif (hyd_auxvar%sat(gid) > epsilon) then
+        elseif (hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
         else
@@ -4559,7 +4567,7 @@ end subroutine EOSHydrateEnthalpy
 
 ! ************************************************************************** !
 
-subroutine HydrateSalinityOffset(xmol,dTd)
+subroutine HydrateSalinityOffset(xmass,dTd)
 
   !
   ! This ties salinity to the subcooling required to precipitate
@@ -4573,13 +4581,13 @@ subroutine HydrateSalinityOffset(xmol,dTd)
 
   implicit none
 
-  PetscReal, intent(in) :: xmol
+  PetscReal, intent(in) :: xmass
   PetscReal, intent(out) :: dTd
 
   PetscReal :: dTr = -0.37d0
-  PetscReal :: xmol_ref = 0.03311d0
+  PetscReal :: xmass_ref = 0.1049d0
 
-  dTd = dTr * log(1-xmol)/log(1-xmol_ref)
+  dTd = dTr * log(1.d0-xmass)/log(1.d0-xmass_ref)
 
 end subroutine HydrateSalinityOffset
 
@@ -6167,10 +6175,10 @@ subroutine HydrateComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl,&
   ! Add trapped gas to the liquid saturation before sending into the Pc function
   Sl_eff = Sl + Sgt
 
-  if (Sl_eff > 9.99d-1) then
-    Pc = 0.d0
-    return
-  endif
+  !if (Sl_eff > 9.99d-1) then
+  !  Pc = 0.d0
+  !  return
+  !endif
 
   call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
                                                             dpc_dsatl,option)
