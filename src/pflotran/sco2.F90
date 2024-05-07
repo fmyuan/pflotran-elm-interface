@@ -15,6 +15,8 @@ module SCO2_module
             SCO2TimeCut,&
             SCO2UpdateAuxVars, &
             SCO2UpdateFixedAccum, &
+            SCO2GetSlminVecLoc, &
+            SCO2SetSlminVecLoc, &
             SCO2ComputeMassBalance, &
             SCO2ComputeComponentMassBalance, &
             SCO2Residual, &
@@ -743,13 +745,6 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
     ! SCO2_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = SCO2_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
-    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-      ! MAN: this is a hack to get well to initialize properly
-      if (xx_loc_p(ghosted_end) /= &
-          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)) then
-        sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(ghosted_end)
-      endif
-    endif
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
     call SCO2AuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                            sco2_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -770,7 +765,16 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                  sco2_parameter,natural_id,option)
 
     endif
-
+    if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
+      ! MAN: this is a hack to get well to initialize properly
+      if (xx_loc_p(ghosted_end) /= &
+          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(lid)) then
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(ghosted_end)
+      else
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%pressure_bump = &
+                                                   UNINITIALIZED_DOUBLE
+      endif
+    endif
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -1114,6 +1118,78 @@ subroutine SCO2UpdateFixedAccum(realization)
   call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 end subroutine SCO2UpdateFixedAccum
+
+! ************************************************************************** !
+
+subroutine SCO2GetSlminVecLoc(SCO2, grid, vec_loc)
+  !
+  ! Gets the values of Sl_min using a vector.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
+
+  use Grid_module
+
+  implicit none
+
+  type(sco2_type) :: SCO2
+  type(grid_type), pointer :: grid
+  Vec :: vec_loc
+
+  type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
+  PetscReal, pointer :: vec_loc_p(:)
+  PetscInt :: ghosted_id, local_id
+  PetscErrorCode :: ierr
+
+  sco2_auxvars => SCO2%auxvars
+
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    vec_loc_p(ghosted_id) = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min
+  enddo
+
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+end subroutine SCO2GetSlminVecLoc
+
+! ************************************************************************** !
+
+subroutine SCO2SetSlminVecLoc(SCO2, grid, vec_loc)
+  !
+  ! Sets the values of Sl_min using a vector.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
+
+  use Grid_module
+
+  implicit none
+
+  type(sco2_type) :: SCO2
+  type(grid_type), pointer :: grid
+  Vec :: vec_loc
+
+  type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
+  PetscReal, pointer :: vec_loc_p(:)
+  PetscInt :: ghosted_id, local_id
+  PetscErrorCode :: ierr
+
+  sco2_auxvars => SCO2%auxvars
+
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min = vec_loc_p(ghosted_id)
+  enddo
+
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+end subroutine SCO2SetSlminVecLoc
 
 ! ************************************************************************** !
 

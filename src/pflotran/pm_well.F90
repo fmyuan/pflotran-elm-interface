@@ -4347,6 +4347,7 @@ subroutine PMWellSCO2Perturb(pm_well)
   type(option_type), pointer :: option
   PetscInt :: idof, k, i
   PetscInt :: ghosted_id
+  PetscInt :: lid
   PetscReal :: pres_bump
   PetscErrorCode :: ierr
 
@@ -4355,8 +4356,9 @@ subroutine PMWellSCO2Perturb(pm_well)
   PetscReal :: dpl, dpg
 
   option => pm_well%option
-
   res_grid => pm_well%realization%patch%grid
+
+  lid = option%liquid_phase
 
   ! Make sure well is actually flowing if injection/production rates
   ! are specified.
@@ -4397,19 +4399,28 @@ subroutine PMWellSCO2Perturb(pm_well)
 
       ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
-      do idof = 1,option%nflowdof
-        well => pm_well%well_pert(idof)
-        if (idof == SCO2_WELL_DOF) then
-          sco2_auxvar => &
-            pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
-          well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
-                      auxvars(SCO2_WELL_DOF,ghosted_id)%pert
-          sco2_auxvar%well%pressure_bump = pres_bump
+    do idof = 1,option%nflowdof
+      well => pm_well%well_pert(idof)
+      if (idof == SCO2_WELL_DOF) then
+        sco2_auxvar => &
+          pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
+        well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
+                    auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+        if (.not. Initialized(sco2_auxvar%well%pressure_bump)) then
+          if (k == 1) then
+            sco2_auxvar%well%pressure_bump = (well%bh_p - &
+                      sco2_auxvar%pres(lid)) + pres_bump
+          else
+            sco2_auxvar%well%pressure_bump = 0.d0
+          endif
         else
-          sco2_auxvar => &
-            pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
-          well%bh_p = pm_well%well%bh_p
+          sco2_auxvar%well%pressure_bump = pres_bump
         endif
+      else
+        sco2_auxvar => &
+          pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
+        well%bh_p = pm_well%well%bh_p
+      endif
 
         reservoir => well%reservoir
 
@@ -7164,6 +7175,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   PetscReal :: aux(2)
   PetscReal :: res_pg_temp, res_pl_temp, res_z
   PetscReal, parameter :: threshold_p = 0.d0
+  PetscReal, parameter :: epsilon = 1.d-14
 
   option => pm_well%realization%option
   reservoir_grid => pm_well%realization%patch%grid
@@ -7314,7 +7326,11 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Rate-controlled gas injection well. Can potentially have
         ! under-pressure in some well segments.
         ! Compute reservoir pressure at well cell center
-        res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
+        if (reservoir%s_g(i) > epsilon) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
+        else
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_l(i) * gravity * delta_z
+        endif
         upwind = res_pg_temp > well%pg(i)
         if (upwind) then
           mobility = reservoir%kr_g(i)/reservoir%visc_g(i)

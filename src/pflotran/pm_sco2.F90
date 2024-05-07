@@ -774,6 +774,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       dtt = time_step_max_growth_factor*dt
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
+      governed_dt = -999.d0
     endif
 
     ! Inform user that time step is being limited by a state variable.
@@ -1114,19 +1115,15 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         case(SCO2_LIQUID_GAS_STATE)
           Pc_entry = 0.d0
-          !select type(sf => characteristic_curves%saturation_function)
-          ! class is (sat_func_vg_type)
-          !   Pc_entry = (1.d0 / characteristic_curves% &
-          !               saturation_function%GetAlpha_())
-          ! class is (sat_func_VG_STOMP_type)
-          !   Pc_entry = characteristic_curves% &
-          !              saturation_function%GetAlpha_() * !&
-          !              LIQUID_REFERENCE_DENSITY * EARTH_GRAVITY
-          ! class is (sat_func_BC_SPE11_type)
-          !   Pc_entry = (1.d0 / characteristic_curves% &
-          !        saturation_function%GetAlpha_())
-          ! class default
-          !end select
+          select type(sf => characteristic_curves%saturation_function)
+            class is (sat_func_VG_STOMP_type)
+              ! Pc_entry = characteristic_curves% &
+              !          saturation_function%GetAlpha_() * &
+              !          LIQUID_REFERENCE_DENSITY * gravity
+            class default
+              Pc_entry = (1.d0 / characteristic_curves% &
+                         saturation_function%GetAlpha_())
+          end select
 
           !Limit changes in pressure
           dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index) - &
@@ -1148,8 +1145,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) > &
              5.d8) dX_p(gas_pressure_index) = 5.d8 - X_p(gas_pressure_index)
           select type(sf => characteristic_curves%saturation_function)
-            class is (sat_func_vg_type)
-              Pc_max = characteristic_curves%saturation_function%Pcmax
             class is (sat_func_VG_STOMP_type)
               Pc_max = characteristic_curves%saturation_function%Pcmax * &
                          LIQUID_REFERENCE_DENSITY * gravity
@@ -1253,7 +1248,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                  sco2_auxvar%pres(option%gas_phase))
             endif
             dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
-            sco2_auxvar%well%pressure_bump = 0.d0
+            ! sco2_auxvar%well%pressure_bump = 0.d0
           endif
         endif
         dX_p2(well_index) = dX_p(well_index)
@@ -1706,6 +1701,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
               ! Just check update
+              if (dabs(update) > 0.d0) then
+                update = update - sco2_auxvar%well%pressure_bump
+              endif
               res_scaled = dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon)
               ! res_scaled = min(dabs(update) / &
@@ -1722,6 +1720,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
             ! Just check update
+            if (dabs(update) > 0.d0) then
+              update = update - sco2_auxvar%well%pressure_bump
+            endif
             res_scaled = dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon)
             ! res_scaled = min(dabs(update) / &
