@@ -221,6 +221,7 @@ module SCO2_Aux_module
             SCO2BrineSaturationPressure, &
             SCO2VaporPressureBrine, &
             SCO2BrineDensity, &
+            SCO2BrineEnthalpy, &
             SCO2Henry, &
             SCO2SaltDensity, &
             SCO2Equilibrate, &
@@ -230,7 +231,8 @@ module SCO2_Aux_module
             SCO2ViscosityCO2, &
             SCO2ViscosityBrine, &
             SCO2ViscosityLiquid, &
-            SCO2ViscosityGas
+            SCO2ViscosityGas, &
+            SCO2EnthalpyCompositeLiquid
 
 
 contains
@@ -448,6 +450,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-15
+  PetscReal, parameter :: epsilon = 1.d-14
 
   PetscReal :: x(option%nflowdof), x_pert_plus(option%nflowdof), &
                pert(option%nflowdof), x_pert_minus(option%nflowdof)
@@ -642,9 +645,14 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   do idof = 1, option%nflowdof - nwelldof
 
     if (sco2_central_diff_jacobian) then
-
       x_pert_minus = x
-      x_pert_minus(idof) = x(idof) - pert(idof)
+      if (idof == SCO2_SALT_MASS_FRAC_DOF .and. &
+         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < epsilon) then
+        x_pert_minus(idof) = x(idof)
+        pert(idof) = pert(idof) / 2.d0
+      else
+        x_pert_minus(idof) = x(idof) - pert(idof)
+      endif
       call SCO2AuxVarCompute(x_pert_minus, &
              sco2_auxvar(idof+option%nflowdof),global_auxvar,material_auxvar, &
              characteristic_curves,sco2_parameter,natural_id,option)

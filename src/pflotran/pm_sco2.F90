@@ -1604,6 +1604,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
+  PetscBool :: converged_well
   character(len=MAXSTRINGLENGTH) :: string
   character(len=20), allocatable :: state_string(:)
   character(len=17), allocatable :: dof_string(:,:)
@@ -1668,6 +1669,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     converged_scaled_residual_cell = ZERO_INTEGER
 
     if (sco2_stomp_convergence) then
+      converged_well = PETSC_TRUE
       do local_id = 1, grid%nlmax
         offset = (local_id-1)*option%nflowdof
         ghosted_id = grid%nL2G(local_id)
@@ -1927,8 +1929,14 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           endif
 
           if (.not.(converged_absolute .or. converged_scaled)) then
-           converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-           converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+            if (idof == FIVE_INTEGER .or. &
+                (.not. sco2_thermal .and. idof == FOUR_INTEGER)) then
+                 ! Coupled well DOF
+                 converged_well = PETSC_FALSE
+            else
+             converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+             converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+            endif
           endif
         enddo
       enddo
@@ -2004,9 +2012,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       reshape(this%converged_flag,(/MAX_DOF*sco2_max_states* &
               MAX_INDEX/))
 
-    ! flags(MAX_DOF*sco2_max_states*MAX_INDEX+1) =&
-    !   .not.sco2_high_temp_ts_cut
-
     mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+1
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
@@ -2034,6 +2039,13 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     do itol = 1, MAX_INDEX
       do istate = 1, sco2_max_states
         do idof = 1, option%nflowdof
+          if (idof == FIVE_INTEGER .or. &
+              (.not. sco2_thermal .and. idof == FOUR_INTEGER)) then
+            if (.not. converged_well) then
+              option%convergence = CONVERGENCE_KEEP_ITERATING
+            endif
+            cycle
+          endif
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
             if (this%logging_verbosity > 0) then
