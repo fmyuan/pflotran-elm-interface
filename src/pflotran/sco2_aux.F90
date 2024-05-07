@@ -221,6 +221,7 @@ module SCO2_Aux_module
             SCO2BrineSaturationPressure, &
             SCO2VaporPressureBrine, &
             SCO2BrineDensity, &
+            SCO2BrineEnthalpy, &
             SCO2Henry, &
             SCO2SaltDensity, &
             SCO2Equilibrate, &
@@ -230,7 +231,8 @@ module SCO2_Aux_module
             SCO2ViscosityCO2, &
             SCO2ViscosityBrine, &
             SCO2ViscosityLiquid, &
-            SCO2ViscosityGas
+            SCO2ViscosityGas, &
+            SCO2EnthalpyCompositeLiquid
 
 
 contains
