@@ -1112,6 +1112,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%dx(nsegments))
     allocate(well_grid%dy(nsegments))
     allocate(well_grid%dz(nsegments))
+    allocate(well_grid%res_z(nsegments))
 
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
@@ -1127,7 +1128,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
                                       h_local_id(index))
       well_grid%h_global_id(index) = res_grid%nG2A(well_grid% &
                                      h_ghosted_id(index))
-
+      well_grid%res_z(index) = res_grid%z(well_grid%h_global_id(index))
       if (temp_casing(k)) then
         well_grid%casing(index) = 0.d0
       else
@@ -1271,6 +1272,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
+    allocate(well_grid%res_z(nsegments))
 
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
@@ -1296,6 +1298,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       well_grid%h_local_id(k) = temp_id_list(k)
       well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+      well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
     enddo
 
     well_grid%res_dz(:) = well_grid%dh(:)
@@ -1345,6 +1348,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
+    allocate(well_grid%res_z(nsegments))
 
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
@@ -1390,6 +1394,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
         well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
         well_grid%h_rank_id(k) = option%myrank
+        well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
       endif
     enddo
 
@@ -1431,6 +1436,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%h_global_id(nsegments))
     allocate(well_grid%h_rank_id(nsegments))
     allocate(well_grid%strata_id(nsegments))
+    allocate(well_grid%res_z(nsegments))
 
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
@@ -1465,6 +1471,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
         well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
         well_grid%h_rank_id(k) = option%myrank
+        well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
       endif
     enddo
   !---------------------------------------------------------------------------
@@ -1531,6 +1538,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
      allocate(well_grid%h_global_id(nsegments))
      allocate(well_grid%h_rank_id(nsegments))
      allocate(well_grid%strata_id(nsegments))
+     allocate(well_grid%res_z(nsegments))
 
      well_grid%h_rank_id(:) = 0
      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
@@ -1549,6 +1557,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
      well_grid%h_local_id(1) = local_id
      well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
      well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
+     well_grid%res_z(1) = res_grid%z(well_grid%h_global_id(1))
 
      do k = 2,nsegments
        well_grid%h(k)%id = k
@@ -1562,7 +1571,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
        well_grid%h_local_id(k) = local_id
        well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-
+       well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
      enddo
   !---------------------------------------------------------------------------
   endif
@@ -4341,6 +4350,10 @@ subroutine PMWellSCO2Perturb(pm_well)
   PetscReal :: pres_bump
   PetscErrorCode :: ierr
 
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+  PetscReal, parameter :: min_perturbation = 1.d-15
+  PetscReal :: dpl, dpg
+
   option => pm_well%option
 
   res_grid => pm_well%realization%patch%grid
@@ -4380,65 +4393,86 @@ subroutine PMWellSCO2Perturb(pm_well)
 
   ! Perturbed fluxes wrt reservoir variables
   do k = 1,pm_well%well_grid%nsegments
-    if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
+    if (pm_well%well_grid%h_rank_id(k) == option%myrank) then
 
-    ghosted_id = pm_well%well_grid%h_ghosted_id(k)
+      ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
-    do idof = 1,option%nflowdof
-      well => pm_well%well_pert(idof)
-      if (idof == SCO2_WELL_DOF) then
-        sco2_auxvar => &
-          pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
-        well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
-                    auxvars(SCO2_WELL_DOF,ghosted_id)%pert
-        sco2_auxvar%well%pressure_bump = pres_bump
-      else
-        sco2_auxvar => &
-          pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
-        well%bh_p = pm_well%well%bh_p
-      endif
+      do idof = 1,option%nflowdof
+        well => pm_well%well_pert(idof)
+        if (idof == SCO2_WELL_DOF) then
+          sco2_auxvar => &
+            pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
+          well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
+                      auxvars(SCO2_WELL_DOF,ghosted_id)%pert
+          sco2_auxvar%well%pressure_bump = pres_bump
+        else
+          sco2_auxvar => &
+            pm_well%realization%patch%aux%sco2%auxvars(idof,ghosted_id)
+          well%bh_p = pm_well%well%bh_p
+        endif
 
-      reservoir => well%reservoir
+        reservoir => well%reservoir
 
-      material_auxvar => &
-        pm_well%realization%patch%aux%material%auxvars(ghosted_id)
+        material_auxvar => &
+          pm_well%realization%patch%aux%material%auxvars(ghosted_id)
 
-      reservoir%p_l(k) = sco2_auxvar%pres(option%liquid_phase)
-      reservoir%p_g(k) = sco2_auxvar%pres(option%gas_phase)
-      reservoir%s_l(k) = sco2_auxvar%sat(option%liquid_phase)
-      reservoir%s_g(k) = sco2_auxvar%sat(option%gas_phase)
-      reservoir%temp(k) = sco2_auxvar%temp
-      reservoir%mobility_l(k) = &
-        sco2_auxvar%mobility(option%liquid_phase)
-      reservoir%mobility_g(k) = sco2_auxvar%mobility(option%gas_phase)
-      reservoir%kr_l(k) = sco2_auxvar%kr(option%liquid_phase)
-      reservoir%kr_g(k) = sco2_auxvar%kr(option%gas_phase)
-      reservoir%den_l(k) = sco2_auxvar%den_kg(option%liquid_phase)
-      reservoir%den_g(k) = sco2_auxvar%den_kg(option%gas_phase)
-      reservoir%visc_l(k) = sco2_auxvar%visc(option%liquid_phase)
-      reservoir%visc_g(k) = sco2_auxvar%visc(option%gas_phase)
-      reservoir%xmass_liq(k,:) = sco2_auxvar%xmass(:, &
+        reservoir%p_l(k) = sco2_auxvar%pres(option%liquid_phase)
+        reservoir%p_g(k) = sco2_auxvar%pres(option%gas_phase)
+        reservoir%s_l(k) = sco2_auxvar%sat(option%liquid_phase)
+        reservoir%s_g(k) = sco2_auxvar%sat(option%gas_phase)
+        reservoir%temp(k) = sco2_auxvar%temp
+        reservoir%mobility_l(k) = &
+          sco2_auxvar%mobility(option%liquid_phase)
+        reservoir%mobility_g(k) = sco2_auxvar%mobility(option%gas_phase)
+        reservoir%kr_l(k) = sco2_auxvar%kr(option%liquid_phase)
+        reservoir%kr_g(k) = sco2_auxvar%kr(option%gas_phase)
+        reservoir%den_l(k) = sco2_auxvar%den_kg(option%liquid_phase)
+        reservoir%den_g(k) = sco2_auxvar%den_kg(option%gas_phase)
+        reservoir%visc_l(k) = sco2_auxvar%visc(option%liquid_phase)
+        reservoir%visc_g(k) = sco2_auxvar%visc(option%gas_phase)
+        reservoir%xmass_liq(k,:) = sco2_auxvar%xmass(:, &
                                                     option%liquid_phase)
-      reservoir%xmass_gas(k,:) = sco2_auxvar%xmass(:, &
+        reservoir%xmass_gas(k,:) = sco2_auxvar%xmass(:, &
                                                     option%gas_phase)
-      reservoir%e_por(k) = sco2_auxvar%effective_porosity
+        reservoir%e_por(k) = sco2_auxvar%effective_porosity
 
-      reservoir%kx(k) = material_auxvar%permeability(1)
-      reservoir%ky(k) = material_auxvar%permeability(2)
-      reservoir%kz(k) = material_auxvar%permeability(3)
-      reservoir%volume(k) = material_auxvar%volume
+        reservoir%kx(k) = material_auxvar%permeability(1)
+        reservoir%ky(k) = material_auxvar%permeability(2)
+        reservoir%kz(k) = material_auxvar%permeability(3)
+        reservoir%volume(k) = material_auxvar%volume
 
-      if (res_grid%itype == STRUCTURED_GRID) then
-        reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
-        reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
-        reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
-      else
-        reservoir%dz(k) = pm_well%well_grid%res_dz(k)
-        reservoir%dx(k) = sqrt(material_auxvar%volume/ &
+        if (res_grid%itype == STRUCTURED_GRID) then
+          reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
+          reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
+          reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
+        else
+          reservoir%dz(k) = pm_well%well_grid%res_dz(k)
+          reservoir%dx(k) = sqrt(material_auxvar%volume/ &
                                   reservoir%dz(k))
-        reservoir%dy(k) = reservoir%dx(k)
-      endif
-    enddo
+          reservoir%dy(k) = reservoir%dx(k)
+        endif
+      enddo
+    else
+      ! Perturb the off-process reservoir variables.
+      ! MAN: this is simple for an injection well. Need to
+      !      pass material info for extraction well.
+
+      ! If injection
+      do idof = 1,option%nflowdof
+        well => pm_well%well_pert(idof)
+        reservoir => well%reservoir
+        if (idof /= 1) cycle
+        if (dabs(well%th_qg) > 0.d0 .or. dabs(well%th_ql) > 0.d0) then
+          dpl = max(1.d-1, 1.d-7* dabs(pm_well%well%reservoir%p_l(k)))
+          dpg = max(1.d-1, 1.d-7* dabs(pm_well%well%reservoir%p_g(k)))
+          reservoir%p_l(k) = reservoir%p_l(k) + dpl
+          reservoir%p_g(k) = reservoir%p_g(k) + dpg
+        else
+        ! Extraction: Need to call SCO2AuxVarPerturb
+
+        endif
+      enddo
+    endif
   enddo
 
   ! Now update fluxes associated with perturbed values
@@ -4942,6 +4976,9 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
                    MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
                    MPI_STATUS_IGNORE,ierr)
             endif
+            call MPI_Sendrecv_replace(pm_well%well_grid%res_z(k),1, &
+                   MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
+                   MPI_STATUS_IGNORE,ierr)
             call MPI_Sendrecv_replace(reservoir%p_l(k),1, &
                    MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
                    MPI_STATUS_IGNORE,ierr)
@@ -5024,6 +5061,12 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
       enddo
 
       if (pm_well%well_comm%comm /= MPI_COMM_NULL) then
+        call MPI_Bcast(pm_well%well%bh_p,ONE_INTEGER, &
+                       MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
+                       ierr);CHKERRQ(ierr)
+        call MPI_Bcast(pm_well%well_grid%res_z,pm_well%well_grid%nsegments, &
+                       MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
+                       ierr);CHKERRQ(ierr)
         call MPI_Bcast(reservoir%p_l,pm_well%well_grid%nsegments, &
                        MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
                        ierr);CHKERRQ(ierr)
@@ -5621,6 +5664,9 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
   PetscInt :: air_comp_id, wat_comp_id
   PetscInt :: j,k,idof,irow
   PetscInt :: local_row_index, local_col_index
+  ! PetscInt :: global_row_index, global_col_index
+  ! PetscReal :: dpl, dpg
+  ! PetscReal :: global_id
   PetscReal :: J_well
 
   option => this%option
@@ -5708,107 +5754,138 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
 
         ! Perturbations
         do k = 1,this%well_grid%nsegments
-          if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+          if (this%well_grid%h_rank_id(k) == option%myrank) then
 
-          J_block = 0.d0
-          ghosted_id = this%well_grid%h_ghosted_id(k)
-          do idof = 1,option%nflowdof-1
-            well_pert => this%well_pert(idof)
-            pert = this%realization%patch%aux%SCO2% &
-                         auxvars(idof,ghosted_id)%pert
+            J_block = 0.d0
+            ghosted_id = this%well_grid%h_ghosted_id(k)
+            do idof = 1,option%nflowdof-1
+              well_pert => this%well_pert(idof)
+              pert = this%realization%patch%aux%SCO2% &
+                           auxvars(idof,ghosted_id)%pert
 
-            ! Compute dRwell / dXres
-            if (this%well_grid%h_rank_id(1) == option%myrank) then
-              res_pert = 0.d0
-              if (dabs(well_pert%th_qg) > 0.d0) then
-                res_pert = well_pert%gas%q(k) - well%gas%q(k)
-              else
-                res_pert = well_pert%liq%q(k) - well%liq%q(k)
+              ! Compute dRwell / dXres
+              if (this%well_grid%h_rank_id(1) == option%myrank) then
+                res_pert = 0.d0
+                if (dabs(well_pert%th_qg) > 0.d0) then
+                  res_pert = well_pert%gas%q(k) - well%gas%q(k)
+                else
+                  res_pert = well_pert%liq%q(k) - well%liq%q(k)
+                endif
+
+                local_row_index = this%well_grid%h_ghosted_id(1)* &
+                                  option%nflowdof-1
+                local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
+                J_well = -(res_pert)/pert
+                if (dabs(J_well) > 0.d0) then
+                  call MatSetValuesLocal(Jac,1,local_row_index,1, &
+                                         local_col_index,J_well, &
+                                         ADD_VALUES,ierr);CHKERRQ(ierr)
+                endif
+
               endif
 
-              local_row_index = this%well_grid%h_ghosted_id(1)* &
-                                option%nflowdof-1
-              local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
-              J_well = -(res_pert)/pert
-              if (dabs(J_well) > 0.d0) then
-                call MatSetValuesLocal(Jac,1,local_row_index,1, &
-                                       local_col_index,J_well, &
-                                       ADD_VALUES,ierr);CHKERRQ(ierr)
-              endif
-
-            endif
-
-            ! Compute dRres / dXres
-            do irow = 1,option%nflowdof-1
-              res_pert = well_pert%liq%q(k)* &
-                         well_pert%liq%xmass(k,irow) + &
-                         well_pert%gas%q(k)* &
-                         well_pert%gas%xmass(k,irow)
-              J_block(irow,idof) = (res_pert - residual(k,irow))/pert
+              ! Compute dRres / dXres
+              do irow = 1,option%nflowdof-1
+                res_pert = well_pert%liq%q(k)* &
+                           well_pert%liq%xmass(k,irow) + &
+                           well_pert%gas%q(k)* &
+                           well_pert%gas%xmass(k,irow)
+                J_block(irow,idof) = (res_pert - residual(k,irow))/pert
+              enddo
             enddo
-          enddo
-          if (any(dabs(J_block) > 0.d0)) then
-            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
-                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
-          endif
-
-          !Perturbed rates wrt well perturbation.
-          well_pert => this%well_pert(SCO2_WELL_DOF)
-
-          if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
-
-          J_block = 0.d0
-
-          ghosted_id = this%well_grid%h_ghosted_id(k)
-          pert = well_pert%bh_p - well%bh_p
-
-          ! Compute dRwell / dPwell
-          if (k == 1) then
-            sum_q = 0.d0
-            if (dabs(well%th_qg) > 0.d0) then
-              sum_q = sum(well%gas%q)
-              Q = -1.d0 * (well%th_qg)
-            else
-              sum_q = sum(well%liq%q)
-              Q = -1.d0 * (well%th_ql)
+            if (any(dabs(J_block) > 0.d0)) then
+              call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
-            res = Q - sum_q
 
-            sum_q = 0.d0
-            if (dabs(well_pert%th_qg) > 0.d0) then
-              sum_q = sum(well_pert%gas%q)
-              Q = -1.d0 * (well_pert%th_qg)
-            else
-              sum_q = sum(well_pert%liq%q)
-              Q = -1.d0 * (well_pert%th_ql)
+            !Perturbed rates wrt well perturbation.
+            well_pert => this%well_pert(SCO2_WELL_DOF)
+
+            if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+
+            J_block = 0.d0
+
+            ghosted_id = this%well_grid%h_ghosted_id(k)
+            pert = well_pert%bh_p - well%bh_p
+
+            ! Compute dRwell / dPwell
+            if (k == 1) then
+              sum_q = 0.d0
+              if (dabs(well%th_qg) > 0.d0) then
+                sum_q = sum(well%gas%q)
+                Q = -1.d0 * (well%th_qg)
+              else
+                sum_q = sum(well%liq%q)
+                Q = -1.d0 * (well%th_ql)
+              endif
+              res = Q - sum_q
+
+              sum_q = 0.d0
+              if (dabs(well_pert%th_qg) > 0.d0) then
+                sum_q = sum(well_pert%gas%q)
+                Q = -1.d0 * (well_pert%th_qg)
+              else
+                sum_q = sum(well_pert%liq%q)
+                Q = -1.d0 * (well_pert%th_ql)
+              endif
+              res_pert = Q - sum_q
+
+              J_block(option%nflowdof,option%nflowdof) = &
+                      (res_pert - res)/pert
             endif
-            res_pert = Q - sum_q
 
-            J_block(option%nflowdof,option%nflowdof) = &
-                    (res_pert - res)/pert
-          endif
+            ! Compute dRres / dPwell
+            do j = 0,option%nflowdof-2
+              res = this%well%liq%q(k)*this%well%liq%xmass(k,j+1) + &
+                    this%well%gas%q(k)*this%well%gas%xmass(k,j+1)
+              res_pert = well_pert%liq%q(k)* &
+                         well_pert%liq%xmass(k,j+1) + &
+                         well_pert%gas%q(k)* &
+                         well_pert%gas%xmass(k,j+1)
+              ! Just change 1 column
+              local_row_index = (ghosted_id-1)*option%nflowdof + j
+              local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
+              J_well = (res_pert - res)/pert
+              if (dabs(J_well) > 0.d0) then
+                call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                       J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+              endif
+            enddo
 
-          ! Compute dRres / dPwell
-          do j = 0,option%nflowdof-2
-            res = this%well%liq%q(k)*this%well%liq%xmass(k,j+1) + &
-                  this%well%gas%q(k)*this%well%gas%xmass(k,j+1)
-            res_pert = well_pert%liq%q(k)* &
-                       well_pert%liq%xmass(k,j+1) + &
-                       well_pert%gas%q(k)* &
-                       well_pert%gas%xmass(k,j+1)
-            ! Just change 1 column
-            local_row_index = (ghosted_id-1)*option%nflowdof + j
-            local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
-            J_well = (res_pert - res)/pert
-            if (dabs(J_well) > 0.d0) then
-              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
-                                     J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+            if (any(dabs(J_block) > 0.d0)) then
+              call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+                                          J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
-          enddo
+          ! elseif (this%well_grid%h_rank_id(1) == option%myrank) then
+          !   ! Compute dRwell / dXres for off-process reservoir cells
+          !   global_id = this%well_grid%h_global_id(k)
+          !   do idof = 1,option%nflowdof-1
+          !     well_pert => this%well_pert(idof)
+          !     dpl = max(1.d-2, &
+          !       1.d-6 * dabs(this%well%reservoir%p_g(k) - &
+          !                    this%well%reservoir%p_l(k)))
+          !     dpl = sign(dpl, (5.d-1 - this%well%reservoir%s_l(k)))
+          !     dpg = -1.d0 * dpl
 
-          if (any(dabs(J_block) > 0.d0)) then
-            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
-                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          !     res_pert = 0.d0
+          !     if (dabs(well_pert%th_qg) > 0.d0) then
+          !       res_pert = well_pert%gas%q(k) - well%gas%q(k)
+          !       pert = dpg
+          !     else
+          !       res_pert = well_pert%liq%q(k) - well%liq%q(k)
+          !       pert = dpl
+          !     endif
+
+          !     local_row_index = this%well_grid%h_ghosted_id(1)* &
+          !                       option%nflowdof-1
+          !     global_col_index = (global_id-1)*option%nflowdof + idof - 1
+          !     J_well = -(res_pert)/pert
+          !     if (dabs(J_well) > 0.d0) then
+          !       call MatSetValueLocal(Jac,local_row_index, &
+          !                        global_col_index,J_well, &
+          !                        ADD_VALUES,ierr);CHKERRQ(ierr)
+          !     endif
+          !   enddo
           endif
         enddo
       endif
@@ -5840,6 +5917,8 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
   PetscReal, allocatable :: J_block(:,:)
   PetscInt :: j,k,idof,irow
   PetscInt :: local_row_index, local_col_index
+  ! PetscInt :: global_row_index, global_col_index
+  ! PetscInt :: global_id
   PetscReal :: J_well
 
   option => this%option
@@ -5856,58 +5935,73 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
 
       ! Perturbations
       do k = 1,this%well_grid%nsegments
-        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+        if (this%well_grid%h_rank_id(k) == option%myrank) then
 
-        J_block = 0.d0
-        ghosted_id = this%well_grid%h_ghosted_id(k)
-        do idof = 1,option%nflowdof-1
-          ! Compute dRwell / dXres
-          if (this%well_grid%h_rank_id(1) == option%myrank) then
-            local_row_index = this%well_grid%h_ghosted_id(1)* &
-                              option%nflowdof-1
-            local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
-            J_well = UNINITIALIZED_DOUBLE
-            call MatSetValuesLocal(Jac,1,local_row_index,1, &
-                                   local_col_index,J_well, &
-                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+          J_block = 0.d0
+          ghosted_id = this%well_grid%h_ghosted_id(k)
+          do idof = 1,option%nflowdof-1
+            ! Compute dRwell / dXres
+            if (this%well_grid%h_rank_id(1) == option%myrank) then
+              local_row_index = this%well_grid%h_ghosted_id(1)* &
+                                option%nflowdof-1
+              local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
+              J_well = UNINITIALIZED_DOUBLE
+              call MatSetValuesLocal(Jac,1,local_row_index,1, &
+                                     local_col_index,J_well, &
+                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
+
+            ! Compute dRres / dXres
+            do irow = 1,option%nflowdof-1
+              J_block(irow,idof) = UNINITIALIZED_DOUBLE
+            enddo
+          enddo
+          if (any(dabs(J_block) > 0.d0)) then
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
 
-          ! Compute dRres / dXres
-          do irow = 1,option%nflowdof-1
-            J_block(irow,idof) = UNINITIALIZED_DOUBLE
+          !Perturbed rates wrt well perturbation.
+
+          if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
+
+          J_block = 0.d0
+
+          ghosted_id = this%well_grid%h_ghosted_id(k)
+
+          ! Compute dRwell / dPwell
+          if (k == 1) then
+            J_block(option%nflowdof,option%nflowdof) = UNINITIALIZED_DOUBLE
+          endif
+
+          ! Compute dRres / dPwell
+          do j = 0,option%nflowdof-2
+            ! Just change 1 column
+            local_row_index = (ghosted_id-1)*option%nflowdof + j
+            local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
+            J_well = UNINITIALIZED_DOUBLE
+            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                    J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           enddo
-        enddo
-        if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
-                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
-        endif
 
-        !Perturbed rates wrt well perturbation.
-
-        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
-
-        J_block = 0.d0
-
-        ghosted_id = this%well_grid%h_ghosted_id(k)
-
-        ! Compute dRwell / dPwell
-        if (k == 1) then
-          J_block(option%nflowdof,option%nflowdof) = UNINITIALIZED_DOUBLE
-        endif
-
-        ! Compute dRres / dPwell
-        do j = 0,option%nflowdof-2
-          ! Just change 1 column
-          local_row_index = (ghosted_id-1)*option%nflowdof + j
-          local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
-          J_well = UNINITIALIZED_DOUBLE
-          call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
-                                  J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
-        enddo
-
-        if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
-                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          if (any(dabs(J_block) > 0.d0)) then
+            call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+                                          J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
+        ! elseif (this%well_grid%h_rank_id(1) == option%myrank) then
+        !   ! Compute dRwell / dXres for off-process reservoir cells
+        !   global_id = this%well_grid%h_global_id(k)
+        !   do idof = 1,option%nflowdof-1
+        !     local_row_index = this%well_grid%h_ghosted_id(1)* &
+        !                       option%nflowdof-1
+        !     global_col_index = (global_id-1)*option%nflowdof + idof - 1
+        !     J_well = UNINITIALIZED_DOUBLE
+        !     if (dabs(J_well) > 0.d0) then
+        !       call MatSetValueLocal(Jac,local_row_index, &
+        !                        global_col_index,J_well, &
+        !                        ADD_VALUES,ierr);CHKERRQ(ierr)
+        !     endif
+        !   enddo
         endif
       enddo
     end select
@@ -7069,7 +7163,6 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   PetscReal :: dummy, dummy2
   PetscReal :: aux(2)
   PetscReal :: res_pg_temp, res_pl_temp, res_z
-  PetscInt :: ghosted_id
   PetscReal, parameter :: threshold_p = 0.d0
 
   option => pm_well%realization%option
@@ -7214,8 +7307,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
       if (well%WI(i) == 0) cycle
 
-      ghosted_id = pm_well%well_grid%h_ghosted_id(i)
-      res_z = reservoir_grid%z(ghosted_id)
+      res_z = pm_well%well_grid%res_z(i)
       delta_z = res_z - pm_well%well_grid%h(i)%z
 
       if (well%th_qg > 0.d0) then

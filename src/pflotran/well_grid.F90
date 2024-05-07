@@ -24,6 +24,8 @@ type, public :: well_grid_type
     PetscReal, pointer :: dz(:)
     ! reservoir dz
     PetscReal, pointer :: res_dz(:)
+    ! reservoir cell center z location
+    PetscReal, pointer :: res_z(:)
     ! h coordinate of each segment center [m]
     type(point3d_type), pointer :: h(:)
     ! the local id of the reservoir grid cell within which each segment
@@ -86,12 +88,12 @@ function WellGridCreate()
     !
     ! Author: Michael Nole
     ! Date: 03/04/2023
-  
+
     implicit none
-  
+
     type(well_grid_type), pointer :: WellGridCreate
     type(well_grid_type), pointer :: well_grid
-  
+
     ! create the well grid object:
     allocate(well_grid)
     well_grid%nsegments = UNINITIALIZED_INTEGER
@@ -102,6 +104,7 @@ function WellGridCreate()
     nullify(well_grid%dy)
     nullify(well_grid%dz)
     nullify(well_grid%res_dz)
+    nullify(well_grid%res_z)
     nullify(well_grid%h)
     nullify(well_grid%h_local_id)
     nullify(well_grid%h_ghosted_id)
@@ -118,9 +121,9 @@ function WellGridCreate()
     nullify(well_grid%z_list)
     nullify(well_grid%l_list)
     nullify(well_grid%deviated_well_segment_list)
-  
+
     WellGridCreate => well_grid
-  
+
 end function WellGridCreate
 
 ! ************************************************************************** !
@@ -156,21 +159,21 @@ subroutine WellGridDestroy(well_grid)
     ! Author: Michael Nole
     ! Date: 04/02/2024
     !
-    
+
     use Utility_module, only : DeallocateArray
-  
+
     implicit none
-  
+
     type(well_grid_type), pointer :: well_grid
-  
-  
+
+
     call DeallocateArray(well_grid%h_local_id)
     call DeallocateArray(well_grid%h_ghosted_id)
     call DeallocateArray(well_grid%dh)
     nullify(well_grid)
-  
+
 end subroutine WellGridDestroy
-  
+
 ! ************************************************************************** !
 
 subroutine WellGridAddConnectionsExplicit(cell_centroids,connections,&
@@ -205,7 +208,7 @@ subroutine WellGridAddConnectionsExplicit(cell_centroids,connections,&
   num_connections = size(connections,2)
   allocate(mask(num_connections))
   n_well_conn = 0
-  
+
   ! Add embedded well connectivity. This just connects the bottom-hole
   ! cell to all other reservoir cells connected to the well. Does not
   ! connect those other reservoir cells to each other. This is therefore
@@ -217,7 +220,7 @@ subroutine WellGridAddConnectionsExplicit(cell_centroids,connections,&
     if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
     if (well_grid%casing(isegment) <= 0.d0) cycle
       local_id = well_grid%h_ghosted_id(isegment)
-    ! For each local cell, check if a connection to a well cell exists. If 
+    ! For each local cell, check if a connection to a well cell exists. If
     ! not, add it, and keep track of connections that are only well-related.
     dual_id = well_grid%h_ghosted_id(dual_segment)
     if (dual_id == local_id) cycle

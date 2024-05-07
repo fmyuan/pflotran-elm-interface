@@ -217,6 +217,7 @@ module SCO2_Aux_module
             SCO2AuxVarDestroy, &
             SCO2AuxVarStrip, &
             SCO2SaltSolubility, &
+            SCO2SurfaceTension, &
             SCO2BrineSaturationPressure, &
             SCO2VaporPressureBrine, &
             SCO2BrineDensity, &
@@ -369,7 +370,7 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%Ql = UNINITIALIZED_DOUBLE
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
     auxvar%well%bh_p = UNINITIALIZED_DOUBLE
-    auxvar%well%pressure_bump = 0.d0 
+    auxvar%well%pressure_bump = 0.d0
   endif
 
 end subroutine SCO2AuxVarInit
