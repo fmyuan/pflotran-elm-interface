@@ -30,7 +30,7 @@ for k in range(nz):
     for j in range(ny):
         for i in range(nx):
             count += 1
-            archie_m[i+j*nx+k*nxXny] = 1.9#(1.9+0.001*count)
+            archie_m[i+j*nx+k*nxXny] = (1.9+0.001*count)
 f.create_dataset('archie_cementation_exponent',data=archie_m)
 
 #Archie's Saturation Exponent --> n
@@ -40,7 +40,7 @@ for k in range(nz):
     for j in range(ny):
         for i in range(nx):
             count += 1
-            archie_n[i+j*nx+k*nxXny] = 2.0#(2.0+0.001*count)
+            archie_n[i+j*nx+k*nxXny] = (2.0+0.001*count)
 f.create_dataset('archie_saturation_exponent',data=archie_n)
 
 #Archie's Tortuosity Constant --> a
@@ -50,7 +50,7 @@ for k in range(nz):
     for j in range(ny):
         for i in range(nx):
             count += 1
-            archie_a[i+j*nx+k*nxXny] = 1.0#(1.0+0.001*count)
+            archie_a[i+j*nx+k*nxXny] = (1.0+0.001*count)
 f.create_dataset('archie_tortuosity_constant',data=archie_a)
 
 iarray = np.arange(1,n+1,dtype=int)
