@@ -5,7 +5,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE HYDRATE
       OPTIONS
-#        RESTRICT_STATE_CHANGE
       /
     /
   /
@@ -173,7 +172,7 @@ FLOW_CONDITION well
     RATE mass_rate
   /
      ! liquid gas   energy
-  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
+  RATE 0.D0 0.D0 0.d0 -1.D-4 kg/s kg/s kg/s MW
   SYNC_TIMESTEP_WITH_UPDATE
 /
 
@@ -184,10 +183,12 @@ FLOW_CONDITION L
     LIQUID_PRESSURE DIRICHLET
     MASS_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
   /
   LIQUID_PRESSURE 15.d6
   MASS_FRACTION 2.d-3
   TEMPERATURE 1.d0
+  SALT_MASS_FRACTION 0.d0
 END
 #=========================== condition couplers ===============================
 # initial condition

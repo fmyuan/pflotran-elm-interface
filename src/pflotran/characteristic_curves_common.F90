@@ -101,6 +101,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFIGHCC2Verify
     procedure, public :: CapillaryPressure => SFIGHCC2CapillaryPressure
     procedure, public :: Saturation => SFIGHCC2Saturation
+    procedure, public :: GetAlpha_ => SFIGHCC2GetAlpha
   end type sat_func_IGHCC2_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Exp_Freezing_type
@@ -1069,6 +1070,20 @@ subroutine SFIGHCC2Init(this)
   this%analytical_derivative_available = PETSC_TRUE
 
 end subroutine SFIGHCC2Init
+
+! ************************************************************************** !
+
+function SFIGHCC2GetAlpha(this)
+
+  implicit none
+
+  class(sat_func_IGHCC2_type) :: this
+
+  PetscReal :: SFIGHCC2GetAlpha
+
+  SFIGHCC2GetAlpha = this%alpha
+
+end function SFIGHCC2GetAlpha
 
 ! ************************************************************************** !
 

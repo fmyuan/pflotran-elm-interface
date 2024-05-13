@@ -565,6 +565,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_module
 
   implicit none
@@ -597,7 +598,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: salt_solubility, x_salt_dissolved
   PetscReal :: drho_dp, drho_dT
   PetscReal :: visc_water, visc_brine, visc_a
-  PetscReal :: sl_temp, pva, pa
+  PetscReal :: sl_temp, pva
   PetscReal :: xmol_air_in_gas, xmol_water_in_gas
   PetscReal :: dkrl_dsatl
   PetscReal :: dkrg_dsatl
@@ -613,8 +614,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Tf_ice, T_temp
   PetscReal :: sigma, dP
   PetscReal :: sat_temp
+  PetscReal :: sg_min, Pc_entry
   PetscErrorCode :: ierr
   PetscReal, parameter :: epsilon = 1.d-14
+  PetscReal, parameter :: gravity = EARTH_GRAVITY
 
   ierr = 0
 
@@ -682,6 +685,18 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                 hydrate_fmw_comp(acid)
   hyd_auxvar%xmass(wid,hid) = 1.d0 - hyd_auxvar%xmass(acid,hid)
 
+  beta_gl = 1.d0
+  sg_min = 1.d-3
+  Pc_entry = 0.d0
+  select type(sf => characteristic_curves%saturation_function)
+   class is (sat_func_VG_STOMP_type)
+   class default
+     Pc_entry = (1.d0 / characteristic_curves% &
+     saturation_function%GetAlpha_())
+     sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+              (LIQUID_REFERENCE_DENSITY * gravity)))
+     sg_min = min(max(sg_min,1.d-4),1.d-3)
+  end select
 
   select case(global_auxvar%istate)
     case(L_STATE)
@@ -757,7 +772,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%xmass(wid,lid) = max(hyd_auxvar%xmass(wid,lid),0.d0)
 
       ! Populate all pressures, even though gas phase is not present.
-      hyd_auxvar%pres(gid) = hyd_auxvar%pres(lid)
+      hyd_auxvar%pres(gid) = hyd_auxvar%pres(lid) + Pc_entry/beta_gl
       hyd_auxvar%xmass(acid,gid) = 1.d0
 
       ! Update the liquid mole fractions
@@ -2127,6 +2142,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal, parameter :: eps_sl = 1.d-4
   PetscReal, parameter :: peta = 1.d-1
+  PetscReal, parameter :: gravity = EARTH_GRAVITY
 
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ha_epsilon
@@ -2198,6 +2214,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                  xsl, sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  beta_gl = 1.d0
 
   ! Max effective trapped gas saturation
   ! MAN: need to check how this works with Pc function Webb extensions
@@ -2209,11 +2226,13 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   sg_min = 1.d-3
   Pc_entry = 0.d0
   select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_vg_type)
-      sg_min = 1.0d1**(-3.d0+log10(1.d0/ &
-               characteristic_curves%saturation_function%GetAlpha_()))
-      sg_min = min(max(sg_min,1.d-4),1.d-3)
-    class default
+   class is (sat_func_VG_STOMP_type)
+   class default
+     Pc_entry = (1.d0 / characteristic_curves% &
+     saturation_function%GetAlpha_())
+     sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+              (LIQUID_REFERENCE_DENSITY * gravity)))
+     sg_min = min(max(sg_min,1.d-4),1.d-3)
   end select
 
   !MAN: why is this here:
@@ -2654,13 +2673,13 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
-        elseif (hyd_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = L_STATE
-        elseif (hyd_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = G_STATE
-        else
+        ! elseif (hyd_auxvar%sat(lid) > 0.d0) then
+        !   istatechng = PETSC_TRUE
+        !   global_auxvar%istate = L_STATE
+        ! elseif (hyd_auxvar%sat(gid) > 0.d0) then
+        !   istatechng = PETSC_TRUE
+        !   global_auxvar%istate = G_STATE
+        ! else
           ! istatechng = PETSC_TRUE
           ! global_auxvar%istate = H_STATE
         endif
@@ -4611,7 +4630,11 @@ subroutine HydrateIceSalinityOffset(xmass,dTd)
   PetscReal, intent(in) :: xmass
   PetscReal, intent(out) :: dTd
 
-  dTd = -0.0575d0*(xmass*1000) + 0.000112d0*(xmass*1000)**2
+  if (xmass == 0.d0) then
+    dTd = 0.d0
+  else
+    dTd = -0.0575d0*(xmass*1000) + 0.000112d0*(xmass*1000)**2
+  endif
 
 end subroutine HydrateIceSalinityOffset
 
