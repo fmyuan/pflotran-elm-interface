@@ -1115,19 +1115,15 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         case(SCO2_LIQUID_GAS_STATE)
           Pc_entry = 0.d0
-          !select type(sf => characteristic_curves%saturation_function)
-          ! class is (sat_func_vg_type)
-          !   Pc_entry = (1.d0 / characteristic_curves% &
-          !               saturation_function%GetAlpha_())
-          ! class is (sat_func_VG_STOMP_type)
-          !   Pc_entry = characteristic_curves% &
-          !              saturation_function%GetAlpha_() * !&
-          !              LIQUID_REFERENCE_DENSITY * EARTH_GRAVITY
-          ! class is (sat_func_BC_SPE11_type)
-          !   Pc_entry = (1.d0 / characteristic_curves% &
-          !        saturation_function%GetAlpha_())
-          ! class default
-          !end select
+          select type(sf => characteristic_curves%saturation_function)
+            class is (sat_func_VG_STOMP_type)
+              ! Pc_entry = characteristic_curves% &
+              !          saturation_function%GetAlpha_() * &
+              !          LIQUID_REFERENCE_DENSITY * gravity
+            class default
+              Pc_entry = (1.d0 / characteristic_curves% &
+                         saturation_function%GetAlpha_())
+          end select
 
           !Limit changes in pressure
           dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index) - &
@@ -1149,8 +1145,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) > &
              5.d8) dX_p(gas_pressure_index) = 5.d8 - X_p(gas_pressure_index)
           select type(sf => characteristic_curves%saturation_function)
-            class is (sat_func_vg_type)
-              Pc_max = characteristic_curves%saturation_function%Pcmax
             class is (sat_func_VG_STOMP_type)
               Pc_max = characteristic_curves%saturation_function%Pcmax * &
                          LIQUID_REFERENCE_DENSITY * gravity
@@ -1254,7 +1248,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                  sco2_auxvar%pres(option%gas_phase))
             endif
             dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
-            sco2_auxvar%well%pressure_bump = 0.d0
+            ! sco2_auxvar%well%pressure_bump = 0.d0
           endif
         endif
         dX_p2(well_index) = dX_p(well_index)
@@ -1610,6 +1604,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscMPIInt :: mpi_int
   PetscBool, allocatable :: flags(:)
   PetscBool :: rho_flag
+  PetscBool :: converged_well
   character(len=MAXSTRINGLENGTH) :: string
   character(len=20), allocatable :: state_string(:)
   character(len=17), allocatable :: dof_string(:,:)
@@ -1674,6 +1669,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     converged_scaled_residual_cell = ZERO_INTEGER
 
     if (sco2_stomp_convergence) then
+      converged_well = PETSC_TRUE
       do local_id = 1, grid%nlmax
         offset = (local_id-1)*option%nflowdof
         ghosted_id = grid%nL2G(local_id)
@@ -1707,6 +1703,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             elseif (idof == FIVE_INTEGER) then
               ! There is a fully implicit well, in DOF 5
               ! Just check update
+              if (dabs(update) > 0.d0) then
+                update = update - sco2_auxvar%well%pressure_bump
+              endif
               res_scaled = dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon)
               ! res_scaled = min(dabs(update) / &
@@ -1723,6 +1722,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
             ! Just check update
+            if (dabs(update) > 0.d0) then
+              update = update - sco2_auxvar%well%pressure_bump
+            endif
             res_scaled = dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon)
             ! res_scaled = min(dabs(update) / &
@@ -1927,8 +1929,14 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           endif
 
           if (.not.(converged_absolute .or. converged_scaled)) then
-           converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-           converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+            if (idof == FIVE_INTEGER .or. &
+                (.not. sco2_thermal .and. idof == FOUR_INTEGER)) then
+                 ! Coupled well DOF
+                 converged_well = PETSC_FALSE
+            else
+             converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+             converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+            endif
           endif
         enddo
       enddo
@@ -2004,9 +2012,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       reshape(this%converged_flag,(/MAX_DOF*sco2_max_states* &
               MAX_INDEX/))
 
-    ! flags(MAX_DOF*sco2_max_states*MAX_INDEX+1) =&
-    !   .not.sco2_high_temp_ts_cut
-
     mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+1
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
@@ -2034,6 +2039,13 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     do itol = 1, MAX_INDEX
       do istate = 1, sco2_max_states
         do idof = 1, option%nflowdof
+          if (idof == FIVE_INTEGER .or. &
+              (.not. sco2_thermal .and. idof == FOUR_INTEGER)) then
+            if (.not. converged_well) then
+              option%convergence = CONVERGENCE_KEEP_ITERATING
+            endif
+            cycle
+          endif
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
             if (this%logging_verbosity > 0) then

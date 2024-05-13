@@ -2395,7 +2395,7 @@ subroutine GridPrintExtents(grid,option)
   type(grid_type) :: grid
   type(option_type) :: option
 
-  call PrintMsg(option,new_line('a')//'Extent of Gridded Domain')
+  call PrintMsg(option,NL//'Extent of Gridded Domain')
   option%io_buffer = ' X: ' // StringWrite(grid%x_min_global) // ' - ' // &
                                StringWrite(grid%x_max_global)
   call PrintMsg(option)
@@ -2428,7 +2428,7 @@ subroutine GridPrintSize(grid,option)
   PetscInt :: int_array(2)
   PetscErrorCode :: ierr
 
-  call PrintMsg(option,new_line('a')//'Size of Gridded Domain')
+  call PrintMsg(option,NL//'Size of Gridded Domain')
   option%io_buffer = ' Number of grid cells: ' // StringWrite(grid%nmax)
   call PrintMsg(option)
   if (option%comm%size > 1) then

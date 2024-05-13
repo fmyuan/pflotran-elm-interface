@@ -551,6 +551,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
             call InputErrorMsg(input,option,keyword,error_string)
+          case('UNSATURATED_EXTENSION')
+            sf%extended = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'Brooks-Corey saturation function',option)
@@ -997,7 +999,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Srg-Sr)
     ! Call constructor
     if (wipp_krp /= 0) then ! WIPP invariants flagged by wipp_krp
-      if (wipp_krp == 12) then 
+      if (wipp_krp == 12) then
         ! wipp_s_min replaces Sr, wipp_s_effmin replaces Slj
         sf_swap => SFWIPPctor(wipp_krp, wipp_kpc, wipp_s_min, Srg, wipp_expon, &
                               wipp_pct_ignore, wipp_pct_alpha, wipp_pct_expon, &
@@ -1029,6 +1031,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
+  endif
+
+  if (saturation_function%extended) then
+    call saturation_function%SetupExtension(option,error_string)
   endif
 
   select type(sf => saturation_function)
@@ -1067,7 +1073,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       sf_swap => SFPCHIPCtorArray(spline, sf_dataset%time_storage%times, &
                                   sf_dataset%rbuffer)
     class default ! Splines from any function
-      if (.not. associated(sf_swap)) then 
+      if (.not. associated(sf_swap)) then
         sf_swap => SFPCHIPCtorFunction(spline, saturation_function)
       else ! If swap space is occupied
         sf_swap2 => SFPCHIPCtorFunction(spline, sf_swap)
@@ -1961,7 +1967,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
       ! Note "time" is saturation and "rbuffer" is Kr
       rpf_swap => RPFPCHIPCtorArray(spline, rpf_dataset%time_storage%times, &
                                     rpf_dataset%rbuffer)
-    class default ! Splines from any function 
+    class default ! Splines from any function
       if (.not. associated(rpf_swap)) then
         rpf_swap => RPFPCHIPCtorFunction(spline, permeability_function)
       else ! If 1st swap space is occupied, use 2nd, then redirect 1st

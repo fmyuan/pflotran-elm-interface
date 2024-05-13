@@ -3629,7 +3629,7 @@ subroutine RStep(guess,rt_auxvar,global_auxvar,material_auxvar, &
   print_rank = Uninitialized(reaction%io_rank) .or. &
                reaction%io_rank == option%myrank
 
-   value_is_initially_small = PETSC_FALSE
+  value_is_initially_small = PETSC_FALSE
   initial_small_value = UNINITIALIZED_DOUBLE
   do i = 1, reaction%naqcomp
     if (rt_auxvar%total(i,1) <= 1.d-40) then
@@ -3646,7 +3646,8 @@ subroutine RStep(guess,rt_auxvar,global_auxvar,material_auxvar, &
     endif
   enddo
   if (reaction%use_total_as_guess) then
-    guess(:) = rt_auxvar%total(:,1)
+    guess(1:reaction%naqcomp) = rt_auxvar%total(:,1) / &
+                                global_auxvar%den_kg(1)*1.d3
   endif
 
   ! Print the important inputs if needed

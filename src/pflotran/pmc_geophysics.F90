@@ -250,7 +250,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   write(this%option%io_buffer,'(" Step ",i6," Time= ",1pe12.5," [",a,"]", &
                               &a,"  linear = ",i5," [",i10,"]")') &
        timestepper%steps, timestepper%target_time/output_option%tconv, &
-       trim(output_option%tunit),new_line('a'), &
+       trim(output_option%tunit),NL, &
        linear_iterations_in_step,timestepper%cumulative_linear_iterations
   call PrintMsg(this%option)
 

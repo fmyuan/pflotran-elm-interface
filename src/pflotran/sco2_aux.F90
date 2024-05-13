@@ -217,9 +217,11 @@ module SCO2_Aux_module
             SCO2AuxVarDestroy, &
             SCO2AuxVarStrip, &
             SCO2SaltSolubility, &
+            SCO2SurfaceTension, &
             SCO2BrineSaturationPressure, &
             SCO2VaporPressureBrine, &
             SCO2BrineDensity, &
+            SCO2BrineEnthalpy, &
             SCO2Henry, &
             SCO2SaltDensity, &
             SCO2Equilibrate, &
@@ -229,7 +231,8 @@ module SCO2_Aux_module
             SCO2ViscosityCO2, &
             SCO2ViscosityBrine, &
             SCO2ViscosityLiquid, &
-            SCO2ViscosityGas
+            SCO2ViscosityGas, &
+            SCO2EnthalpyCompositeLiquid
 
 
 contains
@@ -453,10 +456,11 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   PetscReal :: xco2g, xwg, xco2l, xsl, xwl, xmolco2g, xmolwg, xmolco2l, &
                xmolsl, xmolwl, salt_mass
   PetscReal :: sigma, beta_gl
-  PetscReal :: Pv, Psat, Prvap, Pco2
+  PetscReal :: Pv, Psat, Prvap, Pco2, Pc_entry
   PetscReal :: dpl, dpg, dpco2, dxco2, dxs, dsg, dt, dp_well
   PetscReal :: cell_pressure, sgt_max
   PetscInt :: idof, nwelldof
+  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
 
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pbid, spid, tgid
@@ -499,6 +503,17 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
   sgt_max = characteristic_curves%saturation_function%Sgt_max
+
+  Pc_entry = 0.d0
+  select type(sf => characteristic_curves%saturation_function)
+   class is (sat_func_VG_STOMP_type)
+    !  Pc_entry = characteristic_curves% &
+    !             saturation_function%GetAlpha_() * &
+    !             LIQUID_REFERENCE_DENSITY * gravity
+   class default
+     Pc_entry = (1.d0 / characteristic_curves% &
+                saturation_function%GetAlpha_())
+  end select
 
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
@@ -702,6 +717,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   PetscReal :: den_mol, den_co2, den_brine, den_liq
   PetscReal :: drho_dP, drho_dT
   PetscErrorCode :: ierr
+  PetscReal :: dpc_dsatl, dsat_dpres
   ! Phase ID's
   PetscInt :: lid, gid, pid, pwid, pbid, spid, tgid
   ! Component ID's
@@ -709,10 +725,11 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   ! Other ID's
   PetscInt :: cpid, vpid, rvpid
   PetscReal :: state_change_threshold
-
   PetscInt :: old_state, new_state
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
   PetscBool :: istatechng
+  PetscReal :: capillary_head
+  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
 
   state_change_threshold = 0.d0
 
@@ -759,25 +776,21 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   !This also probably does not need to be computed over and over
   sg_min = 1.d-3
   Pc_entry = 0.d0
-  !select type(sf => characteristic_curves%saturation_function)
-  !  class is (sat_func_vg_type)
-  !    Pc_entry = (1.d0 / characteristic_curves% &
-  !                       saturation_function%GetAlpha_())
-  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
-  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
-  !  class is (sat_func_VG_STOMP_type)
-  !    Pc_entry = characteristic_curves% &
-  !                      saturation_function%GetAlpha_() * &
-  !                      LIQUID_REFERENCE_DENSITY * EARTH_GRAVITY
-  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
-  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
-  !  class is (sat_func_BC_SPE11_type)
-  !    Pc_entry = (1.d0 / characteristic_curves% &
-  !                saturation_function%GetAlpha_())
-  !    sg_min = 1.0d1**(-3.d0+log10(Pc_entry))
-  !    sg_min = min(max(sg_min,1.d-4),1.d-3)
-  !  class default
-  !end select
+  select type(sf => characteristic_curves%saturation_function)
+   class is (sat_func_VG_STOMP_type)
+    !  Pc_entry = characteristic_curves% &
+    !                    saturation_function%GetAlpha_() * &
+    !                    LIQUID_REFERENCE_DENSITY * gravity
+    !  sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+    !           (LIQUID_REFERENCE_DENSITY * gravity)))
+    !  sg_min = min(max(sg_min,1.d-4),1.d-3)
+   class default
+     Pc_entry = (1.d0 / characteristic_curves% &
+     saturation_function%GetAlpha_())
+     sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+              (LIQUID_REFERENCE_DENSITY * gravity)))
+     sg_min = min(max(sg_min,1.d-4),1.d-3)
+  end select
 
 
   old_state = global_auxvar%istate
@@ -819,10 +832,15 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
           sl_temp = 1.d0 - min(sg_est, 1.d-1)
           sgt_temp = 0.d0
           !MAN: sco2_auxvar%sat(tgid) should be 0
-          call SCO2PcHysteresis(characteristic_curves, &
-                                       sl_temp, &
-                                       sco2_auxvar%sat(tgid), &
-                                       beta_gl, Pc, option)
+          call characteristic_curves%saturation_function% &
+                            CapillaryPressure(sl_temp, Pc, dpc_dsatl, &
+                                              option, sco2_auxvar%sat(tgid), &
+                                              sco2_auxvar%sl_min)
+          select type(sf => characteristic_curves%saturation_function)
+            class is (sat_func_VG_STOMP_type)
+              ! Pc is the capillary head
+              Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+          end select
           Pc = min(Pc,Pc_entry / beta_gl + 1.d5)
 
           ! State has changed, so update state and one primary variable
@@ -861,10 +879,15 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                                        xsl, sigma)
         beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
         sgt_temp = 0.d0
-        call SCO2PcHysteresis(characteristic_curves, &
-                                     sco2_auxvar%sat(lid), &
-                                     sco2_auxvar%sat(tgid), &
-                                     beta_gl, Pc, option)
+        call characteristic_curves%saturation_function% &
+                            CapillaryPressure(sco2_auxvar%sat(lid), Pc, dpc_dsatl, &
+                                              option, sco2_auxvar%sat(tgid), &
+                                              sco2_auxvar%sl_min)
+        select type(sf => characteristic_curves%saturation_function)
+          class is (sat_func_VG_STOMP_type)
+            ! Pc is the capillary head
+            Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+        end select
         sco2_auxvar%pres(lid) = sco2_auxvar%pres(gid) - &
                                 Pc
       endif
@@ -901,10 +924,17 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
       elseif (((Sgt - sco2_auxvar%sg_trapped) > epsilon) .or. &
               ((Sgt - sgt_max) > epsilon)) then
         ! Trapped gas saturation is increasing or exceeds max trapped gas sat
-        sgt_temp = sco2_auxvar%sg_trapped
-        call SCO2PcHysteresis(characteristic_curves, &
-                                sco2_auxvar%sat(lid), Sgt_temp, &
-                                beta_gl, Pc, option)
+        Sgt_temp = sco2_auxvar%sg_trapped
+        call characteristic_curves%saturation_function% &
+                            CapillaryPressure(sco2_auxvar%sat(lid), Pc, &
+                                              dpc_dsatl, option, &
+                                              sco2_auxvar%sat(tgid), &
+                                              sco2_auxvar%sl_min)
+        select type(sf => characteristic_curves%saturation_function)
+          class is (sat_func_VG_STOMP_type)
+            ! Pc is the capillary head
+            Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+        end select
         Pc = min(Pc,(Pc_entry / beta_gl) + 1.d5)
         sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + Pc
         istatechng = PETSC_TRUE
@@ -918,13 +948,19 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
     case(SCO2_LIQUID_GAS_STATE)
 
       ! Compute Saturation including Hysteresis
-      call SCO2SatHysteresis(characteristic_curves, &
-                                    sco2_auxvar%pres(cpid), &
-                                    sco2_auxvar%sl_min, &
-                                    beta_gl, sco2_auxvar%den_kg(lid), &
-                                    sl_temp, &
-                                    sgt_temp, &
-                                    option)
+      select type(sf => characteristic_curves%saturation_function)
+        class is (sat_func_VG_STOMP_type)
+          capillary_head = max(beta_gl * sco2_auxvar%pres(cpid) / &
+                           (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
+          call characteristic_curves%saturation_function% &
+                        Saturation(capillary_head,sl_temp,dsat_dpres,option, &
+                        sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+        class default
+          call characteristic_curves%saturation_function% &
+                       Saturation(sco2_auxvar%pres(cpid),sl_temp,dsat_dpres, &
+                              option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+      end select
+      sgt_temp = sco2_auxvar%sat(tgid)
       sl_temp = sl_temp + sgt_temp
       if (dabs(1.d0 - sl_temp) < epsilon) then
 
@@ -1081,6 +1117,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_module
   use Fracture_module
 
@@ -1115,7 +1152,11 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: visc_water, visc_brine, visc_co2
   PetscReal :: sl_temp, pva
   PetscReal :: H_steam, U_steam
+  PetscReal :: dpc_dsatl, dsat_dpres
   PetscErrorCode :: ierr
+  PetscReal :: capillary_head
+  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
+  PetscReal :: sg_min, Pc_entry
 
   ! Unused
   PetscReal :: dpor_dp, drho_dp, drho_dT
@@ -1170,6 +1211,27 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
+  beta_gl = 1.d0
+
+  !Compute capillary entry pressure.
+  sg_min = 1.d-3
+  Pc_entry = 0.d0
+  select type(sf => characteristic_curves%saturation_function)
+   class is (sat_func_VG_STOMP_type)
+    !  Pc_entry = characteristic_curves% &
+    !                    saturation_function%GetAlpha_() * &
+    !                    LIQUID_REFERENCE_DENSITY * gravity
+    !  sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+    !           (LIQUID_REFERENCE_DENSITY * gravity)))
+    !  sg_min = min(max(sg_min,1.d-4),1.d-3)
+   class default
+     Pc_entry = (1.d0 / characteristic_curves% &
+     saturation_function%GetAlpha_())
+     sg_min = 1.0d1**(-3.d0+log10(Pc_entry/ &
+              (LIQUID_REFERENCE_DENSITY * gravity)))
+     sg_min = min(max(sg_min,1.d-4),1.d-3)
+  end select
+
   select case(global_auxvar%istate)
     case(SCO2_LIQUID_STATE)
       ! State: Saturated system without trapped gas
@@ -1216,6 +1278,9 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                             den_steam_kg,option)
       pva = max(sco2_auxvar%pres(lid) - sco2_auxvar%pres(rvpid), 0.d0)
       xsl = x_salt_dissolved
+      call SCO2SurfaceTension(sco2_auxvar%temp, &
+                                     x_salt_dissolved, sigma)
+      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
                            sco2_auxvar%pres(co2_pressure_id), &
                            sco2_auxvar%pres(vpid), &
@@ -1235,7 +1300,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%sat(gid) = 0.d0
 
       ! Populate all pressures, even though gas phase is not present.
-      sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid)
+      sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + Pc_entry/beta_gl
       sco2_auxvar%xmass(co2_id,gid) = 1.d0
 
       ! Update the liquid mole fractions
@@ -1278,10 +1343,18 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      x_salt_dissolved, sigma)
       beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
-      call SCO2PcHysteresis(characteristic_curves, &
-                                   sco2_auxvar%sat(lid), &
-                                   sco2_auxvar%sat(tgid), &
-                                   beta_gl,sco2_auxvar%pres(cpid), option)
+      call characteristic_curves%saturation_function% &
+                            CapillaryPressure(sco2_auxvar%sat(lid), &
+                                              sco2_auxvar%pres(cpid), &
+                                              dpc_dsatl, option, &
+                                              sco2_auxvar%sat(tgid), &
+                                              sco2_auxvar%sl_min)
+      select type(sf => characteristic_curves%saturation_function)
+        class is (sat_func_VG_STOMP_type)
+          ! Pc is the capillary head
+        sco2_auxvar%pres(cpid) = sco2_auxvar%pres(cpid) * &
+                                 LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+      end select
       sco2_auxvar%pres(cpid) = sco2_auxvar%pres(cpid) / beta_gl
 
 
@@ -1546,13 +1619,18 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
   if (global_auxvar%istate /= SCO2_GAS_STATE) then
-    call SCO2SatHysteresis(characteristic_curves, &
-                                    sco2_auxvar%pres(cpid), &
-                                    sco2_auxvar%sl_min, &
-                                    beta_gl, sco2_auxvar%den_kg(lid), &
-                                    sl_temp, &
-                                    sco2_auxvar%sat(tgid), &
-                                    option)
+    select type(sf => characteristic_curves%saturation_function)
+      class is (sat_func_VG_STOMP_type)
+        capillary_head = max(beta_gl * sco2_auxvar%pres(cpid) / &
+                         (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
+        call characteristic_curves%saturation_function% &
+                      Saturation(capillary_head,sl_temp,dsat_dpres,option, &
+                          sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+      class default
+        call characteristic_curves%saturation_function% &
+                      Saturation(sco2_auxvar%pres(cpid),sl_temp,dsat_dpres, &
+                          option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+    end select
     sco2_auxvar%sat(lid) = min(max(0.d0,sl_temp),1.d0)
     sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid)
   endif
@@ -1566,8 +1644,10 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(lid), &
                                 dkrl_dsatl,option)
   sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
+  sl_temp = sco2_auxvar%sat(lid)+sco2_auxvar%sat(tgid)
   call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(gid), &
+           RelativePermeability(sl_temp, &
+                                sco2_auxvar%kr(gid), &
                                 dkrg_dsatl,option)
 
   ! Convert to molar density: liquid
@@ -3095,120 +3175,122 @@ end subroutine SCO2Tortuosity
 
 ! ************************************************************************** !
 
-subroutine SCO2SatHysteresis(characteristic_curves, Pc, Sl_min, &
-                                    beta_gl,rho_l, Sl, Sgt, option)
-  !
-  ! Compute saturation as a function of Pc including hysteretic effects.
-  ! I believe this only works for monontonic Pc functions.
-  !
-  ! Author: Michael Nole
-  ! Date: 01/26/24
-  !
+! subroutine SCO2SatHysteresis(characteristic_curves, Pc, Sl_min, &
+!                                     beta_gl,rho_l, Sl, Sgt, option)
+!   !
+!   ! Compute saturation as a function of Pc including hysteretic effects.
+!   ! I believe this only works for monontonic Pc functions.
+!   !
+!   ! Author: Michael Nole
+!   ! Date: 01/26/24
+!   !
 
-  use Option_module
-  use Characteristic_Curves_module
-  use Characteristic_Curves_Common_module
+!   use Option_module
+!   use Characteristic_Curves_module
+!   use Characteristic_Curves_Common_module
 
-  implicit none
+!   implicit none
 
-  class(characteristic_curves_type), intent(in) :: characteristic_curves
-  PetscReal, intent(in) :: Pc
-  PetscReal, intent(in) :: Sl_min
-  PetscReal, intent(in) :: beta_gl
-  PetscReal, intent(in) :: rho_l
-  PetscReal, intent(out) :: Sl
-  PetscReal, intent(inout) :: Sgt
-  type(option_type) :: option
+!   class(characteristic_curves_type), intent(in) :: characteristic_curves
+!   PetscReal, intent(in) :: Pc
+!   PetscReal, intent(in) :: Sl_min
+!   PetscReal, intent(in) :: beta_gl
+!   PetscReal, intent(in) :: rho_l
+!   PetscReal, intent(out) :: Sl
+!   PetscReal, intent(inout) :: Sgt
+!   type(option_type) :: option
 
-  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
+!   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
-  PetscReal :: dsat_dpres
-  PetscReal :: R
-  PetscReal :: Sgt_max_bar, Sl_min_bar, Sgr_bar, Sgt_bar, Se
-  PetscReal :: Sgt_max, Srl
-  PetscReal :: capillary_head
+!   PetscReal :: dsat_dpres
+!   PetscReal :: R
+!   PetscReal :: Sgt_max_bar, Sl_min_bar, Sgr_bar, Sgt_bar, Se
+!   PetscReal :: Sgt_max, Srl
+!   PetscReal :: capillary_head
 
-  Sgt_max = characteristic_curves%saturation_function%sgt_max
-  Srl = characteristic_curves%saturation_function%Sr
+!   Sgt_max = characteristic_curves%saturation_function%sgt_max
+!   Srl = characteristic_curves%saturation_function%Sr
 
-  select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_VG_STOMP_type)
-      capillary_head = max(beta_gl * Pc / &
-                       (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
-      call characteristic_curves%saturation_function% &
-                    Saturation(capillary_head,Sl,dsat_dpres,option)
-    class default
-      call characteristic_curves%saturation_function% &
-                    Saturation(Pc,Sl,dsat_dpres,option)
-  end select
+!   select type(sf => characteristic_curves%saturation_function)
+!     class is (sat_func_VG_STOMP_type)
+!       capillary_head = max(beta_gl * Pc / &
+!                        (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
+!       call characteristic_curves%saturation_function% &
+!                     Saturation(capillary_head,Sl,dsat_dpres,option)
+!     class default
+!       call characteristic_curves%saturation_function% &
+!                     Saturation(Pc,Sl,dsat_dpres,option)
+!   end select
 
-  if (Uninitialized(Sgt_max)) return
+!   if (Uninitialized(Sgt_max)) return
 
-  ! Check if we're on a scanning path
-  if (Sl > Sl_min .and. Sgt_max > 0.d0) then
-    ! Hysteresis adjustment: Update Sl and Sgt
-    Sgt_max_bar = Sgt_max / (1.d0 - Srl)
-    Sl_min_bar = (Sl_min - Srl) / (1.d0 - Srl)
-    R = 1.d0 / (Sgt_max_bar) - 1.d0
-    Sgr_bar = (1.d0 - Sl_min_bar) / (1.d0 + R * (1.d0 - Sl_min_bar))
+!   ! Check if we're on a scanning path
+!   if (Sl > Sl_min .and. Sgt_max > 0.d0) then
+!     ! Hysteresis adjustment: Update Sl and Sgt
+!     Sgt_max_bar = Sgt_max / (1.d0 - Srl)
+!     Sl_min_bar = (Sl_min - Srl) / (1.d0 - Srl)
+!     R = 1.d0 / (Sgt_max_bar) - 1.d0
+!     Sgr_bar = (1.d0 - Sl_min_bar) / (1.d0 + R * (1.d0 - Sl_min_bar))
 
-    Se = (Sl - Srl) / (1.d0 - Srl)
-    Sgt_bar = Sgr_bar - (1.d0 - Se) / &
-              (1.d0 + R * (1.d0 - Se))
+!     Se = (Sl - Srl) / (1.d0 - Srl)
+!     Sgt_bar = Sgr_bar - (1.d0 - Se) / &
+!               (1.d0 + R * (1.d0 - Se))
 
-    Sgt = Sgt_bar * (1.d0 - Srl)
-    Sl = Sl - Sgt
-  else
-    Sgt = 0.d0
-  endif
+!     Sgt = Sgt_bar * (1.d0 - Srl)
+!     Sl = Sl - Sgt
+!   else
+!     Sgt = 0.d0
+!   endif
 
-  if (Sgt > Sgt_max) Sgt = Sgt_max
+!   if (Sgt > Sgt_max) Sgt = Sgt_max
 
-end subroutine SCO2SatHysteresis
+! end subroutine SCO2SatHysteresis
 
 ! ************************************************************************** !
 
-subroutine SCO2PcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
-                                   Pc, option)
-  !
-  ! Compute Pc as a function of saturation including trapped gas.
-  ! I believe this only works for monontonic Pc functions.
-  !
-  ! Author: Michael Nole
-  ! Date: 01/26/24
-  !
+! subroutine SCO2PcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
+!                                    Pc, option)
+!   !
+!   ! Compute Pc as a function of saturation including trapped gas.
+!   ! I believe this only works for monontonic Pc functions.
+!   !
+!   ! Author: Michael Nole
+!   ! Date: 01/26/24
+!   !
 
-  use Option_module
-  use Characteristic_Curves_module
-  use Characteristic_Curves_Common_module
+!   use Option_module
+!   use Characteristic_Curves_module
+!   use Characteristic_Curves_Common_module
 
-  implicit none
+!   implicit none
 
-  class(characteristic_curves_type), intent(in) :: characteristic_curves
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(in) :: Sgt
-  PetscReal, intent(in) :: beta_gl
-  PetscReal, intent(out) :: Pc
-  type(option_type) :: option
+!   class(characteristic_curves_type), intent(in) :: characteristic_curves
+!   PetscReal, intent(in) :: Sl
+!   PetscReal, intent(in) :: Sgt
+!   PetscReal, intent(in) :: beta_gl
+!   PetscReal, intent(out) :: Pc
+!   type(option_type) :: option
 
-  PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
-  PetscReal :: dpc_dsatl
-  PetscReal :: Sl_eff
+!   PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
+!   PetscReal :: dpc_dsatl
+!   PetscReal :: Sl_eff
 
-  ! Add trapped gas to the liquid saturation before sending into the Pc function
-  Sl_eff = Sl + Sgt
+!   ! Add trapped gas to the liquid saturation before sending into the Pc
+!   ! function
+!   Sl_eff = Sl + Sgt
 
-  call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
-                                                            dpc_dsatl,option)
-  select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_VG_STOMP_type)
-      ! Pc is the capillary head
-      Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
-    class default
-  end select
+!   call characteristic_curves%saturation_function% &
+!                              CapillaryPressure(Sl_eff, Pc, dpc_dsatl,option, &
+!                                                Sgt)
+!   select type(sf => characteristic_curves%saturation_function)
+!     class is (sat_func_VG_STOMP_type)
+!       ! Pc is the capillary head
+!       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
+!     class default
+!   end select
 
 
-end subroutine SCO2PcHysteresis
+! end subroutine SCO2PcHysteresis
 
 ! ************************************************************************** !
 

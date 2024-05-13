@@ -2913,9 +2913,9 @@ subroutine RealizationCheckConsistency(r1,r2)
   o1 => r1%option
   o2 => r2%option
 
-  s = new_line('a') // &
+  s = NL // &
       'Checking consistency of outer and prerequisite realizations:' // &
-      new_line('a')
+      NL
   call PrintMsg(o1,s)
 
   error_found = PETSC_FALSE

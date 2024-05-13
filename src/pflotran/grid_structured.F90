@@ -1357,7 +1357,7 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   call VecRestoreArrayF90(volume,volume_p,ierr);CHKERRQ(ierr)
 
   if (option%comm%size > 1 .and. option%comm%size <= 16) then
-    call PrintMsg(option,new_line('a')//'Process Decomposition')
+    call PrintMsg(option,NL//'Process Decomposition')
     option%io_buffer = 'rank=' // StringWrite(option%myrank) // &
       ', nlmax= ' // StringWrite(structured_grid%nlmax) // &
       ', nlxyz= ' // &

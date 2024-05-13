@@ -646,7 +646,7 @@ recursive subroutine FactoryForwardPrerequisite(outer_simulation)
     endif
   endif
 
-  call driver%PrintMsg(new_line('a') // &
+  call driver%PrintMsg(NL // &
     'Beginning prerequisite forward simulation: ' // &
     trim(outer_simulation%prerequisite))
 
@@ -698,10 +698,10 @@ recursive subroutine FactoryForwardPrerequisite(outer_simulation)
       outer_simulation%realization%patch%characteristic_curves_array
   endif
 
-  call driver%PrintMsg(new_line('a') // &
+  call driver%PrintMsg(NL // &
     'End of prerequisite forward simulation. The prerequisite solution &
     &may be found in "' // trim(outer_option%restart_filename) // &
-    '".' // new_line('a'))
+    '".' // NL)
 
 end subroutine FactoryForwardPrerequisite
 
