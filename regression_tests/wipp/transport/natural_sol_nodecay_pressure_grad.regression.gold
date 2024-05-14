@@ -49,10 +49,10 @@
      Mean:   1.1005653261170E-06
         3:   2.8320270897882E-07
 -- CONCENTRATION: Mnrl. Conc. AM241L --
-      Max:   0.0000000000000E+00
+      Max:   1.2924697071141E-26
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
-        3:   0.0000000000000E+00
+     Mean:   2.5849394142282E-27
+        3:   1.2924697071141E-26
 -- CONCENTRATION: Mnrl. Conc. PU239L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -69,10 +69,10 @@
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. AM241L --
-      Max:   0.0000000000000E+00
+      Max:   1.1158277171516E-30
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
-        3:   0.0000000000000E+00
+     Mean:   2.2316554343032E-31
+        3:   1.1158277171516E-30
 -- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -84,7 +84,7 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   2.0179720004307E-03
+   Time (seconds):   2.1836549999534E-03
    Time Steps:            6
    Newton Iterations:            7
    Linear Solver Iterations:            7
@@ -92,10 +92,10 @@
    Solution 2-Norm:   2.2472572230347E+06
    Residual 2-Norm:   4.0645014345601E-16
 -- SOLUTION: Transport --
-   Time (seconds):   1.1895179995918E-03
+   Time (seconds):   1.2512949998609E-03
    Time Steps:            6
    Newton Iterations:            6
    Linear Solver Iterations:            6
    Time Step Cuts:            0
    Solution 2-Norm:   1.2493630661838E-06
-   Residual 2-Norm:   1.6352009739640E-25
+   Residual 2-Norm:   1.6352009678749E-25
