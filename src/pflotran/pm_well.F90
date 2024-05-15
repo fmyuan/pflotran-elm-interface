@@ -135,6 +135,8 @@ module PM_Well_class
     PetscReal, pointer :: dz(:)
     ! reservoir cell volume [m3]
     PetscReal, pointer :: volume(:)
+    ! temp array
+    PetscReal, pointer :: temp(:,:)
   end type
 
   type :: well_type
@@ -642,6 +644,7 @@ subroutine PMWellResCreate(reservoir)
   nullify(reservoir%dy)
   nullify(reservoir%dz)
   nullify(reservoir%volume)
+  nullify(reservoir%temp)
 
 end subroutine PMWellResCreate
 
@@ -2985,6 +2988,7 @@ subroutine PMWellInitRes(reservoir,nsegments,idof)
   allocate(reservoir%dy(nsegments))
   allocate(reservoir%dz(nsegments))
   allocate(reservoir%volume(nsegments))
+  allocate(reservoir%temp(nsegments,20))
 
   allocate(reservoir%aqueous_conc(idof,nsegments))
   allocate(reservoir%aqueous_mass(idof,nsegments))
@@ -3397,6 +3401,7 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   this%reservoir%dz = -1.d20
   this%reservoir%aqueous_conc = -1.d20
   this%reservoir%aqueous_mass = -1.d20
+  this%reservoir%temp = 1.d-20
 
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
@@ -3418,36 +3423,66 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     material_auxvar => &
       this%realization%patch%aux%material%auxvars(ghosted_id)
 
-    this%reservoir%p_l(k) = wippflo_auxvar%pres(option%liquid_phase)
-    this%reservoir%p_g(k) = wippflo_auxvar%pres(option%gas_phase)
-    this%reservoir%s_l(k) = wippflo_auxvar%sat(option%liquid_phase)
-    this%reservoir%s_g(k) = wippflo_auxvar%sat(option%gas_phase)
-    this%reservoir%mobility_l(k) = &
-      wippflo_auxvar%mobility(option%liquid_phase)
-    this%reservoir%mobility_g(k) = wippflo_auxvar%mobility(option%gas_phase)
-    this%reservoir%kr_l(k) = wippflo_auxvar%kr(option%liquid_phase)
-    this%reservoir%kr_g(k) = wippflo_auxvar%kr(option%gas_phase)
-    this%reservoir%rho_l(k) = wippflo_auxvar%den_kg(option%liquid_phase)
-    this%reservoir%rho_g(k) = wippflo_auxvar%den_kg(option%gas_phase)
-    this%reservoir%visc_l(k) = wippflo_auxvar%mu(option%liquid_phase)
-    this%reservoir%visc_g(k) = wippflo_auxvar%mu(option%gas_phase)
-    this%reservoir%e_por(k) = wippflo_auxvar%effective_porosity
+!    this%reservoir%p_l(k) = wippflo_auxvar%pres(option%liquid_phase)
+!    this%reservoir%p_g(k) = wippflo_auxvar%pres(option%gas_phase)
+!    this%reservoir%s_l(k) = wippflo_auxvar%sat(option%liquid_phase)
+!    this%reservoir%s_g(k) = wippflo_auxvar%sat(option%gas_phase)
+!    this%reservoir%mobility_l(k) = &
+!      wippflo_auxvar%mobility(option%liquid_phase)
+!    this%reservoir%mobility_g(k) = wippflo_auxvar%mobility(option%gas_phase)
+!    this%reservoir%kr_l(k) = wippflo_auxvar%kr(option%liquid_phase)
+!    this%reservoir%kr_g(k) = wippflo_auxvar%kr(option%gas_phase)
+!    this%reservoir%rho_l(k) = wippflo_auxvar%den_kg(option%liquid_phase)
+!    this%reservoir%rho_g(k) = wippflo_auxvar%den_kg(option%gas_phase)
+!    this%reservoir%visc_l(k) = wippflo_auxvar%mu(option%liquid_phase)
+!    this%reservoir%visc_g(k) = wippflo_auxvar%mu(option%gas_phase)
+!    this%reservoir%e_por(k) = wippflo_auxvar%effective_porosity
+!
+!    this%reservoir%kx(k) = material_auxvar%permeability(1)
+!    this%reservoir%ky(k) = material_auxvar%permeability(2)
+!    this%reservoir%kz(k) = material_auxvar%permeability(3)
+!    this%reservoir%volume(k) = material_auxvar%volume
 
-    this%reservoir%kx(k) = material_auxvar%permeability(1)
-    this%reservoir%ky(k) = material_auxvar%permeability(2)
-    this%reservoir%kz(k) = material_auxvar%permeability(3)
-    this%reservoir%volume(k) = material_auxvar%volume
+    this%reservoir%temp(k,1) = wippflo_auxvar%pres(option%liquid_phase)
+    this%reservoir%temp(k,2) = wippflo_auxvar%pres(option%gas_phase)
+    this%reservoir%temp(k,3) = wippflo_auxvar%sat(option%liquid_phase)
+    this%reservoir%temp(k,4) = wippflo_auxvar%sat(option%gas_phase)
+    this%reservoir%temp(k,5) = wippflo_auxvar%mobility(option%liquid_phase)
+    this%reservoir%temp(k,6) = wippflo_auxvar%mobility(option%gas_phase)
+    this%reservoir%temp(k,7) = wippflo_auxvar%kr(option%liquid_phase)
+    this%reservoir%temp(k,8) = wippflo_auxvar%kr(option%gas_phase)
+    this%reservoir%temp(k,9) = wippflo_auxvar%den_kg(option%liquid_phase)
+    this%reservoir%temp(k,10) = wippflo_auxvar%den_kg(option%gas_phase)
+    this%reservoir%temp(k,11) = wippflo_auxvar%mu(option%liquid_phase)
+    this%reservoir%temp(k,12) = wippflo_auxvar%mu(option%gas_phase)
+    this%reservoir%temp(k,13) = wippflo_auxvar%effective_porosity
+
+    this%reservoir%temp(k,14) = material_auxvar%permeability(1)
+    this%reservoir%temp(k,15) = material_auxvar%permeability(2)
+    this%reservoir%temp(k,16) = material_auxvar%permeability(3)
+    this%reservoir%temp(k,17) = material_auxvar%volume
 
     if (res_grid%itype == STRUCTURED_GRID) then
-      this%reservoir%dx(k) = res_grid%structured_grid%dx(ghosted_id)
-      this%reservoir%dy(k) = res_grid%structured_grid%dy(ghosted_id)
-      this%reservoir%dz(k) = res_grid%structured_grid%dz(ghosted_id)
+      this%reservoir%temp(k,18) = res_grid%structured_grid%dx(ghosted_id)
+      this%reservoir%temp(k,19) = res_grid%structured_grid%dy(ghosted_id)
+      this%reservoir%temp(k,20) = res_grid%structured_grid%dz(ghosted_id)
     else
-      this%reservoir%dz(k) = this%well_grid%res_dz(k)
-      this%reservoir%dx(k) = sqrt(material_auxvar%volume/ &
-                                  this%reservoir%dz(k))
-      this%reservoir%dy(k) = this%reservoir%dx(k)
+      this%reservoir%temp(k,20) = this%well_grid%res_dz(k)
+      this%reservoir%temp(k,18) = sqrt(material_auxvar%volume/ &
+                                  this%reservoir%temp(k,20))
+      this%reservoir%temp(k,19) = this%reservoir%temp(k,18)
     endif
+
+!    if (res_grid%itype == STRUCTURED_GRID) then
+!      this%reservoir%temp(k,18) = res_grid%structured_grid%dx(ghosted_id)
+!      this%reservoir%temp(k,19) = res_grid%structured_grid%dy(ghosted_id)
+!      this%reservoir%temp(k,20) = res_grid%structured_grid%dz(ghosted_id)
+!    else
+!      this%reservoir%dz(k) = this%well_grid%res_dz(k)
+!      this%reservoir%dx(k) = sqrt(material_auxvar%volume/ &
+!                                  this%reservoir%dz(k))
+!      this%reservoir%dy(k) = this%reservoir%dx(k)
+!    endif
 
     if (this%transport) then
       this%reservoir%aqueous_conc(:,k) = nwt_auxvar%aqueous_eq_conc(:)
@@ -3461,47 +3496,50 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
   if (well_comm%commsize > 1) then
     ! Updates reservoir property vector in place using the maximum value.
     ! The rank-updated value will be larger then the initialized value (-1.d20)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_l,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_g,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%e_por,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kx,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%ky,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kz,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%volume,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dx,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dy,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+!    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
+!                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%temp,vec_size*20,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%p_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_l,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%s_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_l,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%mobility_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_l,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kr_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_l,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%rho_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_l,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%visc_g,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%e_por,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kx,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%ky,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%kz,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%volume,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dx,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dy,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-    if (this%transport) then
+
+     if (this%transport) then
       call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,&
                          vec_size*this%nspecies,&
                          MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
@@ -3511,6 +3549,29 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     endif
   endif
 
+  do k = 1,this%well_grid%nsegments
+    this%reservoir%p_l(k) = this%reservoir%temp(k,1)
+    this%reservoir%p_g(k) = this%reservoir%temp(k,2)
+    this%reservoir%s_l(k) = this%reservoir%temp(k,3)
+    this%reservoir%s_g(k) = this%reservoir%temp(k,4)
+    this%reservoir%mobility_l(k) = this%reservoir%temp(k,5)
+    this%reservoir%mobility_g(k) = this%reservoir%temp(k,6)
+    this%reservoir%kr_l(k) = this%reservoir%temp(k,7)
+    this%reservoir%kr_g(k) = this%reservoir%temp(k,8)
+    this%reservoir%rho_l(k) = this%reservoir%temp(k,9)
+    this%reservoir%rho_g(k) = this%reservoir%temp(k,10)
+    this%reservoir%visc_l(k) = this%reservoir%temp(k,11)
+    this%reservoir%visc_g(k) = this%reservoir%temp(k,12)
+    this%reservoir%e_por(k) = this%reservoir%temp(k,13)
+    this%reservoir%kx(k) = this%reservoir%temp(k,14)
+    this%reservoir%ky(k) = this%reservoir%temp(k,15)
+    this%reservoir%kz(k) = this%reservoir%temp(k,16)
+    this%reservoir%volume(k) = this%reservoir%temp(k,17)
+    this%reservoir%dx(k) = this%reservoir%temp(k,18)
+    this%reservoir%dy(k) = this%reservoir%temp(k,19)
+    this%reservoir%dz(k) = this%reservoir%temp(k,20)
+  enddo
+    
 end subroutine PMWellUpdateReservoir
 
 ! ************************************************************************** !
