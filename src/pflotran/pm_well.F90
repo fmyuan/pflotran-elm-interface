@@ -3502,9 +3502,11 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%dz,vec_size,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
     if (this%transport) then
-      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,vec_size,&
+      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,&
+                         vec_size*this%nspecies,&
                          MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,vec_size,&
+      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,&
+                         vec_size*this%nspecies,&
                          MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
     endif
   endif
