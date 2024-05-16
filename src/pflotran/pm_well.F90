@@ -3443,10 +3443,10 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
       
       !aqueous_conc
       this%reservoir%temp_tran(:,k,1) = nwt_auxvar%aqueous_eq_conc(:)
-      !aqueous_mass
+      !aqueous_mass = aq_conc * e_por * volume * s_l
       this%reservoir%temp_tran(:,k,2) = &
-            this%reservoir%aqueous_conc(:,k) * this%reservoir%e_por(k) * &
-            this%reservoir%volume(k) * this%reservoir%s_l(k)
+            this%reservoir%temp_tran(:,k,1) * this%reservoir%temp_flow(k,13) * &
+            this%reservoir%temp_flow(k,17) * this%reservoir%temp_flow(k,3)
     endif
   enddo
 
