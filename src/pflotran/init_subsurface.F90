@@ -298,6 +298,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, MATERIAL_ELECTRICAL_CONDUCTIVITY, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS, &
                                TORTUOSITY_Y,TORTUOSITY_Z
@@ -557,6 +560,30 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                              material_property%internal_id, &
                                              MATERIAL_ELECTRICAL_CONDUCTIVITY)
       endif
+      if (associated(material_property%archie_cem_exp_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%archie_cem_exp_dataset, &
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             ARCHIE_CEMENTATION_EXPONENT)
+      endif
+      if (associated(material_property%archie_sat_exp_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%archie_sat_exp_dataset, &
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             ARCHIE_SATURATION_EXPONENT)
+      endif
+      if (associated(material_property%archie_tor_con_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%archie_tor_con_dataset, &
+               material_property%internal_id,PETSC_FALSE,field%work)
+        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
+                                             material_property%internal_id, &
+                                             ARCHIE_TORTUOSITY_CONSTANT)
+      endif
       if (associated(material_property%surf_elec_cond_dataset)) then
         call SubsurfReadDatasetToVecWithMask(realization, &
                material_property%surf_elec_cond_dataset, &
@@ -750,7 +777,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   option%io_buffer = NL // &
     'Number of active grid cells: '// StringWrite(grid%nmax-i) // &
-    NL // 'Number of inactive grid cells: '// StringWrite(i)// NL 
+    NL // 'Number of inactive grid cells: '// StringWrite(i)// NL
   call PrintMsg(option)
 
 end subroutine InitSubsurfAssignMatProperties

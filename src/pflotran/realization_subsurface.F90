@@ -890,6 +890,60 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select
     endif
+    if (associated(cur_material_property%archie_cem_exp_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),ARCHIE_CEMENTATION_EXPONENT'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                archie_cem_exp_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%archie_cem_exp_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%archie_cem_exp_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for archie cementation &
+                             &exponent.'
+          call PrintErrMsg(option)
+      end select
+    endif
+    if (associated(cur_material_property%archie_sat_exp_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),ARCHIE_SATURATION_EXPONENT'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                archie_sat_exp_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%archie_sat_exp_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%archie_sat_exp_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for archie saturation &
+                             &exponent.'
+          call PrintErrMsg(option)
+      end select
+    endif
+    if (associated(cur_material_property%archie_tor_con_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),ARCHIE_TORTUOSITY_CONSTANT'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                archie_tor_con_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%archie_tor_con_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%archie_tor_con_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for archie tortuosity &
+                             &constant.'
+          call PrintErrMsg(option)
+      end select
+    endif
     if (associated(cur_material_property%surf_elec_cond_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),SURFACE_ELECTRICAL_CONDUCTIVITY'
