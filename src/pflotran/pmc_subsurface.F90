@@ -748,7 +748,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   use Field_module
   use Material_Aux_module
   use ZFlow_Aux_module
-  use PFLOTRAN_Constants_module
+  use Richards_Aux_module
+  use TH_Aux_module
+  use Mphase_Aux_module
 
   implicit none
 

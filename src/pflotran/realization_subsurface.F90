@@ -28,6 +28,12 @@ module Realization_Subsurface_class
 
   private
 
+  ! ids of arrays for local to local updates in this module
+  PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
+  PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
+  PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
+  PetscInt, parameter, public :: MTF_ID_ARRAY = 4 ! material transform
+
   type, public, extends(realization_base_type) :: realization_subsurface_type
 
     type(region_list_type), pointer :: region_list

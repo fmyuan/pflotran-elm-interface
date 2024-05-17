@@ -1358,7 +1358,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
   ! CO2-specific
   use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner
+  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
 
   implicit none
 
@@ -1848,10 +1848,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
             iflag = 1
             call co2_span_wagner(pres*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
+              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
 
 !            call co2_span_wagner(pco2*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-!              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
+!              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,co2_sw_itable)
 
             global_auxvar%den_kg(2) = dg
 

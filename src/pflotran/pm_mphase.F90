@@ -174,6 +174,7 @@ subroutine PMMphaseSetup(this)
 
   use Material_module
   use Mphase_module
+  use Mphase_Aux_module
   use co2_sw_module, only : init_span_wagner
 
   implicit none
@@ -185,7 +186,9 @@ subroutine PMMphaseSetup(this)
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
          this%realization%option)
-  call init_span_wagner(this%realization%option)
+  if (mphase_co2_eos == EOS_SPAN_WAGNER) then
+    call init_span_wagner(this%realization%option)
+  endif
   call MphaseSetup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 

@@ -815,6 +815,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   use Geomechanics_Grid_Aux_module
   use Geomechanics_Field_module
   use Geomechanics_Patch_module
+  use Realization_Subsurface_class, only : MATERIAL_ID_ARRAY
   use Option_module
 
   implicit none

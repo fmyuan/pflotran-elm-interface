@@ -751,6 +751,7 @@ subroutine GeomechRealizLocalToLocalWithArray(geomech_realization,array_id)
   use Geomechanics_Grid_Aux_module
   use Geomechanics_Grid_module
   use Geomechanics_Field_module
+  use Realization_Subsurface_class
 
   implicit none
 

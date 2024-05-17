@@ -16,6 +16,10 @@ module TH_Aux_module
 
   PetscInt, public :: th_ice_model
 
+  PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
+
   PetscInt, parameter, public :: TH_UPDATE_FOR_FIXED_ACCUM = 0
 
   type, public :: TH_auxvar_type
