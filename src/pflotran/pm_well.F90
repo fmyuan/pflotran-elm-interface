@@ -3436,11 +3436,6 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     endif
 
     if (this%transport) then
-      !this%reservoir%aqueous_conc(:,k) = nwt_auxvar%aqueous_eq_conc(:)
-      !this%reservoir%aqueous_mass(:,k) = &
-      !      this%reservoir%aqueous_conc(:,k) * this%reservoir%e_por(k) * &
-      !      this%reservoir%volume(k) * this%reservoir%s_l(k)
-      
       !aqueous_conc
       this%reservoir%temp_tran(:,k,1) = nwt_auxvar%aqueous_eq_conc(:)
       !aqueous_mass = aq_conc * e_por * volume * s_l
@@ -3456,14 +3451,7 @@ subroutine PMWellUpdateReservoir(this,wippflo_update_index)
     ! The rank-updated value will be larger then the initialized value (-1.d20)
     call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%temp_flow,vec_size*20,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-
      if (this%transport) then
-      !call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_conc,&
-      !                   vec_size*this%nspecies,&
-      !                   MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-      !call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%aqueous_mass,&
-      !                   vec_size*this%nspecies,&
-      !                   MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
       call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%temp_tran,&
                          vec_size*this%nspecies*2,&
                          MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
