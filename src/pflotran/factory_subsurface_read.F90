@@ -1441,7 +1441,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
 
       case ('CO2_DATABASE')
-        call InputReadFilename(input,option,option%co2_database_filename)
+        call InputReadFilename(input,option,option%flow%co2_database_filename)
         call InputErrorMsg(input,option,'CO2_DATABASE','filename')
 
 !....................

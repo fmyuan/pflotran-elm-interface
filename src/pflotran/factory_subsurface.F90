@@ -148,6 +148,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Mphase_class
+  use co2_span_wagner_module, only : co2_sw_itable
   use PM_Richards_class
   use PM_TH_class
   use PM_Richards_TS_class
@@ -193,8 +194,8 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       option%nphase = 2
       option%nflowdof = 3
       option%nflowspec = 2
-      option%itable = 2 ! read CO2DATA0.dat
-!     option%itable = 1 ! create CO2 database: co2data.dat
+      co2_sw_itable = 2 ! read CO2DATA0.dat
+!     co2_sw_itable = 1 ! create CO2 database: co2data.dat
       option%use_isothermal = PETSC_FALSE
       option%water_id = 1
       option%air_id = 2

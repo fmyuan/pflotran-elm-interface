@@ -16,6 +16,11 @@ module Condition_module
 
   private
 
+  ! source/sink scaling options
+  PetscInt, parameter, public :: SCALE_BY_PERM = 1
+  PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
+  PetscInt, parameter, public :: SCALE_BY_VOLUME = 3
+
   type, public :: flow_condition_type
     PetscInt :: id                          ! id from which condition can be referenced
     PetscBool :: is_transient
@@ -39,7 +44,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: energy_flux
     type(flow_general_condition_type), pointer :: general
     type(flow_hydrate_condition_type), pointer :: hydrate
-    type(flow_sco2_condition_type), pointer :: sco2 
+    type(flow_sco2_condition_type), pointer :: sco2
     ! any new sub conditions must be added to FlowConditionIsTransient
     type(sub_condition_ptr_type), pointer :: sub_condition_ptr(:)
     type(flow_condition_type), pointer :: next ! pointer to next condition_type for linked-lists
@@ -2831,7 +2836,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
   call DatasetVerify(condition%datum,default_time_storage,string,option)
 
-  
+
     if (associated(sco2%rate)) then
       ! State for rates/fluxes
       condition%iphase = SCO2_ANY_STATE
@@ -2891,7 +2896,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
             associated(sco2%co2_pressure)) then
 
       condition%iphase = SCO2_GAS_STATE
-    
+
     elseif (associated(sco2%liquid_pressure) .and. &
             associated(sco2%gas_saturation)) then
 
@@ -2960,7 +2965,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   if (associated(sco2%gas_pressure)) &
     i = i + 1
   if (associated(sco2%co2_pressure)) &
-    i = i + 1  
+    i = i + 1
   if (associated(sco2%gas_saturation)) &
     i = i + 1
   if (associated(sco2%co2_mass_fraction)) &

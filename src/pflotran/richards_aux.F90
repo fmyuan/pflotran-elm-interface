@@ -20,6 +20,9 @@ module Richards_Aux_module
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
 
+  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
+
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_FIXED_ACCUM = 0
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_ACCUM = 1
 

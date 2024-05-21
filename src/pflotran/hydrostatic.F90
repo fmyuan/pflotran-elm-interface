@@ -39,6 +39,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Ascii_class
   use String_module
 
+  use Richards_Aux_module
+  use TH_Aux_module
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
@@ -251,10 +253,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         concentration_gradient(1:3) = &
         condition%sco2%co2_mass_fraction%gradient%rarray(1:3)
       endif
-      
+
       salt_fraction_at_datum = &
         condition%sco2%salt_mass%dataset%rarray(1)
-      
+
       pressure_at_datum = &
         condition%sco2%liquid_pressure%dataset%rarray(1)
 
@@ -724,7 +726,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         else
            coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
           if (general_salt) then
-            coupler%flow_aux_real_var(4,iconn) = salt_fraction_at_datum  
+            coupler%flow_aux_real_var(4,iconn) = salt_fraction_at_datum
           endif
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
         endif
@@ -810,13 +812,13 @@ subroutine HydrostaticHDF5DatasetError(sub_condition,condition_name,option)
   ! Date: 05/15/23
 
   use Condition_module
-  use Option_module 
+  use Option_module
   use Dataset_Common_HDF5_class
 
   type(flow_sub_condition_type), pointer :: sub_condition
   character(len=*) :: condition_name
   type(option_type) :: option
-  
+
   if (.not.associated(sub_condition)) return
 
   if (associated(DatasetCommonHDF5Cast(sub_condition%dataset)) .or. &

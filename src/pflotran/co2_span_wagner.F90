@@ -17,6 +17,8 @@
 
       implicit none
 
+      PetscInt, public :: co2_sw_itable = 0
+
       save
 
 !     table lookup parameters t[k], p[MPa]
@@ -417,7 +419,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
     enddo
   endif
 
-  if (len_trim(option%co2_database_filename) < 2) then
+  if (len_trim(option%flow%co2_database_filename) < 2) then
     option%io_buffer = 'CO2 database filename not included in input deck.'
     call PrintErrMsg(option)
   endif
@@ -453,10 +455,11 @@ subroutine initialize_span_wagner(itable,myrank,option)
   if (iitable == 2) then
     if (myrank == 0) print *,'Reading Table ...'
     if (myrank == 0) print *,'--> CO2 database file: ', &
-                             trim(option%co2_database_filename)
-    open(unit = IUNIT_TEMP,file=option%co2_database_filename,status='old',iostat=status)
+                             trim(option%flow%co2_database_filename)
+    open(unit = IUNIT_TEMP,file=option%flow%co2_database_filename, &
+         status='old',iostat=status)
     if (status /= 0) then
-      print *, 'file: ', trim(option%co2_database_filename), ' not found.'
+      print *, 'file: ', trim(option%flow%co2_database_filename), ' not found.'
       stop
     endif
 !   open(unit=IUNIT_TEMP,file='co2data0.dat',status='old')
@@ -1732,7 +1735,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
     filename = "co2datbase_eos.dat"
   end if
 
-  option%co2_database_filename = filename
+  option%flow%co2_database_filename = filename
 
   myrank=0; itable=0;
   call initialize_span_wagner(itable,myrank,option)

@@ -134,11 +134,6 @@ module Option_module
 
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
 
-!   table lookup
-    PetscInt :: itable
-    PetscInt :: co2eos
-    character(len=MAXSTRINGLENGTH) :: co2_database_filename
-
     PetscBool :: restart_flag
     PetscReal :: restart_time
     character(len=MAXSTRINGLENGTH) :: restart_filename
@@ -585,13 +580,6 @@ subroutine OptionInitRealization(option)
 
   option%initialize_flow_filename = ''
   option%initialize_transport_filename = ''
-
-  option%itable = 0
-  option%co2eos = EOS_SPAN_WAGNER
-  option%co2_database_filename = ''
-
-! option%idt_switch = 1
-  option%idt_switch = -1
 
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED

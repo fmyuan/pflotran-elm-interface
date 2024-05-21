@@ -226,42 +226,6 @@ module PFLOTRAN_Constants_module
 
   PetscInt, parameter, public :: WELL_SS = 100
 
-  ! source/sink scaling options
-  PetscInt, parameter, public :: SCALE_BY_PERM = 1
-  PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
-  PetscInt, parameter, public :: SCALE_BY_VOLUME = 3
-
-  ! connection types
-  PetscInt, parameter, public :: INTERNAL_CONNECTION_TYPE = 1
-  PetscInt, parameter, public :: BOUNDARY_CONNECTION_TYPE = 2
-  PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
-  PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
-
-  ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-
-  PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
-
-  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
-
-  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-
-  PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-
-  ! mphase equation of state
-  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
-  PetscInt, parameter, public :: EOS_MRK = 2
-
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
@@ -272,12 +236,6 @@ module PFLOTRAN_Constants_module
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
-
-  ! ids of non-petsc arrays
-  PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
-  PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
-  PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
-  PetscInt, parameter, public :: MTF_ID_ARRAY = 4 ! material transform
 
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0

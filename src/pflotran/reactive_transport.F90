@@ -2694,7 +2694,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 
   ! CO2-specific
   use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner
+  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
 
   implicit none
 
@@ -2765,7 +2765,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 
       iflag = 1
       call co2_span_wagner(pg*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
+              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
 
       call EOSWaterSaturationPressure(tc, sat_pressure, ierr)
 
