@@ -21,6 +21,8 @@ else
   echo "\n----- Regression tests produced unrecognized result -----\n" >&2
 fi
 
+# revise coverage threshold coloring
+echo $'genhtml_hi_limit = 75\n genhtml_med_limit = 25' > ~/.lcovrc
 lcov --capture --directory . --output-file pflotran_coverage.info
 genhtml pflotran_coverage.info --output-directory coverage
 
