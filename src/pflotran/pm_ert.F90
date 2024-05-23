@@ -877,10 +877,15 @@ subroutine PMERTPreSolve(this)
   n = this%saturation_exponent
   Vc = this%clay_volume_factor
   cond_w_no_tracer = this%water_conductivity
-  diff_water_cond = this%tracer_water_conductivity - cond_w_no_tracer
   cond_w = UNINITIALIZED_DOUBLE
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
+
+  if (Initialized(this%tracer_water_conductivity)) then
+    diff_water_cond = this%tracer_water_conductivity - cond_w_no_tracer
+  else
+    diff_water_cond = 0.d0
+  endif
 
   cementation_cell_by_cell = (archie_cementation_exp_index > 0)
   saturation_cell_by_cell = (archie_saturation_exp_index > 0)

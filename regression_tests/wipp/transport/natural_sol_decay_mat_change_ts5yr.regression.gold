@@ -5,11 +5,11 @@
 -- CONCENTRATION: Aq. Conc. U234L --
         1:   1.0000000000000E+20
 -- CONCENTRATION: Aq. Conc. TH230L --
-        1:   9.9966666666667E+19
+        1:   1.0000000000000E+20
 -- CONCENTRATION: Mnrl. Conc. U234L --
         1:   2.6987254493468E+19
 -- CONCENTRATION: Mnrl. Conc. TH230L --
-        1:   2.7013745506532E+19
+        1:   2.7012745506532E+19
 -- CONCENTRATION: Sorb. Conc. U234L --
         1:   0.0000000000000E+00
 -- CONCENTRATION: Sorb. Conc. TH230L --
@@ -17,11 +17,11 @@
 -- CONCENTRATION: Mnrl. Vol. Frac. U234L --
         1:   2.3299019678381E+16
 -- CONCENTRATION: Mnrl. Vol. Frac. TH230L --
-        1:   2.3321890275863E+16
+        1:   2.3321026941666E+16
 -- DISCRETE: Material ID --
         1:         4
 -- SOLUTION: Transport --
-   Time (seconds):   5.4072730013104E-03
+   Time (seconds):   8.3602260001499E-03
    Time Steps:           32
    Newton Iterations:           64
    Linear Solver Iterations:           64

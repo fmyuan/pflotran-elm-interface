@@ -1396,20 +1396,20 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
 
       if (msrc(2) > 0.d0) then ! CO2 injection
 !       call PrintErrMsg(option,"concentration source not yet implemented in Mphase")
-        if (option%co2eos == EOS_SPAN_WAGNER) then
+        if (mphase_co2_eos == EOS_SPAN_WAGNER) then
          !  span-wagner
           rho = auxvar%den(jco2)*FMWCO2
-          select case(option%itable)
+          select case(co2_sw_itable)
             case(0,1,2,4,5)
-              if (option%itable >=4) then
+              if (co2_sw_itable >=4) then
                 call co2_sw_interp(auxvar%pres*1.D-6, &
                   tsrc,rho,dddt,dddp,fg,dfgdp,dfgdt, &
-                  eng,enth_src_co2,dhdt,dhdp,visc,dvdt,dvdp,option%itable)
+                  eng,enth_src_co2,dhdt,dhdp,visc,dvdt,dvdp,co2_sw_itable)
               else
                 iflag = 1
                 call co2_span_wagner(auxvar%pres*1.D-6, &
                   tsrc+T273K,rho,dddt,dddp,fg,dfgdp,dfgdt, &
-                  eng,enth_src_co2,dhdt,dhdp,visc,dvdt,dvdp,iflag,option%itable)
+                  eng,enth_src_co2,dhdt,dhdp,visc,dvdt,dvdp,iflag,co2_sw_itable)
               endif
             case(3)
               call sw_prop(tsrc,auxvar%pres*1.D-6,rho, &
@@ -1423,7 +1423,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
           ! qsrc_phase [m^3/sec] = msrc [kmol/sec] / [kmol/m^3]
           qsrc_vol(2) = msrc(2)/auxvar%den(jco2)
 
-        else if (option%co2eos == EOS_MRK) then
+        else if (mphase_co2_eos == EOS_MRK) then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(tsrc,auxvar%pres, rho,fg, xphi,enth_src_co2)
           !geh: this is never used as the conversion is performed inside
@@ -2031,7 +2031,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   use EOS_Water_module
   use Gas_EOS_module
   use co2eos_module
-  use co2_span_wagner_spline_module, only: sw_prop
+  use co2_span_wagner_spline_module, only : sw_prop
   use co2_sw_module, only: co2_sw_interp
   use co2_span_wagner_module
 
@@ -2128,16 +2128,16 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
     p2 = p
 !   p2 = p*xmol(4)
     if (p2 >= 5.d4) then
-      if (option%co2eos == EOS_SPAN_WAGNER) then
-        select case(option%itable)
+      if (mphase_co2_eos == EOS_SPAN_WAGNER) then
+        select case(co2_sw_itable)
           case(0,1,2,4,5)
-            if (option%itable >=4) then
+            if (co2_sw_itable >=4) then
               call co2_sw_interp(p2*1.D-6,t,dg,dddt,dddp,fg, &
-                  dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
+                  dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,co2_sw_itable)
             else
               iflag = 1
               call co2_span_wagner(p2*1.D-6,t+T273K,dg,dddt,dddp,fg, &
-                  dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
+                  dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
               if (iflag < 1) then
                 ichange = -1
                 return
@@ -2153,7 +2153,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
             fg = fg * 1.D6
             hg = hg * FMWCO2
         end select
-      elseif (option%co2eos == EOS_MRK) then
+      elseif (mphase_co2_eos == EOS_MRK) then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
         call CO2( t,p2, dg,fg, xphi, hg)
         dg = dg / FMWCO2
@@ -2915,7 +2915,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 #endif
 
 ! adjust residual to R/dt
-  select case (option%idt_switch)
+  select case (mphase_parameter%idt_switch)
   case(1)
     r_p(:) = r_p(:)/option%flow_dt
   case(-1)
@@ -3391,7 +3391,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       enddo
     enddo
 
-    select case(option%idt_switch)
+    select case(mphase_parameter%idt_switch)
       case(1)
         ra(1:option%nflowdof,1:option%nflowdof) = ra(1:option%nflowdof,1:option%nflowdof)/option%flow_dt
       case(-1)
@@ -3520,7 +3520,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
                                       /mphase%delx(nvar,ghosted_id_dn)
       enddo
 
-      select case(option%idt_switch)
+      select case(mphase_parameter%idt_switch)
       case(1)
         ra = ra / option%flow_dt
       case(-1)

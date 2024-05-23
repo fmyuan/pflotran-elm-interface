@@ -2,10 +2,14 @@ ARG IMAGE
 FROM $IMAGE
 ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch
 
-WORKDIR /scratch
+ENV PFLOTRAN_DIR=/scratch
+ENV SRC_DIR=$PFLOTRAN_DIR/src/pflotran ARTIFACT_DIR=/tmp/test-pflotran
+
+WORKDIR $PFLOTRAN_DIR
 COPY . .
-RUN ./.gitlab/info.sh
-# build rxn first as it is then wiped with a 'make clean'
-RUN ./.gitlab/build-pflotran-rxn.sh
-RUN ./.gitlab/build-pflotran.sh
-RUN ./.gitlab/test-pflotran.sh
+RUN $PFLOTRAN_DIR/.gitlab/info.sh
+RUN $PFLOTRAN_DIR/.gitlab/pre-check-pflotran.sh
+# build pfloran (not pflotran-rxn last) as it is needed for the testing
+RUN $PFLOTRAN_DIR/.gitlab/build-pflotran-rxn.sh
+RUN $PFLOTRAN_DIR/.gitlab/build-pflotran.sh
+RUN $PFLOTRAN_DIR/.gitlab/test-pflotran.sh

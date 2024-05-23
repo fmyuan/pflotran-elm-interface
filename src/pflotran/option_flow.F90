@@ -58,6 +58,9 @@ module Option_Flow_module
     PetscBool :: scale_all_pressure
     PetscReal :: pressure_scaling_factor
     PetscBool :: using_newtontrdc
+
+    character(len=MAXSTRINGLENGTH) :: co2_database_filename
+
   end type flow_option_type
 
   public :: OptionFlowCreate, &
@@ -171,6 +174,8 @@ subroutine OptionFlowInitRealization(option)
   option%scale_all_pressure = PETSC_FALSE
   option%pressure_scaling_factor = 1.d7
   option%using_newtontrdc = PETSC_FALSE
+
+  option%co2_database_filename = ''
 
 end subroutine OptionFlowInitRealization
 
