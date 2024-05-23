@@ -97,9 +97,9 @@ function PMHydrateCreate()
   PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
 
   !MAN optimized:
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
-  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-5
   PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-7
 
   PetscReal, parameter :: residual_abs_inf_tol(4) = (/w_mass_abs_inf_tol, &
@@ -126,7 +126,7 @@ function PMHydrateCreate()
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              xmol_abs_inf_tol, &
              !HG_STATE
-             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,pres_abs_inf_tol*1.d-6,temp_abs_inf_tol, &
              xmol_abs_inf_tol, &
              !HA_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
@@ -174,7 +174,7 @@ function PMHydrateCreate()
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
              xmol_rel_inf_tol, &
              !HG_STATE
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
              xmol_rel_inf_tol, &
              !HA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
@@ -749,6 +749,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(1,1:10) = tempreal
         this%abs_update_inf_tol(2,2) = tempreal
+        this%abs_update_inf_tol(2,6) = tempreal
         this%abs_update_inf_tol(1,12) = tempreal
         this%abs_update_inf_tol(1,14) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
@@ -761,7 +762,8 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,5:9) = tempreal
+        this%abs_update_inf_tol(2,5) = tempreal
+        this%abs_update_inf_tol(2,7:9) = tempreal
         this%abs_update_inf_tol(2,11:15) = tempreal
         this%abs_update_inf_tol(3,10) = tempreal
         this%abs_update_inf_tol(3,12) = tempreal
@@ -796,6 +798,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(1,:) = tempreal
         this%rel_update_inf_tol(2,2) = tempreal
+        this%rel_update_inf_tol(2,6) = tempreal
         this%rel_update_inf_tol(1,1:10) = tempreal
         this%rel_update_inf_tol(1,12) = tempreal
         this%rel_update_inf_tol(1,14) = tempreal
@@ -812,7 +815,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,3) = tempreal
         this%rel_update_inf_tol(2,3) = tempreal
-        this%rel_update_inf_tol(2,6:9) = tempreal
+        this%rel_update_inf_tol(2,7:9) = tempreal
         this%rel_update_inf_tol(3,10) = tempreal
         this%rel_update_inf_tol(2,11:15) = tempreal
         this%rel_update_inf_tol(3,12) = tempreal
@@ -1212,7 +1215,10 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
-  PetscReal, parameter :: eps_sat = 1.d-14
+  PetscReal, parameter :: eps_sat = 1.d-14 !1.d-10
+  PetscReal, parameter :: eps_sg = 0.d0 ! 1.d-10
+  PetscReal, parameter :: eps_sh = 1.d-10
+  PetscReal, parameter :: eps_sl = 0.d0
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
@@ -1288,6 +1294,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
             dX_p(air_frac_index) = 0.d0
             dX_p2(air_frac_index) = 0.d0
           endif
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) > 1.d0) &
+             dX_p(air_frac_index) = 1.d0 - X_p(air_frac_index)
           if ((X_p(air_frac_index) + dX_p(air_frac_index)) < 0.d0) &
              dX_p(air_frac_index) = - X_p(air_frac_index)
 
@@ -1346,15 +1354,15 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
                                      dX_p(gas_pressure_index))
           ! Relax pressure updates when transitioning to unsaturated
           ! conditions
-          if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
-             (hyd_auxvar%pres(lid)) < Pc_entry ) then
-            dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
-          endif
+          !if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+          !   (hyd_auxvar%pres(lid)) < Pc_entry ) then
+          !  dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          !endif
 
           !Limit changes in gas saturation
-          dP = 1.d-1
-          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
-                                dX_p(gas_sat_index))
+          !dP = 1.d-1
+          !dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+          !                      dX_p(gas_sat_index))
           if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
              dX_p(gas_sat_index) = (1.d0 - epsilon) - X_p(gas_sat_index)
           if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
@@ -1379,14 +1387,40 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         case(HG_STATE)
           gas_pressure_index = offset + ONE_INTEGER
-          gas_sat_index = offset + TWO_INTEGER
+          air_pressure_index = offset + TWO_INTEGER
+          !gas_sat_index = offset + TWO_INTEGER
           temp_index = offset + THREE_INTEGER
 
           !Limit changes in gas phase pressure
-          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
-          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
-                                     dabs(dX_p(gas_pressure_index))), &
-                                     dX_p(gas_pressure_index))
+          !dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          !dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+          !                           dabs(dX_p(gas_pressure_index))), &
+          !                           dX_p(gas_pressure_index))
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) > 1.d9) &
+             dX_p(gas_pressure_index) = 1.d9 - X_p(gas_pressure_index)
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < 101325.d0) &
+             dX_p(gas_pressure_index) = 101325.d0 - X_p(gas_pressure_index)
+
+          !Limit changes in gas partial pressure
+          !if ((hyd_auxvar%pres(apid) / epsilon < epsilon) .and. &
+          !    (dX_p(air_pressure_index)/epsilon < epsilon)) then
+          !  dX_p(air_pressure_index) = 0.d0
+          !endif
+          dX_p(air_pressure_index) = dX_p(air_pressure_index) * 1.d6
+          X_p(air_pressure_index) = X_p(air_pressure_index) * 1.d6
+          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
+          dX_p(air_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(air_pressure_index))), &
+                                     dX_p(air_pressure_index))
+          if (X_p(air_pressure_index) + dX_p(air_pressure_index) > &
+              (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then 
+             dX_p(air_pressure_index) = (X_p(gas_pressure_index) + &
+              dX_p(gas_pressure_index)) - X_p(air_pressure_index)
+          endif
+          if (X_p(air_pressure_index) + dX_p(air_pressure_index) < 1.d-6) &
+             dX_p(air_pressure_index) = 1.d-6 - X_p(air_pressure_index)
+          dX_p(air_pressure_index) = dX_p(air_pressure_index) * 1.d-6
+          X_p(air_pressure_index) = X_p(air_pressure_index) * 1.d-6
 
           !call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
           !call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl,Psat)
@@ -1395,13 +1429,13 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           !endif
 
           !Limit changes in gas saturation
-          dP = 1.d-1
-          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
-                                dX_p(gas_sat_index))
-          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
-             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
-          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
-             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+          !dP = 1.d-1
+          !dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+          !                      dX_p(gas_sat_index))
+          !if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+          !   dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          !if (X_p(gas_sat_index) + dX_p(gas_sat_index) < eps_sg) &
+          !   dX_p(gas_sat_index) = eps_sg - X_p(gas_sat_index)
 
         case(HA_STATE)
           gas_pressure_index = offset + ONE_INTEGER
@@ -1415,19 +1449,19 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
                                      dX_p(gas_pressure_index))
           ! Relax pressure updates when transitioning to unsaturated
           ! conditions
-          if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
-             (hyd_auxvar%pres(lid)) < Pc_entry ) then
-            dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
-          endif
+          !if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+          !   (hyd_auxvar%pres(lid)) < Pc_entry ) then
+          !  dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          !endif
 
           !Limit changes in hydrate saturation
-          dP = 1.d-1
-          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
-                                dX_p(hyd_sat_index))
-          if(hyd_auxvar%sat(lid) < eps_sat) dX_p(hyd_sat_index) = &
-                                            min(dX_p(hyd_sat_index),0.d0)
-          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
-             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          !dP = 1.d-1
+          !dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+          !                      dX_p(hyd_sat_index))
+          !if(hyd_auxvar%sat(lid) < eps_sat) dX_p(hyd_sat_index) = &
+          !                                  min(dX_p(hyd_sat_index),0.d0)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
+             dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
@@ -1507,7 +1541,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
               X_p(liq_sat_index) + dX_p(liq_sat_index)) > 1.d0) then
             s_extra = 1.d0 - ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
-                      X_p(liq_sat_index) + dX_p(liq_sat_index)))
+                      X_p(liq_sat_index) + dX_p(liq_sat_index))) ! + &
+                      !hyd_auxvar%sat(gid) / 3.d0)
             dX_p(hyd_sat_index) = dX_p(hyd_sat_index) + s_extra / 2.d0
             dX_p(liq_sat_index) = dX_p(liq_sat_index) + s_extra / 2.d0
           endif
@@ -1516,19 +1551,19 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           ! dP = 1.d-1
           ! dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))),&
           !                       dX_p(liq_sat_index))
-          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
-          !    dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
-          ! if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
-          !    dX_p(liq_sat_index) = - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < eps_sl) &
+             dX_p(liq_sat_index) = eps_sl - X_p(liq_sat_index)
 
            !Limit changes in hydrate saturation
            !dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))),&
            !   dX_p(hyd_sat_index))
 
-           !if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
-           !   dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
-           !if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-           !   dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
+             dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
 
 
           ! Limit changes in temperature
@@ -2012,9 +2047,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             converged_absolute = PETSC_FALSE
           endif
 
-          if (global_auxvars(ghosted_id)%istate == HA_STATE .and. &
-              hyd_auxvar%sat(hid) > 9.9d-1 .and. &
-              (idof == 3)) then
+          if (hyd_auxvar%sat(hid) > 9.9d-1) then
             if (R < this%residual_abs_inf_tol(idof) * 1.d2) then
               converged_absolute = PETSC_TRUE
             endif

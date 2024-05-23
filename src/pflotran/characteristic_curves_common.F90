@@ -2147,7 +2147,7 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
     Se = (liquid_saturation-this%Sr)*dSe_dsatl
   endif
 
-  if (this%extended) then
+  if (this%extended .and. liquid_saturation < this%Sm) then
     ! Use Webb extension
     if (liquid_saturation < this%Sm) then
         ! Below the matching point, use Webb extension
