@@ -1712,12 +1712,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
               !              dabs(residual/(accumulation + epsilon)))
 
-              ! find max value regardless of convergence
-              if (converged_scaled_residual_real(idof,istate) < &
-                  res_scaled) then
-                converged_scaled_residual_real(idof,istate) = res_scaled
-                converged_scaled_residual_cell(idof,istate) = natural_id
-              endif
             endif
           elseif (idof == FOUR_INTEGER) then
             ! There is a fully implicit well, in DOF 4
@@ -1730,12 +1724,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             ! res_scaled = min(dabs(update) / &
             !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
             !                dabs(residual/(accumulation + epsilon)))
-              ! find max value regardless of convergence
-            if (converged_scaled_residual_real(idof,istate) < &
-                res_scaled) then
-              converged_scaled_residual_real(idof,istate) = res_scaled
-              converged_scaled_residual_cell(idof,istate) = natural_id
-            endif
           endif
 
           ! STOMP convergence criteria
@@ -1924,8 +1912,10 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               endif
           end select
 
-          if (res_scaled > this%residual_scaled_inf_tol(idof)) then
-            converged_scaled = PETSC_FALSE
+          if (idof /= FIVE_INTEGER) then
+            if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+              converged_scaled = PETSC_FALSE
+            endif
           endif
 
           if (.not.(converged_absolute .or. converged_scaled)) then

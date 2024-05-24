@@ -5805,7 +5805,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
         ! Unperturbed residual
         well => this%well
         do k = 1,this%well_grid%nsegments
-          do irow = 1, option%nflowdof-1
+          do irow = 1, option%nflowspec
             residual(k,irow) = well%liq%q(k)* &
                                well%liq%xmass(k,irow) + &
                                well%gas%q(k)* &
@@ -5857,7 +5857,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
               endif
 
               ! Compute dRres / dXres
-              do irow = 1,option%nflowdof-1
+              do irow = 1,option%nflowspec
                 res_pert = well_pert%liq%q(k)* &
                            well_pert%liq%xmass(k,irow) + &
                            well_pert%gas%q(k)* &
@@ -5907,7 +5907,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             endif
 
             ! Compute dRres / dPwell
-            do j = 0,option%nflowdof-2
+            do j = 0,option%nflowspec-1
               res = this%well%liq%q(k)*this%well%liq%xmass(k,j+1) + &
                     this%well%gas%q(k)*this%well%gas%xmass(k,j+1)
               res_pert = well_pert%liq%q(k)* &
