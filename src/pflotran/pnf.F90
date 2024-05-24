@@ -370,10 +370,10 @@ subroutine PNFUpdateAuxVars(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition% &
-                    itype(RICHARDS_PRESSURE_DOF))
+                    itype(PNF_LIQUID_PRESSURE_DOF))
         case(DIRICHLET_BC)
           xxbc(1) = boundary_condition% &
-                      flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
+                      flow_aux_real_var(PNF_LIQUID_PRESSURE_DOF,iconn)
         case(NEUMANN_BC)
           xxbc(1) = xx_loc_p(local_id)
         case default

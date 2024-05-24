@@ -298,6 +298,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
                                EPSILON, MATERIAL_ELECTRICAL_CONDUCTIVITY, &
+                               ARCHIE_CEMENTATION_EXPONENT, &
+                               ARCHIE_SATURATION_EXPONENT, &
+                               ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS, &
                                TORTUOSITY_Y,TORTUOSITY_Z
@@ -517,15 +520,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
       if (associated(material_property%permeability_dataset)) then
         call SubsurfReadPermsFromFile(realization,material_property)
       endif
-      if (associated(material_property%compressibility_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%compressibility_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%compressibility0)
-      endif
+      call SubsurfMapDatasetToVec(realization,material_property, &
+                                  material_property%compressibility_dataset, &
+                                  field%compressibility0)
       if (associated(material_property%porosity_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%porosity_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%porosity0)
+        call SubsurfMapDatasetToVec(realization,material_property, &
+                                    material_property%porosity_dataset, &
+                                    field%porosity0)
         ! if tortuosity is a function of porosity, we must calculate the
         ! the tortuosity on a cell to cell basis.
         if (field%tortuosity0 /= PETSC_NULL_VEC .and. &
@@ -544,53 +545,35 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                   ierr);CHKERRQ(ierr)
         endif
       endif
-      if (associated(material_property%tortuosity_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%tortuosity_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%tortuosity0)
-      endif
-      if (associated(material_property%material_elec_cond_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%material_elec_cond_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%work)
-        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
-                                             material_property%internal_id, &
-                                             MATERIAL_ELECTRICAL_CONDUCTIVITY)
-      endif
-      if (associated(material_property%surf_elec_cond_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%surf_elec_cond_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%work)
-        call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
-                                             material_property%internal_id, &
-                                             SURFACE_ELECTRICAL_CONDUCTIVITY)
-      endif
+      call SubsurfMapDatasetToVec(realization,material_property, &
+                                  material_property%tortuosity_dataset, &
+                                  field%tortuosity0)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%material_elec_cond_dataset, &
+                        MATERIAL_ELECTRICAL_CONDUCTIVITY)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%archie_cem_exp_dataset, &
+                        ARCHIE_CEMENTATION_EXPONENT)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%archie_sat_exp_dataset, &
+                        ARCHIE_SATURATION_EXPONENT)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%archie_tor_con_dataset, &
+                        ARCHIE_TORTUOSITY_CONSTANT)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%surf_elec_cond_dataset, &
+                        SURFACE_ELECTRICAL_CONDUCTIVITY)
       if (associated(material_property%multicontinuum)) then
-        if (associated(material_property%multicontinuum%epsilon_dataset)) then
-          call SubsurfReadDatasetToVecWithMask(realization, &
-                 material_property%multicontinuum%epsilon_dataset, &
-                 material_property%internal_id,PETSC_FALSE,field%work)
-          call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
-                                               material_property%internal_id, &
-                                               EPSILON)
-        endif
-        if (associated(material_property%multicontinuum% &
-                         half_matrix_width_dataset)) then
-          call SubsurfReadDatasetToVecWithMask(realization, &
-                 material_property%multicontinuum%half_matrix_width_dataset, &
-                 material_property%internal_id,PETSC_FALSE,field%work)
-          call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
-                                               material_property%internal_id, &
-                                               HALF_MATRIX_WIDTH)
-        endif
-        if (associated(material_property%multicontinuum%ncells_dataset)) then
-          call SubsurfReadDatasetToVecWithMask(realization, &
-                 material_property%multicontinuum%ncells_dataset, &
-                 material_property%internal_id,PETSC_FALSE,field%work)
-          call SubsurfMapVecToMatAuxByMaterial(realization,field%work, &
-                                               material_property%internal_id, &
-                                               NUMBER_SECONDARY_CELLS)
-        endif
+        call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                          material_property%multicontinuum%epsilon_dataset, &
+                          EPSILON)
+        call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                          material_property%multicontinuum% &
+                            half_matrix_width_dataset, &
+                          HALF_MATRIX_WIDTH)
+        call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                          material_property%multicontinuum%ncells_dataset, &
+                          NUMBER_SECONDARY_CELLS)
       endif
     endif
   enddo
@@ -750,10 +733,70 @@ subroutine InitSubsurfAssignMatProperties(realization)
                      MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
   option%io_buffer = NL // &
     'Number of active grid cells: '// StringWrite(grid%nmax-i) // &
-    NL // 'Number of inactive grid cells: '// StringWrite(i)// NL 
+    NL // 'Number of inactive grid cells: '// StringWrite(i)// NL
   call PrintMsg(option)
 
 end subroutine InitSubsurfAssignMatProperties
+
+! ************************************************************************** !
+
+subroutine SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                                        dataset,ivar)
+  !
+  ! Maps a dataset to a material auxvar variable
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/16/24
+  !
+  use Dataset_Base_class
+  use Material_module
+  use Realization_Subsurface_class
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  type(material_property_type) :: material_property
+  class(dataset_base_type), pointer :: dataset
+  PetscInt :: ivar
+
+  if (associated(dataset)) then
+    call SubsurfReadDatasetToVecWithMask(realization,dataset,&
+                                         material_property%internal_id, &
+                                         PETSC_FALSE,realization%field%work)
+    call SubsurfMapVecToMatAuxByMaterial(realization,realization%field%work, &
+                                         material_property%internal_id, &
+                                         ivar)
+  endif
+
+end subroutine SubsurfMapDatasetToMatAuxVar
+
+! ************************************************************************** !
+
+subroutine SubsurfMapDatasetToVec(realization,material_property,dataset,vec)
+  !
+  ! Maps a dataset to a PETSc Vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/16/24
+  !
+  use Dataset_Base_class
+  use Material_module
+  use Realization_Subsurface_class
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  type(material_property_type) :: material_property
+  class(dataset_base_type), pointer :: dataset
+  Vec :: vec
+
+  if (associated(dataset)) then
+    call SubsurfReadDatasetToVecWithMask(realization,dataset,&
+                                         material_property%internal_id, &
+                                         PETSC_FALSE,vec)
+  endif
+
+end subroutine SubsurfMapDatasetToVec
 
 ! ************************************************************************** !
 

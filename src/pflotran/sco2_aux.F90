@@ -450,6 +450,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-15
+  PetscReal, parameter :: epsilon = 1.d-14
 
   PetscReal :: x(option%nflowdof), x_pert_plus(option%nflowdof), &
                pert(option%nflowdof), x_pert_minus(option%nflowdof)
@@ -644,9 +645,14 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
   do idof = 1, option%nflowdof - nwelldof
 
     if (sco2_central_diff_jacobian) then
-
       x_pert_minus = x
-      x_pert_minus(idof) = x(idof) - pert(idof)
+      if (idof == SCO2_SALT_MASS_FRAC_DOF .and. &
+         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < epsilon) then
+        x_pert_minus(idof) = x(idof)
+        pert(idof) = pert(idof) / 2.d0
+      else
+        x_pert_minus(idof) = x(idof) - pert(idof)
+      endif
       call SCO2AuxVarCompute(x_pert_minus, &
              sco2_auxvar(idof+option%nflowdof),global_auxvar,material_auxvar, &
              characteristic_curves,sco2_parameter,natural_id,option)
@@ -3172,125 +3178,6 @@ subroutine SCO2Tortuosity(s_l, s_g, phi, tao_l, tao_g)
   endif
 
 end subroutine SCO2Tortuosity
-
-! ************************************************************************** !
-
-! subroutine SCO2SatHysteresis(characteristic_curves, Pc, Sl_min, &
-!                                     beta_gl,rho_l, Sl, Sgt, option)
-!   !
-!   ! Compute saturation as a function of Pc including hysteretic effects.
-!   ! I believe this only works for monontonic Pc functions.
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 01/26/24
-!   !
-
-!   use Option_module
-!   use Characteristic_Curves_module
-!   use Characteristic_Curves_Common_module
-
-!   implicit none
-
-!   class(characteristic_curves_type), intent(in) :: characteristic_curves
-!   PetscReal, intent(in) :: Pc
-!   PetscReal, intent(in) :: Sl_min
-!   PetscReal, intent(in) :: beta_gl
-!   PetscReal, intent(in) :: rho_l
-!   PetscReal, intent(out) :: Sl
-!   PetscReal, intent(inout) :: Sgt
-!   type(option_type) :: option
-
-!   PetscReal, parameter :: gravity = EARTH_GRAVITY
-
-!   PetscReal :: dsat_dpres
-!   PetscReal :: R
-!   PetscReal :: Sgt_max_bar, Sl_min_bar, Sgr_bar, Sgt_bar, Se
-!   PetscReal :: Sgt_max, Srl
-!   PetscReal :: capillary_head
-
-!   Sgt_max = characteristic_curves%saturation_function%sgt_max
-!   Srl = characteristic_curves%saturation_function%Sr
-
-!   select type(sf => characteristic_curves%saturation_function)
-!     class is (sat_func_VG_STOMP_type)
-!       capillary_head = max(beta_gl * Pc / &
-!                        (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
-!       call characteristic_curves%saturation_function% &
-!                     Saturation(capillary_head,Sl,dsat_dpres,option)
-!     class default
-!       call characteristic_curves%saturation_function% &
-!                     Saturation(Pc,Sl,dsat_dpres,option)
-!   end select
-
-!   if (Uninitialized(Sgt_max)) return
-
-!   ! Check if we're on a scanning path
-!   if (Sl > Sl_min .and. Sgt_max > 0.d0) then
-!     ! Hysteresis adjustment: Update Sl and Sgt
-!     Sgt_max_bar = Sgt_max / (1.d0 - Srl)
-!     Sl_min_bar = (Sl_min - Srl) / (1.d0 - Srl)
-!     R = 1.d0 / (Sgt_max_bar) - 1.d0
-!     Sgr_bar = (1.d0 - Sl_min_bar) / (1.d0 + R * (1.d0 - Sl_min_bar))
-
-!     Se = (Sl - Srl) / (1.d0 - Srl)
-!     Sgt_bar = Sgr_bar - (1.d0 - Se) / &
-!               (1.d0 + R * (1.d0 - Se))
-
-!     Sgt = Sgt_bar * (1.d0 - Srl)
-!     Sl = Sl - Sgt
-!   else
-!     Sgt = 0.d0
-!   endif
-
-!   if (Sgt > Sgt_max) Sgt = Sgt_max
-
-! end subroutine SCO2SatHysteresis
-
-! ************************************************************************** !
-
-! subroutine SCO2PcHysteresis(characteristic_curves, Sl, Sgt, beta_gl, &
-!                                    Pc, option)
-!   !
-!   ! Compute Pc as a function of saturation including trapped gas.
-!   ! I believe this only works for monontonic Pc functions.
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 01/26/24
-!   !
-
-!   use Option_module
-!   use Characteristic_Curves_module
-!   use Characteristic_Curves_Common_module
-
-!   implicit none
-
-!   class(characteristic_curves_type), intent(in) :: characteristic_curves
-!   PetscReal, intent(in) :: Sl
-!   PetscReal, intent(in) :: Sgt
-!   PetscReal, intent(in) :: beta_gl
-!   PetscReal, intent(out) :: Pc
-!   type(option_type) :: option
-
-!   PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
-!   PetscReal :: dpc_dsatl
-!   PetscReal :: Sl_eff
-
-!   ! Add trapped gas to the liquid saturation before sending into the Pc
-!   ! function
-!   Sl_eff = Sl + Sgt
-
-!   call characteristic_curves%saturation_function% &
-!                              CapillaryPressure(Sl_eff, Pc, dpc_dsatl,option, &
-!                                                Sgt)
-!   select type(sf => characteristic_curves%saturation_function)
-!     class is (sat_func_VG_STOMP_type)
-!       ! Pc is the capillary head
-!       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
-!     class default
-!   end select
-
-
-! end subroutine SCO2PcHysteresis
 
 ! ************************************************************************** !
 

@@ -1778,9 +1778,11 @@ end subroutine pflotranModelSetICs
     use Mapping_module
     use Option_module
     use Realization_Subsurface_class, only : realization_subsurface_type
+    use Richards_Aux_module, only : RICHARDS_PRESSURE_DOF
     use Simulation_Base_class, only : simulation_base_type
     use String_module
     use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use TH_Aux_module, only : TH_PRESSURE_DOF, TH_TEMPERATURE_DOF
 
     implicit none
 
@@ -1911,6 +1913,7 @@ end subroutine pflotranModelSetICs
     use Simulation_Base_class, only : simulation_base_type
     use String_module
     use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use TH_Aux_module, only : TH_PRESSURE_DOF, TH_TEMPERATURE_DOF
 
     implicit none
 

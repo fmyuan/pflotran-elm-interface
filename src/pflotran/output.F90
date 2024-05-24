@@ -1814,6 +1814,9 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   use SCO2_Aux_module
+  use ZFlow_Aux_module
+  use PNF_Aux_module
+  use Richards_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -1845,31 +1848,35 @@ subroutine OutputPrintCouplers(realization_base,istep)
     call PrintErrMsg(option)
   endif
 
+  allocate(iauxvars(option%nphase),auxvar_names(option%nphase))
+  iauxvars = -999
+  auxvar_names = 'Unnamed'
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
+    case(ZFLOW_MODE)
+      iauxvars(1) = zflow_liq_flow_eq
+      auxvar_names(1) = 'pressure'
+    case(PNF_MODE)
+      iauxvars(1) = PNF_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'pressure'
     case(G_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(H_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
     case(SCO2_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       ! iauxvars(2) = SCO2_TEMPERATURE_DOF
@@ -1946,10 +1953,13 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
+  use Richards_Aux_module
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   use SCO2_Aux_module
+  use PNF_Aux_module
+  use ZFlow_Aux_module
   use String_module
   use Discretization_module
   use Output_Common_module
@@ -2003,31 +2013,35 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
     call PrintErrMsg(option)
   endif
 
+  allocate(iauxvars(option%nphase),auxvar_names(option%nphase))
+  iauxvars = -999
+  auxvar_names = 'Unnamed'
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
+    case(ZFLOW_MODE)
+      iauxvars(1) = zflow_liq_flow_eq
+      auxvar_names(1) = 'pressure'
+    case(PNF_MODE)
+      iauxvars(1) = PNF_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'pressure'
     case(G_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(H_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
     case(SCO2_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       ! iauxvars(2) = SCO2_TEMPERATURE_DOF

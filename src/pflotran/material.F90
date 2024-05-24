@@ -62,6 +62,9 @@ module Material_module
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
     PetscReal :: surface_electrical_conductivity
+    class(dataset_base_type), pointer :: archie_cem_exp_dataset
+    class(dataset_base_type), pointer :: archie_sat_exp_dataset
+    class(dataset_base_type), pointer :: archie_tor_con_dataset
     class(dataset_base_type), pointer :: surf_elec_cond_dataset
     PetscReal :: waxman_smits_clay_conductivity
 
@@ -226,6 +229,9 @@ function MaterialPropertyCreate(option)
   material_property%archie_saturation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_tortuosity_constant = UNINITIALIZED_DOUBLE
   material_property%surface_electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%archie_cem_exp_dataset)
+  nullify(material_property%archie_sat_exp_dataset)
+  nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
   material_property%waxman_smits_clay_conductivity = UNINITIALIZED_DOUBLE
 
@@ -980,21 +986,24 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('ARCHIE_CEMENTATION_EXPONENT')
         call InputCheckSupported(input,option,keyword,error_str, &
                                  [GEOPHYSICS_CLASS,FLOW_CLASS])
-        call InputReadDouble(input,option, &
-                             material_property%archie_cementation_exponent)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_cementation_exponent, &
+                      material_property%archie_cem_exp_dataset, &
+                      keyword,error_str,option)
       case('ARCHIE_SATURATION_EXPONENT')
         call InputCheckSupported(input,option,keyword,error_str, &
                                  [GEOPHYSICS_CLASS,FLOW_CLASS])
-        call InputReadDouble(input,option, &
-                             material_property%archie_saturation_exponent)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_saturation_exponent, &
+                      material_property%archie_sat_exp_dataset, &
+                      keyword,error_str,option)
       case('ARCHIE_TORTUOSITY_CONSTANT')
         call InputCheckSupported(input,option,keyword,error_str, &
                                  [GEOPHYSICS_CLASS,FLOW_CLASS])
-        call InputReadDouble(input,option, &
-                             material_property%archie_tortuosity_constant)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_tortuosity_constant, &
+                      material_property%archie_tor_con_dataset, &
+                      keyword,error_str,option)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
         call InputCheckSupported(input,option,keyword,error_str, &
                                  [GEOPHYSICS_CLASS,FLOW_CLASS])
@@ -1737,7 +1746,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_elec_cond = num_elec_cond + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_cementation_exponent)) then
+                      ptr%archie_cementation_exponent) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_cem_exp_dataset)) then
       if (archie_cementation_exp_index == 0) then
         icount = icount + 1
         archie_cementation_exp_index = icount
@@ -1745,7 +1755,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_archie_cement_exp = num_archie_cement_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_saturation_exponent)) then
+                      ptr%archie_saturation_exponent) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_sat_exp_dataset)) then
       if (archie_saturation_exp_index == 0) then
         icount = icount + 1
         archie_saturation_exp_index = icount
@@ -1753,7 +1764,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_archie_sat_exp = num_archie_sat_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_tortuosity_constant)) then
+                      ptr%archie_tortuosity_constant) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_tor_con_dataset)) then
       if (archie_tortuosity_index == 0) then
         icount = icount + 1
         archie_tortuosity_index = icount
@@ -2682,6 +2694,9 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
   nullify(material_property%material_elec_cond_dataset)
+  nullify(material_property%archie_cem_exp_dataset)
+  nullify(material_property%archie_sat_exp_dataset)
+  nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)

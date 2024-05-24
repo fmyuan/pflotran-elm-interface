@@ -37,6 +37,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: Test => SFBaseTest
     procedure, public :: SetupPolynomials => SFBaseSetupPolynomials
     procedure, public :: SetupExtension => SFBaseSetupExtension
+    procedure, public :: CheckExtSupport => SFBaseCheckExtSupport
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: EffectiveSaturation => SFBaseEffectiveSaturation
@@ -226,6 +227,10 @@ end subroutine SFBaseSetupPolynomials
 subroutine SFBaseSetupExtension(this,option,error_string)
 
   ! Sets up unsaturated extensions
+  !
+  ! Author: Michael Nole
+  ! Date: 05/05/2024
+  !
 
   use Option_module
 
@@ -240,6 +245,34 @@ subroutine SFBaseSetupExtension(this,option,error_string)
   call PrintErrMsg(option)
 
 end subroutine SFBaseSetupExtension
+
+subroutine SFBaseCheckExtSupport(this,option,error_string)
+
+  ! Checks if Pc function Exensions support other options
+  !
+  ! Author: Michael Nole
+  ! Date: 05/24/2024
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  ! No Pc function extensions have been tested with analytical
+  ! derivatives yet.
+  this%analytical_derivative_available = PETSC_FALSE
+
+  if (.not.option%flow%numerical_derivatives) then
+    option%io_buffer = 'SF Unsaturated Extension does not currently &
+                     &support analytical derivatives.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFBaseCheckExtSupport
 
 ! ************************************************************************** !
 

@@ -1994,6 +1994,10 @@ end subroutine SFBCSetupPolynomials
 subroutine SFBCSetupExtension(this,option,error_string)
 
   ! Sets up unsaturated extensions for the Brooks-Corey saturation function
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
 
   use Option_module
   use Utility_module
@@ -2534,11 +2538,11 @@ subroutine SFBCSPE11CapillaryPressure(this,liquid_saturation, &
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
 
-  if (present(trapped_gas_saturation)) then
-    option%io_buffer = 'The sat_func_BC_SPE11_type capillary pressure &
-                        &function does not currently support gas trapping.'
-    call PrintErrMsg(option)
-  endif
+  !if (present(trapped_gas_saturation)) then
+  !  option%io_buffer = 'The sat_func_BC_SPE11_type capillary pressure &
+  !                      &function does not currently support gas trapping.'
+  !  call PrintErrMsg(option)
+  !endif
 
   dpc_dsatl = 0.d0
 
@@ -2602,11 +2606,12 @@ subroutine SFBCSPE11Saturation(this,capillary_pressure, &
   PetscReal :: dSe_dpc,dndp
   PetscReal :: one_minus_pc_pcmax_over_two, inverse_erfc, p_cap_tilde
   PetscReal, parameter :: dpc_dpres = -1.d0
+  PetscReal, parameter :: epsilon = 1.d-14
 
   dsat_dpres = 0.d0
 
   one_minus_pc_pcmax_over_two = (1.d0 - capillary_pressure/this%pcmax) / 2.d0
-  if (one_minus_pc_pcmax_over_two < 0.d0) then
+  if (one_minus_pc_pcmax_over_two <= epsilon) then
     liquid_saturation = this%Sr
     return
   endif

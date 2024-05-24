@@ -478,6 +478,7 @@ factory_pflotran.o : \
   utility.o
 factory_subsurface.o : \
   checkpoint.o \
+  co2_span_wagner.o \
   dataset.o \
   discretization.o \
   eos.o \
@@ -1117,8 +1118,10 @@ hydrostatic.o : \
   option.o \
   pflotran_constants.o \
   region.o \
+  richards_aux.o \
   sco2_aux.o \
   string.o \
+  th_aux.o \
   utility.o \
   wipp_flow_aux.o \
   zflow_aux.o
@@ -1197,7 +1200,8 @@ inlinesurface.o : \
   inlinesurface_aux.o \
   material_aux.o \
   option.o \
-  pflotran_constants.o
+  pflotran_constants.o \
+  richards_aux.o
 inlinesurface_aux.o : \
   global_aux.o \
   option.o \
@@ -1549,17 +1553,20 @@ output.o : \
   output_vtk.o \
   patch.o \
   pflotran_constants.o \
+  pnf_aux.o \
   print.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
+  richards_aux.o \
   sco2_aux.o \
   string.o \
   units.o \
   utility.o \
   variables.o \
   waypoint.o \
-  wipp_flow_aux.o
+  wipp_flow_aux.o \
+  zflow_aux.o
 output_aux.o : \
   option.o \
   pflotran_constants.o \
@@ -2533,6 +2540,7 @@ pmc_subsurface.o : \
   grid.o \
   material.o \
   material_aux.o \
+  mphase_aux.o \
   option.o \
   pflotran_constants.o \
   pm_base.o \
@@ -2552,7 +2560,9 @@ pmc_subsurface.o : \
   pm_zflow.o \
   pmc_base.o \
   realization_subsurface.o \
+  richards_aux.o \
   solver.o \
+  th_aux.o \
   timestepper_SNES.o \
   timestepper_TS.o \
   timestepper_base.o \

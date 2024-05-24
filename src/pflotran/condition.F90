@@ -16,6 +16,11 @@ module Condition_module
 
   private
 
+  ! source/sink scaling options
+  PetscInt, parameter, public :: SCALE_BY_PERM = 1
+  PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
+  PetscInt, parameter, public :: SCALE_BY_VOLUME = 3
+
   type, public :: flow_condition_type
     PetscInt :: id                          ! id from which condition can be referenced
     PetscBool :: is_transient

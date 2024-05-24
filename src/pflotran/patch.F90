@@ -3806,8 +3806,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-
-
+  use Mphase_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
@@ -4148,73 +4147,6 @@ end subroutine PatchUpdateCouplerAuxVarsTH
 
 ! ************************************************************************** !
 
-subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for MIS_MODE
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/26/07
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-
-
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-
-  PetscInt :: num_connections
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-  if (associated(flow_condition%pressure)) then
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MIS_PRESSURE_DOF, &
-                                  1:num_connections) = &
-          flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-   !  case(SATURATION_BC)
-    end select
-  endif
-  if (associated(flow_condition%concentration)) then
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (associated(flow_condition%concentration%dataset)) then
-          coupler%flow_aux_real_var(MIS_CONCENTRATION_DOF, &
-                                    1:num_connections) = &
-            flow_condition%concentration%dataset%rarray(1)
-        endif
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-   !  case(SATURATION_BC)
-    end select
-  endif
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler, &
-                                  flow_condition%rate%isubtype,option)
-    end select
-  endif
-
-end subroutine PatchUpdateCouplerAuxVarsMIS
-
-! ************************************************************************** !
-
 subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   !
   ! Updates flow auxiliary variables associated
@@ -4227,13 +4159,12 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-
-
   use Grid_module
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
   use Dataset_module
+  use Richards_Aux_module
 
   implicit none
 
@@ -5957,6 +5888,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_module
+  use Mphase_Aux_module
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_RT_module
