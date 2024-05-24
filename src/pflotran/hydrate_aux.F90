@@ -2169,7 +2169,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   type(hydrate_parameter_type), pointer :: hydrate_parameter
 
   PetscReal, parameter :: epsilon = 1.d-14
-  PetscReal, parameter :: eps_sat = 1.d-6
+  PetscReal, parameter :: eps_sat = 0.d0 !1.d-6
   PetscReal, parameter :: eps_sg = 1.d-14 !1.d-12
   PetscReal, parameter :: eps_sh = 0.d0 !1.d-12
   PetscReal, parameter :: eps_sl = 0.d0 !1.d-12
@@ -2557,7 +2557,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                 hyd_auxvar%pres(apid)
         prvap = hyd_auxvar%pres(rvpid)
         sl_temp = (pv - prvap) / prvap
-        sl_temp = eps_sat
+        !sl_temp = eps_sat
         if (sl_temp > 0.d0 .and. hyd_auxvar%temp > Tf_ice) then
           ! Aqueous phase appears, transition state. Update primary variables
           ! for salt mass and liquid pressure

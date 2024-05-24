@@ -1217,7 +1217,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
   PetscReal, parameter :: eps_sat = 1.d-14 !1.d-10
   PetscReal, parameter :: eps_sg = 0.d0 ! 1.d-10
-  PetscReal, parameter :: eps_sh = 1.d-10
+  PetscReal, parameter :: eps_sh = 0.d0 !1.d-10
   PetscReal, parameter :: eps_sl = 0.d0
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal, parameter :: gravity = EARTH_GRAVITY
