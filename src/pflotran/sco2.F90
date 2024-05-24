@@ -829,6 +829,8 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
+          if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL .and. &
+             idof == option%nflowdof) cycle
           real_index = boundary_condition%flow_aux_mapping(&
                        dof_to_primary_variable(idof,istate))
           if (real_index > 0) then
