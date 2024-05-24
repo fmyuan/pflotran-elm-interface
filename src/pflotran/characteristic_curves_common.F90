@@ -1980,6 +1980,10 @@ end subroutine SFBCSetupPolynomials
 subroutine SFBCSetupExtension(this,option,error_string)
 
   ! Sets up unsaturated extensions for the Brooks-Corey saturation function
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
 
   use Option_module
   use Utility_module

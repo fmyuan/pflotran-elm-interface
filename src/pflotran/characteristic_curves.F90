@@ -1035,6 +1035,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (saturation_function%extended) then
     call saturation_function%SetupExtension(option,error_string)
+    call saturation_function%CheckExtSupport(option,error_string)
   endif
 
   select type(sf => saturation_function)
