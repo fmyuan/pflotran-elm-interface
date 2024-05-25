@@ -20,7 +20,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_immiscible = PETSC_FALSE
   PetscBool, public :: hydrate_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: hydrate_restrict_state_chng = PETSC_FALSE
-  PetscReal, public :: window_epsilon = 1.d-2 !1.d-4 !0.d0
+  PetscReal, public :: window_epsilon = 1.d-8
   PetscReal, public :: hydrate_phase_chng_epsilon = 0.d0 !1.d-6
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
   PetscInt, public :: hydrate_max_it_before_damping = UNINITIALIZED_INTEGER
@@ -610,10 +610,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dT_PE
   PetscReal :: aux(1)
   PetscReal :: hw
-  PetscReal :: latent_heat
   PetscReal :: dpor_dp
   PetscReal :: dTf, Pc, h_sat_eff, i_sat_eff, l_sat_eff, g_sat_eff
-  PetscReal :: dT_hyd, T3
   PetscReal :: Tf_ice, T_temp
   PetscReal :: sigma, dP
   PetscReal :: sat_temp
@@ -676,14 +674,12 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     hyd_auxvar%den_kg(hid) = CO2_HYDRATE_DENSITY_KG
     hyd_auxvar%xmol(acid,hid) = 1.d0 / (1.d0 + CO2_HYDRATION_NUMBER)
     hyd_auxvar%xmol(wid,hid) = 1.d0 - hyd_auxvar%xmol(acid,hid)
-    latent_heat = L_CO2H
   elseif (hydrate_former == HYDRATE_FORMER_CH4 .or. &
           hydrate_former == HYDRATE_FORMER_NULL) then
     hyd_auxvar%den(hid) = CH4_HYDRATE_DENSITY
     hyd_auxvar%den_kg(hid) = CH4_HYDRATE_DENSITY_KG
     hyd_auxvar%xmol(acid,hid) = 1.d0 / (1.d0 + CH4_HYDRATION_NUMBER)
     hyd_auxvar%xmol(wid,hid) = 1.d0 - hyd_auxvar%xmol(acid,hid)
-    latent_heat = L_CH4H
   endif
   hyd_auxvar%xmass(acid,hid) = hyd_auxvar%xmol(acid,hid) * &
                 hyd_auxvar%den(hid) / hyd_auxvar%den_kg(hid) / &
@@ -1084,8 +1080,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 !     Primary variables: Pg, Pa, T, MNaCl
 !
       hyd_auxvar%pres(gid) = x(HYDRATE_GAS_PRESSURE_DOF)
-      !hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
-      hyd_auxvar%pres(apid) = x(HYDRATE_GAS_SATURATION_DOF) * 1.d6
+      hyd_auxvar%sat(gid) = x(HYDRATE_GAS_SATURATION_DOF)
+      !hyd_auxvar%pres(apid) = x(HYDRATE_GAS_SATURATION_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
       hyd_auxvar%m_salt(2) = x(HYDRATE_SALT_MASS_FRAC_DOF)
 
@@ -1096,46 +1092,34 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         x_salt_dissolved = 0.d0
       endif
       hyd_auxvar%xmass(sid,lid) = x_salt_dissolved
-      !Bulk hydrate formation temperature
-      call HydrateSalinityOffset(x_salt_dissolved,dT_PE)
-      ! Hydrate capillary pressure
-      call HydrateT3(hyd_auxvar%pres(gid),0.d0,T3)
-      dT_hyd = (T3 + dT_PE) - hyd_auxvar%temp 
-      Pc = dT_hyd * (latent_heat * hyd_auxvar%den(hid) * 1.d3) / &
-                    (T3 + dT_PE + T273K)
-      call HydrateComputeSatHysteresis(characteristic_curves, &
-                                    Pc, &
-                                    hyd_auxvar%sl_min, &
-                                    1.d0, hyd_auxvar%den_kg(lid), &
-                                    sl_temp, &
-                                    hyd_auxvar%sat(tgid), &
-                                    option)
-      hyd_auxvar%sat(hid) = min(max(1.d0 - sl_temp,0.d0),1.d0)
-      hyd_auxvar%sat(gid) = 1.d0 - hyd_auxvar%sat(hid)
+      !Bulk freezing temperature
+      call HydrateIceSalinityOffset(x_salt_dissolved,Tf_ice)
+
+      T_temp = hyd_auxvar%temp - Tf_ice
+
       hyd_auxvar%sat(lid) = 0.d0
+      hyd_auxvar%sat(hid) = 1.d0 - hyd_auxvar%sat(gid)
       hyd_auxvar%sat(iid) = 0.d0
 
-      call HydrateComputeEffectiveSat(hyd_auxvar,g_sat_eff,&
-                                    h_sat_eff,i_sat_eff)
+      call HydrateSaltSolubility(hyd_auxvar%temp, salt_solubility)
+      ! Dissolved salt mass fraction
+      x_salt_dissolved = min(hyd_auxvar%m_salt(1),salt_solubility)
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-
       beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
-        sl_temp = 1.d0 - g_sat_eff
+        sl_temp = 1.d0 - hyd_auxvar%sat(gid)
         call HydrateComputePcHysteresis(characteristic_curves, &
-                                   sl_temp, &
-                                   hyd_auxvar%sat(tgid), &
-                                   beta_gl,hyd_auxvar%pres(cpid), option)
+                                        sl_temp, &
+                                        hyd_auxvar%sat(tgid), &
+                                        beta_gl, hyd_auxvar%pres(cpid), &
+                                        option)
       endif
 
       hyd_auxvar%pres(cpid) = hyd_auxvar%pres(cpid) / beta_gl
-
-      cell_pressure = max(hyd_auxvar%pres(gid),hyd_auxvar%pres(spid))
-
       hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(cpid)
 
       call HydrateBrineSaturationPressure(hyd_auxvar%temp, &
@@ -1150,17 +1134,16 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                                    hyd_auxvar%pres(cpid), &
                                    hyd_auxvar%den_kg(pbid), &
                                    x_salt_dissolved, hyd_auxvar%pres(rvpid))
-
       ! Pure water density
       xsl = x_salt_dissolved
       call HydrateWaterDensity(hyd_auxvar%temp,hyd_auxvar%pres(rvpid), &
                             TWO_INTEGER,hyd_auxvar%den_kg(pwid), &
                             den_steam_kg,option)
       pva = max(hyd_auxvar%pres(gid) - hyd_auxvar%pres(rvpid), 0.d0)
-      hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
+      hyd_auxvar%pres(vpid) = hyd_auxvar%pres(rvpid)
       call HydrateEquilibrate(hyd_auxvar%temp,cell_pressure, &
                            global_auxvar%istate, hyd_auxvar%sat(hid), &
-                           pva, &
+                           hyd_auxvar%pres(apid), &
                            hyd_auxvar%pres(vpid), &
                            hyd_auxvar%pres(spid), &
                            hyd_auxvar%pres(rvpid), &
@@ -1168,22 +1151,19 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                            xmolag, xmolwg, xmolal, xmolsl, xmolwl, &
                            characteristic_curves, material_auxvar, option)
 
-      ! Update mole fractions
-      hyd_auxvar%xmol(acid,lid) = xmolal
-      hyd_auxvar%xmol(wid,lid) = xmolwl
-      hyd_auxvar%xmol(sid,lid) = xmolsl
-      hyd_auxvar%xmol(acid,gid) = hyd_auxvar%pres(apid) / hyd_auxvar%pres(gid)
-      hyd_auxvar%xmol(wid,gid) = 1.d0 - hyd_auxvar%xmol(acid,gid)
-
       ! Update mass fractions
       hyd_auxvar%xmass(acid,lid) = xal
       hyd_auxvar%xmass(wid,lid) = xwl
       hyd_auxvar%xmass(sid,lid) = xsl
-      hyd_auxvar%xmass(wid,gid) = hyd_auxvar%xmol(wid,gid) * &
-             hydrate_fmw_comp(1) / (hyd_auxvar%xmol(wid,gid) * &
-             hydrate_fmw_comp(1) + hyd_auxvar%xmol(acid,gid) * &
-             hydrate_fmw_comp(2))
-      hyd_auxvar%xmass(acid,gid) = 1.d0 - hyd_auxvar%xmass(wid,gid)
+      hyd_auxvar%xmass(acid,gid) = xag
+      hyd_auxvar%xmass(wid,gid) = xwg
+
+      ! Update mole fractions
+      hyd_auxvar%xmol(acid,lid) = xmolal
+      hyd_auxvar%xmol(wid,lid) = xmolwl
+      hyd_auxvar%xmol(sid,lid) = xmolsl
+      hyd_auxvar%xmol(acid,gid) = xmolag
+      hyd_auxvar%xmol(wid,gid) = xmolwg
 
     case(HA_STATE)
 !     ********* Hydrate & Aqueous State (HA) ********************************
@@ -1891,7 +1871,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   else
     hyd_auxvar%kr(lid) = 0.d0
   endif
-  hyd_auxvar%kr(lid) = min(max(hyd_auxvar%kr(lid),1.d-24),1.d0)
+  !hyd_auxvar%kr(lid) = min(max(hyd_auxvar%kr(lid),1.d-24),1.d0)
 
   if (hyd_auxvar%sat(gid) > 0.d0) then
     if (hyd_auxvar%sat(gid) >=1.d0) then
@@ -2169,10 +2149,15 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   type(hydrate_parameter_type), pointer :: hydrate_parameter
 
   PetscReal, parameter :: epsilon = 1.d-14
-  PetscReal, parameter :: eps_sat = 0.d0 !1.d-6
-  PetscReal, parameter :: eps_sg = 1.d-14 !1.d-12
-  PetscReal, parameter :: eps_sh = 0.d0 !1.d-12
-  PetscReal, parameter :: eps_sl = 0.d0 !1.d-12
+  ! These must be bigger than perturbations and 
+  ! bigger than truncation limits.
+  PetscReal, parameter :: eps_sat = 1.d-6
+  PetscReal, parameter :: eps_sg = 2.d-12 !1.d-12
+  PetscReal, parameter :: eps_sh = 2.d-12 !1.d-12
+  PetscReal, parameter :: eps_sl = 2.d-12 !1.d-12
+  PetscReal, parameter :: delta_sg = 1.d-6 !1.d-4
+  PetscReal, parameter :: delta_sh = 1.d-6 !1.d-4
+  PetscReal, parameter :: delta_sl = 1.d-6 !1.d-4
   PetscReal, parameter :: peta = 1.d-1
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
@@ -2183,7 +2168,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: h_sat_eff,g_sat_eff,i_sat_eff
   PetscReal :: Pc_entry, cell_pressure, sg_min, sh_min
   PetscReal :: sl_temp, sgt_temp, sg_est !, sl_est, sh_est
-  PetscReal :: Pc, Pv, Prvap, Pa, Psat
+  PetscReal :: Pc, Pv, Prvap, Pa
   PetscReal :: beta_gl, sgt_max
   PetscReal :: xag, xwg, xal, xsl, xwl, xmolag, xmolwg, xmolal, &
                xmolsl, xmolwl
@@ -2228,10 +2213,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   liq_epsilon = 0.d0
   hyd_epsilon = 0.d0
   two_phase_epsilon = 0.d0
-
-  !man: right now comparing hydrate equilib pressure to gas
-  !pressure (assuming low water solubility in methane).
-  !Ideally would compare to partial pressure of methane.
 
   call HydrateSaltSolubility(hyd_auxvar%temp, salt_solubility)
   if (hyd_auxvar%sat(lid) <= 0.d0) then
@@ -2311,7 +2292,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       if (hyd_auxvar%sat(iid) == 0.d0) then !Not frozen
         cell_pressure = max(hyd_auxvar%pres(lid),hyd_auxvar%pres(vpid))
         ! Check if dissolved air exceeds solubility
-        if (hyd_auxvar%xmass(acid,lid) > xal) then
+        if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + window_epsilon)) then
           if (hydrate_former == HYDRATE_FORMER_CO2) then
             call HydrateBrineDensity(hyd_auxvar%temp,cell_pressure, &
                                      xsl, den_brine, option)
@@ -2319,7 +2300,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                                                den_brine,xal,den_liq)
             if (hyd_auxvar%pres(lid) >= PE_hyd) then
               istatechng = PETSC_TRUE
-              hyd_auxvar%sat(hid) = eps_sh
+              hyd_auxvar%sat(hid) = delta_sh
               global_auxvar%istate = HA_STATE
             else
               ! Compute what gas saturation would be
@@ -2353,10 +2334,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             endif
           else
             if (hyd_auxvar%pres(lid) >= PE_hyd) then
+              hyd_auxvar%sat(hid) = delta_sh
               istatechng = PETSC_TRUE
               global_auxvar%istate = HA_STATE
             else
-              hyd_auxvar%sat(gid) = eps_sat
+              hyd_auxvar%sat(gid) = delta_sg
               istatechng = PETSC_TRUE
               global_auxvar%istate = GA_STATE
             endif
@@ -2369,6 +2351,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%xmass(acid,lid) > xal * (1.d0 + window_epsilon)) then
           if (hyd_auxvar%pres(lid) >= PE_hyd) then
             istatechng = PETSC_TRUE
+            hyd_auxvar%sat(hid) = delta_sh
             global_auxvar%istate = HA_STATE
           else
             if (hydrate_former == HYDRATE_FORMER_CO2) then
@@ -2447,6 +2430,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = GI_STATE
           gas_epsilon = hydrate_phase_chng_epsilon
         else
+          hyd_auxvar%sat(gid) = 1.d0 - delta_sh
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
           gas_epsilon = hydrate_phase_chng_epsilon
@@ -2485,27 +2469,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
 
     case(GA_STATE)
-      ! Compute Saturation including Hysteresis
-      if (hyd_auxvar%sat(gid) <= eps_sg) then
+      if (hyd_auxvar%sat(gid) < eps_sg) then
         ! Gas goes away, just liquid. Update 1 primary variable.
         istatechng = PETSC_TRUE
         global_auxvar%istate = L_STATE
-
-        cell_pressure = hyd_auxvar%pres(lid)
-        ! cell_pressure = min(cell_pressure, 1.d8)
-        call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl, &
-                                              Psat)
-        call HydrateEquilibrate(hyd_auxvar%temp,cell_pressure, &
-                               global_auxvar%istate, &
-                               hyd_auxvar%sat(hid), &
-                               hyd_auxvar%pres(apid), &
-                               Pv, Psat, &
-                               hyd_auxvar%pres(rvpid), &
-                               xag, xwg, xal, xsl, xwl, &
-                               xmolag, xmolwg, xmolal, xmolsl, xmolwl, &
-                               characteristic_curves, material_auxvar, option)
-        hyd_auxvar%xmass(acid,lid) = xal
-      elseif (hyd_auxvar%sat(lid) <= eps_sl) then
+      elseif (hyd_auxvar%sat(lid) < eps_sl) then
       ! Transition to fully gas-saturated. Update 2 primary variables.
         istatechng = PETSC_TRUE
         global_auxvar%istate = G_STATE
@@ -2521,8 +2489,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         else !if (hyd_auxvar%sat(gid) > 1.d-10) then
           if (hyd_auxvar%temp > Tf_ice) then
             !sh_est = 1.d-5
-            hyd_auxvar%sat(hid) = eps_sat
-            hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid) - eps_sat
+            hyd_auxvar%sat(hid) = delta_sh
+            hyd_auxvar%sat(lid) = hyd_auxvar%sat(lid) - delta_sh
             istatechng = PETSC_TRUE
             global_auxvar%istate = HGA_STATE
             two_phase_epsilon = hydrate_phase_chng_epsilon
@@ -2537,57 +2505,43 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         endif
       endif
     case(HG_STATE)
-      if (hyd_auxvar%pres(gid) >= PE_hyd * (1.d0 - window_epsilon)) then
+      if (hyd_auxvar%pres(gid) > PE_hyd * (1.d0 - window_epsilon)) then
       !if (hyd_auxvar%pres(gid) > PE_hyd) then
 
-        if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0) then
+        if (hyd_auxvar%sat(hid) > eps_sh .and. hyd_auxvar%sat(gid) > eps_sg) then
           istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(hid) > 0.d0) then
+        elseif (hyd_auxvar%sat(hid) > eps_sh) then
           ! istatechng = PETSC_TRUE
           ! global_auxvar%istate = H_STATE
           ! two_phase_epsilon = hydrate_phase_chng_epsilon
-        elseif (hyd_auxvar%sat(gid) > 0.d0) then
+        elseif (hyd_auxvar%sat(gid) > eps_sh) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
           two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
 
-      elseif (hyd_auxvar%sat(hid) > 0.d0) then
-        Pv = hyd_auxvar%pres(gid) - &
-                hyd_auxvar%pres(apid)
-        prvap = hyd_auxvar%pres(rvpid)
-        sl_temp = (pv - prvap) / prvap
-        !sl_temp = eps_sat
-        if (sl_temp > 0.d0 .and. hyd_auxvar%temp > Tf_ice) then
-          ! Aqueous phase appears, transition state. Update primary variables
-          ! for salt mass and liquid pressure
-          istatechng = PETSC_TRUE
-          global_auxvar%istate = HGA_STATE
+      else
+        sl_temp = delta_sl
+        if (hyd_auxvar%temp > Tf_ice) then
+          !sl_est = 1.d-5
+          !hyd_auxvar%sat(hid) = max(0.d0,hyd_auxvar%sat(hid) - eps_sat)
+          hyd_auxvar%sat(lid) = sl_temp
           hyd_auxvar%m_salt(1) = hyd_auxvar%m_salt(2) / &
                                 (hyd_auxvar%den_kg(pbid) * &
                                 sl_temp * &
                                 material_auxvar%porosity)
-          hyd_auxvar%sat(lid) = sl_temp
-        !elseif (hyd_auxvar%temp > Tf_ice) then
-        !  !sl_est = 1.d-5
-        !  hyd_auxvar%sat(hid) = max(0.d0,hyd_auxvar%sat(hid) - eps_sat)
-        !  hyd_auxvar%sat(lid) = eps_sat
-        !  istatechng = PETSC_TRUE
-        !  global_auxvar%istate = HGA_STATE
-        !  two_phase_epsilon = hydrate_phase_chng_epsilon
-        !elseif (hyd_auxvar%temp <= Tf_ice) then
-          !istatechng = PETSC_TRUE
-          !global_auxvar%istate = HGAI_STATE
-          !two_phase_epsilon = hydrate_phase_chng_epsilon
-        !else
-        !  istatechng = PETSC_TRUE
-        !  global_auxvar%istate = HGI_STATE
-        !  two_phase_epsilon = hydrate_phase_chng_epsilon
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = HGA_STATE
+          two_phase_epsilon = hydrate_phase_chng_epsilon
+        elseif (hyd_auxvar%temp == Tf_ice) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = HGAI_STATE
+          two_phase_epsilon = hydrate_phase_chng_epsilon
+        else
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = HGI_STATE
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%istate = G_STATE
-        two_phase_epsilon = hydrate_phase_chng_epsilon
       endif
 
     case(HA_STATE)
@@ -2595,12 +2549,12 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       if (hyd_auxvar%pres(gid) > PE_hyd * (1.d0 - window_epsilon) &
          .and. hyd_auxvar%temp > Tf_ice) then
 
-        if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > 0.d0) then
+        if (hyd_auxvar%sat(hid) > eps_sh .and. hyd_auxvar%sat(lid) > eps_sl) then
           istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(hid) > 0.d0) then
+        elseif (hyd_auxvar%sat(hid) > eps_sh) then
           ! istatechng = PETSC_TRUE
           ! global_auxvar%istate = H_STATE
-        elseif (hyd_auxvar%sat(lid) > 0.d0) then
+        elseif (hyd_auxvar%sat(lid) > eps_sl) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = L_STATE
         endif
@@ -2608,7 +2562,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       elseif (hyd_auxvar%temp > Tf_ice) then
         ! Compute what gas saturation would be
         !sg_est = 1.d-5 
-        !hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - eps_sat
+        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - eps_sg !delta_sg
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGA_STATE
         ha_epsilon = hydrate_phase_chng_epsilon
@@ -2708,24 +2662,24 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
     case(HGA_STATE)
       if (hyd_auxvar%temp > Tf_ice) then
 
-        if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > eps_sg &
-            .and. hyd_auxvar%sat(lid) > 0.d0) then
+        if (hyd_auxvar%sat(hid) > eps_sh .and. hyd_auxvar%sat(gid) > eps_sg &
+            .and. hyd_auxvar%sat(lid) > eps_sl) then
           istatechng = PETSC_FALSE
-        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(lid) > &
-                0.d0) then
+        elseif (hyd_auxvar%sat(hid) > eps_sh .and. hyd_auxvar%sat(lid) > &
+                eps_sl) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HA_STATE
-        elseif (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > &
+        elseif (hyd_auxvar%sat(hid) > eps_sh .and. hyd_auxvar%sat(gid) > &
                 eps_sg) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
         elseif (hyd_auxvar%sat(gid) > eps_sg .and. hyd_auxvar%sat(lid) > &
-                0.d0) then
+                eps_sl) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GA_STATE
-        !elseif (hyd_auxvar%sat(lid) > 0.d0) then
-        !  istatechng = PETSC_TRUE
-        !  global_auxvar%istate = L_STATE
+        elseif (hyd_auxvar%sat(lid) > eps_sl) then
+          istatechng = PETSC_TRUE
+          global_auxvar%istate = L_STATE
         !elseif (hyd_auxvar%sat(gid) > 0.d0) then
         !  istatechng = PETSC_TRUE
         !  global_auxvar%istate = G_STATE
@@ -3062,8 +3016,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Pa, T, MNaCl
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        !x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%pres(apid) * 1.d-6
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid)
+        !x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%pres(apid)
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
         x(HYDRATE_SALT_MASS_FRAC_DOF) = hyd_auxvar%m_salt(2)
 
@@ -3215,7 +3169,8 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
                xmolsl, xmolwl, salt_mass
   PetscReal :: sigma, beta_gl
   PetscReal :: Pv, Psat, Prvap, Pa
-  PetscReal :: dpl, dpg, dpa, dxa, dxs, dsg, dt
+  PetscReal :: dpl, dpg, dpa, dxa, dxs, dsg, dsl, dsh, dt
+  PetscReal :: T_temp, PE_hyd, dT_PE, dP
   PetscReal :: cell_pressure, sgt_max
   PetscInt :: idof
 
@@ -3247,8 +3202,12 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 
   call HydrateSaltSolubility(hyd_auxvar(ZERO_INTEGER)%temp,xsl)
   dxs = 1.0d-5 * xsl
-  salt_mass = hyd_auxvar(ZERO_INTEGER)%m_salt(ONE_INTEGER)
-  xsl = min(salt_mass,xsl)
+  if (hyd_auxvar(ZERO_INTEGER)%sat(lid) > 0.d0) then
+    salt_mass = hyd_auxvar(ZERO_INTEGER)%m_salt(ONE_INTEGER)
+    xsl = min(salt_mass,xsl)
+  elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(TWO_INTEGER) <= 0.d0) then
+    xsl = 0.d0
+  endif
 
   dt = -1.d0 * perturbation_tolerance * (hyd_auxvar(ZERO_INTEGER)%temp + &
        min_perturbation)
@@ -3260,6 +3219,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
   if(.not. Initialized(sgt_max)) then
     sgt_max = 1.d0
   endif
+
 
 
   select case(global_auxvar%istate)
@@ -3277,6 +3237,12 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
                            xag, xwg, xal, xsl, xwl, &
                            xmolag, xmolwg, xmolal, xmolsl, xmolwl, &
                            characteristic_curves, material_auxvar, option)
+
+      call HydrateSalinityOffset(xsl,dT_PE)
+      T_temp = hyd_auxvar(ZERO_INTEGER)%temp - dT_PE
+      call HydratePE(T_temp,0.d0, PE_hyd, dP,&
+          characteristic_curves, material_auxvar, option)
+
       if (hyd_auxvar(ZERO_INTEGER)%xmass(acid,lid) > (1.d-2 * xal)) then
         dxa = sign(1.d-4 * xal, &
                      5.d-1 * xal - &
@@ -3286,6 +3252,14 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
                      5.d-1 * xal - &
                      hyd_auxvar(ZERO_INTEGER)%xmass(acid,lid))
       endif
+
+      dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))
+      if (hyd_auxvar(ZERO_INTEGER)%pres(lid) > PE_hyd) then
+        dxs = dxs
+      elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+        dxs = -dxs
+      endif
+
       x(HYDRATE_LIQUID_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
       x(HYDRATE_L_STATE_X_MASS_DOF) = &
@@ -3351,6 +3325,9 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
                1.d-2), min_perturbation)
       dsg = max(1.d-12,min(1.d-7,1.d-4 * hyd_auxvar(ZERO_INTEGER)%sat(gid)))
       dsg = sign(dsg, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(gid))
+      if (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+        dxs = sign(dxs, hyd_auxvar(ZERO_INTEGER)%sat(gid) - 5.d-1)
+      endif
 
       x(HYDRATE_GAS_PRESSURE_DOF) = &
        hyd_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
@@ -3368,25 +3345,21 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
     case(HG_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      !x(HYDRATE_GAS_SATURATION_DOF) = &
-      !   hyd_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
       x(HYDRATE_GAS_SATURATION_DOF) = &
-         hyd_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id) * 1.d-6
+         hyd_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+      !x(HYDRATE_GAS_SATURATION_DOF) = &
+      !   hyd_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
       x(HYDRATE_ENERGY_DOF) = &
            hyd_auxvar(ZERO_INTEGER)%temp
       x(HYDRATE_SALT_MASS_FRAC_DOF) = hyd_auxvar(ZERO_INTEGER)%m_salt(2)
 
-      dpa = max(1.d-2, &
-                  1.d-7 * dabs(hyd_auxvar(ZERO_INTEGER)%pres(gid) - &
-                               hyd_auxvar(ZERO_INTEGER)%pres(lid)))
-      dpg = 1.d-3
+      dpg = max(min(1.d-6 * dabs(hyd_auxvar(ZERO_INTEGER)%pres(gid)), &
+               1.d-2), min_perturbation)
+      dsg = max(1.d-12,min(1.d-10,1.d-4 * hyd_auxvar(ZERO_INTEGER)%sat(gid)))
+      dsg = sign(dsg, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(gid))
+
       pert(HYDRATE_GAS_PRESSURE_DOF) = dpg
-      !if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-      !  pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      !else
-      !  pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
-      !endif
-      pert(HYDRATE_GAS_SATURATION_DOF) = dpa * 1.d-6
+      pert(HYDRATE_GAS_SATURATION_DOF) = dsg
       pert(HYDRATE_ENERGY_DOF) = dt
       pert(HYDRATE_SALT_DOF) = dxs
 
@@ -3401,11 +3374,14 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 
       pert(HYDRATE_GAS_PRESSURE_DOF) = &
         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
+     
+      dsh = max(1.d-12,min(1.d-7,1.d-7 * hyd_auxvar(ZERO_INTEGER)%sat(hid)))
+      dsh = sign(dsh, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(hid))
+      dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))
+      if (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+        dxs = sign(dxs, hyd_auxvar(ZERO_INTEGER)%sat(hid) - 5.d-1)
       endif
+      pert(HYDRATE_GAS_SATURATION_DOF) = dsh
       pert(HYDRATE_ENERGY_DOF) = &
          perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
       pert(HYDRATE_SALT_DOF) = dxs
@@ -3486,15 +3462,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_SALT_MASS_FRAC_DOF) = hyd_auxvar(ZERO_INTEGER)%m_salt(1)
 
       pert(HYDRATE_ENERGY_DOF) = dt
-      if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      if (x(HYDRATE_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance
+      dsl = max(1.d-12,min(1.d-7,1.d-4 * hyd_auxvar(ZERO_INTEGER)%sat(lid)))
+      dsl = sign(dsl, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(lid))
+      pert(HYDRATE_GAS_PRESSURE_DOF) = dsl
+      dsh = max(1.d-12,min(1.d-7,1.d-4 * hyd_auxvar(ZERO_INTEGER)%sat(hid)))
+      dsh = sign(dsh, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(hid))
+      pert(HYDRATE_GAS_SATURATION_DOF) = dsh
+      dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))
+      if (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+        dxs = sign(dxs, hyd_auxvar(ZERO_INTEGER)%sat(hid) - 5.d-1)
       endif
       pert(HYDRATE_SALT_DOF) = dxs
 
@@ -4414,19 +4390,10 @@ subroutine HydrateT3(P,dP,T3)
         b = 2.7032d2
         T3 = a * P_ln + b
       elseif (P_ln < 4.659d0) then
-        a = 5.652597134545370d-05
-        b = -0.001387743
-        c = 0.014809841
-        d = -0.090578366
-        e = 0.353959665
-        f = -0.942297044
-        g = 1.828922909
-        h = -2.990848933
-        i = 7.201090037
-        j = 273.6965133
-        T3 = a * P_ln **9 + b * P_ln **8 + c * P_ln**7 + &
-             d * P_ln **6 + e * P_ln**5 + f * P_ln**4 + g * P_ln**3 + &
-             h * P_ln**2 + i * P_ln + j
+        a = 9.13936d-3
+        b = -4.86611852
+        c = 6.4721366487d2
+        T3 = (-b + sqrt(b**2 - 4 * a * (c - P_ln))) / (2*a)
       else
         T3 = 2.9d2
       endif
@@ -6201,10 +6168,10 @@ subroutine HydrateScalePermPhi(hyd_auxvar, material_auxvar, global_auxvar, &
      hyd_auxvar%effective_permeability = 1.d0
   endif
 
-  hyd_auxvar%effective_porosity = max(hyd_auxvar%effective_porosity * &
-                                       (1.d0 - hyd_auxvar%sat(pid)), &
-                                       hyd_auxvar%effective_porosity * phi_r, &
-                                       1.d-12)
+  !hyd_auxvar%effective_porosity = max(hyd_auxvar%effective_porosity * &
+  !                                     (1.d0 - hyd_auxvar%sat(pid)), &
+  !                                     hyd_auxvar%effective_porosity * phi_r, &
+  !                                     1.d-12)
 
   select case(hydrate_salt_perm_reduction_model)
 

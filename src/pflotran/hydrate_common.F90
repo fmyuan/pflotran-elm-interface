@@ -1684,16 +1684,19 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
     !MAN: this has only been tested for an extraction well. Scales the mass of
     !water and gas extracted by the mobility ratio.
     mob_tot = hyd_auxvar%mobility(lid) + hyd_auxvar%mobility(gid)
+    if (mob_tot > 0.d0) then
       if (hyd_auxvar%sat(gid) <= 0.d0) then
         ! Water component, liquid phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / hyd_auxvar%den_kg(lid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
+                   hyd_auxvar%den_kg(lid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(lid,lid)
       elseif (hyd_auxvar%sat(lid) <= 0.d0) then
         ! Water component, gas phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / hyd_auxvar%den_kg(gid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / &
+                   hyd_auxvar%den_kg(gid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(lid,gid)
       else
@@ -1755,6 +1758,7 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                          mobility(gid)/mob_tot*hyd_auxvar%den(gid) / &
                          hyd_auxvar%den_kg(gid) * hyd_auxvar%H(gid)
       endif
+    endif
   else
 
 #ifdef WATER_SRCSINK

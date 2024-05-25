@@ -126,7 +126,7 @@ function PMHydrateCreate()
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              xmol_abs_inf_tol, &
              !HG_STATE
-             pres_abs_inf_tol,pres_abs_inf_tol*1.d-6,temp_abs_inf_tol, &
+             pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
              xmol_abs_inf_tol, &
              !HA_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
@@ -174,7 +174,7 @@ function PMHydrateCreate()
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
              xmol_rel_inf_tol, &
              !HG_STATE
-             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
              xmol_rel_inf_tol, &
              !HA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
@@ -1215,10 +1215,12 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
+  ! These need to be bigger than the perturbations, 
+  ! and smaller than the epsilons for state changes.
   PetscReal, parameter :: eps_sat = 1.d-14 !1.d-10
-  PetscReal, parameter :: eps_sg = 0.d0 ! 1.d-10
-  PetscReal, parameter :: eps_sh = 0.d0 !1.d-10
-  PetscReal, parameter :: eps_sl = 0.d0
+  PetscReal, parameter :: eps_sg = 2.d-12 !2.d-12
+  PetscReal, parameter :: eps_sh = 2.d-12 !2.d-12
+  PetscReal, parameter :: eps_sl = 2.d-12 !2.d-12
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
@@ -1387,40 +1389,38 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         case(HG_STATE)
           gas_pressure_index = offset + ONE_INTEGER
-          air_pressure_index = offset + TWO_INTEGER
-          !gas_sat_index = offset + TWO_INTEGER
+          !air_pressure_index = offset + TWO_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
           temp_index = offset + THREE_INTEGER
 
-          !Limit changes in gas phase pressure
-          !dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          ! Limit changes in gas pressure  ---
+
+          !dP = 2.5d-1*max(X_p(gas_pressure_index),1.d6)
           !dX_p(gas_pressure_index) = sign(min(dabs(dP), &
           !                           dabs(dX_p(gas_pressure_index))), &
-          !                           dX_p(gas_pressure_index))
+          !                           dabs(dX_p(gas_pressure_index)))
+
           if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) > 1.d9) &
              dX_p(gas_pressure_index) = 1.d9 - X_p(gas_pressure_index)
-          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < 101325.d0) &
-             dX_p(gas_pressure_index) = 101325.d0 - X_p(gas_pressure_index)
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < 1.d-6) &
+             dX_p(gas_pressure_index) = 1.d-6 - X_p(gas_pressure_index)
 
           !Limit changes in gas partial pressure
           !if ((hyd_auxvar%pres(apid) / epsilon < epsilon) .and. &
           !    (dX_p(air_pressure_index)/epsilon < epsilon)) then
           !  dX_p(air_pressure_index) = 0.d0
           !endif
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * 1.d6
-          X_p(air_pressure_index) = X_p(air_pressure_index) * 1.d6
-          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
-          dX_p(air_pressure_index) = sign(min(dabs(dP), &
-                                     dabs(dX_p(air_pressure_index))), &
-                                     dX_p(air_pressure_index))
-          if (X_p(air_pressure_index) + dX_p(air_pressure_index) > &
-              (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then 
-             dX_p(air_pressure_index) = (X_p(gas_pressure_index) + &
-              dX_p(gas_pressure_index)) - X_p(air_pressure_index)
-          endif
-          if (X_p(air_pressure_index) + dX_p(air_pressure_index) < 1.d-6) &
-             dX_p(air_pressure_index) = 1.d-6 - X_p(air_pressure_index)
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * 1.d-6
-          X_p(air_pressure_index) = X_p(air_pressure_index) * 1.d-6
+          !dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
+          !dX_p(air_pressure_index) = sign(min(dabs(dP), &
+          !                           dabs(dX_p(air_pressure_index))), &
+          !                           dX_p(air_pressure_index))
+          !if (X_p(air_pressure_index) + dX_p(air_pressure_index) > &
+          !    (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then 
+          !   dX_p(air_pressure_index) = (X_p(gas_pressure_index) + &
+          !    dX_p(gas_pressure_index)) - X_p(air_pressure_index)
+          !endif
+          !if (X_p(air_pressure_index) + dX_p(air_pressure_index) < 1.d-6) &
+          !   dX_p(air_pressure_index) = 1.d-6 - X_p(air_pressure_index)
 
           !call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
           !call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl,Psat)
@@ -1429,13 +1429,13 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           !endif
 
           !Limit changes in gas saturation
-          !dP = 1.d-1
-          !dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
-          !                      dX_p(gas_sat_index))
-          !if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
-          !   dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
-          !if (X_p(gas_sat_index) + dX_p(gas_sat_index) < eps_sg) &
-          !   dX_p(gas_sat_index) = eps_sg - X_p(gas_sat_index)
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < eps_sg) &
+             dX_p(gas_sat_index) = eps_sg - X_p(gas_sat_index)
 
         case(HA_STATE)
           gas_pressure_index = offset + ONE_INTEGER
@@ -1462,8 +1462,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           !                                  min(dX_p(hyd_sat_index),0.d0)
           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
              dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
-          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < eps_sh) &
+             dX_p(hyd_sat_index) = eps_sh - X_p(hyd_sat_index)
 
         case(HI_STATE)
           gas_pressure_index = offset + ONE_INTEGER
@@ -1563,7 +1563,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
              dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
           if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
-              dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+              dX_p(hyd_sat_index) = eps_sh - X_p(hyd_sat_index)
 
 
           ! Limit changes in temperature
@@ -1725,6 +1725,12 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
              dX_p(gas_pressure_index) = Psat - X_p(gas_pressure_index)
           endif
       endif
+
+      !if (global_auxvars(ghosted_id)%istate == HG_STATE .or. &
+      !    global_auxvars(ghosted_id)%istate == G_STATE) then
+      !  dX_p(salt_index) = 0.d0
+      !  dX_p2(salt_index) = 0.d0
+      !endif
 
     enddo
   endif
