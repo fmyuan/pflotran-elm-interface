@@ -1931,8 +1931,13 @@ subroutine PMGeneralComputeMassBalance(this,mass_balance_array)
 
   class(pm_general_type) :: this
   PetscReal :: mass_balance_array(:)
+  PetscInt :: cell_ids(this%realization_base%patch%grid%nlmax)
+  PetscInt :: i
 
-  call GeneralComputeMassBalance(this%realization,mass_balance_array)
+  cell_ids = (/ (i, i=1, this%realization_base%patch%grid%nlmax) /)
+
+  call GeneralComputeMassBalance(this%realization, cell_ids, &
+                                 mass_balance_array)
 
 end subroutine PMGeneralComputeMassBalance
 
