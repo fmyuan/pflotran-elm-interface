@@ -2388,6 +2388,7 @@ subroutine OutputMassBalance(realization_base)
   PetscInt :: iphase, ispec
   PetscInt :: icomp, nmobilecomp, nspecies
   PetscInt :: max_tran_size
+  PetscInt :: cell_ids(realization_base%patch%grid%nlmax)
   PetscReal :: sum_kg(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
@@ -2912,9 +2913,10 @@ subroutine OutputMassBalance(realization_base)
           case(MPH_MODE)
             call MphaseComputeMassBalance(realization_base,sum_kg(:,:), &
                                           sum_trapped(:))
-          case(G_MODE)
+         case(G_MODE)
+            cell_ids = (/ (i, i=1, realization_base%patch%grid%nlmax) /)
             call GeneralComputeMassBalance(realization_base, &
-                                           realization_base%patch%grid%nlmax, &
+                                           cell_ids, &
                                            sum_kg(:,:))
           case(H_MODE)
             call HydrateComputeMassBalance(realization_base,sum_kg(:,:))
@@ -3537,8 +3539,8 @@ subroutine OutputMassBalance(realization_base)
             
             select case(option%iflowmode)
               case(G_MODE)
-                call GeneralComputeMassBalance(realization_base,cur_mbr%num_cells,&
-                                               total_mass(:,:),cur_mbr%region_cell_ids)
+                call GeneralComputeMassBalance(realization_base,cur_mbr%region_cell_ids, &
+                                               total_mass(:,:))
 
               case(SCO2_MODE)
                 call SCO2ComputeComponentMassBalance(realization_base, &
