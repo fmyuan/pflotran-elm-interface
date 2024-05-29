@@ -62,11 +62,12 @@ module Material_module
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
     PetscReal :: surface_electrical_conductivity
+    PetscReal :: waxman_smits_clay_conductivity
     class(dataset_base_type), pointer :: archie_cem_exp_dataset
     class(dataset_base_type), pointer :: archie_sat_exp_dataset
     class(dataset_base_type), pointer :: archie_tor_con_dataset
     class(dataset_base_type), pointer :: surf_elec_cond_dataset
-    PetscReal :: waxman_smits_clay_conductivity
+    class(dataset_base_type), pointer :: waxman_smits_clay_cond_dataset
 
     class(fracture_type), pointer :: fracture
 
@@ -233,6 +234,7 @@ function MaterialPropertyCreate(option)
   nullify(material_property%archie_sat_exp_dataset)
   nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
+  nullify(material_property%waxman_smits_clay_cond_dataset)
   material_property%waxman_smits_clay_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(material_property%fracture)
@@ -1014,9 +1016,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
         call InputCheckSupported(input,option,keyword,error_str, &
                                  [GEOPHYSICS_CLASS,FLOW_CLASS])
-        call InputReadDouble(input,option, &
-                             material_property%waxman_smits_clay_conductivity)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%waxman_smits_clay_conductivity, &
+                      material_property%waxman_smits_clay_cond_dataset, &
+                      keyword,error_str,option)
       case default
         call InputKeywordUnrecognized(input,keyword,error_str,option)
     end select
@@ -1782,7 +1785,9 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_surf_elec_conduct = num_surf_elec_conduct + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%waxman_smits_clay_conductivity)) then
+                      ptr%waxman_smits_clay_conductivity) .or. &
+        associated(material_property_ptrs(i)%ptr% &
+                     waxman_smits_clay_cond_dataset)) then
       if (ws_clay_conduct_index == 0) then
         icount = icount + 1
         ws_clay_conduct_index = icount
@@ -2698,6 +2703,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%archie_sat_exp_dataset)
   nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
+  nullify(material_property%waxman_smits_clay_cond_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
 
