@@ -16,7 +16,7 @@ private
 ! Author: Matthew Paul
 ! Date:   05/01/2023
 !
-! This module contains the methods to construct, evaluate, and deconstruct 
+! This module contains the methods to construct, evaluate, and deconstruct
 ! cubic splines for any monotonic capillary pressure or relative permeability
 ! function or data set. This can be done to use available data or to accelerate
 ! computationally expensive but analytical functions.
@@ -89,7 +89,7 @@ end type rpf_pchip_type
 ! **************************************************************************** !
 
 private PCHIPCoefficients ! Calculates SF and RPF coefficients via SLATEC/PCHIP
- 
+
 private SFPCHIPAllocate
 public  SFPCHIPCreate
 public  SFPCHIPCtorFunction
@@ -229,7 +229,7 @@ function SFPCHIPCtorFunction(n, sf_analytic) result (new)
     call sf_analytic%CapillaryPressure(new%Sw(i), new%Pc(0,i), new%Pc(1,i), &
                                        option)
   end do
- 
+
 ! Calculate the PCHIP splines
   call PCHIPCoefficients(new%n, new%Sw, new%Pc(0,:), new%Pc(1,:), &
                                         new%Pc(2,:), new%Pc(3,:))
@@ -264,16 +264,25 @@ end function SFPCHIPCtorArray
 ! **************************************************************************** !
 
 subroutine SFPCHIPCapillaryPressure(this, liquid_saturation, &
-                                   capillary_pressure, dPc_dSatl, option)
+                                    capillary_pressure, dPc_dSatl, option, &
+                                    trapped_gas_saturation, Sl_min)
   implicit none
   class(sf_pchip_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscInt :: i, j, k
   PetscReal :: Sw
   PetscBool :: mask
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_pchip_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
 ! Truncate saturation to be within bounds
   Sw = min(max(liquid_saturation,this%Sw(1)),this%Sw(this%n))
@@ -281,7 +290,7 @@ subroutine SFPCHIPCapillaryPressure(this, liquid_saturation, &
 ! Branchless binary search for polynomial index
   i = 1
   j = this%n
-  do while (j - i > 1) 
+  do while (j - i > 1)
     k = (i + j)/2
     mask = this%Sw(k) > Sw
     ! merge(tsource, fsource, mask)
@@ -307,12 +316,15 @@ end subroutine SFPCHIPCapillaryPressure
 ! **************************************************************************** !
 
 subroutine SFPCHIPSaturation(this, capillary_pressure, &
-                            liquid_saturation, dsat_dpres, option)
+                            liquid_saturation, dsat_dpres, option,&
+                            trapped_gas_saturation, Sl_min)
   implicit none
   class(sf_pchip_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal, parameter :: PI = 4*atan(1d0)
   PetscInt :: i, j, k
@@ -550,7 +562,7 @@ function RPFPCHIPCtorFunction(n, rpf_analytic) result (new)
   end do
   ! Ensure gas residual is precise
   i = n + 1
-  new%Sw(i) = 1d0 - new%Srg 
+  new%Sw(i) = 1d0 - new%Srg
   call rpf_analytic%RelativePermeability(new%Sw(i), new%Kr(0,i), new%Kr(1,i),  &
                                          option)
 
@@ -652,7 +664,7 @@ subroutine RPFPCHIPTest(this,cc_name,phase,option)
 
 ! Also call base test
   call RPFBaseTest(this, cc_name, phase, option)
-    
+
 end subroutine RPFPCHIPTest
 
 ! **************************************************************************** !

@@ -367,7 +367,8 @@ end subroutine SFWIPPVerify
 ! ************************************************************************** !
 
 subroutine SFWIPPCapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -377,6 +378,8 @@ subroutine SFWIPPCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   option%io_buffer = 'SFWIPPCapillaryPressure must be extended.'
   call PrintErrMsg(option)
@@ -386,7 +389,8 @@ end subroutine SFWIPPCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFWIPPSaturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -396,6 +400,8 @@ subroutine SFWIPPSaturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   option%io_buffer = 'SFWIPPSaturation must be extended.'
   call PrintErrMsg(option)
@@ -546,7 +552,8 @@ end subroutine SFKRP1Verify
 ! ************************************************************************** !
 
 subroutine SFKRP1CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! modified van Genuchten-Parker formulation.
@@ -568,6 +575,8 @@ subroutine SFKRP1CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: lambda
   PetscReal :: Se2
@@ -576,6 +585,12 @@ subroutine SFKRP1CapillaryPressure(this,liquid_saturation, &
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP1_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -618,7 +633,8 @@ end subroutine SFKRP1CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP1Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the modified van Genuchten-Parker formulation.
@@ -640,6 +656,8 @@ subroutine SFKRP1Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: lambda
   PetscReal :: Se2
@@ -746,7 +764,8 @@ end subroutine SFKRP2Verify
 ! ************************************************************************** !
 
 subroutine SFKRP2CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! original Brooks Corey formulation.
@@ -766,12 +785,20 @@ subroutine SFKRP2CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se1
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP2_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -800,7 +827,8 @@ end subroutine SFKRP2CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP2Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the original Brooks Corey formulation.
@@ -820,6 +848,8 @@ subroutine SFKRP2Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se1
 
@@ -931,7 +961,8 @@ end subroutine SFKRP3Verify
 ! ************************************************************************** !
 
 subroutine SFKRP3CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! modified Brooks Corey formulation.
@@ -952,12 +983,20 @@ subroutine SFKRP3CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se2
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP3_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -988,7 +1027,8 @@ end subroutine SFKRP3CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP3Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the modified Brooks Corey formulation.
@@ -1009,6 +1049,8 @@ subroutine SFKRP3Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se2
   PetscReal :: term
@@ -1123,7 +1165,8 @@ end subroutine SFKRP4Verify
 ! ************************************************************************** !
 
 subroutine SFKRP4CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! modified Brooks Corey formulation.
@@ -1144,12 +1187,20 @@ subroutine SFKRP4CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se2
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP4_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -1180,7 +1231,8 @@ end subroutine SFKRP4CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP4Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the modified Brooks Corey formulation.
@@ -1201,6 +1253,8 @@ subroutine SFKRP4Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se2
   PetscReal :: term
@@ -1315,7 +1369,8 @@ end subroutine SFKRP5Verify
 ! ************************************************************************** !
 
 subroutine SFKRP5CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation linearly.
   ! BRAGFLO UM 6.02 pg 45; Fig. 21
@@ -1335,12 +1390,20 @@ subroutine SFKRP5CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se2
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP5_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -1369,7 +1432,8 @@ end subroutine SFKRP5CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP5Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure linearly.
   ! BRAGFLO UM 6.02 pg 45; Fig. 21
@@ -1389,6 +1453,8 @@ subroutine SFKRP5Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se2
 
@@ -1499,7 +1565,8 @@ end subroutine SFKRP8Verify
 ! ************************************************************************** !
 
 subroutine SFKRP8CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! original van Genuchten-Parker formulation.
@@ -1520,6 +1587,8 @@ subroutine SFKRP8CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: lambda
   PetscReal :: Se1
@@ -1528,6 +1597,12 @@ subroutine SFKRP8CapillaryPressure(this,liquid_saturation, &
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
   dpc_dsatl = 0.d0*dpc_dsatl
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP8_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (this%ignore_permeability) then
     this%pct = 1.d0/this%alpha
@@ -1563,7 +1638,8 @@ end subroutine SFKRP8CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP8Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the original van Genuchten-Parker formulation.
@@ -1584,6 +1660,8 @@ subroutine SFKRP8Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: lambda
   PetscReal :: Se1
@@ -1684,7 +1762,8 @@ end subroutine SFKRP9Verify
 ! ************************************************************************** !
 
 subroutine SFKRP9CapillaryPressure(this,liquid_saturation, &
-                                     capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation
   ! based on experimental measurements and analyses done by Vauclin et al.
@@ -1707,10 +1786,18 @@ subroutine SFKRP9CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se1
   PetscReal, parameter :: a = 3783.0145d0
   PetscReal, parameter :: b = 2.9d0
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP9_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   dpc_dsatl = capillary_pressure / &
               (liquid_saturation*b*(liquid_saturation - 1.d0))
@@ -1734,7 +1821,8 @@ end subroutine SFKRP9CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP9Saturation(this,capillary_pressure, &
-                              liquid_saturation,dsat_dpres,option)
+                              liquid_saturation,dsat_dpres,option,&
+                              trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure
   ! based on experimental measurements and analyses done by Vauclin et al.
@@ -1757,6 +1845,8 @@ subroutine SFKRP9Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se1
   PetscReal :: dS_dSe
@@ -1846,7 +1936,8 @@ end subroutine SFKRP11Verify
 ! ************************************************************************** !
 
 subroutine SFKRP11CapillaryPressure(this,liquid_saturation, &
-                                      capillary_pressure,dpc_dsatl,option)
+                                    capillary_pressure,dpc_dsatl,option, &
+                                    trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! open cavity modification logic.
@@ -1866,16 +1957,25 @@ subroutine SFKRP11CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   dpc_dsatl = 0.d0
   capillary_pressure = 0.0d0
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP11_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine SFKRP11CapillaryPressure
 
 ! ************************************************************************** !
 
 subroutine SFKRP11Saturation(this,capillary_pressure, &
-                               liquid_saturation,dsat_dpres,option)
+                               liquid_saturation,dsat_dpres,option,&
+                               trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the open cavity modification logic.
@@ -1895,6 +1995,8 @@ subroutine SFKRP11Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   dsat_dpres = 0.d0
   liquid_saturation = 1.d0
@@ -1988,7 +2090,8 @@ end subroutine SFKRP12Verify
 ! ************************************************************************** !
 
 subroutine SFKRP12CapillaryPressure(this,liquid_saturation, &
-                                      capillary_pressure,dpc_dsatl,option)
+                                    capillary_pressure,dpc_dsatl,option, &
+                                    trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation using the
   ! modified Brooks Corey formulation for a waste area.
@@ -2009,10 +2112,18 @@ subroutine SFKRP12CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se21
   PetscReal :: Se1
   PetscReal :: Se
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_KRP12_type capillary pressure function &
+                  &does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   dpc_dsatl = 0.d0
   dpc_dsatl = 1.d0/dpc_dsatl
@@ -2045,7 +2156,8 @@ end subroutine SFKRP12CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFKRP12Saturation(this,capillary_pressure, &
-                               liquid_saturation,dsat_dpres,option)
+                               liquid_saturation,dsat_dpres,option,&
+                               trapped_gas_saturation, Sl_min)
   !
   ! Computes the liquid saturation as a function of capillary pressure using
   ! the modified Brooks Corey formulation for a waste area.
@@ -2066,6 +2178,8 @@ subroutine SFKRP12Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se21
 

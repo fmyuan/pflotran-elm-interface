@@ -56,7 +56,6 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
 
   ! accumulation term units = kg/s
   Res = 0.d0
-  ! Trapped gas should be accounted for in the gas phase
   do iphase = 1, option%nphase - 1
     ! Res[kg comp/sec] =      sat[m^3 phase/m^3 void] *
     !                         den_kg[kg phase/m^3 phase] *
@@ -248,7 +247,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         visc_mean = (sco2_auxvar_up%visc(iphase) * sco2_auxvar_dn%visc(iphase) * &
                  (dist_up + dist_dn)) / (sco2_auxvar_up%visc(iphase) * dist_up + &
                   sco2_auxvar_dn%visc(iphase) * dist_dn)
-    
+
         ! STOMP takes harmonic mean on density when old velocity is 0
         mobility = kr / visc_mean
       endif
@@ -558,7 +557,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscInt :: iphase, icomp
 
-  PetscInt :: lid, gid, pid, tgid, wid, co2_id, sid
+  PetscInt :: lid, gid, pid, wid, co2_id, sid
   PetscReal :: perm_dn
   PetscReal :: delta_pressure
   PetscReal :: delta_temp
@@ -596,7 +595,6 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   lid = option%liquid_phase
   gid = option%gas_phase
   pid = option%precipitate_phase
-  tgid = option%trapped_gas_phase
 
   wid = option%water_id
   co2_id = option%co2_id
@@ -627,7 +625,7 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
       if (sco2_auxvar_up%mobility(iphase) + &
           sco2_auxvar_dn%mobility(iphase) > eps) then
 
-      
+
 
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
         if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
@@ -1084,16 +1082,16 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         ! Salt component
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * &
                                          (sco2_auxvar%mobility(lid)/mob_tot * &
-                                          sco2_auxvar%xmass(sid,lid)) 
+                                          sco2_auxvar%xmass(sid,lid))
         if (sco2_thermal) then
-          ! Energy                                  
+          ! Energy
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * &
                                          (sco2_auxvar%mobility(lid)/mob_tot * &
                                           sco2_auxvar%H(lid) + &
                                           sco2_auxvar%mobility(gid)/mob_tot * &
                                           sco2_auxvar%H(gid))
         endif
-        
+
       endif
 
     case(MASS_RATE_SS)
@@ -1131,7 +1129,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                                        scale
       Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
                                      sco2_auxvar%den_kg(gid) * scale
-      
+
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG * &
                                       scale
       if (sco2_thermal) then
