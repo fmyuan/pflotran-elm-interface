@@ -1924,8 +1924,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                  ! Coupled well DOF
                  converged_well = PETSC_FALSE
             else
-             converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-             converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+              converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+              converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
             endif
           endif
         enddo

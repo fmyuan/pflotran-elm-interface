@@ -246,6 +246,8 @@ subroutine SFBaseSetupExtension(this,option,error_string)
 
 end subroutine SFBaseSetupExtension
 
+! ************************************************************************** !
+
 subroutine SFBaseCheckExtSupport(this,option,error_string)
 
   ! Checks if Pc function Exensions support other options

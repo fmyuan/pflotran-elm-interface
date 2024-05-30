@@ -1901,6 +1901,15 @@ subroutine SFBCVerify(this,name,option)
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call PrintErrMsg(option)
   endif
+  if (Initialized(this%Sgt_max)) then
+    select case (option%iflowmode)
+      case(SCO2_MODE)
+      case default
+        option%io_buffer = 'Gas trapping is not &
+           &enabled in the requested flow mode.'
+        call PrintErrMsg(option)
+    end select
+  endif
 
 end subroutine SFBCVerify
 
@@ -2122,15 +2131,8 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
     return
   endif
 
-  if (Initialized(this%Sgt_max)) then
+  if (this%Sgt_max > 0.d0) then
     ! Consider gas trapping
-    if (.not. Initialized(Sgt)) then
-      option%io_buffer = 'Trapped gas saturation must &
-         &be passed to the Brooks Corey saturation function &
-         &to use gas trapping. Gas trapping is likely not &
-         &enabled in the requesetd flow mode.'
-      call PrintErrMsg(option)
-    endif
     Sgtme = this%Sgt_max
     Sgf = max(1.d0-liquid_saturation-Sgt,0.d0)
     Sgf = Sgf + max(Sgt-this%Sgt_max,0.d0)
@@ -2287,15 +2289,8 @@ subroutine SFBCSaturation(this,capillary_pressure, &
     dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
   endif
 
-  if (Initialized(this%Sgt_max)) then
+  if (this%Sgt_max > 0.d0) then
     ! Consider gas trapping
-    if (.not. Initialized(Sla)) then
-      option%io_buffer = 'Trapped gas saturation must &
-         &be passed to the Brooks Corey saturation function &
-         &to use gas trapping. Gas trapping is likely not &
-         &enabled in the requesetd flow mode.'
-      call PrintErrMsg(option)
-    endif
     Slam = max(min(liquid_saturation,Sla),0.d0)
     if (this%Sgt_max > epsilon .and. liquid_saturation > Slam) then
       Sgtmax = this%Sgt_max
