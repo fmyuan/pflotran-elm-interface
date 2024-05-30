@@ -889,7 +889,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                     'SOIL_REFERENCE_PRESSURE')
     call RealLinkMatPropToDataset(realization,cur_material_property, &
                     cur_material_property%compressibility_dataset, &
-                    'SOIL_REFERENCE_PSOIL_COMPRESSIBILITYRESSURE')
+                    'SOIL_COMPRESSIBILITY')
     if (associated(cur_material_property%multicontinuum)) then
       call RealLinkMatPropToDataset(realization,cur_material_property, &
                                     cur_material_property%multicontinuum% &
