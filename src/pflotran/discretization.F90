@@ -580,7 +580,7 @@ subroutine DiscretizationRead(discretization,input,option)
         end select
       case('RIGHT_HAND_RULE_CHECK_ALL')
         discretization%grid%unstructured_grid% &
-                         check_all_points_rh_rule = PETSC_TRUE         
+                         check_all_points_rh_rule = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,'GRID',option)
     end select

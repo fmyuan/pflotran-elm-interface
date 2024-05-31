@@ -251,7 +251,7 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   ! held at solubility, the sorbed concentration is calculated at solubility,
   ! and the additional mass will form a precipitated phase.
   ! total_bulk_conc [mol/m^3-bulk] = aqueous_eq_conc [mol/m^3-liq] * por [m^3 void/m^3 bulk] * sat [m^3 liq/m^3 void] +
-  !                                  aqueous_eq_conc [mol/m^3-liq] * ele_kd [m^3-water / m^3 bulk]  
+  !                                  aqueous_eq_conc [mol/m^3-liq] * ele_kd [m^3-water / m^3 bulk]
   aqueous_eq_conc = min(solubility,total_bulk_conc/(por*sat+ele_kd))              ! [mol/m^3-liq]
   aqueous_mass_conc = aqueous_eq_conc * (sat*por)                                 ! [mol/m^3-bulk]
   sorb_mass_conc = aqueous_eq_conc * ele_kd                                       ! [mol/m^3-bulk]

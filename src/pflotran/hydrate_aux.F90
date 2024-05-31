@@ -157,7 +157,7 @@ module Hydrate_Aux_module
   PetscReal, parameter :: MW_H2O = 18.01d0
   PetscReal, parameter :: MW_NACL = 58.44277d0
   PetscReal, parameter :: L_CH4H = 7161.d0 ! enthalpy of fusion, J/mol
-  PetscReal, parameter :: L_CO2H = 22049.01d0 
+  PetscReal, parameter :: L_CO2H = 22049.01d0
   PetscReal, public :: hydrate_fmw_comp(3) = [MW_H2O,MW_CH4,MW_NACL]
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
   PetscReal, parameter :: MOL_RATIO_H2O = 1.d0 - MOL_RATIO_METH
@@ -2149,7 +2149,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   type(hydrate_parameter_type), pointer :: hydrate_parameter
 
   PetscReal, parameter :: epsilon = 1.d-14
-  ! These must be bigger than perturbations and 
+  ! These must be bigger than perturbations and
   ! bigger than truncation limits.
   PetscReal, parameter :: eps_sat = 1.d-6
   PetscReal, parameter :: eps_sg = 2.d-12 !1.d-12
@@ -2561,7 +2561,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
       elseif (hyd_auxvar%temp > Tf_ice) then
         ! Compute what gas saturation would be
-        !sg_est = 1.d-5 
+        !sg_est = 1.d-5
         hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - eps_sg !delta_sg
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGA_STATE
@@ -3374,7 +3374,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 
       pert(HYDRATE_GAS_PRESSURE_DOF) = &
         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
-     
+
       dsh = max(1.d-12,min(1.d-7,1.d-7 * hyd_auxvar(ZERO_INTEGER)%sat(hid)))
       dsh = sign(dsh, 5.d-1 - hyd_auxvar(ZERO_INTEGER)%sat(hid))
       dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))

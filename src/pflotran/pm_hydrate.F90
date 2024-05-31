@@ -1215,7 +1215,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
-  ! These need to be bigger than the perturbations, 
+  ! These need to be bigger than the perturbations,
   ! and smaller than the epsilons for state changes.
   PetscReal, parameter :: eps_sat = 1.d-14 !1.d-10
   PetscReal, parameter :: eps_sg = 2.d-12 !2.d-12
@@ -1415,7 +1415,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
           !                           dabs(dX_p(air_pressure_index))), &
           !                           dX_p(air_pressure_index))
           !if (X_p(air_pressure_index) + dX_p(air_pressure_index) > &
-          !    (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then 
+          !    (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then
           !   dX_p(air_pressure_index) = (X_p(gas_pressure_index) + &
           !    dX_p(gas_pressure_index)) - X_p(air_pressure_index)
           !endif
