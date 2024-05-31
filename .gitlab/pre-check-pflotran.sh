@@ -15,10 +15,6 @@ if [ $(grep -c "No trailing whitespaces found" "$WHITESPACE_LOG") -ne 1 ]; then
   echo "\n----- Trailing whitespace found. -----\n"
   echo "\n----- Pre-check tests failed. -----\n"
   PRE_CHECK_TEST_CODE=1
-
-  # always pass for now
-  PRE_CHECK_TEST_CODE=0
-
 else
   echo "\n----- Pre-check tests passed. -----\n"
   PRE_CHECK_TEST_CODE=0
