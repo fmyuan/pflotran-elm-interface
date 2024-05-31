@@ -32,7 +32,7 @@ module Communicator_Base_class
     subroutine SetDM(this,dm_ptr)
 #include "petsc/finclude/petscdm.h"
       use petscdm
-      use DM_Kludge_module
+      use DM_Custom_module
       import communicator_type
       implicit none
       class(communicator_type) :: this

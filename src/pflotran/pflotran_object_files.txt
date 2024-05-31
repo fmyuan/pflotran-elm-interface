@@ -175,7 +175,7 @@ grid_obj = \
 	${common_src}communicator_structured.o \
 	${common_src}communicator_unstructured.o \
 	${common_src}discretization.o \
-	${common_src}dm_kludge.o \
+	${common_src}dm_custom.o \
 	${common_src}grid.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
