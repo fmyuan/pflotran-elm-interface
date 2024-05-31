@@ -346,7 +346,7 @@ function GeneralAuxCreate(option)
   aux%general_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
   if (general_salt) then
     aux%general_parameter%diffusion_coefficient(PRECIPITATE_PHASE) = UNINITIALIZED_DOUBLE
-  endif 
+  endif
   aux%general_parameter%newton_inf_scaled_res_tol = 1.d-50
   aux%general_parameter%check_post_converged = PETSC_FALSE
 
@@ -1996,11 +1996,11 @@ subroutine GeneralAuxVarCompute4(x,gen_auxvar,global_auxvar,material_auxvar, &
       !x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = 1.d0
       gen_auxvar%xmol(acid,lid) = 0.d0!x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
+
       if (soluble_matrix) then
         gen_auxvar%effective_porosity = 0.d0
       else
-        gen_auxvar%sat(pid) = 1.d0        
+        gen_auxvar%sat(pid) = 1.d0
       endif
 
       gen_auxvar%sat(lid) = 0.d0
@@ -2847,7 +2847,7 @@ subroutine GeneralPrintNegativeSat(natural_id,gen_auxvar,phase_state,option)
 
   !
   !  GeneralPrintNegativeSat: Prints when a negative saturation is encountered
-  !                      
+  !
   !
   !  Author: David Fukuyama
   !  Date: 01/05/24
@@ -3415,7 +3415,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
              write(state_change_string,'(''LP -> Precipitate Phase at Boundary Face '', &
                   & i8)') natural_id
           endif
-        endif      
+        endif
       endif
     case(GP_STATE)
       if (soluble_matrix) then

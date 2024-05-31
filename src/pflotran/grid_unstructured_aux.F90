@@ -284,7 +284,7 @@ function UGridCreate()
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
   unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
 
-  
+
   UGridCreate => unstructured_grid
 
 end function UGridCreate

@@ -345,7 +345,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   if (lflag) then
     option%io_buffer = 'See errors above.'
     call PrintErrMsg(option)
-  endif 
+  endif
 
 
   if (allocated(vertex_count_array)) deallocate(vertex_count_array)

@@ -35,7 +35,7 @@ subroutine SplineSecondDeriv(t,s,n,s_dp)
 
   s_dp(1) = 0.d0
   temp_array(1) = 0.d0
-  
+
   do i = 2,n-1
     alpha = (t(i)-t(i-1))/(t(i+1)-t(i-1))
     temp = alpha*s_dp(i-1)+2.d0
@@ -44,7 +44,7 @@ subroutine SplineSecondDeriv(t,s,n,s_dp)
                     (s(i)-s(i-1))/(t(i)-t(i-1)))/ &
                     (t(i+1)-t(i-1)) - alpha*temp_array(i-1))/temp
   enddo
-  
+
   bound1 = 0.d0
   bound2 = 0.d0
   s_dp(n) = (bound2-bound1*temp_array(n-1))/(bound1*s_dp(n-1)+1.d0)
@@ -54,7 +54,7 @@ subroutine SplineSecondDeriv(t,s,n,s_dp)
   enddo
 
   return
-  
+
 end subroutine SplineSecondDeriv
 
 ! ************************************************************************** !
@@ -63,7 +63,7 @@ subroutine SplineInterp(arr1,arr2,s_dp,n,t,s_int)
 
   !     two arrays arr1(1:n) and arr2(1:n) of length n and the second
   !     derivative from SplineSecondDeriv s_dp(1:n), give a value of t,
-  !     this returns cubic-spline interpolated value of s_int. 
+  !     this returns cubic-spline interpolated value of s_int.
   !
   !     Reference: press, w.h., b.p. flannery, s.a. teukolsky, and
   !     w.t. vetterling.
@@ -81,7 +81,7 @@ subroutine SplineInterp(arr1,arr2,s_dp,n,t,s_int)
 
   lower = 1
   upper = n
-  
+
   do while (upper-lower > 1)
     k = (upper+lower)/2
     if (arr1(k) > t) then
@@ -90,7 +90,7 @@ subroutine SplineInterp(arr1,arr2,s_dp,n,t,s_int)
       lower = k
     endif
   end do
-  
+
   denom = arr1(upper)-arr1(lower)
   c1 = (arr1(upper)-t)/denom
   c2 = (t-arr1(lower))/denom
@@ -137,7 +137,7 @@ subroutine BisectionSearch(arr,n,val,ind)
   ind = lower
 
   return
-  
+
 end subroutine BisectionSearch
 
 end module Spline_module

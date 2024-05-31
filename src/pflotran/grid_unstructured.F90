@@ -2814,7 +2814,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
 
       if (distance > 0.d0) then
         flag = PETSC_TRUE
-        ! need to test all combinations of points 
+        ! need to test all combinations of points
         if (face_type == QUAD_FACE_TYPE .and. unstructured_grid%check_all_points_rh_rule) then
           point4 =  &
                unstructured_grid%vertices(cell_vertex_ids_before(face_vertex_ids(4)))
@@ -2904,7 +2904,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
             error_found = PETSC_TRUE
           endif
         endif
-      endif 
+      endif
     enddo
   enddo
 
@@ -2917,7 +2917,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
     else
       option%io_buffer = 'Cells found that violate right hand rule.'
       call PrintErrMsgByRank(option)
-    endif      
+    endif
   endif
 
 end subroutine UGridEnsureRightHandRule

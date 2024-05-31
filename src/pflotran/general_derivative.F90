@@ -787,7 +787,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   PetscReal :: jac_num(3,3)
   PetscReal :: jac_dum(3,3)
 
-  PetscReal :: dummy_real 
+  PetscReal :: dummy_real
 
   dummy_real = 123.d0
 

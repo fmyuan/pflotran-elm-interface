@@ -5,12 +5,12 @@ implicit none
 ! **************************************************************************** !
 !
 ! This module contains selected subroutines from the PCHIP package of the SLATEC
-! public domain library. The code has been minimally modified to conform to 
+! public domain library. The code has been minimally modified to conform to
 ! PFLOTRAN conventions. These modifications include:
 ! 1. Using variable type definitions in petsc/finclude/petscsys.h instead
 !    native Fortran types.
 ! 2. Replacing fixed format continuation characters with free-format ampersands.
-! 3. Removing declaration of local functions 
+! 3. Removing declaration of local functions
 ! 4. Replacing DATA/SAVE statements with PARAMETER for constants
 !
 ! XERMSG functionality has not been replicated, but could call PFLOTRAN

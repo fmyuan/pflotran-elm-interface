@@ -240,7 +240,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCSubsurfGeophys(simulation,pm_geop, &
                                          'PMCSubsurfaceGeophysics')
   endif
-  
+
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   call FactorySubsurfReadRequiredCards(simulation,input)
