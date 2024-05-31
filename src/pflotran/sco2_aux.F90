@@ -2663,7 +2663,7 @@ subroutine SCO2BrineEnthalpy(T, x_s, H_w, H_b)
 
 
   ! Enthalpy of brine
-  H_b = (1.D+0-x_s)*H_w + x_s*h_salt + s_molality*dh_mix
+  H_b = (1.d0-x_s)*H_w + x_s*h_salt + s_molality*dh_mix
 
 
 end subroutine SCO2BrineEnthalpy

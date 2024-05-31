@@ -70,7 +70,6 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -145,9 +144,7 @@ subroutine HydrateSetup(realization)
   allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, 2 * ndof
-      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id), &
-                         (hydrate_analytical_derivatives .and. idof==0), &
-                          option)
+      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id),option)
     enddo
   enddo
   patch%aux%Hydrate%auxvars => hyd_auxvars
@@ -159,7 +156,7 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_bc => hyd_auxvars_bc
   endif
@@ -171,34 +168,21 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_ss => hyd_auxvars_ss
   endif
   patch%aux%Hydrate%num_aux_ss = sum_connection
 
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do
-    if (.not.associated(cur_fluid_property)) exit
-    patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
-        cur_fluid_property%diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
-  enddo
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
+  ! ! initialize parameters
+  ! cur_fluid_property => realization%fluid_properties
+  ! do
+  !   if (.not.associated(cur_fluid_property)) exit
+  !   patch%aux%Hydrate%hydrate_parameter% &
+  !     diffusion_coefficient(:,cur_fluid_property%phase_id) = &
+  !       cur_fluid_property%diffusion_coefficient
+  !   cur_fluid_property => cur_fluid_property%next
+  ! enddo
 
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
@@ -667,17 +651,17 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:),&
                                        global_auxvars_ss(:)
-
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
   PetscInt :: offset
   PetscInt :: istate
-  PetscInt :: wat_comp_id, air_comp_id
+  PetscInt :: wat_comp_id, air_comp_id, lid, salt_id
   PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), &
@@ -696,6 +680,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -717,7 +702,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
                          patch%cc_id(ghosted_id))%ptr, &
-                       natural_id, &
+                       hydrate_parameter, natural_id, &
                        option)
     if (update_state) then
       call HydrateAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
@@ -725,8 +710,8 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
-                                      patch%cc_id(ghosted_id))%ptr, &
-                                    natural_id, option)
+                                    patch%cc_id(ghosted_id))%ptr, &
+                                    hydrate_parameter, natural_id, option)
     endif
   enddo
 
@@ -880,7 +865,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%cc_id(ghosted_id))%ptr, &
-                                natural_id, &
+                                hydrate_parameter, natural_id, &
                                 option)
       ! update state and update aux var; this could result in two update to
       ! the aux var as update state updates if the state changes
@@ -889,13 +874,15 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
                                       patch%cc_id(ghosted_id))%ptr, &
-                                    natural_id,option)
+                                    hydrate_parameter, natural_id,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
+  lid = option%liquid_phase
+  salt_id = option%salt_id
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
@@ -980,6 +967,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                 + qsrc_vol(air_comp_id))
       endif
       xxss(3) = hyd_auxvar_ss%temp
+      xxss(4) = hyd_auxvar_ss%xmass(salt_id,lid)
 
       cell_pressure = maxval(hyd_auxvar%pres(option% &
                            liquid_phase:option%gas_phase))
@@ -989,6 +977,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         xxss(1) = cell_pressure
         xxss(2) = hyd_auxvar%sat(air_comp_id)
         xxss(3) = hyd_auxvar%temp
+        xxss(4) = hyd_auxvar%xmass(salt_id,lid)
       endif
 
       if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
@@ -1014,7 +1003,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                 patch%cc_id(source_sink%region% &
-                                cell_ids(1)))%ptr, &
+                                cell_ids(1)))%ptr, hydrate_parameter, &
                                 source_sink%region%cell_ids(1), &
                                 option)
     enddo
@@ -1100,7 +1089,7 @@ subroutine HydrateUpdateFixedAccum(realization)
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
-                              natural_id, &
+                              hydrate_parameter, natural_id, &
                               option)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
@@ -1184,7 +1173,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
 
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -1623,7 +1612,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%cc_id(ghosted_id))%ptr, &
-                                natural_id,option)
+                                hydrate_parameter, natural_id,option)
     enddo
   endif
 

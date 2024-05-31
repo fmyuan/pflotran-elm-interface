@@ -103,6 +103,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFIGHCC2Verify
     procedure, public :: CapillaryPressure => SFIGHCC2CapillaryPressure
     procedure, public :: Saturation => SFIGHCC2Saturation
+    procedure, public :: GetAlpha_ => SFIGHCC2GetAlpha
   end type sat_func_IGHCC2_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_Exp_Freezing_type
@@ -1098,6 +1099,20 @@ end subroutine SFIGHCC2Init
 
 ! ************************************************************************** !
 
+function SFIGHCC2GetAlpha(this)
+
+  implicit none
+
+  class(sat_func_IGHCC2_type) :: this
+
+  PetscReal :: SFIGHCC2GetAlpha
+
+  SFIGHCC2GetAlpha = this%alpha
+
+end function SFIGHCC2GetAlpha
+
+! ************************************************************************** !
+
 subroutine SFIGHCC2Verify(this,name,option)
 
   use Option_module
@@ -1171,7 +1186,7 @@ subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
     return
-  else if (liquid_saturation >= 1.d0) then
+  elseif (liquid_saturation >= 9.99d-1) then
     capillary_pressure = 0.d0
     return
   endif
@@ -1520,7 +1535,6 @@ subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
                                       trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
-  ! Currently does nothing.
   !
   ! Author: Michael Nole
   ! Date: 01/09/24

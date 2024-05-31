@@ -94,7 +94,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   material_property_array => realization%patch%material_property_array
   material_auxvars => realization%patch%aux%Material%auxvars
-  
+
   ! to catch uninitialized grid cells.  see VecMin check at bottom.
   call VecSet(field%work_loc,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
   call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
@@ -401,8 +401,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
-                      !DF: if the flow condition is set to soluble, then 
-                      !    it is initialized with a tiny amount of solid precipitate, and 
+                      !DF: if the flow condition is set to soluble, then
+                      !    it is initialized with a tiny amount of solid precipitate, and
                       !    the salt concentration is at solubility.
                       if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
                         xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = 1.d-10
@@ -445,8 +445,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
-                      !DF: if the flow condition is set to soluble, then 
-                      !    it is initialized with a tiny amount of solid precipitate, and 
+                      !DF: if the flow condition is set to soluble, then
+                      !    it is initialized with a tiny amount of solid precipitate, and
                       !    the salt concentration is at solubility.
                       if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
                         xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = 1.d-10
@@ -479,8 +479,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
-                      !DF: if the flow condition is set to soluble, then 
-                      !    it is initialized with a tiny amount of solid precipitate, and 
+                      !DF: if the flow condition is set to soluble, then
+                      !    it is initialized with a tiny amount of solid precipitate, and
                       !    the salt concentration is at solubility.
                       if (general%salt_mole_fraction%itype == AT_SOLUBILITY_BC) then
                         xx_p(ibegin+GENERAL_PRECIPITATE_SAT_DOF) = 1.d-10
@@ -546,6 +546,12 @@ subroutine CondControlAssignFlowInitCond(realization)
               trim(initial_condition%flow_condition%name) // &
               '" must be of type Dirichlet or Hydrostatic'
             ! error checking.  the data must match the state
+              ! Salt mass is either total mass or total mass fraction
+            if (.not. &
+                (hydrate%salt_mass%itype == DIRICHLET_BC)) then
+              option%io_buffer = 'Salt mass ' // trim(string)
+              call PrintErrMsg(option)
+            endif
             select case(initial_condition%flow_condition%iphase)
               case(L_STATE)
                 if (.not. &
@@ -555,8 +561,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Mole fraction ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -575,8 +581,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -720,8 +726,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsg(option)
                 endif
                 if (.not. &
-                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
-                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                    (hydrate%mass_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mass_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Liquid Mole Fraction ' // trim(string)
                   call PrintErrMsg(option)
                 endif
@@ -858,8 +864,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                 case(L_STATE)
                   xx_p(ibegin+HYDRATE_LIQUID_PRESSURE_DOF) = &
                     hydrate%liquid_pressure%dataset%rarray(1)
-                  xx_p(ibegin+HYDRATE_L_STATE_X_MOLE_DOF) = &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_L_STATE_X_MASS_DOF) = &
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(G_STATE)
@@ -867,14 +873,14 @@ subroutine CondControlAssignFlowInitCond(realization)
                     hydrate%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_G_STATE_AIR_PRESSURE_DOF) = &
                     hydrate%gas_pressure%dataset%rarray(1) * &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(H_STATE)
                   xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
                     hydrate%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
-                    MOL_RATIO_METH
+                    0.d0
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
                 case(I_STATE)
@@ -938,7 +944,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                       hydrate%liquid_pressure%dataset%rarray(1)
                   endif
                   xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
-                    hydrate%mole_fraction%dataset%rarray(1)
+                    hydrate%mass_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%liquid_saturation%dataset%rarray(1)
                 case(HGA_STATE)
@@ -987,6 +993,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%ice_saturation%dataset%rarray(1)
               end select
+              xx_p(ibegin+HYDRATE_SALT_DOF) = &
+                    hydrate%salt_mass%dataset%rarray(1)
               patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
@@ -1017,7 +1025,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-      case(SCO2_MODE) 
+      case(SCO2_MODE)
 
         call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
@@ -1127,7 +1135,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               select case(initial_condition%flow_condition%iphase)
 
                 case(SCO2_LIQUID_STATE)
-                  
+
                   xx_p(ibegin + SCO2_LIQUID_PRESSURE_DOF) = &
                     sco2%liquid_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_CO2_MASS_FRAC_DOF) = &
@@ -1143,7 +1151,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     sco2%co2_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
                       sco2%salt_mass%dataset%rarray(1)
-                  
+
 
                 case(SCO2_TRAPPED_GAS_STATE)
 
@@ -1162,7 +1170,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                     sco2%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin + SCO2_SALT_MASS_FRAC_DOF) = &
                          sco2%salt_mass%dataset%rarray(1)
-                 
+
               end select
 
               if (sco2_thermal) then

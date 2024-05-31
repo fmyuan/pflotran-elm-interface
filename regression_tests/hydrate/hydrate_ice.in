@@ -1,32 +1,24 @@
-#Description: Gas hydrate example: Single-Cell problem in Aqueous-Ice State
+#Description: Gas hydrate regression test: Ice formation and methane supersaturation
+#leading to hydrate formation
+
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE HYDRATE
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-      /
     /
   /
 END
 
 SUBSURFACE
 
-HYDRATE
-  HYDRATE_PHASE_BOUNDARY MORIDIS_SIMPLE
-  ADJUST_SOLUBILITY_WITHIN_GHSZ
-  WITH_GIBBS_THOMSON #Ice simulations require freezing point depression as f(Sl)
-END
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
 
-NUMERICAL_METHODS flow
   NEWTON_SOLVER
     USE_INFINITY_NORM_CONVERGENCE
-    CENTRAL_DIFFERENCE_JACOBIAN
-  END
-  LINEAR_SOLVER FLOW
-    SOLVER DIRECT
-  END
+  /
+
 END
 
 #=========================== regression =======================================
@@ -35,14 +27,20 @@ REGRESSION
     2
   /
 END
-
+#=========================== hydrate ==========================================
+HYDRATE
+  HYDRATE_PHASE_BOUNDARY MORIDIS
+  WITH_GIBBS_THOMSON
+  ADJUST_SOLUBILITY_WITHIN_GHSZ
+  NO_SOLID_SATURATION_PERM_SCALING
+  NO_EFFECTIVE_SATURATION_SCALING
+END
 #=========================== discretization ===================================
-
 GRID
   TYPE STRUCTURED CARTESIAN
   NXYZ 3 1 1
-DXYZ  
-    3@1.d0
+  DXYZ  
+    3@1.d1
     1@1.d0
     1@1.d0
   /
@@ -65,13 +63,14 @@ EOS WATER
   ENTHALPY IF97
   STEAM_DENSITY IF97
   STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE ICE
 END
 
 EOS GAS
-  DENSITY   DEFAULT
-  ENTHALPY  DEFAULT
-  VISCOSITY DEFAULT #CONSTANT 1.1d-5 Pa-s #DEFAULT
-  HENRYS_CONSTANT DEFAULT
+  DENSITY PR_METHANE
+  ENTHALPY IDEAL_METHANE
+  VISCOSITY DEFAULT
+  HENRYS_CONSTANT METHANE
 END
 
 
@@ -80,34 +79,34 @@ MATERIAL_PROPERTY soil1
   ID 1
   CHARACTERISTIC_CURVES default
   POROSITY 0.3
-  TORTUOSITY 1.0
+  TORTUOSITY 1.d0
   ROCK_DENSITY 2600.d0
   THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
   THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
   HEAT_CAPACITY 1000 J/kg-C
   PERMEABILITY
-    PERM_ISO 1.d-12
+    PERM_ISO 3.d-13
   /
-  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
   POROSITY_COMPRESSIBILITY 1.d-9
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
 END
 
 
 #=========================== characteristic curves ============================
 
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION VAN_GENUCHTEN
+  SATURATION_FUNCTION VAN_GENUCHTEN #IGHCC2
     ALPHA 8.d-5
     M 0.45
     LIQUID_RESIDUAL_SATURATION 0.12d0
-    MAX_CAPILLARY_PRESSURE 1.d8
+    MAX_CAPILLARY_PRESSURE 5.d6
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ #IGHCC2_LIQ
     PHASE LIQUID
     LAMBDA 3
     LIQUID_RESIDUAL_SATURATION 0.12
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS #IGHCC2_GAS
     PHASE GAS
     LAMBDA 3
     LIQUID_RESIDUAL_SATURATION 0.12
@@ -127,90 +126,97 @@ OUTPUT
    GAS_SATURATION
    HYDRATE_SATURATION
    ICE_SATURATION
-   LIQUID_MOLE_FRACTIONS
-   THERMODYNAMIC_STATE
+   LIQUID_MASS_FRACTIONS
+   POROSITY
   /
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 10.d0 d 
-  INITIAL_TIMESTEP_SIZE 1.d-1 d
-  MAXIMUM_TIMESTEP_SIZE 1.d0 d 
+  FINAL_TIME 10 d 
+  INITIAL_TIMESTEP_SIZE 1.d-6 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
 END
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    3.d0 1.d0 1.d0
+    3.d1 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    3.d1 0.d0 0.d0 
+    3.d1 1.d0 1.d0 
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
   /
 END
 
 REGION center
-  COORDINATES
-    1.5D0 0.5D0 0.5D0
-  /
+  COORDINATE 15.d0 0.d0 0.d0
 END
-
-REGION west-face
-  FACE west
-  COORDINATES
-    0.D0 0.D0 0.D0
-    0.D0 1.D0 1.D0
-  /
-END
-
-REGION east-face
-  FACE east
-  COORDINATES
-    3.d0 0.d0 0.d0
-    3.d0 1.d0 1.d0
-  /
-END
-FLOW_CONDITION well
-  TYPE
-    RATE mass_rate
-  /
-     ! liquid gas   energy
-  RATE 0.D0 0.D0 -1.D-4 kg/s kg/s MW
-  SYNC_TIMESTEP_WITH_UPDATE
-/
-
 
 #=========================== flow conditions ==================================
-FLOW_CONDITION L
+
+FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE DIRICHLET
-    MOLE_FRACTION DIRICHLET
+    MASS_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
   /
-  LIQUID_PRESSURE 15.d6
-  MOLE_FRACTION 5.d-3
-  TEMPERATURE 1.d0
+  LIQUID_PRESSURE 5.d6 #5.d6
+  MASS_FRACTION 1.5d-3
+  TEMPERATURE 1.d0 
+  SALT_MASS_FRACTION 0.d0
 END
+
+FLOW_CONDITION center
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 0.d0 0.d0 0.d0 -1.d3 g/s g/s g/s W
+END
+
+
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION all
-  FLOW_CONDITION L
+  FLOW_CONDITION initial
   REGION all
 END
-BOUNDARY_CONDITION west-face
-  FLOW_CONDITION L
-  REGION west-face
-END
-BOUNDARY_CONDITION west-face
-  FLOW_CONDITION L
-  REGION east-face
-END
-SOURCE_SINK
-  FLOW_CONDITION well
+
+SOURCE_SINK center
+  FLOW_CONDITION center
   REGION center
 END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
 #=========================== stratigraphy couplers ============================
 STRATA
   REGION all
   MATERIAL soil1
 END
 
+#=========================== convergence criteria  ============================
 END_SUBSURFACE

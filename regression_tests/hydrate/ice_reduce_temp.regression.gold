@@ -1,0 +1,68 @@
+-- GENERIC: Temperature --
+      Max:   7.1067705129751E-01
+      Min:  -1.2954278056934E-03
+     Mean:   4.7335289159644E-01
+        2:  -1.2954278056934E-03
+-- PRESSURE: Liquid Pressure --
+      Max:   1.5036500060332E+07
+      Min:   1.5000011937017E+07
+     Mean:   1.5012174644788E+07
+        2:   1.5036500060332E+07
+-- PRESSURE: Gas Pressure --
+      Max:   1.5036500060332E+07
+      Min:   1.5012511937017E+07
+     Mean:   1.5020507978122E+07
+        2:   1.5036500060332E+07
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.3794913142983E-01
+     Mean:   7.1264971047661E-01
+        2:   1.3794913142983E-01
+-- SATURATION: Gas Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- SATURATION: Hydrate Saturation --
+      Max:   1.1988757618153E-02
+      Min:   0.0000000000000E+00
+     Mean:   3.9962525393843E-03
+        2:   1.1988757618153E-02
+-- SATURATION: Ice Saturation --
+      Max:   8.5006211095202E-01
+      Min:   0.0000000000000E+00
+     Mean:   2.8335403698401E-01
+        2:   8.5006211095202E-01
+-- GENERIC: w_g^l --
+      Max:   2.4641560219065E-03
+      Min:   2.0150980473594E-03
+     Mean:   2.1647840388751E-03
+        2:   2.4641560219065E-03
+-- GENERIC: w_l^l --
+      Max:   9.9798490195264E-01
+      Min:   9.9753584397809E-01
+     Mean:   9.9783521596112E-01
+        2:   9.9753584397809E-01
+-- GENERIC: w_s^l --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- DISCRETE: Thermodynamic State --
+      Max:         7
+      Min:         1
+     Mean:   3.0000000000000E+00
+        2:         7
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        2:         1
+-- SOLUTION: Flow --
+   Time (seconds):   7.4760039000239E-02
+   Time Steps:           33
+   Newton Iterations:          268
+   Linear Solver Iterations:          268
+   Time Step Cuts:           12
+   Solution 2-Norm:   2.6001866284666E+07
+   Residual 2-Norm:   5.1055355714357E-06

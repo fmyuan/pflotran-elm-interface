@@ -1,12 +1,11 @@
-#Description: Gas hydrate regression test: Ice formation and methane supersaturation
-#leading to hydrate formation
-
+#Description: Gas hydrate regression test: 1D Radial Depressurization
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE HYDRATE
       OPTIONS
+        #WINDOW_EPSILON 0.d0
       /
     /
   /
@@ -19,6 +18,7 @@ NUMERICAL_METHODS FLOW
 
   NEWTON_SOLVER
     USE_INFINITY_NORM_CONVERGENCE
+    NO_GOVERNORS
   /
 
 END
@@ -29,20 +29,18 @@ REGRESSION
     2
   /
 END
+
 #=========================== hydrate ==========================================
 HYDRATE
-  HYDRATE_PHASE_BOUNDARY MORIDIS
-  WITH_GIBBS_THOMSON
-  ADJUST_SOLUBILITY_WITHIN_GHSZ
   NO_SOLID_SATURATION_PERM_SCALING
-  NO_EFFECTIVE_SATURATION_SCALING
+  GAS CO2
 END
 #=========================== discretization ===================================
 GRID
-  TYPE STRUCTURED CARTESIAN
+  TYPE STRUCTURED CYLINDRICAL
   NXYZ 3 1 1
   DXYZ  
-    3@1.d1
+    3@1.d0
     1@1.d0
     1@1.d0
   /
@@ -65,14 +63,12 @@ EOS WATER
   ENTHALPY IF97
   STEAM_DENSITY IF97
   STEAM_ENTHALPY IF97
-  SATURATION_PRESSURE ICE
+  SATURATION_PRESSURE IF97
 END
 
 EOS GAS
-  DENSITY PR_METHANE
-  ENTHALPY IDEAL_METHANE
-  VISCOSITY DEFAULT
-  HENRYS_CONSTANT METHANE
+  CO2_DATABASE co2_sw-hydrate.dat
+  HENRYS_CONSTANT DEFAULT
 END
 
 
@@ -97,18 +93,18 @@ END
 #=========================== characteristic curves ============================
 
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION VAN_GENUCHTEN #IGHCC2
+  SATURATION_FUNCTION IGHCC2 #VAN_GENUCHTEN
     ALPHA 8.d-5
     M 0.45
     LIQUID_RESIDUAL_SATURATION 0.12d0
     MAX_CAPILLARY_PRESSURE 5.d6
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_LIQ #IGHCC2_LIQ
+  PERMEABILITY_FUNCTION IGHCC2_LIQ #BURDINE_BC_LIQ
     PHASE LIQUID
     LAMBDA 3
     LIQUID_RESIDUAL_SATURATION 0.12
   /
-  PERMEABILITY_FUNCTION BURDINE_BC_GAS #IGHCC2_GAS
+  PERMEABILITY_FUNCTION IGHCC2_GAS #BURDINE_BC_GAS
     PHASE GAS
     LAMBDA 3
     LIQUID_RESIDUAL_SATURATION 0.12
@@ -135,9 +131,9 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 10 d 
+  FINAL_TIME 1 d 
   INITIAL_TIMESTEP_SIZE 1.d-6 h
-  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 d
 END
 
 #=========================== regions ==========================================
@@ -148,24 +144,16 @@ REGION all
   /
 END
 
-REGION east
+REGION edge
   FACE EAST
   COORDINATES
-    3.d1 0.d0 0.d0 
-    3.d1 1.d0 1.d0 
-  /
-END
-
-REGION west
-  FACE WEST
-  COORDINATES
-    0.d0 0.d0 0.d0
-    0.d0 1.d0 1.d0
+    3.d0 0.d0 0.d0 
+    3.d0 1.d0 1.d0 
   /
 END
 
 REGION center
-  COORDINATE 15.d0 0.d0 0.d0
+  COORDINATE 0.d0 0.d0 0.d0
 END
 
 #=========================== flow conditions ==================================
@@ -173,12 +161,27 @@ END
 FLOW_CONDITION initial
   TYPE
     LIQUID_PRESSURE DIRICHLET
-    MOLE_FRACTION DIRICHLET
+    HYDRATE_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
   /
-  LIQUID_PRESSURE 5.d6 #5.d6
-  MOLE_FRACTION 1.d-3
-  TEMPERATURE 1.d0 
+  LIQUID_PRESSURE 9.5d6
+  HYDRATE_SATURATION 4.d-1
+  TEMPERATURE 10.3d0 
+  SALT_MASS_FRACTION 0.d0
+END
+
+FLOW_CONDITION edge
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    HYDRATE_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 9.5d6
+  HYDRATE_SATURATION 4.d-1
+  TEMPERATURE 10.3d0
+  SALT_MASS_FRACTION 0.d0
 END
 
 FLOW_CONDITION center
@@ -186,7 +189,7 @@ FLOW_CONDITION center
   TYPE
     RATE TOTAL_MASS_RATE
   /
-  RATE 0.d0 0.d0 -1.d3 g/s g/s W
+  RATE -1.d3 0.d0 0.d0 0.d0 g/s g/s g/s W
 END
 
 
@@ -202,14 +205,9 @@ SOURCE_SINK center
   REGION center
 END
 
-BOUNDARY_CONDITION west
-  FLOW_CONDITION initial
-  REGION west
-END
-
-BOUNDARY_CONDITION east
-  FLOW_CONDITION initial
-  REGION east
+BOUNDARY_CONDITION edge
+  FLOW_CONDITION edge
+  REGION edge
 END
 
 #=========================== stratigraphy couplers ============================

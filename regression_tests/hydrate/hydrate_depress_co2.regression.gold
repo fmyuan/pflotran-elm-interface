@@ -1,0 +1,68 @@
+-- GENERIC: Temperature --
+      Max:   1.0357558162339E+01
+      Min:   1.0065315493679E+01
+     Mean:   1.0243852087148E+01
+        2:   1.0308682605425E+01
+-- PRESSURE: Liquid Pressure --
+      Max:   9.3963925119348E+06
+      Min:   8.4169050283603E+06
+     Mean:   8.9662934533990E+06
+        2:   9.0855828199020E+06
+-- PRESSURE: Gas Pressure --
+      Max:   9.3963925119348E+06
+      Min:   8.4218174589725E+06
+     Mean:   8.9688125272958E+06
+        2:   9.0882276109801E+06
+-- SATURATION: Liquid Saturation --
+      Max:   7.9052662231288E-01
+      Min:   5.9517503106529E-01
+     Mean:   6.6449767835903E-01
+        2:   6.0779138169892E-01
+-- SATURATION: Gas Saturation --
+      Max:   4.5593725850935E-02
+      Min:   0.0000000000000E+00
+     Mean:   1.9288660049208E-02
+        2:   1.2272254296690E-02
+-- SATURATION: Hydrate Saturation --
+      Max:   4.0482496893471E-01
+      Min:   1.6387965183619E-01
+     Mean:   3.1621366159176E-01
+        2:   3.7993636400439E-01
+-- SATURATION: Ice Saturation --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- GENERIC: X_g^l --
+      Max:   2.9078117598267E-02
+      Min:   2.8960154829160E-02
+     Mean:   2.9022092036391E-02
+        2:   2.9028003681745E-02
+-- GENERIC: X_l^l --
+      Max:   9.7103984517084E-01
+      Min:   9.7092188240173E-01
+     Mean:   9.7097790796361E-01
+        2:   9.7097199631826E-01
+-- GENERIC: X_s^l --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        2:   0.0000000000000E+00
+-- GENERIC: Porosity --
+      Max:   2.9992747100115E-01
+      Min:   2.9924486520786E-01
+     Mean:   2.9962801206126E-01
+        2:   2.9971169997476E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        2:         1
+-- SOLUTION: Flow --
+   Time (seconds):   6.8224302000203E-02
+   Time Steps:           48
+   Newton Iterations:          193
+   Linear Solver Iterations:          193
+   Time Step Cuts:            6
+   Solution 2-Norm:   9.3963925119516E+06
+   Residual 2-Norm:   8.1320567078567E-06

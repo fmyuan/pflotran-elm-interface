@@ -2034,7 +2034,7 @@ subroutine EOSWaterDensityIF97Region3(T,P,calculate_derivatives,dw,dwmol, &
       nu = IF97_subregion_3c(P,T_temp)
     end if
   else
-  !  stop 'IF97 Region 3 ERROR: either > 100 MPa or < 16.5292 MPa'
+    !stop 'IF97 Region 3 ERROR: either > 100 MPa or < 16.5292 MPa'
   end if
 
   dw = 1.d0 / (nu * R * T_temp / P * 1.0D+3)
@@ -4511,7 +4511,7 @@ subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
       hgp = UNINITIALIZED_DOUBLE
     end if
   else
-  !  stop 'wow. much hotness.'
+    !stop 'wow. much hotness.'
   end if
 
 end subroutine EOSWaterSteamDensityEnthalpyIF97
