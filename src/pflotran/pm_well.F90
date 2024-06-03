@@ -118,8 +118,8 @@ module PM_Well_class
     ! reservoir cell volume [m3]
     PetscReal, pointer :: volume(:)
     ! temp array
-    PetscReal, pointer :: temp_flow(:,:)
-    PetscReal, pointer :: temp_tran(:,:,:)
+    PetscReal, pointer :: tmp_flow(:,:)
+    PetscReal, pointer :: tmp_tran(:,:,:)
   end type
 
   type :: well_type
@@ -611,8 +611,8 @@ subroutine PMWellResCreate(reservoir)
   nullify(reservoir%dy)
   nullify(reservoir%dz)
   nullify(reservoir%volume)
-  nullify(reservoir%temp_flow)
-  nullify(reservoir%temp_tran)
+  nullify(reservoir%tmp_flow)
+  nullify(reservoir%tmp_tran)
 
 end subroutine PMWellResCreate
 
@@ -4002,11 +4002,11 @@ subroutine PMWellInitRes(reservoir,nsegments,idof,option)
   allocate(reservoir%dy(nsegments))
   allocate(reservoir%dz(nsegments))
   allocate(reservoir%volume(nsegments))
-  allocate(reservoir%temp_flow(nsegments,20))
+  allocate(reservoir%tmp_flow(nsegments,20))
 
   allocate(reservoir%aqueous_conc(idof,nsegments))
   allocate(reservoir%aqueous_mass(idof,nsegments))
-  allocate(reservoir%temp_tran(idof,nsegments,2))
+  allocate(reservoir%tmp_tran(idof,nsegments,2))
 
 end subroutine PMWellInitRes
 
@@ -4650,8 +4650,8 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
 
   res_grid => pm_well%realization%patch%grid
 
-  this%reservoir%temp_flow = 1.d-20
-  this%reservoir%temp_tran = 1.d-20
+  reservoir%tmp_flow = 1.d-20
+  reservoir%tmp_tran = 1.d-20
 
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
@@ -4673,86 +4673,86 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
     material_auxvar => &
       pm_well%realization%patch%aux%material%auxvars(ghosted_id)
 
-    this%reservoir%temp_flow(k,1) = wippflo_auxvar%pres(option%liquid_phase) ! p_l
-    this%reservoir%temp_flow(k,2) = wippflo_auxvar%pres(option%gas_phase) ! p_g
-    this%reservoir%temp_flow(k,3) = wippflo_auxvar%sat(option%liquid_phase) ! s_l
-    this%reservoir%temp_flow(k,4) = wippflo_auxvar%sat(option%gas_phase) ! s_g
-    this%reservoir%temp_flow(k,5) = wippflo_auxvar%mobility(option%liquid_phase) ! mob_l
-    this%reservoir%temp_flow(k,6) = wippflo_auxvar%mobility(option%gas_phase) ! mob_g
-    this%reservoir%temp_flow(k,7) = wippflo_auxvar%kr(option%liquid_phase) ! kr_l
-    this%reservoir%temp_flow(k,8) = wippflo_auxvar%kr(option%gas_phase) ! kr_g
-    this%reservoir%temp_flow(k,9) = wippflo_auxvar%den_kg(option%liquid_phase) ! rho_l
-    this%reservoir%temp_flow(k,10) = wippflo_auxvar%den_kg(option%gas_phase) ! rho_g
-    this%reservoir%temp_flow(k,11) = wippflo_auxvar%mu(option%liquid_phase) ! vis_l
-    this%reservoir%temp_flow(k,12) = wippflo_auxvar%mu(option%gas_phase) ! vis_g
-    this%reservoir%temp_flow(k,13) = wippflo_auxvar%effective_porosity ! e_por
+    reservoir%tmp_flow(k,1) = wippflo_auxvar%pres(option%liquid_phase) ! p_l
+    reservoir%tmp_flow(k,2) = wippflo_auxvar%pres(option%gas_phase) ! p_g
+    reservoir%tmp_flow(k,3) = wippflo_auxvar%sat(option%liquid_phase) ! s_l
+    reservoir%tmp_flow(k,4) = wippflo_auxvar%sat(option%gas_phase) ! s_g
+    reservoir%tmp_flow(k,5) = wippflo_auxvar%mobility(option%liquid_phase) ! mob_l
+    reservoir%tmp_flow(k,6) = wippflo_auxvar%mobility(option%gas_phase) ! mob_g
+    reservoir%tmp_flow(k,7) = wippflo_auxvar%kr(option%liquid_phase) ! kr_l
+    reservoir%tmp_flow(k,8) = wippflo_auxvar%kr(option%gas_phase) ! kr_g
+    reservoir%tmp_flow(k,9) = wippflo_auxvar%den_kg(option%liquid_phase) ! den_l
+    reservoir%tmp_flow(k,10) = wippflo_auxvar%den_kg(option%gas_phase) ! den_g
+    reservoir%tmp_flow(k,11) = wippflo_auxvar%mu(option%liquid_phase) ! vis_l
+    reservoir%tmp_flow(k,12) = wippflo_auxvar%mu(option%gas_phase) ! vis_g
+    reservoir%tmp_flow(k,13) = wippflo_auxvar%effective_porosity ! e_por
 
-    this%reservoir%temp_flow(k,14) = material_auxvar%permeability(1) ! kx
-    this%reservoir%temp_flow(k,15) = material_auxvar%permeability(2) ! ky
-    this%reservoir%temp_flow(k,16) = material_auxvar%permeability(3) ! kz
-    this%reservoir%temp_flow(k,17) = material_auxvar%volume
+    reservoir%tmp_flow(k,14) = material_auxvar%permeability(1) ! kx
+    reservoir%tmp_flow(k,15) = material_auxvar%permeability(2) ! ky
+    reservoir%tmp_flow(k,16) = material_auxvar%permeability(3) ! kz
+    reservoir%tmp_flow(k,17) = material_auxvar%volume
 
     if (res_grid%itype == STRUCTURED_GRID) then
-      this%reservoir%temp_flow(k,18) = res_grid%structured_grid%dx(ghosted_id) ! dx
-      this%reservoir%temp_flow(k,19) = res_grid%structured_grid%dy(ghosted_id) ! dy
-      this%reservoir%temp_flow(k,20) = res_grid%structured_grid%dz(ghosted_id) ! dz
+      reservoir%tmp_flow(k,18) = res_grid%structured_grid%dx(ghosted_id) ! dx
+      reservoir%tmp_flow(k,19) = res_grid%structured_grid%dy(ghosted_id) ! dy
+      reservoir%tmp_flow(k,20) = res_grid%structured_grid%dz(ghosted_id) ! dz
     else
-      this%reservoir%temp_flow(k,20) = this%well_grid%res_dz(k) ! dz
-      this%reservoir%temp_flow(k,18) = sqrt(material_auxvar%volume/ &
-                                  this%reservoir%temp_flow(k,20)) ! dx
-      this%reservoir%temp_flow(k,19) = this%reservoir%temp_flow(k,18) ! dy
+      reservoir%tmp_flow(k,20) = pm_well%well_grid%res_dz(k) ! dz
+      reservoir%tmp_flow(k,18) = sqrt(material_auxvar%volume/ &
+                                  reservoir%tmp_flow(k,20)) ! dx
+      reservoir%tmp_flow(k,19) = reservoir%tmp_flow(k,18) ! dy
     endif
 
-    if (this%transport) then
+    if (pm_well%transport) then
       !aqueous_conc
-      this%reservoir%temp_tran(:,k,1) = nwt_auxvar%aqueous_eq_conc(:)
+      reservoir%tmp_tran(:,k,1) = nwt_auxvar%aqueous_eq_conc(:)
       !aqueous_mass = aq_conc * e_por * volume * s_l
-      this%reservoir%temp_tran(:,k,2) = &
-            this%reservoir%temp_tran(:,k,1) * this%reservoir%temp_flow(k,13) * &
-            this%reservoir%temp_flow(k,17) * this%reservoir%temp_flow(k,3)
+      reservoir%tmp_tran(:,k,2) = &
+            reservoir%tmp_tran(:,k,1) * reservoir%tmp_flow(k,13) * &
+            reservoir%tmp_flow(k,17) * reservoir%tmp_flow(k,3)
     endif
   enddo
 
-  vec_size = this%well_grid%nsegments
+  vec_size = pm_well%well_grid%nsegments
   if (well_comm%commsize > 1) then
     ! Updates reservoir property vector in place using the maximum value.
     ! The rank-updated value will be larger then the initialized value (-1.d20)
-    call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%temp_flow,vec_size*20,&
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
-     if (this%transport) then
-      call MPI_Allreduce(MPI_IN_PLACE,this%reservoir%temp_tran,&
-                         vec_size*this%nspecies*2,&
-                         MPI_DOUBLE_PRECISION,MPI_MAX,this%well_comm%comm,ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,reservoir%tmp_flow,vec_size*20,&
+                       MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
+     if (pm_well%transport) then
+      call MPI_Allreduce(MPI_IN_PLACE,reservoir%tmp_tran,&
+                         vec_size*pm_well%nspecies*2,&
+                         MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
     endif
   endif
 
-  do k = 1,this%well_grid%nsegments
-    this%reservoir%p_l(k) = this%reservoir%temp_flow(k,1)
-    this%reservoir%p_g(k) = this%reservoir%temp_flow(k,2)
-    this%reservoir%s_l(k) = this%reservoir%temp_flow(k,3)
-    this%reservoir%s_g(k) = this%reservoir%temp_flow(k,4)
-    this%reservoir%mobility_l(k) = this%reservoir%temp_flow(k,5)
-    this%reservoir%mobility_g(k) = this%reservoir%temp_flow(k,6)
-    this%reservoir%kr_l(k) = this%reservoir%temp_flow(k,7)
-    this%reservoir%kr_g(k) = this%reservoir%temp_flow(k,8)
-    this%reservoir%rho_l(k) = this%reservoir%temp_flow(k,9)
-    this%reservoir%rho_g(k) = this%reservoir%temp_flow(k,10)
-    this%reservoir%visc_l(k) = this%reservoir%temp_flow(k,11)
-    this%reservoir%visc_g(k) = this%reservoir%temp_flow(k,12)
-    this%reservoir%e_por(k) = this%reservoir%temp_flow(k,13)
-    this%reservoir%kx(k) = this%reservoir%temp_flow(k,14)
-    this%reservoir%ky(k) = this%reservoir%temp_flow(k,15)
-    this%reservoir%kz(k) = this%reservoir%temp_flow(k,16)
-    this%reservoir%volume(k) = this%reservoir%temp_flow(k,17)
-    this%reservoir%dx(k) = this%reservoir%temp_flow(k,18)
-    this%reservoir%dy(k) = this%reservoir%temp_flow(k,19)
-    this%reservoir%dz(k) = this%reservoir%temp_flow(k,20)
+  do k = 1,pm_well%well_grid%nsegments
+    reservoir%p_l(k) = reservoir%tmp_flow(k,1)
+    reservoir%p_g(k) = reservoir%tmp_flow(k,2)
+    reservoir%s_l(k) = reservoir%tmp_flow(k,3)
+    reservoir%s_g(k) = reservoir%tmp_flow(k,4)
+    reservoir%mobility_l(k) = reservoir%tmp_flow(k,5)
+    reservoir%mobility_g(k) = reservoir%tmp_flow(k,6)
+    reservoir%kr_l(k) = reservoir%tmp_flow(k,7)
+    reservoir%kr_g(k) = reservoir%tmp_flow(k,8)
+    reservoir%den_l(k) = reservoir%tmp_flow(k,9)
+    reservoir%den_g(k) = reservoir%tmp_flow(k,10)
+    reservoir%visc_l(k) = reservoir%tmp_flow(k,11)
+    reservoir%visc_g(k) = reservoir%tmp_flow(k,12)
+    reservoir%e_por(k) = reservoir%tmp_flow(k,13)
+    reservoir%kx(k) = reservoir%tmp_flow(k,14)
+    reservoir%ky(k) = reservoir%tmp_flow(k,15)
+    reservoir%kz(k) = reservoir%tmp_flow(k,16)
+    reservoir%volume(k) = reservoir%tmp_flow(k,17)
+    reservoir%dx(k) = reservoir%tmp_flow(k,18)
+    reservoir%dy(k) = reservoir%tmp_flow(k,19)
+    reservoir%dz(k) = reservoir%tmp_flow(k,20)
   enddo
     
-  if (this%transport) then
-    do k = 1,this%well_grid%nsegments
-      this%reservoir%aqueous_conc(:,k) = this%reservoir%temp_tran(:,k,1)
-      this%reservoir%aqueous_mass(:,k) = this%reservoir%temp_tran(:,k,2)
+  if (pm_well%transport) then
+    do k = 1,pm_well%well_grid%nsegments
+      reservoir%aqueous_conc(:,k) = reservoir%tmp_tran(:,k,1)
+      reservoir%aqueous_mass(:,k) = reservoir%tmp_tran(:,k,2)
     enddo
   endif
   
@@ -8219,10 +8219,10 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
     enddo
   endif
 
-  call MPI_Barrier(this%well_comm%comm,ierr);CHKERRQ(ierr)
-  first_rank = this%well_comm%well_rank_list(1)
-  last_rank = this%well_comm%well_rank_list(this%well_comm%commsize)
-  if (this%well_comm%commsize > 1) then
+  call MPI_Barrier(pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
+  first_rank = pm_well%well_comm%well_rank_list(1)
+  last_rank = pm_well%well_comm%well_rank_list(pm_well%well_comm%commsize)
+  if (pm_well%well_comm%commsize > 1) then
     TAG = 0
     if (pm_well%well_comm%rank == last_rank) then
       call MPI_Send(cnvgd_due_to_abs_res,S,MPI_LOGICAL,0,TAG, &
@@ -8232,7 +8232,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
       call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+2, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == first_rank) then
+    if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
                     last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
@@ -8266,7 +8266,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
       call MPI_Send(max_scaled_residual,1,MPI_DOUBLE_PRECISION,0,TAG+2, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == first_rank) then
+    if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(max_update,1,MPI_DOUBLE_PRECISION, &
                     last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
@@ -8293,7 +8293,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
       call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+1, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
-    if (this%well_comm%rank == first_rank) then
+    if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_residual,S,MPI_LOGICAL, &
                     last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
@@ -10397,9 +10397,11 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%reservoir%dy)
   call DeallocateArray(this%well%reservoir%dz)
   call DeallocateArray(this%well%reservoir%volume)
+  call DeallocateArray(this%well%reservoir%tmp_flow)
   if (this%transport) then
     call DeallocateArray(this%well%reservoir%aqueous_conc)
     call DeallocateArray(this%well%reservoir%aqueous_mass)
+    call DeallocateArray(this%well%reservoir%tmp_tran)
   endif
   nullify(this%well%reservoir)
 
