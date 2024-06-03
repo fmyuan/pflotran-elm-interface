@@ -867,6 +867,9 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                           cur_material_property%surf_elec_cond_dataset, &
                           'SURFACE_ELECTRICAL_CONDUCTIVITY')
     call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%waxman_smits_clay_cond_dataset,&
+                          'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
                           cur_material_property%permeability_dataset, &
                           'PERMEABILITY or PERMEABILITY X')
     call RealLinkMatPropToDataset(realization,cur_material_property, &

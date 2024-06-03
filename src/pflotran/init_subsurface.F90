@@ -302,6 +302,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
+                               WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                HALF_MATRIX_WIDTH, NUMBER_SECONDARY_CELLS, &
                                TORTUOSITY_Y,TORTUOSITY_Z
 
@@ -563,6 +564,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
                         material_property%surf_elec_cond_dataset, &
                         SURFACE_ELECTRICAL_CONDUCTIVITY)
+      call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
+                        material_property%waxman_smits_clay_cond_dataset, &
+                        WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (associated(material_property%multicontinuum)) then
         call SubsurfMapDatasetToMatAuxVar(realization,material_property, &
                           material_property%multicontinuum%epsilon_dataset, &
