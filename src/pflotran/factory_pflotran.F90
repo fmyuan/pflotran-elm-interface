@@ -141,6 +141,14 @@ function FactoryPFLOTRANCreateSimulation(driver)
 
   string = '-stochastic'
   call InputGetCommandLineTruth(string,bool_flag,stochastic_option_found,option)
+  if (stochastic_option_found) then
+    option%io_buffer = 'The "-stochastic" option has been deprecated. Please &
+      &use "-multi_realization" instead.'
+    call PrintErrMsg(option)
+  endif
+
+  string = '-multi_realization'
+  call InputGetCommandLineTruth(string,bool_flag,stochastic_option_found,option)
   if (stochastic_option_found) simulation_type = 'MULTIREALIZATION'
 
   select case(simulation_type)
