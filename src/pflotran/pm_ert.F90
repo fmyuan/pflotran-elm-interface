@@ -656,7 +656,7 @@ recursive subroutine PMERTInitializeRun(this)
   do i = 1, size(this%survey%ipos_electrode)
     local_id = this%survey%ipos_electrode(i)
     if (local_id <= 0) cycle ! not on process
-    call VecSetValue(natural_vec,grid%nG2A(grid%nL2G(local_id)),1.d0, &
+    call VecSetValue(natural_vec,grid%nG2A(grid%nL2G(local_id))-1,1.d0, &
                      ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
   call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
