@@ -70,7 +70,7 @@ end subroutine FactSubLinkSetupPMCs
 subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_waste_form,pm_ufd_decay, &
                                            pm_ufd_biosphere,pm_geop, &
-                                           pm_auxiliary,pm_well, &
+                                           pm_auxiliary,pm_well_list, &
                                            pm_material_transform, &
                                            pm_parameter_list)
   !
@@ -107,10 +107,11 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
+  class(pm_well_type), pointer :: pm_well
 
   option => simulation%option
 
@@ -120,7 +121,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   nullify(pm_ufd_decay)
   nullify(pm_ufd_biosphere)
   nullify(pm_auxiliary)
-  nullify(pm_well)
+  nullify(pm_well_list)
   nullify(pm_material_transform)
 
   cur_pm => simulation%process_model_list
@@ -145,7 +146,16 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
       class is(pm_auxiliary_type)
         pm_auxiliary => cur_pm
       class is(pm_well_type)
-        pm_well => cur_pm
+        if (associated(pm_well_list)) then
+          pm_well => pm_well_list
+          do
+            if (.not.associated(pm_well%next_well)) exit
+            pm_well => pm_well%next_well
+          enddo
+          pm_well%next_well => cur_pm
+        else
+          pm_well_list => cur_pm
+        endif
       class is(pm_material_transform_type)
         pm_material_transform => cur_pm
       class is(pm_parameter_type)
@@ -179,7 +189,7 @@ end subroutine FactSubLinkExtractPMsFromPMList
 subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
+                                       pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list)
   !
@@ -216,13 +226,14 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
   class(realization_subsurface_type), pointer :: realization
+  class(pm_well_type), pointer :: pm_well
   class(pm_parameter_type), pointer :: cur_pm_parameter
   class(pm_base_type), pointer :: next_pm
 
@@ -267,22 +278,27 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
                                         'PMC3MaterialTransform',input)
   endif
-  if (associated(pm_well)) then
-    call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
+  if (associated(pm_well_list)) then
+    pm_well => pm_well_list
+    do
+      if (.not. associated(pm_well)) exit
+      call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
+      pm_well => pm_well%next_well
+    enddo
     if (associated(pm_flow)) then
       select type(pm_flow)
         class is (pm_wippflo_type)
           ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
-          pm_flow%pmwell_ptr => pm_well
+          pm_flow%pmwell_ptr => pm_well_list
         class is (pm_sco2_type)
-          pm_flow%pmwell_ptr => pm_well
+          pm_flow%pmwell_ptr => pm_well_list
       end select
     endif
     if (associated(pm_tran)) then
       select type(pm_tran)
         class is (pm_nwt_type)
           ! Set up PM NWT linkages for quasi-implicit coupling option
-          pm_tran%pmwell_ptr => pm_well
+          pm_tran%pmwell_ptr => pm_well_list
       end select
     endif
   endif
@@ -931,20 +947,30 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   type(input_type), pointer :: input
 
   class(pmc_third_party_type), pointer :: pmc_well
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string1, string2, string
+  character(len=MAXSTRINGLENGTH) :: error_string
   class(pmc_base_type), pointer :: pmc_dummy
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
+  PetscBool :: found
 
   realization => simulation%realization
   option => realization%option
 
   nullify(pmc_dummy)
 
-  string = 'WELLBORE_MODEL'
+  string1 = 'WELLBORE_MODEL'
+  string2 = pm_well%name
+  string = trim(string1)//" "//trim(string2)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   call pm_well%ReadPMBlock(input)
+  string = 'WELL_MODEL_OUTPUT'
+  call InputFindStringInFile(input,option,string)
+  if (input%ierr /= 1 .and. .not. well_output) then
+    call PMWellReadWellOutput(pm_well,input,option,string,error_string,found)
+    well_output = PETSC_TRUE
+  endif
 
   select case(option%iflowmode)
 

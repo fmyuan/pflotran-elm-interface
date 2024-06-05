@@ -701,6 +701,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   type(sco2_parameter_type), pointer :: sco2_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(flow_condition_type), pointer :: well_flow_condition
+  class(pm_well_type), pointer :: cur_well
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
@@ -1036,22 +1037,27 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
     source_sink => source_sink%next
   enddo
   if (option%coupled_well .and. associated(pm_well)) then
-    if (associated(pm_well%flow_condition) .and. &
-        Initialized(pm_well%well%bh_p))then
-      well_flow_condition => pm_well%flow_condition
-      if (associated(well_flow_condition%sco2%temperature)) then
-        pm_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
-                            rarray(1)
+    cur_well => pm_well
+    do
+      if (.not. associated(cur_well)) exit
+      if (associated(cur_well%flow_condition) .and. &
+          Initialized(cur_well%well%bh_p))then
+        well_flow_condition => cur_well%flow_condition
+        if (associated(well_flow_condition%sco2%temperature)) then
+          cur_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
+                              rarray(1)
+        endif
+        if (associated(well_flow_condition%sco2%rate)) then
+          cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
+          cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
+        endif
+        do idof = 1,option%nflowdof
+          call PMWellCopyWell(cur_well%well,cur_well%well_pert(idof), &
+                              cur_well%transport)
+        enddo
       endif
-      if (associated(well_flow_condition%sco2%rate)) then
-        pm_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
-        pm_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
-      endif
-      do idof = 1,option%nflowdof
-        call PMWellCopyWell(pm_well%well,pm_well%well_pert(idof), &
-                            pm_well%transport)
-      enddo
-    endif
+      cur_well => cur_well%next_well
+    enddo
   endif
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
@@ -1245,6 +1251,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   Vec :: r
   class(realization_subsurface_type) :: realization
   class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: cur_well
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1372,16 +1379,23 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   enddo
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
-      if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
-        if (dabs(pm_well%well%th_qg) > 0.d0) then
-          accum_p2(local_end) = pm_well%well%th_qg
-        elseif (dabs(pm_well%well%th_ql) > 0.d0) then
-          accum_p2(local_end) = pm_well%well%th_ql
-        else
-          accum_p2(local_end) = 0.d0
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+          local_id = cur_well%well_grid%h_local_id(1)
+          local_end = local_id * option%nflowdof
+          if (dabs(cur_well%well%th_qg) > 0.d0) then
+            accum_p2(local_end) = cur_well%well%th_qg
+          elseif (dabs(cur_well%well%th_ql) > 0.d0) then
+            accum_p2(local_end) = cur_well%well%th_ql
+          else
+            accum_p2(local_end) = 0.d0
+          endif
+          r_p(local_end) = 0.d0
         endif
-        r_p(local_end) = 0.d0
-      endif
+        cur_well => cur_well%next_well
+      enddo
     endif
   endif
   call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
@@ -1515,10 +1529,15 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   ! Update well source/sink terms
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
-      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
-        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-        call pm_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
-      endif
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
+          call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+          call cur_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+        endif
+        cur_well => cur_well%next_well
+      enddo
     endif
   endif
 
@@ -1664,6 +1683,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   class(pm_well_type), pointer :: pm_well
   PetscErrorCode :: ierr
 
+  class(pm_well_type), pointer :: cur_well
   Mat :: J
   MatType :: mat_type
   PetscReal :: norm
@@ -1699,12 +1719,12 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: well_dof
+  PetscInt :: well_ndof
   PetscInt :: deactivate_row
 
-  well_dof = ZERO_INTEGER
+  well_ndof = ZERO_INTEGER
   deactivate_row = UNINITIALIZED_INTEGER
-  if (associated(pm_well)) well_dof = ONE_INTEGER
+  if (associated(pm_well)) well_ndof = ONE_INTEGER
 
   patch => realization%patch
   grid => patch%grid
@@ -1762,7 +1782,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
-                              option,well_dof,Jup)
+                              option,well_ndof,Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -1814,7 +1834,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
-                     option,well_dof,Jup,Jdn)
+                     option,well_ndof,Jup,Jdn)
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1879,7 +1899,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
-                      option,well_dof,Jdn)
+                      option,well_ndof,Jdn)
 
       Jdn = -Jdn
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
@@ -1936,7 +1956,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                           patch%cc_id(ghosted_id))%ptr, &
                         sco2_parameter, grid%nG2A(ghosted_id),&
                         material_auxvars(ghosted_id), &
-                        scale,well_dof,Jup)
+                        scale,well_ndof,Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1950,24 +1970,19 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   ! perturbation in bottom pressure
   if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
-      if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
-        ! Perturb the well and well's reservoir variables.
-        call pm_well%Perturb()
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
+          ! Perturb the well and well's reservoir variables.
+          call cur_well%Perturb()
 
-        ! Go through and update the well contributions to the Jacobian:
-        ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
-        call pm_well%ModifyFlowJacobian(A,ierr)
-
-        ! Deactivate unused rows
-        if (all(pm_well%well%liq%Q == 0.d0) .and. &
-            all(pm_well%well%gas%Q == 0.d0)) then
-          if (pm_well%well_grid%h_rank_id(1) == option%myrank) then
-            deactivate_row = pm_well%well_grid%h_ghosted_id(1) * &
-                             option%nflowdof
-          endif
+          ! Go through and update the well contributions to the Jacobian:
+          ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
+          call cur_well%ModifyFlowJacobian(A,ierr)
         endif
-
-      endif
+        cur_well => cur_well%next_well
+      enddo
     endif
   endif
 
@@ -1993,11 +2008,25 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                             inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
-    if (Initialized(deactivate_row)) then
-      deactivate_row = deactivate_row - 1
-      call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+    if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
+      if (associated(pm_well)) then
+        cur_well => pm_well
+        do
+          if (.not. associated(cur_well)) exit
+          if (all(cur_well%well%liq%Q == 0.d0) .and. &
+              all(cur_well%well%gas%Q == 0.d0)) then
+            if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+              deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
+                               option%nflowdof
+              deactivate_row = deactivate_row - 1
+              call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
+            endif
+          endif
+          cur_well => cur_well%next_well
+        enddo
+      endif
     endif
   endif
 

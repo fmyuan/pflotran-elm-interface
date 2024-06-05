@@ -1609,32 +1609,70 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   PetscBool :: print_warning
   PetscBool :: found
 
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
+  PetscInt :: length1, length2, length3
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: length1, length2
 
   input%ierr = 0
   found = PETSC_FALSE
 
-  length1 = len_trim(string)
+  strings => StringSplit(string,' ')
 
-  do
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    if (InputError(input)) exit
-    length2 = len_trim(word)
-    if (length1 == length2 .and. StringCompare(string,word,length1)) then
-      found = PETSC_TRUE
-      exit
+  if (size(strings) > 1) then
+    strings => StringSplit(string,' ')
+    if (size(strings) > 2) then
+      option%io_buffer = 'Cannot parse card (' // trim(string) // '): name &
+                         &must be one word.'
+      call PrintErrMsg(option)
     endif
-  enddo
+    length1 = len_trim(strings(1))
+    length3 = len_trim(strings(2))
 
-  ! if not found, rewind once and try again.  this approach avoids excessive
-  ! reading if successive searches for strings are in descending order in
-  ! the file.
-  if (InputError(input)) then
-    input%ierr = 0
-    call InputRewind(input)
+    do
+      call InputReadPflotranString(input,option)
+      if (InputError(input)) exit
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      if (InputError(input)) exit
+      length2 = len_trim(word)
+      if (length1 == length2 .and. StringCompare(strings(1),word,length1)) then
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        length2 = len_trim(word)
+        if (length3 == length2 .and. StringCompare(strings(2),word, &
+            length3)) then
+          found = PETSC_TRUE
+          exit
+        endif
+      endif
+    enddo
+
+    ! if not found, rewind once and try again.  this approach avoids excessive
+    ! reading if successive searches for strings are in descending order in
+    ! the file.
+    if (InputError(input)) then
+      input%ierr = 0
+      call InputRewind(input)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (InputError(input)) exit
+        length2 = len_trim(word)
+        if (length1 == length2 .and. StringCompare(strings(1),word, &
+            length1)) then
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          length2 = len_trim(word)
+          if (length3 == length2 .and. StringCompare(strings(2),word, &
+              length3)) then
+            found = PETSC_TRUE
+            exit
+          endif
+        endif
+      enddo
+    endif
+
+  else
+    length1 = len_trim(string)
+
     do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
@@ -1646,6 +1684,26 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
         exit
       endif
     enddo
+
+    ! if not found, rewind once and try again.  this approach avoids excessive
+    ! reading if successive searches for strings are in descending order in
+    ! the file.
+    if (InputError(input)) then
+      input%ierr = 0
+      call InputRewind(input)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (InputError(input)) exit
+        length2 = len_trim(word)
+        if (length1 == length2 .and. StringCompare(string,word,length1)) then
+          found = PETSC_TRUE
+          exit
+        endif
+      enddo
+    endif
+
   endif
 
   if (.not.found .and. print_warning) then

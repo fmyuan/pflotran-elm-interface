@@ -38,7 +38,8 @@ module PM_Well_class
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-  PetscBool :: initialize_well_flow = PETSC_TRUE
+  PetscBool, public :: initialize_well_flow = PETSC_TRUE
+  PetscBool, public :: well_output = PETSC_FALSE
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
   PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
@@ -373,6 +374,7 @@ module PM_Well_class
     PetscBool :: print_well
     PetscBool :: print_output
     PetscBool :: use_well_coupler
+    class(pm_well_type), pointer :: next_well
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -403,7 +405,8 @@ module PM_Well_class
             PMWellQISolveTran, &
             PMWellUpdateReservoirSrcSinkFlow, &
             PMWellModifyDummyFlowJacobian, &
-            PMWellCopyWell
+            PMWellCopyWell, &
+            PMWellReadWellOutput
 
   contains
 
@@ -473,6 +476,8 @@ function PMWellCreate()
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
   this%use_well_coupler = PETSC_FALSE
+
+  nullify(this%next_well)
 
   PMWellCreate => this
 
@@ -1026,7 +1031,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         call PrintErrMsg(option)
       else
         option%io_buffer = "Error in constructing well grid using &
-           &DEVIATED_WELL_TRAJECTORY: please specify either a &
+           &WELL_TRAJECTORY: please specify either a &
            &SURFACE_ORIGIN, DXYZ, RADIUS_TO_HORIZONTAL, or &
            &RADIUS_TO_VERTICAL."
         call PrintErrMsg(option)
@@ -2504,7 +2509,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
             allocate(well_grid%casing(num_read))
             well_grid%casing(1:num_read) = 1.d0 - temp_well_index(1:num_read)
           !-----------------------------
-          case('DEVIATED_WELL_TRAJECTORY')
+          case('WELL_TRAJECTORY')
             call InputPushBlock(input,option)
             do
               call InputReadPFLOTRANString(input,option)
@@ -2512,14 +2517,14 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword', &
-                                 'DEVIATED_WELL_TRAJECTORY')
+                                 'WELL_TRAJECTORY')
               call StringToUpper(word)
 
               select case(trim(word))
                 case('SURFACE_ORIGIN')
                   if (associated(well_grid%deviated_well_segment_list)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please only specify &
+                      &WELL_TRAJECTORY: please only specify &
                       &one SURFACE_ORIGIN."
                     call PrintErrMsg(option)
                   endif
@@ -2544,7 +2549,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 case('SEGMENT_DXYZ')
                   if (.not. associated(deviated_well_segment)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please first specify &
+                      &WELL_TRAJECTORY: please first specify &
                       &SURFACE_ORIGIN before SEGMENT_DXYZ."
                     call PrintErrMsg(option)
                   endif
@@ -2559,7 +2564,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
-                          &DEVIATED_WELL_TRAJECTORY: please specify &
+                          &WELL_TRAJECTORY: please specify &
                           &whether each segment is CASED or UNCASED."
                       call PrintErrMsg(option)
                   end select
@@ -2581,7 +2586,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 case('SEGMENT_RADIUS_TO_HORIZONTAL_X')
                   if (.not. associated(deviated_well_segment)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please first specify &
+                      &WELL_TRAJECTORY: please first specify &
                       &SURFACE_ORIGIN before SEGMENT_RADIUS_TO_HORIZONTAL_X."
                     call PrintErrMsg(option)
                   endif
@@ -2596,7 +2601,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
-                          &DEVIATED_WELL_TRAJECTORY: please specify &
+                          &WELL_TRAJECTORY: please specify &
                           &whether each segment is CASED or UNCASED."
                       call PrintErrMsg(option)
                   end select
@@ -2608,7 +2613,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 case('SEGMENT_RADIUS_TO_HORIZONTAL_Y')
                   if (.not. associated(deviated_well_segment)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please first specify &
+                      &WELL_TRAJECTORY: please first specify &
                       &SURFACE_ORIGIN before SEGMENT_RADIUS_TO_HORIZONTAL_Y."
                     call PrintErrMsg(option)
                   endif
@@ -2623,7 +2628,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
-                          &DEVIATED_WELL_TRAJECTORY: please specify &
+                          &WELL_TRAJECTORY: please specify &
                           &whether each segment is CASED or UNCASED."
                       call PrintErrMsg(option)
                   end select
@@ -2635,7 +2640,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 case('SEGMENT_RADIUS_TO_HORIZONTAL_ANGLE')
                   if (.not. associated(deviated_well_segment)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please first specify &
+                      &WELL_TRAJECTORY: please first specify &
                       &SURFACE_ORIGIN before &
                       &SEGMENT_RADIUS_TO_HORIZONTAL_ANGLE."
                     call PrintErrMsg(option)
@@ -2651,7 +2656,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
-                          &DEVIATED_WELL_TRAJECTORY: please specify &
+                          &WELL_TRAJECTORY: please specify &
                           &whether each segment is CASED or UNCASED."
                       call PrintErrMsg(option)
                   end select
@@ -2668,7 +2673,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 case('SEGMENT_RADIUS_TO_VERTICAL')
                   if (.not. associated(deviated_well_segment)) then
                     option%io_buffer = "Error in constructing &
-                      &DEVIATED_WELL_TRAJECTORY: please first specify &
+                      &WELL_TRAJECTORY: please first specify &
                       &SURFACE_ORIGIN before SEGMENT_RADIUS_TO_VERTICAL."
                     call PrintErrMsg(option)
                   endif
@@ -2683,7 +2688,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
-                          &DEVIATED_WELL_TRAJECTORY: please specify &
+                          &WELL_TRAJECTORY: please specify &
                           &whether each segment is CASED or UNCASED."
                       call PrintErrMsg(option)
                   end select
@@ -2694,7 +2699,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                                      error_string)
                 case default
                   call InputKeywordUnrecognized(input,word,&
-                                             'DEVIATED_WELL_TRAJECTORY',option)
+                                             'WELL_TRAJECTORY',option)
               end select
             enddo
             if (associated(deviated_well_segment)) &
@@ -2731,7 +2736,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
       endif
       if (.not.associated(well_grid%casing) .and. .not. &
           associated(well_grid%deviated_well_segment_list)) then
-        option%io_buffer = 'Either keyword CASING or DEVIATED_WELL_TRAJECTORY &
+        option%io_buffer = 'Either keyword CASING or WELL_TRAJECTORY &
                            &must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
@@ -2741,7 +2746,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
           Uninitialized(well_grid%tophole(3))) .and. .not. &
           associated(well_grid%deviated_well_segment_list)) then
         option%io_buffer = 'ERROR: Either keyword TOP_OF_HOLE &
-                           &or DEVIATED_WELL_TRAJECTORY &
+                           &or WELL_TRAJECTORY &
                            &must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
@@ -2752,7 +2757,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
           Uninitialized(well_grid%bottomhole(3))) .and. .not. &
           associated(well_grid%deviated_well_segment_list)) then
         option%io_buffer = 'ERROR: Either keywordk BOTTOM_OF_HOLE &
-                           &or DEVIATED_WELL_TRAJECTORY &
+                           &or WELL_TRAJECTORY &
                            &must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintMsg(option)
@@ -3656,7 +3661,7 @@ subroutine PMWellReadPass2(input,option)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(keyword)
           select case('keyword')
-            case('DEVIATED_WELL_TRAJECTORY')
+            case('WELL_TRAJECTORY')
               call InputPopBlock(input,option)
           end select
         enddo
@@ -4304,7 +4309,7 @@ subroutine PMWellInitializeWellFlow(pm_well)
     pm_well%well_pert(k)%WI(:) = pm_well%well%WI(:)
   enddo
 
-  initialize_well_flow = PETSC_FALSE
+  if (option%iflowmode /= SCO2_MODE) initialize_well_flow = PETSC_FALSE
 
 end subroutine PMWellInitializeWellFlow
 
@@ -4575,6 +4580,8 @@ subroutine PMWellUpdateStrata(pm_well,curr_time)
   PetscInt :: nsegments
   PetscInt :: k
   PetscErrorCode :: ierr
+
+  if (pm_well%well%well_model_type == WELL_MODEL_HYDROSTATIC) return
 
   nsegments = pm_well%well_grid%nsegments
 

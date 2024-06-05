@@ -858,6 +858,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_Well_class
   use PM_Hydrate_class
   use PM_SCO2_class
+  use PM_Well_class
   use PM_Base_class
   use Print_module
   use Timestepper_Base_class
@@ -2429,6 +2430,16 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
       case ('WELLBORE_MODEL')
         call PMWellReadPass2(input,option)
+
+!....................
+      case ('WELL_MODEL_OUTPUT')
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+        enddo
+        call InputPopBlock(input,option)
 
 !....................
       case ('PARAMETER')
