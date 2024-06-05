@@ -1311,6 +1311,8 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       string = 'Boundary Condition'
     case(SRC_SINK_COUPLER_TYPE)
       string = 'Source Sink'
+    case(WELL_COUPLER_TYPE)
+      string = 'Well Coupler'
   end select
   write(option%fid_out,'(/,2x,a,/)') trim(string)
 

@@ -13,6 +13,7 @@ module Connection_module
   PetscInt, parameter, public :: BOUNDARY_CONNECTION_TYPE = 2
   PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
+  PetscInt, parameter, public :: WELL_CONNECTION_TYPE = 5
 
   type, public :: connection_set_type
     PetscInt :: id

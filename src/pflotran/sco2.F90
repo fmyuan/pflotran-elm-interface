@@ -659,7 +659,7 @@ end subroutine SCO2UpdateMassBalance
 
 ! ************************************************************************** !
 
-subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
+subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   !
   ! Updates the SCO2 mode auxiliary variables.
   !
@@ -668,6 +668,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
   !
 
   use Realization_Subsurface_class
+  use PM_Well_class
   use Patch_module
   use Option_module
   use Field_module
@@ -678,10 +679,12 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
   use Material_Aux_module
   use EOS_Water_module
   use Saturation_Function_module
+  use Condition_module
 
   implicit none
 
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   PetscBool :: update_state
   PetscBool :: update_state_bc
 
@@ -697,6 +700,7 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   type(sco2_parameter_type), pointer :: sco2_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(flow_condition_type), pointer :: well_flow_condition
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
@@ -1031,6 +1035,24 @@ subroutine SCO2UpdateAuxVars(realization,update_state,update_state_bc)
     enddo
     source_sink => source_sink%next
   enddo
+  if (option%coupled_well .and. associated(pm_well)) then
+    if (associated(pm_well%flow_condition) .and. &
+        Initialized(pm_well%well%bh_p))then
+      well_flow_condition => pm_well%flow_condition
+      if (associated(well_flow_condition%sco2%temperature)) then
+        pm_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
+                            rarray(1)
+      endif
+      if (associated(well_flow_condition%sco2%rate)) then
+        pm_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
+        pm_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
+      endif
+      do idof = 1,option%nflowdof
+        call PMWellCopyWell(pm_well%well,pm_well%well_pert(idof), &
+                            pm_well%transport)
+      enddo
+    endif
+  endif
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%SCO2%auxvars_up_to_date = PETSC_TRUE
@@ -1306,7 +1328,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     sco2_allow_state_change = PETSC_FALSE
   endif
                                             ! do update state
-  call SCO2UpdateAuxVars(realization,sco2_allow_state_change, &
+  call SCO2UpdateAuxVars(realization,pm_well,sco2_allow_state_change, &
                          sco2_allow_state_change)
 
   ! override flags since they will soon be out of date

@@ -1954,6 +1954,7 @@ pm_hydrate.o : \
   hydrate_aux.o \
   input_aux.o \
   material.o \
+  material_aux.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -3291,6 +3292,7 @@ saturation_function.o : \
   string.o \
   utility.o
 sco2.o : \
+  condition.o \
   connection.o \
   coupler.o \
   debug.o \
