@@ -69,6 +69,7 @@ module Patch_module
     type(coupler_list_type), pointer :: boundary_condition_list
     type(coupler_list_type), pointer :: initial_condition_list
     type(coupler_list_type), pointer :: source_sink_list
+    type(coupler_list_type), pointer :: well_coupler_list
 
     type(material_property_type), pointer :: material_properties
     type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -177,6 +178,8 @@ function PatchCreate()
   call CouplerInitList(patch%initial_condition_list)
   allocate(patch%source_sink_list)
   call CouplerInitList(patch%source_sink_list)
+  allocate(patch%well_coupler_list)
+  call CouplerInitList(patch%well_coupler_list)
 
   nullify(patch%material_properties)
   nullify(patch%material_property_array)
@@ -511,6 +514,53 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     coupler => coupler%next
   enddo
 
+  ! well coupler
+  coupler => patch%well_coupler_list%first
+  do
+    if (.not.associated(coupler)) exit
+    ! pointer to flow condition
+    if (option%nflowdof > 0) then
+      if (len_trim(coupler%flow_condition_name) > 0) then
+        coupler%flow_condition => &
+          FlowConditionGetPtrFromList(coupler%flow_condition_name, &
+                                      flow_conditions)
+        if (.not.associated(coupler%flow_condition)) then
+          option%io_buffer = 'Flow condition "' // &
+                   trim(coupler%flow_condition_name) // &
+                   '" in well coupler "' // &
+                   trim(coupler%name) // &
+                   '" not found in flow condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A FLOW_CONDITION must be specified in &
+                           &WELL_COUPLER: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to transport condition
+    if (option%ntrandof > 0) then
+      if (len_trim(coupler%tran_condition_name) > 0) then
+        coupler%tran_condition => &
+          TranConditionGetPtrFromList(coupler%tran_condition_name, &
+                                      transport_conditions)
+        if (.not.associated(coupler%tran_condition)) then
+          option%io_buffer = 'Transport condition "' // &
+                   trim(coupler%tran_condition_name) // &
+                   '" in well coupler "' // &
+                   trim(coupler%name) // &
+                   '" not found in transport condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &WELL_COUPLER: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    coupler => coupler%next
+  enddo
+
 !----------------------------
 ! AUX
 
@@ -726,6 +776,8 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
   call PatchInitCouplerAuxVars(patch%boundary_condition_list,patch, &
                                option)
   call PatchInitCouplerAuxVars(patch%source_sink_list,patch, &
+                               option)
+  call PatchInitCouplerAuxVars(patch%well_coupler_list,patch, &
                                option)
 
   !geh: This should not be included in PatchUpdateAllCouplerAuxVars
@@ -1002,6 +1054,16 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               end select
             endif
           endif
+        else if (coupler%itype == WELL_COUPLER_TYPE) then
+          if (associated(coupler%flow_condition%sco2)) then
+            if (associated(coupler%flow_condition%sco2%rate)) then
+              select case(coupler%flow_condition%sco2%rate%itype)
+                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                  allocate(coupler%flow_aux_real_var(1,num_connections))
+                  coupler%flow_aux_real_var = 0.d0
+              end select
+            endif
+          endif
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -1088,6 +1150,8 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%boundary_condition_list, &
                                  force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
+                                 force_update_flag,option)
+  call PatchUpdateCouplerAuxVars(patch,patch%well_coupler_list, &
                                  force_update_flag,option)
 
 end subroutine PatchUpdateAllCouplerAuxVars
@@ -5866,6 +5930,9 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
                                    reaction_base,option)
 
   call PatchInitCouplerConstraints(patch%source_sink_list, &
+                                   reaction_base,option)
+
+  call PatchInitCouplerConstraints(patch%well_coupler_list, &
                                    reaction_base,option)
 
 end subroutine PatchInitConstraints
@@ -11738,6 +11805,7 @@ subroutine PatchDestroy(patch)
   call CouplerDestroyList(patch%boundary_condition_list)
   call CouplerDestroyList(patch%initial_condition_list)
   call CouplerDestroyList(patch%source_sink_list)
+  call CouplerDestroyList(patch%well_coupler_list)
 
   call ObservationDestroyList(patch%observation_list)
   call IntegralFluxDestroyList(patch%integral_flux_list)
