@@ -7983,9 +7983,21 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
+    case(PETSC_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%global_offset + local_id
+      enddo
+    case(LOCAL_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = local_id
+      enddo
+    case(GHOSTED_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nL2G(local_id)
       enddo
     case(SALINITY)
       do local_id=1,grid%nlmax
@@ -9236,9 +9248,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                       jacobian),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
-      value = grid%nG2A(ghosted_id)
-    case(NATURAL_ID)
       value = option%myrank
+    case(NATURAL_CELL_ID)
+      value = grid%nG2A(ghosted_id)
+    case(PETSC_CELL_ID)
+      value = grid%global_offset + grid%nG2L(ghosted_id)
+    case(LOCAL_CELL_ID)
+      value = grid%nG2L(ghosted_id)
+    case(GHOSTED_CELL_ID)
+      value = ghosted_id
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13
     case(SECONDARY_CONCENTRATION)
       ! Note that the units are in mol/kg
@@ -10224,9 +10242,18 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       call PrintErrMsg(option, &
                        'Cannot set NATURAL_ID through PatchSetVariable()')
+    case(PETSC_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set PETSC_ID through PatchSetVariable()')
+    case(LOCAL_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set LOCAL_ID through PatchSetVariable()')
+    case(GHOSTED_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set GHOSTED_ID through PatchSetVariable()')
     ! PM Well (wellbore model)
     case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
          WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
@@ -10487,9 +10514,21 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
+    case(PETSC_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%global_offset + local_id
+      enddo
+    case(LOCAL_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = local_id
+      enddo
+    case(GHOSTED_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nL2G(local_id)
       enddo
     case default
       write(option%io_buffer, &
