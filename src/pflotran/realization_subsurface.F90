@@ -216,7 +216,7 @@ subroutine RealizationCreateDiscretization(realization)
   use Coupler_module
   use Discretization_module
   use Grid_Unstructured_Cell_module
-  use DM_Kludge_module
+  use DM_Custom_module
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
