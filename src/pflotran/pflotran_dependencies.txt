@@ -484,6 +484,8 @@ factory_subsurface.o : \
   eos.o \
   factory_subsurface_linkage.o \
   global.o \
+  grid.o \
+  grid_unstructured_aux.o \
   init_common.o \
   init_subsurface.o \
   init_subsurface_flow.o \
@@ -991,6 +993,7 @@ grid_unstructured.o : \
   hdf5_aux.o \
   input_aux.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   string.o \
   utility.o

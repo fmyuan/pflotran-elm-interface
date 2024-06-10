@@ -18,6 +18,11 @@ module Utility_module
     module procedure CrossProduct1
   end interface
 
+  interface TruncateArray
+    module procedure TruncateIntArray1
+    module procedure TruncateRealArray1
+  end interface
+
   interface ReallocateArray
     module procedure ReallocateIntArray1
     module procedure ReallocateIntArray2
@@ -75,6 +80,7 @@ module Utility_module
             DotProduct, &
             CrossProduct, &
             ReallocateArray, &
+            TruncateArray, &
             UtilityReadArray, &
             UtilitySortArray, &
             DeallocateArray, &
@@ -341,6 +347,72 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
  endif
 
 end subroutine Natural2LocalIndex
+
+! ************************************************************************** !
+
+function TruncateIntArray1(array,new_size)
+  !
+  ! Truncates an array to a smaller size discarding values beyond end
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/24
+  !
+
+  implicit none
+
+  PetscInt, pointer :: array(:)
+  PetscInt :: new_size
+
+  PetscInt, pointer :: TruncateIntArray1(:)
+
+  PetscInt :: current_size
+
+  current_size = size(array)
+  if (new_size > current_size) then
+    stop 'Error in TruncateIntArray1'
+  else if (new_size == current_size) then
+    TruncateIntArray1 => array
+    nullify(array)
+  else
+    allocate(TruncateIntArray1(new_size))
+    TruncateIntArray1(:) = array(1:new_size)
+    call DeallocateArray(array)
+  endif
+
+end function TruncateIntArray1
+
+! ************************************************************************** !
+
+function TruncateRealArray1(array,new_size)
+  !
+  ! Truncates an array to a smaller size discarding values beyond end
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/24
+  !
+
+  implicit none
+
+  PetscReal, pointer :: array(:)
+  PetscInt :: new_size
+
+  PetscReal, pointer :: TruncateRealArray1(:)
+
+  PetscInt :: current_size
+
+  current_size = size(array)
+  if (new_size > current_size) then
+    stop 'Error in TruncateIntArray1'
+  else if (new_size == current_size) then
+    TruncateRealArray1 => array
+    nullify(array)
+  else
+    allocate(TruncateRealArray1(new_size))
+    TruncateRealArray1(:) = array(1:new_size)
+    call DeallocateArray(array)
+  endif
+
+end function TruncateRealArray1
 
 ! ************************************************************************** !
 

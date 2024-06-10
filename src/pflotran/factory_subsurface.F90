@@ -427,6 +427,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Patch_module
   use Parameter_module
   use EOS_module !to be removed as already present above
+  use Discretization_module
 
   implicit none
 
@@ -487,6 +488,8 @@ subroutine FactorySubsurfSetupRealization(simulation)
   end select
 
   ! create grid and allocate vectors
+  call DiscretizationDecomposeDomain(realization%discretization,option)
+  call FactorySubsurfaceInsertWellCells(simulation)
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
@@ -644,5 +647,68 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   endif
 
 end subroutine FactorySubsurfaceJumpStart
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfaceInsertWellCells(simulation)
+  !
+  ! Inserts off-process well cells that are beyond the ghosted halo into the
+  ! ghosting of the local Vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Grid_Unstructured_Aux_module
+  use PM_Well_class
+
+  implicit none
+
+  type(simulation_subsurface_type) :: simulation
+
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_well_type), pointer :: pm_well
+  PetscInt, pointer :: well_cells(:)
+
+  realization => simulation%realization
+
+  ! skip everything but the unstructured implicit format
+  select case(realization%discretization%itype)
+    case(STRUCTURED_GRID)
+      return
+    case(UNSTRUCTURED_GRID)
+      select case(realization%discretization%grid%itype)
+        case(IMPLICIT_UNSTRUCTURED_GRID)
+        case default
+          return
+      end select
+  end select
+
+  ! Michael, Create a list of cells needed for ghosting wells and pass in.
+  ! This list can include local cells (the algorithm ignores them).
+  nullify(pm_well)
+  if (associated(pm_well) .and. realization%option%comm%size > 1) then
+#if 0
+    ! add up wells cells
+    do
+      num_well_cells = num_wells_cells + size(pm%well_cells)
+    enddo
+    allocate(well_cells(num_well_cells)
+    ! add up wells cells
+    do
+      well_cells(i) = pm%well_cells(j)
+    enddo
+    allocate(well_cells(num_well_cells)
+#endif
+    nullify(well_cells)
+    call UGridAddWellCells(realization%discretization%grid%unstructured_grid, &
+                           well_cells,realization%option)
+    call GridExpandGhostCells(realization%discretization%grid, &
+                              realization%option)
+  endif
+
+end subroutine FactorySubsurfaceInsertWellCells
 
 end module Factory_Subsurface_module

@@ -110,7 +110,6 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   geomech_grid%max_ndual_per_elem = ugrid%max_ndual_per_cell
   geomech_grid%max_nnode_per_elem = ugrid%max_nvert_per_cell
   geomech_grid%max_elem_sharing_a_node = ugrid%max_cells_sharing_a_vertex
-  geomech_grid%nlmax_node = ugrid%num_vertices_natural
 
 #ifdef GEOMECH_DEBUG
   call PrintMsg(option,'Removing ghosted elements (cells)')
