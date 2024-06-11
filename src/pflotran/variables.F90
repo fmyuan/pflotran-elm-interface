@@ -126,7 +126,7 @@ module Variables_module
   PetscInt, parameter, public :: LIQUID_MASS_FRACTION    = 106
   PetscInt, parameter, public :: GAS_MASS_FRACTION       = 107
 
-  PetscInt, parameter, public :: NATURAL_ID              = 108
+  PetscInt, parameter, public :: NATURAL_CELL_ID         = 108
   PetscInt, parameter, public :: REACTION_AUXILIARY      = 109
 
   PetscInt, parameter, public :: FRACTURE                = 110
@@ -205,5 +205,8 @@ module Variables_module
 
   PetscInt, parameter, public :: THERMAL_CONDUCTIVITY = 165
   PetscInt, parameter, public :: MATERIAL_ELECTRICAL_CONDUCTIVITY = 166
+  PetscInt, parameter, public :: PETSC_CELL_ID = 167
+  PetscInt, parameter, public :: LOCAL_CELL_ID = 168
+  PetscInt, parameter, public :: GHOSTED_CELL_ID = 169
 
 end module Variables_module

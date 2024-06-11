@@ -873,14 +873,9 @@ subroutine OutputVariableRead(input,option,output_variable_list)
           call OutputVariableAddToList(output_variable_list,name, &
                                        category,units,id,temp_int)
         enddo
-      case ('NATURAL_ID')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('PROCESS_ID')
+      case ('NATURAL_ID','PETSC_ID','LOCAL_ID','GHOSTED_ID', &
+            'PROCESS_ID','MATERIAL_ID', &
+            'MATERIAL_ID_KLUDGE_FOR_VISIT')
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
         output_variable => OutputVariableCreate(name,category,units,id)
@@ -893,24 +888,10 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('MATERIAL_ID')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
       case ('FRACTURE')
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
         output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('MATERIAL_ID_KLUDGE_FOR_VISIT')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case('NO_FLOW_VARIABLES')
