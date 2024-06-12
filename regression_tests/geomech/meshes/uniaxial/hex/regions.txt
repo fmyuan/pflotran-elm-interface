@@ -1,0 +1,39 @@
+GEOMECHANICS_REGION all_geomech
+  FILE ./all.vset
+END
+
+GEOMECHANICS_REGION north_geomech
+  FILE ./north.vset
+END
+
+GEOMECHANICS_REGION south_geomech
+  FILE ./south.vset
+END
+
+GEOMECHANICS_REGION east_geomech
+  FILE ./east.vset
+END
+
+GEOMECHANICS_REGION west_geomech
+  FILE ./west.vset
+END
+
+GEOMECHANICS_REGION top_geomech
+  FILE ./top.vset
+END
+
+GEOMECHANICS_REGION bottom_geomech
+  FILE ./bottom.vset
+END
+
+GEOMECHANICS_REGION top_boundary
+  FILE ./top_boundary.vset
+END
+
+GEOMECHANICS_REGION top_corner
+  FILE ./top_corner.vset
+END
+
+GEOMECHANICS_REGION top_internal
+  FILE ./top_internal.vset
+END
