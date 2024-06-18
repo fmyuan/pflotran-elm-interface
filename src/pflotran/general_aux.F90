@@ -230,6 +230,7 @@ module General_Aux_module
     PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
+    PetscBool, pointer :: material_is_soluble(:)
   end type general_parameter_type
 
   type, public :: general_type
@@ -336,7 +337,9 @@ function GeneralAuxCreate(option)
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
 
+
   allocate(aux%general_parameter)
+  nullify(aux%general_parameter%material_is_soluble)
   allocate(aux%general_parameter%diffusion_coefficient(option%nphase))
 
   !geh: there is no point in setting default lquid diffusion coeffcient values
@@ -5382,6 +5385,7 @@ subroutine GeneralAuxDestroy(aux)
 
   if (.not.associated(aux)) return
 
+  call DeallocateArray(aux%general_parameter%diffusion_coefficient)
   call GeneralAuxVarDestroy(aux%auxvars)
   call GeneralAuxVarDestroy(aux%auxvars_bc)
   call GeneralAuxVarDestroy(aux%auxvars_ss)

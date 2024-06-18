@@ -8,6 +8,7 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         SOLUTE SALT
+        SOLUBLE_MATERIALS soil
       /
     /
   /
@@ -71,7 +72,6 @@ FLUID_PROPERTY
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil
   ID 1
-  SOLUBLE
   CHARACTERISTIC_CURVES cc1
   POROSITY 0.30
   TORTUOSITY 0.5
