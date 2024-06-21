@@ -2089,7 +2089,7 @@ subroutine PMWellSetup(this)
     case(SCO2_MODE)
       well_bottom_ghosted = well_grid%h_ghosted_id(1)
       well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_ghosted > 0 .and. &
+      if (well_bottom_local > 0 .and. &
           realization%patch%aux%sco2%inactive_cells_exist) then
         if (size(realization%patch%aux%sco2%matrix_zeroing% &
             inactive_rows_local) == 1) then
@@ -5924,7 +5924,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
         !endif
       enddo
 #endif
-      !Glenn: this just gives complete Jacobian fill for 
+      !Glenn: this just gives complete Jacobian fill for
       !       the small 1D problem.
       J_well = UNINITIALIZED_DOUBLE
       do idof = 1,option%nflowdof*this%well_grid%nsegments

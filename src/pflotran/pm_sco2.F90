@@ -1647,8 +1647,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   global_auxvars => patch%aux%Global%auxvars
   sco2_auxvars => this%realization%patch%aux%SCO2%auxvars
 
-  allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states))
-  ! allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states+1))
+  ! allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states))
+  allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states+1))
   allocate(state_string(sco2_max_states))
   allocate(dof_string(MAX_DOF,sco2_max_states))
 
@@ -2030,14 +2030,16 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     flags(1:MAX_DOF*sco2_max_states*MAX_INDEX) = &
       reshape(this%converged_flag,(/MAX_DOF*sco2_max_states* &
               MAX_INDEX/))
+    flags(MAX_DOF*sco2_max_states*MAX_INDEX + 1) = converged_well
 
-    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+1
+    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+2
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
     this%converged_flag = reshape(flags(1:MAX_DOF*sco2_max_states* &
                                   MAX_INDEX),(/MAX_DOF, &
                                   sco2_max_states,MAX_INDEX/))
+    converged_well = flags(MAX_DOF*sco2_max_states*MAX_INDEX + 1)
 
     ! sco2_high_temp_ts_cut = .not.flags(MAX_DOF*sco2_max_states* &
     !                                    MAX_INDEX+1)
