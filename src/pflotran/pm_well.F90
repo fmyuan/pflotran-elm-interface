@@ -5929,7 +5929,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
       J_well = UNINITIALIZED_DOUBLE
       do idof = 1,option%nflowdof*this%well_grid%nsegments
         do irow = 1,option%nflowdof*this%well_grid%nsegments
-          local_row_index = (idof-1)*option%nflowdof 
+          local_row_index = (idof-1)
           local_col_index = irow-1
           call MatSetValuesLocal(Jac,1,local_row_index,1, &
                                  local_col_index,J_well, &
