@@ -1278,7 +1278,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
   PetscInt :: local_start, local_end
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
@@ -1383,16 +1383,16 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
       do
         if (.not. associated(cur_well)) exit
         if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
-          local_id = cur_well%well_grid%h_local_id(1)
-          local_end = local_id * option%nflowdof
+          ghosted_id = cur_well%well_grid%h_ghosted_id(1)
+          ghosted_end = ghosted_id * option%nflowdof
           if (dabs(cur_well%well%th_qg) > 0.d0) then
-            accum_p2(local_end) = cur_well%well%th_qg
+            accum_p2(ghosted_end) = cur_well%well%th_qg
           elseif (dabs(cur_well%well%th_ql) > 0.d0) then
-            accum_p2(local_end) = cur_well%well%th_ql
+            accum_p2(ghosted_end) = cur_well%well%th_ql
           else
-            accum_p2(local_end) = 0.d0
+            accum_p2(ghosted_end) = 0.d0
           endif
-          r_p(local_end) = 0.d0
+          r_p(ghosted_end) = 0.d0
         endif
         cur_well => cur_well%next_well
       enddo
@@ -2015,11 +2015,20 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
           if (.not. associated(cur_well)) exit
           if (all(cur_well%well%liq%Q == 0.d0) .and. &
               all(cur_well%well%gas%Q == 0.d0)) then
+            ! Don't solve for BHP if there is no flow in the well.
+            ! MAN: This conditional causes a hang with well ghosting.
+            !      Not using it requires setting MAT_NO_OFF_PROC_ZERO_ROWS
+            !      flag to false in PMSCO2InitializeRun. Not deactivating
+            !      a row with 0 well flux causes a solver failure.
+            deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
+                             option%nflowdof
+            deactivate_row = deactivate_row - 1
             if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
-              deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
-                               option%nflowdof
-              deactivate_row = deactivate_row - 1
               call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+            else
+              call MatZeroRowsLocal(A,ZERO_INTEGER, deactivate_row, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
             endif

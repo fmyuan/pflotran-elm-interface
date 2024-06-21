@@ -662,17 +662,41 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
   use Realization_Subsurface_class
   use Grid_module
   use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_module, only : UGridEnsureRightHandRule
+  use Grid_Structured_module, only : StructGridCreateTVDGhosts
+  use Discretization_module
+  use PMC_Base_class
+  use PM_Base_class
   use PM_Well_class
+  use PM_SCO2_class
+  Use Option_module
+  use Field_module
+  use DM_Custom_module
+  use Utility_module
 
   implicit none
 
   type(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: realization
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
   class(pm_well_type), pointer :: pm_well
-  PetscInt, pointer :: well_cells(:)
+  class(pmc_base_type), pointer :: cur_pmc
+  class(pm_base_type), pointer :: cur_pm, cur_pm2
+  type(option_type), pointer :: option
+  type(dm_ptr_type), pointer :: dm_ptr
+  PetscInt, pointer :: well_cells(:), well_cells_temp(:)
+  PetscInt, pointer :: h_all_global_id(:)
+  PetscInt :: num_well_cells, i
+  PetscErrorCode :: ierr
 
   realization => simulation%realization
+  discretization => realization%discretization
+  grid => discretization%grid
+  field => realization%field
+  option => simulation%option
 
   ! skip everything but the unstructured implicit format
   select case(realization%discretization%itype)
@@ -686,28 +710,108 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
       end select
   end select
 
-  ! Michael, Create a list of cells needed for ghosting wells and pass in.
-  ! This list can include local cells (the algorithm ignores them).
-  nullify(pm_well)
-  if (associated(pm_well) .and. realization%option%comm%size > 1) then
-#if 0
-    ! add up wells cells
+  nullify (dm_ptr)
+  if (realization%option%comm%size > 1) then
+    allocate(dm_ptr)
+    call DiscretizationCreateDM(discretization, dm_ptr, &
+                                 ONE_INTEGER, discretization%stencil_width, &
+                                 discretization%stencil_type, option)
+
+    grid => discretization%grid
+    select case(discretization%itype)
+      case(STRUCTURED_GRID)
+        ! set up nG2L, nL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeSpacing(grid,discretization%origin_global,option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option)
+      case(UNSTRUCTURED_GRID)
+        ! set up nG2L, NL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option, &
+                                      dm_ptr%ugdm)
+    end select
+
+    ! Michael, Create a list of cells needed for ghosting wells and pass in.
+    ! This list can include local cells (the algorithm ignores them).
+    cur_pmc => simulation%process_model_coupler_list
+    cur_pm => cur_pmc%pm_list
+    nullify(pm_well)
     do
-      num_well_cells = num_wells_cells + size(pm%well_cells)
+      if (.not. associated(cur_pm)) exit
+      if (associated(pm_well)) exit
+      select type (pm => cur_pm)
+        class is (pm_sco2_type)
+          if (.not. associated(cur_pmc%child)) exit
+          cur_pm2 => cur_pmc%child%pm_list
+          do
+            select type (pm2 => cur_pm2)
+              class is (pm_well_type)
+                pm_well => pm2
+                exit
+            end select
+          enddo
+      end select
     enddo
-    allocate(well_cells(num_well_cells)
-    ! add up wells cells
-    do
-      well_cells(i) = pm%well_cells(j)
-    enddo
-    allocate(well_cells(num_well_cells)
-#endif
+    num_well_cells = 0
     nullify(well_cells)
+    nullify(well_cells_temp)
+    do
+      if (.not. associated(pm_well)) exit
+      i = num_well_cells + 1
+      num_well_cells = num_well_cells + pm_well%well_grid%nsegments
+      call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
+      pm_well%well_comm%petsc_rank = option%myrank
+      allocate(h_all_global_id(num_well_cells))
+      call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id,num_well_cells, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+      pm_well%well_grid%h_global_id = h_all_global_id
+      ! add up wells cells
+      allocate(well_cells_temp(num_well_cells))
+      if (associated(well_cells)) then
+        well_cells_temp(1:i-1) = well_cells(:)
+        well_cells_temp(i:num_well_cells) = pm_well%well_grid%h_global_id(:)
+        deallocate(well_cells)
+      else
+        well_cells_temp(i:num_well_cells) = pm_well%well_grid%h_global_id(:)
+      endif
+      allocate(well_cells(num_well_cells))
+      well_cells(1:num_well_cells) = well_cells_temp(1:num_well_cells)
+
+      ! Destroy first-pass well grid
+      call DeallocateArray(pm_well%well_grid%dh)
+      call DeallocateArray(pm_well%well_grid%res_dz)
+      deallocate(pm_well%well_grid%h)
+      call DeallocateArray(pm_well%well_grid%h_local_id)
+      call DeallocateArray(pm_well%well_grid%h_ghosted_id)
+      call DeallocateArray(pm_well%well_grid%h_global_id)
+      call DeallocateArray(pm_well%well_grid%h_rank_id)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(pm_well%well_grid%res_z)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      pm_well => pm_well%next_well
+    enddo
     call UGridAddWellCells(realization%discretization%grid%unstructured_grid, &
                            well_cells,realization%option)
     call GridExpandGhostCells(realization%discretization%grid, &
                               realization%option)
   endif
+
+  ! Destroy the dummy DM's
+  ! Eventually put this in a seperate subroutine (down in dm_custom?)
+  if (associated(dm_ptr)) call UGridDMDestroy(dm_ptr%ugdm)
+  nullify(dm_ptr)
+  call DeallocateArray(grid%nG2L)
+  call DeallocateArray(grid%nL2G)
+  call DeallocateArray(grid%nG2A)
+  call DeallocateArray(grid%x)
+  call DeallocateArray(grid%y)
+  call DeallocateArray(grid%z)
 
 end subroutine FactorySubsurfaceInsertWellCells
 

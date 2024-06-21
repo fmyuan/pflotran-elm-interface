@@ -57,6 +57,7 @@ module Discretization_module
             DiscretizationGlobalToNatural, &
             DiscretizationNaturalToGlobal, &
             DiscretizationDecomposeDomain, &
+            DiscretizationCreateDM, &
             DiscretizationCreateDMs,&
             DiscretizationGetDMPtrFromIndex, &
             DiscretizationUpdateTVDGhosts, &

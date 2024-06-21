@@ -481,10 +481,14 @@ factory_subsurface.o : \
   co2_span_wagner.o \
   dataset.o \
   discretization.o \
+  dm_custom.o \
   eos.o \
   factory_subsurface_linkage.o \
+  field.o \
   global.o \
   grid.o \
+  grid_structured.o \
+  grid_unstructured.o \
   grid_unstructured_aux.o \
   init_common.o \
   init_subsurface.o \
