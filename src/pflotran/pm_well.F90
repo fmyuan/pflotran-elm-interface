@@ -2482,7 +2482,6 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 &must be provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
-            write(*,*) 'num_read =', num_read
             allocate(well_grid%casing(num_read))
             well_grid%casing(1:num_read) = 1.d0 - temp_well_index(1:num_read)
           !-----------------------------
@@ -4111,10 +4110,6 @@ subroutine PMWellInitializeTimestep(this)
   curr_time = this%option%time - this%option%flow_dt
   this%dt_flow = this%realization%option%flow_dt
 
-  if (Initialized(this%intrusion_time_start) .and. &
-      (curr_time < this%intrusion_time_start) .and. &
-      .not. this%well_on) return
-
   call PMWellInitializeTimestepFlow(this,curr_time)
 
 end subroutine PMWellInitializeTimestep
@@ -4748,14 +4743,14 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
     reservoir%dy(k) = reservoir%tmp_flow(k,19)
     reservoir%dz(k) = reservoir%tmp_flow(k,20)
   enddo
-    
+
   if (pm_well%transport) then
     do k = 1,pm_well%well_grid%nsegments
       reservoir%aqueous_conc(:,k) = reservoir%tmp_tran(:,k,1)
       reservoir%aqueous_mass(:,k) = reservoir%tmp_tran(:,k,2)
     enddo
   endif
-  
+
 end subroutine PMWellUpdateReservoirWIPP
 
 ! ************************************************************************** !
