@@ -1,0 +1,27 @@
+GEOMECHANICS_REGION all_geomech
+  FILE ./1d_tet_all.vset
+END
+
+GEOMECHANICS_REGION north_geomech
+  FILE ./boundary_front_n.vset
+END
+
+GEOMECHANICS_REGION south_geomech
+  FILE ./boundary_back_s.vset
+END
+
+GEOMECHANICS_REGION east_geomech
+  FILE ./boundary_right_e.vset
+END
+
+GEOMECHANICS_REGION west_geomech
+  FILE ./boundary_left_w.vset
+END
+
+GEOMECHANICS_REGION top_geomech
+  FILE ./boundary_top.vset
+END
+
+GEOMECHANICS_REGION bottom_geomech
+  FILE ./boundary_bottom.vset
+END

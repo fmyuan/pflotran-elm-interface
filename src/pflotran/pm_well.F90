@@ -11,6 +11,7 @@ module PM_Well_class
   use WIPP_Flow_Aux_module
   use NW_Transport_Aux_module
   use Well_Grid_module
+  use Condition_module
 
   implicit none
 
@@ -354,6 +355,7 @@ module PM_Well_class
     type(well_soln_tran_type), pointer :: tran_soln
     type(strata_list_type), pointer :: strata_list
     type(well_comm_type), pointer :: well_comm
+    type(flow_condition_type), pointer :: flow_condition
     PetscReal, pointer :: pert(:,:)
     PetscReal, pointer :: srcsink_water(:,:)
     PetscReal, pointer :: srcsink_gas(:,:)
@@ -373,6 +375,7 @@ module PM_Well_class
     PetscInt :: flow_coupling
     PetscBool :: print_well
     PetscBool :: print_output
+    PetscBool :: use_well_coupler
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -402,7 +405,8 @@ module PM_Well_class
             PMWellReadPass2, &
             PMWellQISolveTran, &
             PMWellUpdateReservoirSrcSinkFlow, &
-            PMWellModifyDummyFlowJacobian
+            PMWellModifyDummyFlowJacobian, &
+            PMWellCopyWell
 
   contains
 
@@ -440,6 +444,7 @@ function PMWellCreate()
   this%strata_list%num_strata = 0
 
   allocate(this%well_comm)
+  nullify(this%flow_condition)
   nullify(this%well_comm%petsc_rank_list)
   nullify(this%well_comm%well_rank_list)
   this%well_comm%petsc_rank = 0
@@ -470,6 +475,7 @@ function PMWellCreate()
   this%flow_coupling = UNINITIALIZED_INTEGER
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
+  this%use_well_coupler = PETSC_FALSE
 
   PMWellCreate => this
 
@@ -1614,6 +1620,7 @@ subroutine PMWellSetup(this)
 
   use Grid_module
   use Utility_module
+  use String_module
   use Coupler_module
   use Connection_module
   use Condition_module
@@ -1632,7 +1639,7 @@ subroutine PMWellSetup(this)
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
   type(well_grid_type), pointer :: well_grid
-  type(coupler_type), pointer :: source_sink
+  type(coupler_type), pointer :: source_sink, coupler
   type(input_type) :: input_dummy
   class(realization_subsurface_type), pointer :: realization
   type(point3d_type) :: dummy_h
@@ -2052,6 +2059,23 @@ subroutine PMWellSetup(this)
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
   enddo
+
+  if (this%use_well_coupler) then
+    coupler => realization%patch%well_coupler_list%first
+    do
+      if (.not.associated(coupler)) exit
+      if (StringCompare(coupler%well_name,this%name)) then
+        this%flow_condition => coupler%flow_condition
+      endif
+      coupler => coupler%next
+    enddo
+    if (.not. associated(this%flow_condition)) then
+      option%io_buffer = 'Well model invokes USE_WELL_COUPLER &
+        &for flow conditions, but no WELL_COUPLERs were found &
+        &linked to well named '// trim(this%name) // '.'
+      call PrintErrMsg(option)
+    endif
+  endif
 
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
   ! exclude the bottom of the well for hydrostatic well model.
@@ -2482,7 +2506,6 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                 &must be provided in the ' // trim(error_string) // ' block.'
               call PrintErrMsg(option)
             endif
-            write(*,*) 'num_read =', num_read
             allocate(well_grid%casing(num_read))
             well_grid%casing(1:num_read) = 1.d0 - temp_well_index(1:num_read)
           !-----------------------------
@@ -2937,7 +2960,6 @@ subroutine PMWellReadWellBCs(pm_well,input,option,keyword,error_string,found)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
-
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: temp
 
@@ -3129,6 +3151,8 @@ subroutine PMWellReadWellBCs(pm_well,input,option,keyword,error_string,found)
       endif
 
   !-------------------------------------
+    case ('USE_WELL_COUPLER')
+      pm_well%use_well_coupler = PETSC_TRUE
     case default
       found = PETSC_FALSE
   !-------------------------------------
@@ -4111,10 +4135,6 @@ subroutine PMWellInitializeTimestep(this)
   curr_time = this%option%time - this%option%flow_dt
   this%dt_flow = this%realization%option%flow_dt
 
-  if (Initialized(this%intrusion_time_start) .and. &
-      (curr_time < this%intrusion_time_start) .and. &
-      .not. this%well_on) return
-
   call PMWellInitializeTimestepFlow(this,curr_time)
 
 end subroutine PMWellInitializeTimestep
@@ -4748,14 +4768,14 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
     reservoir%dy(k) = reservoir%tmp_flow(k,19)
     reservoir%dz(k) = reservoir%tmp_flow(k,20)
   enddo
-    
+
   if (pm_well%transport) then
     do k = 1,pm_well%well_grid%nsegments
       reservoir%aqueous_conc(:,k) = reservoir%tmp_tran(:,k,1)
       reservoir%aqueous_mass(:,k) = reservoir%tmp_tran(:,k,2)
     enddo
   endif
-  
+
 end subroutine PMWellUpdateReservoirWIPP
 
 ! ************************************************************************** !

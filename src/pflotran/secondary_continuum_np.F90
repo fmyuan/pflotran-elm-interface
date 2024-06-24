@@ -161,7 +161,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: dtotal_sorb_upd(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells)
 
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
 
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
@@ -1590,7 +1590,7 @@ subroutine SecondaryRTCheckResidual_np(sec_transport_vars,auxvar, &
   PetscReal :: portort
   PetscInt :: jcomp, lcomp, kcomp, icplx
   PetscReal :: inf_norm_sec
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
 
   PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)

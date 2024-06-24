@@ -778,6 +778,9 @@ function FlowSCO2SubConditionPtr(input,sub_condition_name,sco2, &
     case('RATE')
       if (associated(sco2%rate)) then
         sub_condition_ptr => sco2%rate
+      elseif (option%coupled_well) then
+        sub_condition_ptr => FlowSubConditionCreate(option%nflowdof-1)
+        sco2%rate => sub_condition_ptr
       else
         sub_condition_ptr => FlowSubConditionCreate(option%nflowdof)
         sco2%rate => sub_condition_ptr

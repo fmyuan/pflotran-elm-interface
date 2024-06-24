@@ -9,7 +9,7 @@ module Discretization_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Explicit_module
   use Grid_Unstructured_Polyhedra_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   use PFLOTRAN_Constants_module
 

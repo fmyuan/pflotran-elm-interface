@@ -1841,7 +1841,7 @@ subroutine ILTBaseShiftPerm(this, material_auxvar, auxvar, option)
   implicit none
 
   class(illitization_base_type), intent(inout) :: this
-  class(material_auxvar_type), intent(inout) :: material_auxvar
+  type(material_auxvar_type), intent(inout) :: material_auxvar
   class(illitization_auxvar_type), intent(inout) :: auxvar
   class(option_type), intent(inout) :: option
 
@@ -1867,7 +1867,7 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
   implicit none
 
   class(ILT_default_type), intent(inout) :: this
-  class(material_auxvar_type), intent(inout) :: material_auxvar
+  type(material_auxvar_type), intent(inout) :: material_auxvar
   class(illitization_auxvar_type), intent(inout) :: auxvar
   class(option_type), intent(inout) :: option
 
@@ -1960,7 +1960,7 @@ subroutine BTModifyPerm(this,material_auxvar, auxvar, global_auxvar, option)
   implicit none
 
   class(bats_transform_type), intent(inout) :: this
-  class(material_auxvar_type), intent(inout) :: material_auxvar
+  type(material_auxvar_type), intent(inout) :: material_auxvar
   class(global_auxvar_type), intent(inout) :: global_auxvar
   class(bats_transform_auxvar_type), intent(inout) :: auxvar
   class(option_type), intent(inout) :: option

@@ -216,7 +216,7 @@ subroutine RealizationCreateDiscretization(realization)
   use Coupler_module
   use Discretization_module
   use Grid_Unstructured_Cell_module
-  use DM_Kludge_module
+  use DM_Custom_module
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
@@ -867,6 +867,9 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                           cur_material_property%surf_elec_cond_dataset, &
                           'SURFACE_ELECTRICAL_CONDUCTIVITY')
     call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%waxman_smits_clay_cond_dataset,&
+                          'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
                           cur_material_property%permeability_dataset, &
                           'PERMEABILITY or PERMEABILITY X')
     call RealLinkMatPropToDataset(realization,cur_material_property, &
@@ -1308,6 +1311,8 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       string = 'Boundary Condition'
     case(SRC_SINK_COUPLER_TYPE)
       string = 'Source Sink'
+    case(WELL_COUPLER_TYPE)
+      string = 'Well Coupler'
   end select
   write(option%fid_out,'(/,2x,a,/)') trim(string)
 

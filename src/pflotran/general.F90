@@ -713,7 +713,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         gen_auxvars_ss(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
-
+  type(general_parameter_type), pointer :: general_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_parameter_type), pointer :: material_parameter
@@ -743,6 +743,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   character(len=MAXWORDLENGTH) :: word
   PetscInt, save :: icall = 0
 #endif
+  PetscBool :: material_is_soluble
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -753,6 +754,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
   gen_auxvars_ss => patch%aux%General%auxvars_ss
+  general_parameter => patch%aux%General%general_parameter
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
@@ -772,6 +774,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
 
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
+    material_is_soluble = &
+      general_parameter%material_is_soluble(patch%imat(ghosted_id))
     ghosted_end = ghosted_id*option%nflowdof
     ghosted_start = ghosted_end - option%nflowdof + 1
     ! GENERAL_UPDATE_FOR_ACCUM indicates call from non-perturbation
@@ -797,10 +801,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   material_auxvars(ghosted_id), &
                                   patch%characteristic_curves_array( &
                                     patch%cc_id(ghosted_id))%ptr, &
-                                  natural_id, &
-                                  material_property_array(patch%imat( &
-                                    ghosted_id))%ptr%soluble, &
-                                  option)
+                                  natural_id,material_is_soluble,option)
       endif
     if (update_state) then
       if (.not. general_salt) then
@@ -820,9 +821,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                        patch%characteristic_curves_array( &
                                          patch%cc_id(ghosted_id))%ptr, &
                                        natural_id, &  ! for debugging
-                                       material_property_array(patch%imat( &
-                                         ghosted_id))%ptr%soluble, &
-                                       option)
+                                       material_is_soluble,option)
       endif
     endif
 #ifdef DEBUG_AUXVARS
@@ -846,6 +845,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       natural_id = -grid%nG2A(ghosted_id)
       offset = (ghosted_id-1)*option%nflowdof
       if (patch%imat(ghosted_id) <= 0) cycle
+      material_is_soluble = &
+        general_parameter%material_is_soluble(patch%imat(ghosted_id))
 
       xxbc(:) = xx_loc_p(offset+1:offset+option%nflowdof)
       istate = boundary_condition%flow_aux_int_var(GENERAL_STATE_INDEX,iconn)
@@ -858,6 +859,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                 case(DIRICHLET_BC,HYDROSTATIC_BC)
                   real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
                   xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                case(AT_SOLUBILITY_BC)
+                  if (material_is_soluble) then
+                    xxbc(idof) = material_auxvars(ghosted_id)%porosity_0
+                  else
+                    real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                  endif
               end select
             enddo
           case(TWO_PHASE_STATE,LGP_STATE)
@@ -935,9 +943,16 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                         call PrintErrMsg(option)
                       endif
                   end select
+                case(AT_SOLUBILITY_BC)
+                  if (material_is_soluble) then
+                    xxbc(idof) = material_auxvars(ghosted_id)%porosity_0
+                  else
+                    real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                  endif
                 case(NEUMANN_BC)
                 case default
-                  if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                  if (material_is_soluble) then
                     continue
                   else
                     option%io_buffer = 'Unknown BC type in GeneralUpdateAuxVars().'
@@ -979,7 +994,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       if (istate <= 7) then
         global_auxvars_bc(sum_connection)%istate = istate
       else
-        if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (material_is_soluble) then
           global_auxvars_bc(sum_connection)%istate = LGP_STATE
         else
           global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
@@ -1001,10 +1016,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                   material_auxvars(ghosted_id), &
                                   patch%characteristic_curves_array( &
                                     patch%cc_id(ghosted_id))%ptr, &
-                                  natural_id, &
-                                  material_property_array(patch%imat( &
-                                    ghosted_id))%ptr%soluble, &
-                                  option)
+                                  natural_id,material_is_soluble,option)
       endif
       if (update_state_bc) then
         ! update state and update aux var; this could result in two update to
@@ -1022,10 +1034,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                         material_auxvars(ghosted_id), &
                                         patch%characteristic_curves_array( &
                                           patch%cc_id(ghosted_id))%ptr, &
-                                        natural_id, &
-                                        material_property_array(patch%imat( &
-                                          ghosted_id))%ptr%soluble, &
-                                        option)
+                                        natural_id,material_is_soluble,option)
         endif
       endif
     enddo
@@ -1048,6 +1057,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+      material_is_soluble = &
+        general_parameter%material_is_soluble(patch%imat(ghosted_id))
 
       flow_src_sink_type = source_sink%flow_condition%general%rate%itype
 
@@ -1078,7 +1089,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       endif
 
       ! Check if porosity is set if 4 dof
-      if (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+      if (general_salt .and. material_is_soluble) then
         ! if (associated(source_sink%flow_condition%general%porosity)) then
         !   gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity = &
         !     source_sink%flow_condition%general%effective_porosity%dataset%rarray(1)
@@ -1092,7 +1103,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       xxss(2) = 5.d-1
       xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
       if (general_salt) then
-        if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (material_is_soluble) then
           xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%effective_porosity
         else
           xxss(4) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%xmol(option%salt_id,option%liquid_phase)
@@ -1112,30 +1123,30 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           dabs(qsrc(air_comp_id)) > 0.d0) then
         global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
-        if (general_salt .and. .not. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (general_salt .and. .not. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = LIQUID_STATE
-        elseif (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        elseif (general_salt .and. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = LP_STATE
         endif
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
-        if (general_salt .and. .not. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (general_salt .and. .not. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = GAS_STATE
-        elseif (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        elseif (general_salt .and. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = GP_STATE
         else
           global_auxvars_ss(sum_connection)%istate = GAS_STATE
         endif
       else
-        if (general_salt .and. .not. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (general_salt .and. .not. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
-        elseif (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        elseif (general_salt .and. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = LGP_STATE
         endif
       endif
 
       if (global_auxvars_ss(sum_connection)%istate /= &
           global_auxvars(ghosted_id)%istate) then
-        if (general_salt .and. material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+        if (general_salt .and. material_is_soluble) then
           global_auxvars_ss(sum_connection)%istate = LGP_STATE
         else
           global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
@@ -1158,8 +1169,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           scale, Res_dummy, Jac_dummy, &
                           general_analytical_derivatives, &
                           PETSC_TRUE, & ! aux_var_compute_only
-                          material_property_array(patch%imat( &
-                            ghosted_id))%ptr%soluble, &
+                          material_is_soluble, &
                           material_parameter%soil_heat_capacity(&
                             patch%imat(ghosted_id)), &
                           local_id == general_debug_cell_id)
@@ -1202,6 +1212,7 @@ subroutine GeneralUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(general_parameter_type), pointer :: general_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
   type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -1212,7 +1223,7 @@ subroutine GeneralUpdateFixedAccum(realization)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
-
+  PetscBool :: material_is_soluble
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1222,6 +1233,7 @@ subroutine GeneralUpdateFixedAccum(realization)
 
   gen_auxvars => patch%aux%General%auxvars
   global_auxvars => patch%aux%Global%auxvars
+  general_parameter => patch%aux%General%general_parameter
   material_auxvars => patch%aux%Material%auxvars
   material_parameter => patch%aux%Material%material_parameter
   material_property_array => patch%material_property_array
@@ -1233,7 +1245,9 @@ subroutine GeneralUpdateFixedAccum(realization)
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
     imat = patch%imat(ghosted_id)
-    if (imat <= 0) cycle
+  if (imat <= 0) cycle
+    material_is_soluble = &
+      general_parameter%material_is_soluble(patch%imat(ghosted_id))
     natural_id = grid%nG2A(ghosted_id)
     local_end = local_id*option%nflowdof
     local_start = local_end - option%nflowdof + 1
@@ -1256,19 +1270,14 @@ subroutine GeneralUpdateFixedAccum(realization)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
-                                natural_id, &
-                                material_property_array(patch%imat( &
-                                  ghosted_id))%ptr%soluble, &
-                                option)
+                                natural_id,material_is_soluble,option)
     endif
     call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
-                             Jac_dummy,PETSC_FALSE, &
-                             material_property_array(patch%imat( &
-                               ghosted_id))%ptr%soluble, &
+                             Jac_dummy,PETSC_FALSE,material_is_soluble, &
                              local_id == general_debug_cell_id)
   enddo
 
@@ -1455,8 +1464,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy, &
                              general_analytical_derivatives, &
-                             material_property_array(patch%imat( &
-                               ghosted_id))%ptr%soluble, &
+                             general_parameter% &
+                               material_is_soluble(patch%imat(ghosted_id)), &
                              local_id == general_debug_cell_id)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
@@ -1632,8 +1641,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
                           PETSC_FALSE, &
-                          material_property_array(patch%imat( &
-                            ghosted_id))%ptr%soluble, &
+                          general_parameter% &
+                            material_is_soluble(patch%imat(ghosted_id)), &
                           material_parameter%soil_heat_capacity(&
                             patch%imat(ghosted_id)), &
                           local_id == general_debug_cell_id)
@@ -1847,8 +1856,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                                    patch%characteristic_curves_array( &
                                    patch%cc_id(ghosted_id))%ptr, &
                                    natural_id, &
-                                   material_property_array(patch%imat( &
-                                     ghosted_id))%ptr%soluble, &
+                                   general_parameter% &
+                                     material_is_soluble( &
+                                       patch%imat(ghosted_id)), &
                                    option)
       else
         call GeneralAuxVarPerturb(gen_auxvars(:,ghosted_id), &
@@ -1876,8 +1886,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
                               option, &
-                              material_property_array(patch%imat( &
-                                ghosted_id))%ptr%soluble, &
+                              general_parameter%material_is_soluble(imat), &
                               Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -2037,6 +2046,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
 
       Jup = 0.d0
+      imat = patch%imat(ghosted_id)
       call GeneralSrcSinkDerivative(option,source_sink, &
                         gen_auxvars_ss(:,sum_connection), &
                         gen_auxvars(:,ghosted_id), &
@@ -2046,10 +2056,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                           patch%cc_id(ghosted_id))%ptr, &
                         grid%nG2A(ghosted_id),material_auxvars(ghosted_id), &
                         scale, &
-                        material_property_array(patch%imat( &
-                          ghosted_id))%ptr%soluble, &
-                        material_parameter%soil_heat_capacity(&
-                          patch%imat(ghosted_id)), Jup)
+                        general_parameter%material_is_soluble(imat), &
+                        material_parameter%soil_heat_capacity(imat), &
+                        Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)

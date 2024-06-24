@@ -450,6 +450,12 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call ParameterSetup(realization%parameter_list,option)
   select case(option%itranmode)
     case(RT_MODE)
+      if (.not.associated(realization%reaction)) then
+        option%io_buffer = 'A CHEMISTRY block must be included in the input &
+          &deck when the SUBSURFACE_TRANSPORT process model is specified &
+          &with MODE GIRT or OSRT.'
+        call PrintErrMsg(option)
+      endif
       ! read reaction database
       if (realization%reaction%read_reaction_database) then
         call ReactionDBReadDatabase(realization%reaction,option)
@@ -472,6 +478,12 @@ subroutine FactorySubsurfSetupRealization(simulation)
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       endif
     case(NWT_MODE)
+      if (.not.associated(realization%reaction_nw)) then
+        option%io_buffer = 'A NUCLEAR_WASTE_CHEMISTRY block must be included &
+          &in the input deck when the SUBSURFACE_TRANSPORT process model &
+          &with MODE NWT is specified.'
+        call PrintErrMsg(option)
+      endif
   end select
 
   ! create grid and allocate vectors
