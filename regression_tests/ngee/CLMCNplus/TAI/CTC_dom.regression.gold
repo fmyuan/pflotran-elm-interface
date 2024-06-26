@@ -1,0 +1,122 @@
+-- GENERIC: Porosity --
+        1:   2.5000000000000E-01
+-- CONCENTRATION: Total DOM1 --
+        1:   1.0999999999824E-14
+-- CONCENTRATION: Total H+ --
+        1:   2.3565789648057E-01
+-- CONCENTRATION: Total O2(aq) --
+        1:   9.6327158582183E+00
+-- CONCENTRATION: Total HCO3- --
+        1:   3.6729789540329E-01
+-- CONCENTRATION: Total Fe+++ --
+        1:   9.7472748587703E-09
+-- CONCENTRATION: Total Fe++ --
+        1:   3.7000000060923E-04
+-- CONCENTRATION: Total NH4+ --
+        1:   1.7194560800778E-02
+-- CONCENTRATION: Total Tracer --
+        1:   1.3209725099969E-11
+-- CONCENTRATION: Total CH4(aq) --
+        1:   1.3933112500369E-15
+-- CONCENTRATION: Total Acetate- --
+        1:   1.0999998463103E-14
+-- CONCENTRATION: Free DOM1 --
+        1:   1.0999999999824E-14
+-- CONCENTRATION: Free H+ --
+        1:   8.0945015908219E-07
+-- CONCENTRATION: Free O2(aq) --
+        1:   9.6327158582183E+00
+-- CONCENTRATION: Free HCO3- --
+        1:   1.3164077610374E-01
+-- CONCENTRATION: Free Fe+++ --
+        1:   2.3997739698039E-13
+-- CONCENTRATION: Free Fe++ --
+        1:   3.7000000060923E-04
+-- CONCENTRATION: Free NH4+ --
+        1:   1.7194560800778E-02
+-- CONCENTRATION: Free Tracer --
+        1:   1.3209725099969E-11
+-- CONCENTRATION: Free CH4(aq) --
+        1:   1.3933112500369E-15
+-- CONCENTRATION: Free Acetate- --
+        1:   1.0999998463103E-14
+-- CONCENTRATION: CO2(aq) --
+        1:   2.3565710969292E-01
+-- CONCENTRATION: OH- --
+        1:   1.2494241245207E-08
+-- CONCENTRATION: FeCO3+ --
+        1:   9.6066210508132E-09
+-- CONCENTRATION: Fe(OH)4- --
+        1:   1.4041383056013E-10
+-- CONCENTRATION: Acetic_acid(aq) --
+        1:   1.2458437969958-158
+-- CONCENTRATION: FeCH3COO+ --
+        1:   1.9425634194195-159
+-- VOLUME_FRACTION: Fe(OH)3 VF --
+        1:   1.7500000983780E-01
+-- VOLUME_FRACTION: Fe(OH)2 VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Rock(s) VF --
+        1:   5.0000000000000E-01
+-- RATE: Fe(OH)3 Rate --
+        1:   1.6633805444144E-14
+-- RATE: Fe(OH)2 Rate --
+        1:   0.0000000000000E+00
+-- RATE: Rock(s) Rate --
+        1:  -0.0000000000000E+00
+-- CONCENTRATION: SOIL1 --
+        1:   1.1549085552795E-30
+-- CONCENTRATION: SOIL2 --
+        1:   1.7249895165251E-13
+-- CONCENTRATION: SOIL3 --
+        1:   1.7505023826423E-01
+-- CONCENTRATION: SOIL4 --
+        1:   8.0044957801151E+00
+-- CONCENTRATION: LITR1C --
+        1:   1.0121343459153E-30
+-- CONCENTRATION: LITR1N --
+        1:   1.0000000000000E-30
+-- CONCENTRATION: LITR2C --
+        1:   7.4070568312015E-14
+-- CONCENTRATION: LITR2N --
+        1:   3.7187426674736E-15
+-- CONCENTRATION: LITR3C --
+        1:   1.2088682751036E-13
+-- CONCENTRATION: LITR3N --
+        1:   6.0452936121327E-15
+-- CONCENTRATION: CWDC --
+        1:   6.9769175385585E-11
+-- CONCENTRATION: CWDN --
+        1:   3.4884587692793E-12
+-- CONCENTRATION: HRimm --
+        1:   9.1821045026446E+01
+-- CONCENTRATION: Total Sorbed DOM1 --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed H+ --
+        1:   5.4536361747758E-01
+-- CONCENTRATION: Total Sorbed O2(aq) --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed HCO3- --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed Fe+++ --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed Fe++ --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed NH4+ --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed Tracer --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed CH4(aq) --
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Total Sorbed Acetate- --
+        1:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.1574180000096E+00
+   Time Steps:         7210
+   Newton Iterations:        11262
+   Linear Solver Iterations:        46797
+   Time Step Cuts:            0
+   Solution 2-Norm:   9.2671536864980E+01
+   Residual 2-Norm:   9.2883974193216E-13

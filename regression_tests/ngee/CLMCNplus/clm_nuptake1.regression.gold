@@ -1,0 +1,22 @@
+-- GENERIC: Porosity --
+        1:   2.5000000000000E-01
+-- GENERIC: Volume --
+        1:   1.0000000000000E+00
+-- CONCENTRATION: Total NH4+ --
+        1:   6.1035666830523E-10
+-- CONCENTRATION: PlantN --
+        1:   1.9999998474108E+00
+-- CONCENTRATION: Plantnh4uptake --
+        1:   1.9999998474108E+00
+-- CONCENTRATION: Plantndemand --
+        1:   8.6400000000000E+02
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.7243999999209E-02
+   Time Steps:           99
+   Newton Iterations:         1133
+   Linear Solver Iterations:         1133
+   Time Step Cuts:           16
+   Solution 2-Norm:   8.6400462961652E+02
+   Residual 2-Norm:   2.4571639624923E-15

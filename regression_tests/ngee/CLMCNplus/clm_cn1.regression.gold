@@ -1,0 +1,42 @@
+-- GENERIC: pH --
+        1:   6.0000000000000E+00
+-- CONCENTRATION: Total CO2(aq) --
+        1:   2.5257161092840E-03
+-- CONCENTRATION: Total N2O(aq) --
+        1:   3.1428964213171E-08
+-- CONCENTRATION: Total NH4+ --
+        1:   4.5025802275539E-05
+-- CONCENTRATION: Total NO3- --
+        1:   1.0000000000000E-40
+-- CONCENTRATION: Total H+ --
+        1:   1.0000000000000E-06
+-- CONCENTRATION: SOM1 --
+        1:   5.5481874433395E-11
+-- CONCENTRATION: SOM2 --
+        1:   1.8398762747606E-03
+-- CONCENTRATION: SOM3 --
+        1:   2.2106270236107E-01
+-- CONCENTRATION: SOM4 --
+        1:   5.3509117535729E-02
+-- CONCENTRATION: Lit1C --
+        1:   1.2056392923592E-14
+-- CONCENTRATION: Lit2C --
+        1:   1.7703216457878E-10
+-- CONCENTRATION: Lit3C --
+        1:   1.3592762749005E-03
+-- CONCENTRATION: Lit1N --
+        1:   3.3132556177287E-16
+-- CONCENTRATION: Lit2N --
+        1:   4.8650820910420E-12
+-- CONCENTRATION: Lit3N --
+        1:   3.7354719636826E-05
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   2.8469999997469E-03
+   Time Steps:           47
+   Newton Iterations:           95
+   Linear Solver Iterations:           95
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.2747210703050E-01
+   Residual 2-Norm:   3.2840748544486E-23

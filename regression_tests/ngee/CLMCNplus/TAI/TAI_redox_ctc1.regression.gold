@@ -1,0 +1,198 @@
+-- CONCENTRATION: Total NH4+ --
+        1:   9.4356273452726E-06
+-- CONCENTRATION: Total NO3- --
+        1:   1.9597901223037E-05
+-- CONCENTRATION: Total O2(aq) --
+        1:   1.0000000000000E-15
+-- CONCENTRATION: Total N2(aq) --
+        1:   1.1574039809203E-15
+-- CONCENTRATION: Total H+ --
+        1:  -4.3154773643573E-05
+-- CONCENTRATION: Total DOM1 --
+        1:   6.1513873581757E-05
+-- CONCENTRATION: Total DOM2 --
+        1:   3.3560829998286E-13
+-- CONCENTRATION: Total DOM3 --
+        1:   1.0000000000279E-15
+-- CONCENTRATION: Total HCO3- --
+        1:   1.2940049498151E-15
+-- CONCENTRATION: Total CH4(aq) --
+        1:   1.0000012335273E-15
+-- CONCENTRATION: Total SO4-- --
+        1:   2.8001992229116E-05
+-- CONCENTRATION: Total H2S(aq) --
+        1:   1.0000000000000E-15
+-- CONCENTRATION: Total Na+ --
+        1:   4.6901008633949E-02
+-- CONCENTRATION: Total Cl- --
+        1:   5.4600025710418E-02
+-- CONCENTRATION: Total Ca++ --
+        1:   9.9998172838521E-03
+-- CONCENTRATION: Total H2O --
+        1:   5.5600000000000E+01
+-- CONCENTRATION: Total HS- --
+        1:   1.0000027558316E-15
+-- CONCENTRATION: Total Fe+++ --
+        1:   1.4651804542687E-05
+-- CONCENTRATION: Total Fe++ --
+        1:   1.0472709102920E-15
+-- CONCENTRATION: NH3(aq) --
+        1:   1.2683699020282E-07
+-- CONCENTRATION: OH- --
+        1:   2.4002289976424E-07
+-- CONCENTRATION: CO3-- --
+        1:   1.1131474050694E-18
+-- CONCENTRATION: NH4SO4- --
+        1:   5.0479831873562E-19
+-- CONCENTRATION: Urea(aq) --
+        1:   2.9036159769710E-30
+-- CONCENTRATION: HSO4- --
+        1:   4.3548376799380E-11
+-- CONCENTRATION: H2SO4(aq) --
+        1:   1.8349291236241E-21
+-- CONCENTRATION: HNO3(aq) --
+        1:   4.0976688101206E-14
+-- CONCENTRATION: NaNO3(aq) --
+        1:   8.1958573569370E-08
+-- CONCENTRATION: NaCl(aq) --
+        1:   4.1987180929260E-04
+-- CONCENTRATION: NaSO4- --
+        1:   3.3301938090056E-06
+-- CONCENTRATION: NaCO3- --
+        1:   1.6912099969885E-19
+-- CONCENTRATION: NaHCO3(aq) --
+        1:   6.6274255680660E-17
+-- CONCENTRATION: HCl(aq) --
+        1:   4.8698903122257E-10
+-- CONCENTRATION: CaCO3(aq) --
+        1:   2.3337382247053E-17
+-- CONCENTRATION: CaCl+ --
+        1:   1.0756508359221E-04
+-- CONCENTRATION: CaCl2(aq) --
+        1:   6.5545544667671E-06
+-- CONCENTRATION: CaHCO3+ --
+        1:   1.0992575608023E-16
+-- CONCENTRATION: CaSO4(aq) --
+        1:   1.3826877385470E-05
+-- CONCENTRATION: CO(aq) --
+        1:   2.6570352852976E-57
+-- CONCENTRATION: CO2(aq) --
+        1:   9.3185281559899E-17
+-- CONCENTRATION: Acetic_acid(aq) --
+        1:   1.8075679981542-157
+-- CONCENTRATION: S-- --
+        1:   2.7558316160531E-21
+-- CONCENTRATION: FeOH+ --
+        1:   7.5050342448241E-18
+-- CONCENTRATION: FeSO4(aq) --
+        1:   1.7187972500897E-18
+-- CONCENTRATION: FeHCO3+ --
+        1:   5.2480746024403E-28
+-- CONCENTRATION: Fe(OH)2(aq) --
+        1:   1.4148335720262E-21
+-- CONCENTRATION: Fe(OH)3- --
+        1:   1.3367741375212E-24
+-- CONCENTRATION: Fe(OH)4-- --
+        1:   3.1725663455437E-32
+-- CONCENTRATION: FeCO3(aq) --
+        1:   5.9779555055787E-29
+-- CONCENTRATION: FeCH3COO+ --
+        1:   1.4633470016289-168
+-- CONCENTRATION: FeCl+ --
+        1:   3.7356988407598E-17
+-- CONCENTRATION: FeCl4-- --
+        1:   6.7840248571949E-19
+-- CONCENTRATION: FeCl2(aq) --
+        1:   1.0271732841783E-20
+-- CONCENTRATION: FeNO3++ --
+        1:   1.9515942608412E-19
+-- CONCENTRATION: FeSO4+ --
+        1:   9.1796188731064E-19
+-- CONCENTRATION: FeCO3+ --
+        1:   5.8418806251511E-24
+-- CONCENTRATION: FeOH++ --
+        1:   1.5323313193249E-10
+-- CONCENTRATION: Fe(OH)2+ --
+        1:   1.2042186708045E-06
+-- CONCENTRATION: Fe(OH)3(aq) --
+        1:   1.3367741374184E-05
+-- CONCENTRATION: Fe(OH)4- --
+        1:   7.9691263556486E-08
+-- CONCENTRATION: FeCl++ --
+        1:   8.3574128714521E-18
+-- CONCENTRATION: FeCl4- --
+        1:   1.3851200968666E-21
+-- VOLUME_FRACTION: SOM1 VF --
+        1:   1.9999877085327E-02
+-- VOLUME_FRACTION: Calcite VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Pyrite VF --
+        1:   9.9999172633596E-09
+-- VOLUME_FRACTION: Troilite VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Fe(OH)3 VF --
+        1:   1.0338945895348E-10
+-- VOLUME_FRACTION: Halite VF --
+        1:   9.9906642252458E-11
+-- VOLUME_FRACTION: Fe VF --
+        1:   1.7499999997549E-12
+-- VOLUME_FRACTION: Fe(OH)2 VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: FeO VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Ferrihydrite VF --
+        1:   1.4016524985494E-09
+-- VOLUME_FRACTION: Goethite VF --
+        1:   2.8093943886943E-05
+-- VOLUME_FRACTION: Hematite VF --
+        1:   1.4559961124290E+03
+-- VOLUME_FRACTION: Magnetite VF --
+        1:   5.2176704675176E-08
+-- VOLUME_FRACTION: Pyrrhotite VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Sulfur VF --
+        1:   8.9518078946213E+03
+-- VOLUME_FRACTION: Wustite VF --
+        1:   0.0000000000000E+00
+-- RATE: SOM1 Rate --
+        1:  -3.5565588200778E-11
+-- RATE: Calcite Rate --
+        1:   0.0000000000000E+00
+-- RATE: Pyrite Rate --
+        1:  -1.0000000000000E-16
+-- RATE: Troilite Rate --
+        1:   0.0000000000000E+00
+-- RATE: Fe(OH)3 Rate --
+        1:   2.8543234020345E-15
+-- RATE: Halite Rate --
+        1:  -9.9993474456087E-17
+-- RATE: Fe Rate --
+        1:  -1.0000000000000E-24
+-- RATE: Fe(OH)2 Rate --
+        1:   0.0000000000000E+00
+-- RATE: FeO Rate --
+        1:   0.0000000000000E+00
+-- RATE: Ferrihydrite Rate --
+        1:   1.6884706034675E-12
+-- RATE: Goethite Rate --
+        1:   3.9044325385521E-08
+-- RATE: Hematite Rate --
+        1:   1.3916052845588E+00
+-- RATE: Magnetite Rate --
+        1:   3.3907311946091E-11
+-- RATE: Pyrrhotite Rate --
+        1:   0.0000000000000E+00
+-- RATE: Sulfur Rate --
+        1:   1.6699263659457E+01
+-- RATE: Wustite Rate --
+        1:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   5.0251800001070E-01
+   Time Steps:          806
+   Newton Iterations:         2528
+   Linear Solver Iterations:         5042
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.5600046583293E+01
+   Residual 2-Norm:   2.0640842316348E+02

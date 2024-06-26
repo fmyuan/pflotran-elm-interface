@@ -1,0 +1,14 @@
+-- CONCENTRATION: Total NH4+ --
+        1:   8.5298975478607E-06
+-- CONCENTRATION: NH4sorb --
+        1:   7.8675256130348E-03
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   9.0820000027634E-03
+   Time Steps:          246
+   Newton Iterations:          448
+   Linear Solver Iterations:          448
+   Time Step Cuts:            0
+   Solution 2-Norm:   7.8675302370510E-03
+   Residual 2-Norm:   5.7452581670051E-21

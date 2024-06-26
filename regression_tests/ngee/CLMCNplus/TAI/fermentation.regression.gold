@@ -1,0 +1,66 @@
+-- GENERIC: Porosity --
+        1:   2.5000000000000E-01
+-- CONCENTRATION: Total DOM1 --
+        1:   2.7030204314141E+00
+-- CONCENTRATION: Total H+ --
+        1:  -2.2150778576210E-02
+-- CONCENTRATION: Total O2(aq) --
+        1:   9.7732488458111E-13
+-- CONCENTRATION: Total HCO3- --
+        1:   1.2977813439095E+00
+-- CONCENTRATION: Total Fe+++ --
+        1:   3.0128098048948E-20
+-- CONCENTRATION: Total Fe++ --
+        1:   7.0920310415605E-12
+-- CONCENTRATION: Total NH4+ --
+        1:   2.2637253757420E-02
+-- CONCENTRATION: Total Tracer --
+        1:   1.0000000000000E-80
+-- CONCENTRATION: Total CH4(aq) --
+        1:   1.0000000000000E-15
+-- CONCENTRATION: Free DOM1 --
+        1:   2.7030204314141E+00
+-- CONCENTRATION: Free H+ --
+        1:   4.5654681137652E-13
+-- CONCENTRATION: Free O2(aq) --
+        1:   9.7732488458111E-13
+-- CONCENTRATION: Free HCO3- --
+        1:   1.2977800335622E+00
+-- CONCENTRATION: Free Fe+++ --
+        1:   4.3058207046008E-32
+-- CONCENTRATION: Free Fe++ --
+        1:   7.0920310415605E-12
+-- CONCENTRATION: Free NH4+ --
+        1:   2.2637253757420E-02
+-- CONCENTRATION: Free Tracer --
+        1:   1.0000000000000E-80
+-- CONCENTRATION: Free CH4(aq) --
+        1:   1.0000000000000E-15
+-- CONCENTRATION: CO2(aq) --
+        1:   1.3103472516297E-06
+-- CONCENTRATION: OH- --
+        1:   2.2152088923918E-02
+-- CONCENTRATION: FeCO3+ --
+        1:   3.0128098048905E-20
+-- VOLUME_FRACTION: Fe(OH)3 VF --
+        1:   9.9999949172230E-06
+-- VOLUME_FRACTION: FeO VF --
+        1:   2.6357995282923E-14
+-- RATE: Fe(OH)3 Rate --
+        1:  -2.0094148567296E-16
+-- RATE: FeO Rate --
+        1:   2.2719603975929E-18
+-- CONCENTRATION: cellulose --
+        1:   5.4173235101955E-02
+-- CONCENTRATION: HRimm --
+        1:   3.2998212284994E+02
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   6.4595109999657E+00
+   Time Steps:        35643
+   Newton Iterations:       203429
+   Linear Solver Iterations:       290449
+   Time Step Cuts:           12
+   Solution 2-Norm:   3.2999575057902E+02
+   Residual 2-Norm:   5.6687916878693E-08
