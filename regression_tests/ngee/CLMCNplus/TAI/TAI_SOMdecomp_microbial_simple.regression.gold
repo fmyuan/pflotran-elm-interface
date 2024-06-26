@@ -1,0 +1,43 @@
+-- CONCENTRATION: Total DOM1 --
+      Max:   3.5180516499519E-11
+      Min:   3.5180516499519E-11
+     Mean:   3.5180516499519E-11
+        1:   3.5180516499519E-11
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   2.0857256243053E-13
+      Min:   2.0857256243053E-13
+     Mean:   2.0857256243053E-13
+        1:   2.0857256243053E-13
+-- CONCENTRATION: Total NH4+ --
+      Max:   5.2157870663030E-13
+      Min:   5.2157870663030E-13
+     Mean:   5.2157870663030E-13
+        1:   5.2157870663030E-13
+-- CONCENTRATION: POM --
+      Max:   1.2051169495505E-09
+      Min:   1.2051169495505E-09
+     Mean:   1.2051169495505E-09
+        1:   1.2051169495505E-09
+-- CONCENTRATION: SOIL_MICROBES --
+      Max:   4.2345011555164E-11
+      Min:   4.2345011555164E-11
+     Mean:   4.2345011555164E-11
+        1:   4.2345011555164E-11
+-- CONCENTRATION: SOM2 --
+      Max:   5.8657317509523E-12
+      Min:   5.8657317509523E-12
+     Mean:   5.8657317509523E-12
+        1:   5.8657317509523E-12
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   4.4776000005186E-02
+   Time Steps:         1464
+   Newton Iterations:         1464
+   Linear Solver Iterations:         2928
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.2063881436729E-09
+   Residual 2-Norm:   2.8581883080474E-23

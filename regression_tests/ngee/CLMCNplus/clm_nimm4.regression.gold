@@ -1,0 +1,30 @@
+-- CONCENTRATION: Total CO2(aq) --
+        1:   3.8735651218480E-02
+-- CONCENTRATION: Total NH4+ --
+        1:   2.5575828936307E-11
+-- CONCENTRATION: Total NO3- --
+        1:   2.5575828936307E-11
+-- CONCENTRATION: SOM --
+        1:   1.5146632849058E+01
+-- CONCENTRATION: Lit1C --
+        1:   1.0611833911760E-03
+-- CONCENTRATION: Lit1N --
+        1:   2.9162717692905E-05
+-- CONCENTRATION: Lit2C --
+        1:   1.2229509652240E+01
+-- CONCENTRATION: Lit2N --
+        1:   3.3608303755649E-01
+-- CONCENTRATION: Lit3C --
+        1:   1.8498883510175E+01
+-- CONCENTRATION: Lit3N --
+        1:   5.0837369103875E-01
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.2818000002862E-02
+   Time Steps:          745
+   Newton Iterations:         1387
+   Linear Solver Iterations:         1387
+   Time Step Cuts:            4
+   Solution 2-Norm:   2.6861924378513E+01
+   Residual 2-Norm:   1.6475322912340E-15

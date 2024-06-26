@@ -1,0 +1,28 @@
+-- GENERIC: pH --
+        1:   6.0000000000000E+00
+-- CONCENTRATION: Total CO2(aq) --
+        1:   2.4209782781589E-07
+-- CONCENTRATION: Total N2O(aq) --
+        1:   1.0000000000000E-40
+-- CONCENTRATION: Total NH4+ --
+        1:   3.2243265665072E-20
+-- CONCENTRATION: Total NO3- --
+        1:   4.1664059964968E-20
+-- CONCENTRATION: Total H+ --
+        1:   1.0000000000000E-06
+-- CONCENTRATION: LabileC --
+        1:   3.0009084704193E-05
+-- CONCENTRATION: LabileN --
+        1:   8.2468918447829E-07
+-- CONCENTRATION: SOM1 --
+        1:   9.4666458330442E-05
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.4479999993891E-02
+   Time Steps:          208
+   Newton Iterations:         2032
+   Linear Solver Iterations:         2032
+   Time Step Cuts:           32
+   Solution 2-Norm:   9.9317784012844E-05
+   Residual 2-Norm:   6.9746256853155E-23

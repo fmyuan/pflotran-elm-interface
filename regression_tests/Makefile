@@ -96,6 +96,9 @@ STANDARD_CFG = \
 	default/zflow/zflow.cfg \
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
+	ngee/ngee.cfg \
+	ngee/CLMCNplus/clmcn.cfg \
+	ngee/CLMCNplus/TAI/tai_tests.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
