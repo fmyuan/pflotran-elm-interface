@@ -113,7 +113,7 @@
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.1574180000096E+00
+   Time (seconds):   1.1122550000002E+00
    Time Steps:         7210
    Newton Iterations:        11262
    Linear Solver Iterations:        46797
