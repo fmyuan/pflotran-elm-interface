@@ -3862,7 +3862,6 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
                          natural_id,option,solve_error)
     ! Deal with failed solve in ion exchange
     if (solve_error .ne. 0) then
-      num_iterations = num_iterations - 1
       ierror = 1
       return
     endif
@@ -3963,7 +3962,6 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
                 PETSC_FALSE,ierror,solve_error)
     ! Deal with error in ludcmp
     if (solve_error .ne. 0) then
-      num_iterations = num_iterations - 1
       ierror = 1
       return
     endif
