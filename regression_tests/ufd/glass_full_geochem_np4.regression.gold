@@ -1,8 +1,8 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   2.1599424513229E+05
-      Min:   1.8665606446861E+05
-     Mean:   2.0132513324505E+05
-        5:   2.1599424513229E+05
+      Max:   2.1599424513228E+05
+      Min:   1.8665606446859E+05
+     Mean:   2.0132513324503E+05
+        5:   2.1599424513228E+05
 -- SATURATION: Liquid Saturation --
       Max:   1.0000000000000E+00
       Min:   1.0000000000000E+00
@@ -29,15 +29,15 @@
      Mean:   2.5449260177155E-04
         5:   5.0886938891094E-04
 -- CONCENTRATION: Total U-233 --
-      Max:   9.8283566939598E-13
-      Min:   2.7107713748672E-17
-     Mean:   5.1795703144063E-13
-        5:   1.0613231946176E-13
+      Max:   9.8283566940621E-13
+      Min:   2.7107713749002E-17
+     Mean:   5.1795703144603E-13
+        5:   1.0613231946287E-13
 -- CONCENTRATION: Total Th-229 --
-      Max:   4.4737711432754E-16
-      Min:   2.2347973431373E-20
-     Mean:   2.3577367138398E-16
-        5:   4.8319312139172E-17
+      Max:   4.4737711390847E-16
+      Min:   2.2347973419322E-20
+     Mean:   2.3577367116313E-16
+        5:   4.8319312093918E-17
 -- CONCENTRATION: Total Pu-240 --
       Max:   1.0000064260479E-20
       Min:   9.9999357388229E-21
@@ -59,16 +59,18 @@
      Mean:   1.0000000000000E+00
         5:         1
 -- SOLUTION: Flow --
+   Time (seconds):   1.7819999999872E-02
    Time Steps:          122
    Newton Iterations:          130
-   Linear Solver Iterations:          890
+   Linear Solver Iterations:          893
    Time Step Cuts:            0
-   Solution 2-Norm:   1.6129744935170E+06
+   Solution 2-Norm:   1.6129744935169E+06
    Residual 2-Norm:   5.2333114761326E-18
 -- SOLUTION: Transport --
+   Time (seconds):   2.9774000000032E-02
    Time Steps:          122
    Newton Iterations:          149
    Linear Solver Iterations:          149
    Time Step Cuts:            0
    Solution 2-Norm:   2.7428905615745E-03
-   Residual 2-Norm:   2.9524317729202E-22
+   Residual 2-Norm:   2.8372974880231E-22
