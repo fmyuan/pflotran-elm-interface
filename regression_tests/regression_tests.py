@@ -129,7 +129,7 @@ class RegressionTest(object):
         self._pflotran_args = None
         self._python_setup_script = None
         self._python_post_process_script = None
-        self._stochastic_realizations = None
+        self._realizations = None
         # restart_file is a tuple ['filename',format=(Binary,HDF5)]
         self._restart_tuple = None
         self._compare_hdf5 = False
@@ -547,9 +547,9 @@ class RegressionTest(object):
             if os.path.isfile(name):
                 os.rename(name, name + ".old")
 
-        # files from a stochastic run
-        if self._stochastic_realizations is not None:
-            for i in range(1, self._stochastic_realizations + 1):
+        # files from a multi-realization run
+        if self._realizations is not None:
+            for i in range(1, self._realizations + 1):
                 run_id = "R{0}".format(i)
                 for suffix in suffixes:
                     name = "{0}{1}.{2}".format(self.name(), run_id, suffix)
@@ -585,15 +585,15 @@ class RegressionTest(object):
         """
         Check the test results against the gold standard
 
-        Some tests generate multiple regression files, i.e. stochastic
+        Some tests generate multiple regression files, i.e. multi
         realizations. In that case, we need to loop over a group of
         regression files.
         """
         run_id = ''
-        if self._stochastic_realizations is not None:
-            print("\n    {0} : Test has {1} stochastic realizations\n".format(
-                self.name(), self._stochastic_realizations), file=testlog)
-            for i in range(1, self._stochastic_realizations + 1):
+        if self._realizations is not None:
+            print("\n    {0} : Test has {1} multi realizations\n".format(
+                self.name(), self._realizations), file=testlog)
+            for i in range(1, self._realizations + 1):
                 run_id = "R{0}".format(i)
                 self._check_gold(status, run_id, testlog)
         else:
@@ -652,8 +652,8 @@ class RegressionTest(object):
 
 
     def _check_ascii_files(self,ascii_filenames,testlog,status,diff=True):
-        if self._stochastic_realizations is not None:
-            print("Skipping comparison of ASCII output for stochastic run.",
+        if self._realizations is not None:
+            print("Skipping comparison of ASCII output for multi-realization run.",
                      file=testlog)
         else:
             filenames = ascii_filenames.split()
@@ -1292,8 +1292,8 @@ class RegressionTest(object):
             print("  skipping update of '{0}' because regression gold files "
                   "are not compared".format(gold_name), file=testlog)
         else:
-            if self._stochastic_realizations is not None:
-                for i in range(1, self._stochastic_realizations + 1):
+            if self._realizations is not None:
+                for i in range(1, self._realizations + 1):
                     run_id = "R{0}".format(i)
                     current_name = self.regression_root() + run_id + \
                                    ".regression"
@@ -1304,14 +1304,14 @@ class RegressionTest(object):
                 self.update_gold_file(current_name, gold_name, status, testlog)
 
         if self._diff_ascii_output_filenames is not None:
-            if self._stochastic_realizations is None:
+            if self._realizations is None:
                 for current_name in self._diff_ascii_output_filenames.split():
                     gold_name = current_name + '.gold'
                     self.update_gold_file(current_name, gold_name, status,
                                           testlog)
 
         if self._compare_ascii_output_filenames is not None:
-            if self._stochastic_realizations is None:
+            if self._realizations is None:
                 for current_name in \
                         self._compare_ascii_output_filenames.split():
                     gold_name = current_name + '.gold'
@@ -1712,18 +1712,18 @@ class RegressionTest(object):
             # save the arg list so we can append it to the run command
             self._pflotran_args = self._pflotran_args.split()
             # additional processing that may change the test manager behavior
-            if "-stochastic" in self._pflotran_args:
+            if "-multi_realization" in self._pflotran_args:
                 if "-num_realizations" in self._pflotran_args:
                     index = self._pflotran_args.index("-num_realizations")
                     if len(self._pflotran_args) > index + 1:
-                        self._stochastic_realizations = \
+                        self._realizations = \
                             int(self._pflotran_args[index + 1])
                     else:
                         raise RuntimeError("ERROR: num_realizations "
                                            "requires an integer parameter N")
                 else:
                     raise RuntimeError(
-                        "ERROR : stochastic simulations require a "
+                        "ERROR : multi-realization simulations require a "
                         "num_realizations flag as well. "
                         "test : {0}".format(self.name()))
 

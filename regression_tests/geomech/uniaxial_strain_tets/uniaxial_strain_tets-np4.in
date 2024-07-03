@@ -15,7 +15,7 @@ END
 SUBSURFACE
 
 GRID
-  TYPE UNSTRUCTURED_EXPLICIT flow_dat/1d_tet.uge
+  TYPE UNSTRUCTURED_EXPLICIT ../meshes/uniaxial/tet/1d_tet.uge
 END
 
 TIME
@@ -62,11 +62,11 @@ REGION all
 END
 
 REGION bottom
-  FILE flow_dat/boundary_bottom.ex
+  FILE ../meshes/uniaxial/tet/boundary_bottom.ex
 END
 
 REGION top
-  FILE flow_dat/boundary_top.ex
+  FILE ../meshes/uniaxial/tet/boundary_top.ex
 END
 
 FLOW_CONDITION initial
@@ -109,11 +109,11 @@ END_SUBSURFACE
 GEOMECHANICS
 
 GEOMECHANICS_GRID
-  TYPE UNSTRUCTURED geomech_dat/1d_tet.ugi
+  TYPE UNSTRUCTURED ../meshes/uniaxial/tet/1d_tet.ugi
   GRAVITY 0.0 0.0 -9.81 
 END
 
-GEOMECHANICS_MAPPING_FILE geomech_dat/1d_tet.mapping
+GEOMECHANICS_MAPPING_FILE ../meshes/uniaxial/tet/1d_tet.mapping
 
 GEOMECHANICS_REGRESSION
   VARIABLES
@@ -173,33 +173,7 @@ GEOMECHANICS_TIME
   COUPLING_TIMESTEP_SIZE 1 d
 END
 
-GEOMECHANICS_REGION all_geomech
-  FILE geomech_dat/1d_tet_all.vset
-END
-
-GEOMECHANICS_REGION north_geomech
-  FILE geomech_dat/boundary_front_n.vset
-END
-
-GEOMECHANICS_REGION south_geomech
-  FILE geomech_dat/boundary_back_s.vset
-END
-
-GEOMECHANICS_REGION east_geomech
-  FILE geomech_dat/boundary_right_e.vset
-END
-
-GEOMECHANICS_REGION west_geomech
-  FILE geomech_dat/boundary_left_w.vset
-END
-
-GEOMECHANICS_REGION top_geomech
-  FILE geomech_dat/boundary_top.vset
-END
-
-GEOMECHANICS_REGION bottom_geomech
-  FILE geomech_dat/boundary_bottom.vset
-END
+EXTERNAL_FILE ../meshes/uniaxial/tet/regions.txt
 
 GEOMECHANICS_CONDITION west_geomech
   TYPE

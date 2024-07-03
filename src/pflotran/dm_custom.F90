@@ -1,4 +1,4 @@
-module DM_Kludge_module
+module DM_Custom_module
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Grid_Unstructured_Aux_module, only : ugdm_type
@@ -16,4 +16,4 @@ module DM_Kludge_module
       ! DMShell routines.
   end type dm_ptr_type
 
-end module DM_Kludge_module
+end module DM_Custom_module

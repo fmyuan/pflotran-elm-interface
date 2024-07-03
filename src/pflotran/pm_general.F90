@@ -34,6 +34,7 @@ module PM_General_class
     PetscReal, pointer :: abs_update_inf_tol(:,:)
     PetscReal, pointer :: rel_update_inf_tol(:,:)
     PetscReal :: damping_factor
+    character(len=MAXWORDLENGTH), pointer :: soluble_materials(:)
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMGeneralReadSimOptionsBlock
@@ -99,6 +100,7 @@ function PMGeneralCreate()
   fix_upwind_direction = PETSC_FALSE
   ! set default to infinity norm convergence
   this%check_post_convergence = PETSC_TRUE
+  nullify(this%soluble_materials)
 
   PMGeneralCreate => this
 
@@ -324,8 +326,10 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: found
   PetscInt :: lid, gid, eid, sid
+  PetscInt :: i
 
   option => this%option
 
@@ -422,9 +426,22 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_compute_surface_tension = PETSC_TRUE
       case('VAPOR_PRESSURE_KELVIN')
         general_kelvin_equation = PETSC_TRUE
-      case('SOLUBLE_MATRIX')
-        option%io_buffer = "Matrix solubility is now entered in material properties as SOLUBLE."
-        call PrintErrMsg(option)
+      case('SOLUBLE_MATERIALS')
+        string = input%buf
+        i = 0
+        do
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          if (input%ierr /= 0) exit
+          i = i + 1
+        enddo
+        input%buf = string
+        input%ierr = 0
+        allocate(this%soluble_materials(i))
+        i = 1
+        do i = 1, size(this%soluble_materials)
+          call InputReadWord(input,option,this%soluble_materials(i),PETSC_TRUE)
+          call InputErrorMsg(input,option,keyword,error_string)
+        enddo
       case('UPDATE_PERMEABILITY')
         general_update_permeability = PETSC_TRUE
         call InputReadDouble(input,option,permeability_func_porosity_exp)
@@ -683,12 +700,35 @@ subroutine PMGeneralSetup(this)
 
   class(pm_general_type) :: this
 
+  type(material_property_type), pointer :: material_property
+  PetscInt :: i
+  PetscBool, pointer :: bool_array(:)
+
   call this%SetRealization()
   call MaterialSetupThermal( &
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
          this%realization%option)
+
   call GeneralSetup(this%realization)
+
+  ! map soluble materials (must be sandwiched between GeneralSetup and
+  ! PMSubsurfaceFlowSetup
+  i = size(this%realization%patch%material_property_array)
+  allocate(bool_array(i))
+  bool_array = PETSC_FALSE
+  if (associated(this%soluble_materials)) then
+    do i = 1, size(this%soluble_materials)
+      material_property => &
+        MaterialPropGetPtrFromArray(this%soluble_materials(i), &
+                                    this%realization%patch% &
+                                      material_property_array)
+      bool_array(material_property%internal_id) = PETSC_TRUE
+    enddo
+  endif
+  this%realization%patch%aux%General%general_parameter% &
+    material_is_soluble => bool_array
+
   call PMSubsurfaceFlowSetup(this)
 
 end subroutine PMGeneralSetup
@@ -2027,6 +2067,7 @@ subroutine PMGeneralDestroy(this)
   !
 
   use General_module, only : GeneralDestroy
+  use Utility_module
 
   implicit none
 
@@ -2036,10 +2077,9 @@ subroutine PMGeneralDestroy(this)
     call this%next%Destroy()
   endif
 
-  deallocate(this%max_change_ivar)
-  nullify(this%max_change_ivar)
-  deallocate(this%max_change_isubvar)
-  nullify(this%max_change_isubvar)
+  call DeallocateArray(this%max_change_ivar)
+  call DeallocateArray(this%max_change_isubvar)
+  call DeallocateArray(this%soluble_materials)
 
   ! preserve this ordering
   call GeneralDestroy(this%realization)

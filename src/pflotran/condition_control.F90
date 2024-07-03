@@ -397,7 +397,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                           p_sat
                   endif
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
@@ -441,7 +442,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
                        general%liquid_pressure%dataset%rarray(1)
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
@@ -475,7 +477,8 @@ subroutine CondControlAssignFlowInitCond(realization)
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                        general%temperature%dataset%rarray(1)
                   if (general_salt) then
-                    if (material_property_array(patch%imat(ghosted_id))%ptr%soluble) then
+                    if (patch%aux%General%general_parameter% &
+                          material_is_soluble(patch%imat(ghosted_id))) then
                       xx_p(ibegin+GENERAL_POROSITY_DOF) = &
                            material_auxvars(ghosted_id)%porosity_0
                     else
@@ -513,6 +516,14 @@ subroutine CondControlAssignFlowInitCond(realization)
                     initial_condition%flow_aux_mapping( &
                       gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
+              if (general_salt) then
+                if (initial_condition%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) == &
+                    AT_SOLUBILITY_BC .and. &
+                    patch%aux%General%general_parameter% &
+                      material_is_soluble(patch%imat(ghosted_id))) then
+                  xx_p(offset+FOUR_INTEGER) = patch%aux%Material%auxvars(ghosted_id)%porosity_0
+                endif
+              endif
               patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif

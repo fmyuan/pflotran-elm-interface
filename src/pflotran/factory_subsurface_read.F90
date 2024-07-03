@@ -1221,6 +1221,15 @@ subroutine FactorySubsurfReadInput(simulation,input)
         nullify(coupler)
 
 !....................
+      case ('WELL_COUPLER')
+        coupler => CouplerCreate(WELL_COUPLER_TYPE)
+        call InputReadWord(input,option,coupler%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Well name')
+        call CouplerRead(coupler,input,option)
+        call RealizationAddCoupler(realization%patch,coupler)
+        nullify(coupler)
+
+!....................
       case ('SOURCE_SINK_SANDBOX')
         call SSSandboxRead(input,option)
 

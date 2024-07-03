@@ -109,16 +109,16 @@ co2eos.o : \
   utility.o
 communicator_aux.o :
 communicator_base.o : \
-  dm_kludge.o \
+  dm_custom.o \
   pflotran_constants.o
 communicator_structured.o : \
   communicator_base.o \
-  dm_kludge.o \
+  dm_custom.o \
   grid_structured.o \
   pflotran_constants.o
 communicator_unstructured.o : \
   communicator_base.o \
-  dm_kludge.o \
+  dm_custom.o \
   grid_unstructured.o \
   grid_unstructured_aux.o \
   grid_unstructured_explicit.o \
@@ -237,7 +237,7 @@ dataset.o : \
   dataset_global_hdf5.o \
   dataset_gridded_hdf5.o \
   dataset_map_hdf5.o \
-  dm_kludge.o \
+  dm_custom.o \
   input_aux.o \
   option.o \
   pflotran_constants.o \
@@ -271,7 +271,7 @@ dataset_common_hdf5.o : \
 dataset_global_hdf5.o : \
   dataset_base.o \
   dataset_common_hdf5.o \
-  dm_kludge.o \
+  dm_custom.o \
   hdf5_aux.o \
   logging.o \
   option.o \
@@ -307,7 +307,7 @@ debug.o : \
   pflotran_constants.o \
   string.o
 discretization.o : \
-  dm_kludge.o \
+  dm_custom.o \
   grid.o \
   grid_structured.o \
   grid_unstructured.o \
@@ -319,7 +319,7 @@ discretization.o : \
   option.o \
   pflotran_constants.o \
   string.o
-dm_kludge.o : \
+dm_custom.o : \
   grid_unstructured_aux.o \
   pflotran_constants.o
 driver.o : \
@@ -963,7 +963,7 @@ global_aux.o : \
   utility.o
 grid.o : \
   connection.o \
-  dm_kludge.o \
+  dm_custom.o \
   geometry.o \
   grid_structured.o \
   grid_unstructured.o \
@@ -1576,7 +1576,7 @@ output_common.o : \
   connection.o \
   coupler.o \
   discretization.o \
-  dm_kludge.o \
+  dm_custom.o \
   field.o \
   global_aux.o \
   grid.o \
@@ -1699,7 +1699,7 @@ output_tecplot.o : \
   connection.o \
   coupler.o \
   discretization.o \
-  dm_kludge.o \
+  dm_custom.o \
   field.o \
   grid.o \
   grid_structured.o \
@@ -1954,6 +1954,7 @@ pm_hydrate.o : \
   hydrate_aux.o \
   input_aux.o \
   material.o \
+  material_aux.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -3171,7 +3172,7 @@ realization_subsurface.o : \
   dataset_base.o \
   dataset_common_hdf5.o \
   discretization.o \
-  dm_kludge.o \
+  dm_custom.o \
   field.o \
   fluid.o \
   global_aux.o \
@@ -3291,6 +3292,7 @@ saturation_function.o : \
   string.o \
   utility.o
 sco2.o : \
+  condition.o \
   connection.o \
   coupler.o \
   debug.o \

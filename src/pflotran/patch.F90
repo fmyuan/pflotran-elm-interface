@@ -69,6 +69,7 @@ module Patch_module
     type(coupler_list_type), pointer :: boundary_condition_list
     type(coupler_list_type), pointer :: initial_condition_list
     type(coupler_list_type), pointer :: source_sink_list
+    type(coupler_list_type), pointer :: well_coupler_list
 
     type(material_property_type), pointer :: material_properties
     type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -122,7 +123,6 @@ module Patch_module
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection, &
-            PatchGetSolublePorosityValue, &
             PatchCreateZeroArray
 
 contains
@@ -177,6 +177,8 @@ function PatchCreate()
   call CouplerInitList(patch%initial_condition_list)
   allocate(patch%source_sink_list)
   call CouplerInitList(patch%source_sink_list)
+  allocate(patch%well_coupler_list)
+  call CouplerInitList(patch%well_coupler_list)
 
   nullify(patch%material_properties)
   nullify(patch%material_property_array)
@@ -511,6 +513,53 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     coupler => coupler%next
   enddo
 
+  ! well coupler
+  coupler => patch%well_coupler_list%first
+  do
+    if (.not.associated(coupler)) exit
+    ! pointer to flow condition
+    if (option%nflowdof > 0) then
+      if (len_trim(coupler%flow_condition_name) > 0) then
+        coupler%flow_condition => &
+          FlowConditionGetPtrFromList(coupler%flow_condition_name, &
+                                      flow_conditions)
+        if (.not.associated(coupler%flow_condition)) then
+          option%io_buffer = 'Flow condition "' // &
+                   trim(coupler%flow_condition_name) // &
+                   '" in well coupler "' // &
+                   trim(coupler%name) // &
+                   '" not found in flow condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A FLOW_CONDITION must be specified in &
+                           &WELL_COUPLER: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to transport condition
+    if (option%ntrandof > 0) then
+      if (len_trim(coupler%tran_condition_name) > 0) then
+        coupler%tran_condition => &
+          TranConditionGetPtrFromList(coupler%tran_condition_name, &
+                                      transport_conditions)
+        if (.not.associated(coupler%tran_condition)) then
+          option%io_buffer = 'Transport condition "' // &
+                   trim(coupler%tran_condition_name) // &
+                   '" in well coupler "' // &
+                   trim(coupler%name) // &
+                   '" not found in transport condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &WELL_COUPLER: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    coupler => coupler%next
+  enddo
+
 !----------------------------
 ! AUX
 
@@ -726,6 +775,8 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
   call PatchInitCouplerAuxVars(patch%boundary_condition_list,patch, &
                                option)
   call PatchInitCouplerAuxVars(patch%source_sink_list,patch, &
+                               option)
+  call PatchInitCouplerAuxVars(patch%well_coupler_list,patch, &
                                option)
 
   !geh: This should not be included in PatchUpdateAllCouplerAuxVars
@@ -1002,6 +1053,16 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               end select
             endif
           endif
+        else if (coupler%itype == WELL_COUPLER_TYPE) then
+          if (associated(coupler%flow_condition%sco2)) then
+            if (associated(coupler%flow_condition%sco2%rate)) then
+              select case(coupler%flow_condition%sco2%rate%itype)
+                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                  allocate(coupler%flow_aux_real_var(1,num_connections))
+                  coupler%flow_aux_real_var = 0.d0
+              end select
+            endif
+          endif
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -1088,6 +1149,8 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%boundary_condition_list, &
                                  force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
+                                 force_update_flag,option)
+  call PatchUpdateCouplerAuxVars(patch,patch%well_coupler_list, &
                                  force_update_flag,option)
 
 end subroutine PatchUpdateAllCouplerAuxVars
@@ -1425,7 +1488,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   type(flow_general_condition_type), pointer :: general
 
   PetscBool :: dof1, dof2, dof3, dof4
-  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol, xmol2, por
+  PetscReal :: temperature, p_sat, p_cap, s_liq, xmol, xmol2
   PetscReal :: relative_humidity
   PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure, &
                precipitate_sat
@@ -1440,7 +1503,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_local(option%nflowdof)
   PetscInt :: dof_count_global(option%nflowdof)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
-  PetscBool :: soluble
 
   num_connections = coupler%connection_set%num_connections
 
@@ -2008,14 +2070,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           elseif (associated(general%salt_mole_fraction)) then
             select case(general%salt_mole_fraction%itype)
               case(AT_SOLUBILITY_BC)
-                 call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-                 if (soluble) then
-                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                 else
-                   coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
-                 endif
+                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                  dof4 = PETSC_TRUE
-                 coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
               case default
                  string = GetSubConditionType(general%salt_mole_fraction%itype)
                  option%io_buffer = &
@@ -2164,14 +2221,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             elseif (associated(general%salt_mole_fraction)) then
               select case(general%salt_mole_fraction%itype)
                 case(AT_SOLUBILITY_BC)
-                  call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-                  if (soluble) then
-                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-                  else
-                    coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.0d-10
-                  end if
+                  coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                   dof4 = PETSC_TRUE
-                  coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
                 case default
                   string = GetSubConditionType(general%salt_mole_fraction%itype)
                   option%io_buffer = &
@@ -2257,14 +2309,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         elseif (associated(general%salt_mole_fraction)) then
           select case(general%salt_mole_fraction%itype)
             case(AT_SOLUBILITY_BC)
-               call PatchGetSolublePorosityValue(coupler,patch,iconn,por,soluble)
-               if (soluble) then
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = por
-               else
-                 coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
-               endif
+               coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 1.d-10
+               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = AT_SOLUBILITY_BC
                dof4 = PETSC_TRUE
-               coupler%flow_bc_type(GENERAL_SALT_EQUATION_INDEX) = DIRICHLET_BC
             case default
                string = GetSubConditionType(general%salt_mole_fraction%itype)
                option%io_buffer = &
@@ -5270,47 +5317,6 @@ end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
-subroutine PatchGetSolublePorosityValue(coupler,patch,iconn,porosity,soluble)
-
-  !
-  ! Gets porosity and soluble material boolean for a given connection.
-  !
-  ! Author: David Fukuyama
-  ! Date: 09/18/23
-  !
-
-  use Coupler_module
-  use Grid_module
-  use Material_Aux_module
-  use Material_module
-
-  implicit none
-
-  type(coupler_type) :: coupler
-  type(patch_type) :: patch
-  type(grid_type),pointer :: grid
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_property_ptr_type), pointer :: material_property_array(:)
-
-  PetscInt :: iconn
-  PetscReal :: porosity
-  PetscBool :: soluble
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-
-  grid => patch%grid
-  material_auxvars => patch%aux%Material%auxvars
-  material_property_array => patch%material_property_array
-
-  local_id = coupler%connection_set%id_dn(iconn)
-  ghosted_id = grid%nL2G(local_id)
-  soluble = material_property_array(patch%imat(ghosted_id))%ptr%soluble
-  porosity = material_auxvars(ghosted_id)%porosity_0
-
-end subroutine PatchGetSolublePorosityValue
-
-! ************************************************************************** !
-
 subroutine PatchUpdateCouplerGridDataset(coupler,option,grid,dataset,dof)
   !
   ! Updates auxiliary variables from a gridded dataset.
@@ -5866,6 +5872,9 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
                                    reaction_base,option)
 
   call PatchInitCouplerConstraints(patch%source_sink_list, &
+                                   reaction_base,option)
+
+  call PatchInitCouplerConstraints(patch%well_coupler_list, &
                                    reaction_base,option)
 
 end subroutine PatchInitConstraints
@@ -7916,9 +7925,21 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
+    case(PETSC_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%global_offset + local_id
+      enddo
+    case(LOCAL_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = local_id
+      enddo
+    case(GHOSTED_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nL2G(local_id)
       enddo
     case(SALINITY)
       do local_id=1,grid%nlmax
@@ -9169,9 +9190,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                       jacobian),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
-      value = grid%nG2A(ghosted_id)
-    case(NATURAL_ID)
       value = option%myrank
+    case(NATURAL_CELL_ID)
+      value = grid%nG2A(ghosted_id)
+    case(PETSC_CELL_ID)
+      value = grid%global_offset + grid%nG2L(ghosted_id)
+    case(LOCAL_CELL_ID)
+      value = grid%nG2L(ghosted_id)
+    case(GHOSTED_CELL_ID)
+      value = ghosted_id
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13
     case(SECONDARY_CONCENTRATION)
       ! Note that the units are in mol/kg
@@ -10157,9 +10184,18 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       call PrintErrMsg(option, &
                        'Cannot set NATURAL_ID through PatchSetVariable()')
+    case(PETSC_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set PETSC_ID through PatchSetVariable()')
+    case(LOCAL_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set LOCAL_ID through PatchSetVariable()')
+    case(GHOSTED_CELL_ID)
+      call PrintErrMsg(option, &
+                       'Cannot set GHOSTED_ID through PatchSetVariable()')
     ! PM Well (wellbore model)
     case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
          WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
@@ -10420,9 +10456,21 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
-    case(NATURAL_ID)
+    case(NATURAL_CELL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
+    case(PETSC_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%global_offset + local_id
+      enddo
+    case(LOCAL_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = local_id
+      enddo
+    case(GHOSTED_CELL_ID)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%nL2G(local_id)
       enddo
     case default
       write(option%io_buffer, &
@@ -11738,6 +11786,7 @@ subroutine PatchDestroy(patch)
   call CouplerDestroyList(patch%boundary_condition_list)
   call CouplerDestroyList(patch%initial_condition_list)
   call CouplerDestroyList(patch%source_sink_list)
+  call CouplerDestroyList(patch%well_coupler_list)
 
   call ObservationDestroyList(patch%observation_list)
   call IntegralFluxDestroyList(patch%integral_flux_list)

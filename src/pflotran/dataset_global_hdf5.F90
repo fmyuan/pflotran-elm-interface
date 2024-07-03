@@ -4,7 +4,7 @@ module Dataset_Global_HDF5_class
   use petscsys
 
   use Dataset_Common_HDF5_class
-  use DM_Kludge_module
+  use DM_Custom_module
 
   use PFLOTRAN_Constants_module
 

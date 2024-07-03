@@ -3402,7 +3402,7 @@ subroutine RReactInputStats(print_rank,guess,rt_auxvar,global_auxvar, &
   PetscReal :: guess(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   if (.not.print_rank) return
 
@@ -3528,7 +3528,7 @@ subroutine RReactConvergenceStats(print_rank,istep,header,guess, &
   PetscReal :: last_5_norms(5)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: num_iterations
   PetscInt :: natural_id
   type(option_type) :: option

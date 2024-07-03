@@ -68,7 +68,7 @@ subroutine UnstructuredSetDM(this,dm_ptr)
   ! Date: 03/18/13
   !
 
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 

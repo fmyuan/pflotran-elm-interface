@@ -17,6 +17,7 @@ module Coupler_module
   PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
   PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
   PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
+  PetscInt, parameter, public :: WELL_COUPLER_TYPE = 4
   PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
 
   type, public :: coupler_type
@@ -28,6 +29,7 @@ module Coupler_module
     character(len=MAXWORDLENGTH) :: tran_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: geop_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: region_name         ! character string defining name of region to be applied
+    character(len=MAXWORDLENGTH) :: well_name           ! character string defining name of (optional) well to be applied
     PetscInt :: iflow_condition                         ! id of condition in condition array/list
     PetscInt :: itran_condition                         ! id of condition in condition array/list
     PetscInt :: igeop_condition                         ! id of condition in condition array/list
@@ -100,6 +102,7 @@ function CouplerCreate1()
   coupler%tran_condition_name = ""
   coupler%geop_condition_name = ""
   coupler%region_name = ""
+  coupler%well_name = ""
   coupler%iflow_condition = 0
   coupler%itran_condition = 0
   coupler%igeop_condition = 0
@@ -147,6 +150,8 @@ function CouplerCreate2(itype)
       coupler%ctype = 'boundary'
     case(SRC_SINK_COUPLER_TYPE)
       coupler%ctype = 'source_sink'
+    case(WELL_COUPLER_TYPE)
+      coupler%ctype = 'well'
   end select
 
   CouplerCreate2 => coupler
@@ -180,6 +185,7 @@ function CouplerCreateFromCoupler(coupler)
   new_coupler%tran_condition_name = coupler%tran_condition_name
   new_coupler%geop_condition_name = coupler%geop_condition_name
   new_coupler%region_name = coupler%region_name
+  new_coupler%well_name = coupler%well_name
   new_coupler%iflow_condition = coupler%iflow_condition
   new_coupler%itran_condition = coupler%itran_condition
   new_coupler%igeop_condition = coupler%igeop_condition
@@ -267,6 +273,8 @@ subroutine CouplerRead(coupler,input,option)
         call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case('GEOPHYSICS_CONDITION')
         call InputReadWord(input,option,coupler%geop_condition_name,PETSC_TRUE)
+      case('WELL')
+        call InputReadWord(input,option,coupler%well_name,PETSC_TRUE)
       case default
         call InputKeywordUnrecognized(input,word,'coupler ',option)
     end select
@@ -408,6 +416,8 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       connection_itype = SRC_SINK_CONNECTION_TYPE
     case(BOUNDARY_COUPLER_TYPE)
       connection_itype = BOUNDARY_CONNECTION_TYPE
+    case(WELL_COUPLER_TYPE)
+      connection_itype = WELL_CONNECTION_TYPE
   end select
 
   if (nullify_connection_set) then

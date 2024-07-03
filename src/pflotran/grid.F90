@@ -402,7 +402,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   use petscdm
 
   use Option_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 

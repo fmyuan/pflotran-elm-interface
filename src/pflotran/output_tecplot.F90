@@ -603,7 +603,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   use Connection_module
   use Coupler_module
   use Patch_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 

@@ -2198,7 +2198,8 @@ subroutine PMSCO2UpdateAuxVars(this)
 
   class(pm_sco2_type) :: this
 
-  call SCO2UpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
+  call SCO2UpdateAuxVars(this%realization,this%pmwell_ptr,PETSC_FALSE, &
+                         PETSC_TRUE)
 
 end subroutine PMSCO2UpdateAuxVars
 
