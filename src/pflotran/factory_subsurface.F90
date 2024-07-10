@@ -489,7 +489,9 @@ subroutine FactorySubsurfSetupRealization(simulation)
 
   ! create grid and allocate vectors
   call DiscretizationDecomposeDomain(realization%discretization,option)
-  call FactorySubsurfaceInsertWellCells(simulation)
+  if (option%coupled_well) then
+    call FactorySubsurfaceInsertWellCells(simulation)
+  endif
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files

@@ -620,29 +620,28 @@ recursive subroutine PMSCO2InitializeRun(this)
                                 this%max_change_isubvar(i))
   enddo
 
-  ! setup coupling in jacobian matrix for well model
+  ! setup coupling in jacobian matrix for the well model
   if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
     call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
                       ierr);CHKERRQ(ierr)
-    ! call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
-    !                   ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
     pm_well => this%pmwell_ptr
     do
       if (.not. associated(pm_well)) exit
       call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
-      ! call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+      call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
       pm_well => pm_well%next_well
     enddo
     call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
                       ierr);CHKERRQ(ierr)
-    !call MatSetOption(this%solver%M,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_FALSE, &
-    !                  ierr);CHKERRQ(ierr)
-    ! call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    ! call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    ! call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
-    !                   ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr); &
+                         CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
   endif
 
   ! call parent implementation
@@ -1606,7 +1605,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
   type(sco2_auxvar_type) :: sco2_auxvar
-  class(pm_well_type), pointer :: cur_well
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscReal, pointer :: dX_p(:)
@@ -2050,16 +2048,16 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                        CHKERRQ(ierr)
 
     ! Send out updated well BHP
-    if (associated(this%pmwell_ptr)) then
-      cur_well => this%pmwell_ptr
-      do
-        if (.not. associated(cur_well)) exit
-        if (cur_well%well_comm%comm /= MPI_COMM_NULL) then
-          call cur_well%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
-        endif
-        cur_well => cur_well%next_well
-      enddo
-    endif
+    ! if (associated(this%pmwell_ptr)) then
+    !   cur_well => this%pmwell_ptr
+    !   do
+    !     if (.not. associated(cur_well)) exit
+    !     if (cur_well%well_comm%comm /= MPI_COMM_NULL) then
+    !       call cur_well%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
+    !     endif
+    !     cur_well => cur_well%next_well
+    !   enddo
+    ! endif
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX
