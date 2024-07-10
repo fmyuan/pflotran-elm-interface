@@ -41,6 +41,9 @@ module Reaction_Sandbox_Lambda_class
     PetscInt :: i_hco3
     PetscInt :: i_carbon_consumption_species
 
+    PetscReal :: reference_temperature
+    PetscReal :: activation_energy
+
   contains
     procedure, public :: ReadInput => LambdaRead
     procedure, public :: Setup => LambdaSetup
@@ -85,6 +88,9 @@ function LambdaCreate()
   LambdaCreate%k_deg = UNINITIALIZED_DOUBLE
   LambdaCreate%cc = UNINITIALIZED_DOUBLE
   LambdaCreate%nh4_inhibit = UNINITIALIZED_DOUBLE
+
+  LambdaCreate%reference_temperature = UNINITIALIZED_DOUBLE
+  LambdaCreate%activation_energy = UNINITIALIZED_DOUBLE
 
   nullify(LambdaCreate%stoich)
   nullify(LambdaCreate%i_donor)
@@ -183,6 +189,18 @@ subroutine LambdaRead(this,input,option)
         call InputReadWord(input,option,this%carbon_consumption_species, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,word,error_string)
+
+      case('ACTIVATION_ENERGY')
+        call InputReadDouble(input,option,this%activation_energy)
+        call InputErrorMsg(input,option,word,error_string)
+        call InputReadAndConvertUnits(input,this%activation_energy,'j/mol',&
+                          trim(error_string)//',activation energy',option)
+
+      case('REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,this%reference_temperature)
+        call InputErrorMsg(input,option,word,error_string)
+        call InputReadAndConvertUnits(input,this%reference_temperature,'C',&
+                          trim(error_string)//',reference temperature',option)
 
       case default
         call InputKeywordUnrecognized(input,word,error_string ,option)
@@ -289,7 +307,15 @@ subroutine LambdaSetup(this,reaction,option)
     endif
   enddo
 
+  if (Initialized(this%activation_energy) .and. &
+      UnInitialized(this%reference_temperature)) then
+    option%io_buffer = 'A REFERENCE_TEMPERATURE must be provided when an &
+      &ACTIVATION_ENERGY is defined in the Lambda Reaction Sandbox.'
+    call PrintErrMsg(option)
+  endif
+
   call DeallocateArray(species_ids)
+
 end subroutine LambdaSetup
 
 ! ************************************************************************** !
@@ -307,6 +333,7 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Reaction_Inhibition_Aux_module
+  use Utility_module, only : Arrhenius
 
   implicit none
 
@@ -348,6 +375,10 @@ subroutine LambdaEvaluate(this,Residual,Jacobian,compute_derivative, &
   mu_max = this%mu_max
   if (Initialized(this%i_scaling_mineral)) then
     mu_max = mu_max * rt_auxvar%mnrl_volfrac(this%i_scaling_mineral)
+  endif
+  if (Initialized(this%activation_energy)) then
+    mu_max = mu_max * Arrhenius(this%activation_energy,global_auxvar%temp, &
+                                this%reference_temperature)
   endif
 
   do icomp = 1, this%n_species
