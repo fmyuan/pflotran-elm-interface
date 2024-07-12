@@ -4993,7 +4993,8 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
         pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
     endif
 
-    if (k == 1 .and. indx == 0) pm_well%well%bh_p = sco2_auxvar%well%bh_p
+    if (k == 1 .and. indx == 0 .and. Initialized(sco2_auxvar%well%bh_p)) &
+      pm_well%well%bh_p = sco2_auxvar%well%bh_p
 
     material_auxvar => &
       pm_well%realization%patch%aux%material%auxvars(ghosted_id)
