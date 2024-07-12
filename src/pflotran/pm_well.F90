@@ -2212,6 +2212,12 @@ subroutine PMWellReadSimOptionsBlock(this,input)
   enddo
   call InputPopBlock(input,option)
 
+  if (Uninitialized(this%well%well_model_type)) then
+    option%io_buffer = 'WELL_MODEL_TYPE must be specified in the &
+                        &WELL_MODEL OPTIONS block.'
+    call PrintErrMsg(option)
+  endif
+
 end subroutine PMWellReadSimOptionsBlock
 
 ! ************************************************************************** !

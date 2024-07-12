@@ -703,17 +703,38 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
   ! skip everything but the unstructured implicit format
   select case(realization%discretization%itype)
     case(STRUCTURED_GRID)
-      return
+      if (realization%option%comm%size > 1) then
+        option%io_buffer=  'Currently, the well model can only be run in &
+          &parallel using an implicit unstructured grid. Please convert your &
+          &STRUCTURED_GRID to UNSTRUCTURED_IMPLICIT using the provided Python &
+          &utilities.'
+        call PrintErrMsg(option)
+      else
+        return
+      endif
     case(UNSTRUCTURED_GRID)
       select case(realization%discretization%grid%itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
         case default
-          return
+          if (realization%option%comm%size > 1) then
+            option%io_buffer=  'Currently, the well model can only be run in &
+              &parallel using an implicit unstructured grid.'
+            call PrintErrMsg(option)
+          else
+            return
+          endif
       end select
   end select
 
   nullify (dm_ptr)
   if (realization%option%comm%size > 1) then
+
+#if PETSC_VERSION_LT(3,21,4)
+  option%io_buffer=  'Running the well model in parallel requires a newer &
+    &version of PETSc. Please update your PETSc version to 3.21.4 or later.'
+  call PrintErrMsg(option)
+#endif
+
     allocate(dm_ptr)
     call DiscretizationCreateDM(discretization, dm_ptr, &
                                  ONE_INTEGER, discretization%stencil_width, &
