@@ -629,8 +629,10 @@ recursive subroutine PMSCO2InitializeRun(this)
     pm_well => this%pmwell_ptr
     do
       if (.not. associated(pm_well)) exit
-      call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
-      call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+      endif
       pm_well => pm_well%next_well
     enddo
     call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

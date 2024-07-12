@@ -5824,8 +5824,6 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
   PetscReal, allocatable :: J_block(:,:)
   PetscInt :: j,k,idof,irow
   PetscInt :: local_row_index, local_col_index
-  PetscInt :: global_col_index
-  PetscInt :: global_id
   PetscReal :: J_well
 
   option => this%option
@@ -5840,23 +5838,28 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
 
       J_block = 0.d0
 
-      ! Perturbations
       do k = 1,this%well_grid%nsegments
         J_block = 0.d0
         ghosted_id = this%well_grid%h_ghosted_id(k)
         do idof = 1,option%nflowdof-1
-          ! Compute dRwell / dXres
-          local_row_index = this%well_grid%h_ghosted_id(1)* &
-                            option%nflowdof-1
-          local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
-          J_well = UNINITIALIZED_DOUBLE
-          call MatSetValuesLocal(Jac,1,local_row_index,1, &
-                                  local_col_index,J_well, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
-          ! Compute dRres / dXres
-          do irow = 1,option%nflowdof-1
-            J_block(irow,idof) = UNINITIALIZED_DOUBLE
-          enddo
+          ! Compute dRwell / dXres: only in the cell that owns the well
+          if (this%well_grid%h_rank_id(1) == option%myrank) then
+            local_row_index = this%well_grid%h_ghosted_id(1)* &
+                              option%nflowdof-1
+            local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
+            J_well = UNINITIALIZED_DOUBLE
+            if (dabs(J_well) > 0.d0) then
+              call MatSetValuesLocal(Jac,1,local_row_index,1, &
+                                      local_col_index,J_well, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
+          endif
+          if (this%well_grid%h_rank_id(k) == option%myrank) then
+            ! Compute dRres / dXres at a given P_BHP
+            do irow = 1,option%nflowspec
+              J_block(irow,idof) = UNINITIALIZED_DOUBLE
+            enddo
+          endif
         enddo
         if (any(dabs(J_block) > 0.d0)) then
           call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
@@ -5864,6 +5867,8 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
         endif
 
         !Perturbed rates wrt well perturbation.
+
+        if (this%well_grid%h_rank_id(k) /= option%myrank) cycle
 
         J_block = 0.d0
 
@@ -5875,32 +5880,21 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
         endif
 
         ! Compute dRres / dPwell
-        do j = 0,option%nflowdof-2
+        do j = 0,option%nflowspec-1
           ! Just change 1 column
           local_row_index = (ghosted_id-1)*option%nflowdof + j
           local_col_index = this%well_grid%h_ghosted_id(1)*option%nflowdof-1
           J_well = UNINITIALIZED_DOUBLE
-          call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
-                                  J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+          if (dabs(J_well) > 0.d0) then
+            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                    J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
         enddo
 
         if (any(dabs(J_block) > 0.d0)) then
           call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
-                                        J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
+                                      J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
-          ! Compute dRwell / dXres for off-process reservoir cells
-        global_id = this%well_grid%h_global_id(k)
-        do idof = 1,option%nflowdof-1
-          local_row_index = this%well_grid%h_ghosted_id(1)* &
-                            option%nflowdof-1
-          global_col_index = (global_id-1)*option%nflowdof + idof - 1
-          J_well = UNINITIALIZED_DOUBLE
-          if (dabs(J_well) > 0.d0) then
-            call MatSetValueLocal(Jac,local_row_index, &
-                            global_col_index,J_well, &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          endif
-        enddo
       enddo
     end select
 

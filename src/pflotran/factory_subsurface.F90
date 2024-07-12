@@ -790,9 +790,10 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
       num_well_cells = num_well_cells + pm_well%well_grid%nsegments
       call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
       pm_well%well_comm%petsc_rank = option%myrank
-      allocate(h_all_global_id(num_well_cells))
-      call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id,num_well_cells, &
-                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+      allocate(h_all_global_id(pm_well%well_grid%nsegments))
+      call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id, &
+                         pm_well%well_grid%nsegments, &
+                         MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
       pm_well%well_grid%h_global_id = h_all_global_id
       ! add up wells cells
       allocate(well_cells_temp(num_well_cells))
@@ -819,6 +820,7 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
       call DeallocateArray(pm_well%well_grid%strata_id)
       pm_well => pm_well%next_well
     enddo
+    call DeallocateArray(h_all_global_id)
     call UGridAddWellCells(realization%discretization%grid%unstructured_grid, &
                            well_cells,realization%option)
     call GridExpandGhostCells(realization%discretization%grid, &
