@@ -48,7 +48,7 @@ subroutine TNPFlux(reaction, &
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
 
@@ -197,7 +197,7 @@ subroutine TNPFluxBC( &
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_dn, global_auxvar_up
   type(option_type) :: option
 
@@ -338,7 +338,7 @@ subroutine TNPFluxDerivative(reaction, &
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
 
@@ -477,7 +477,7 @@ subroutine TNPFluxDerivativeBC(&
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type) :: rt_parameter
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(option_type) :: option
 
