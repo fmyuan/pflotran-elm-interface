@@ -27,9 +27,6 @@ SIMULATION
     END
 
     WELL_MODEL well01
-      OPTIONS
-        TYPE WIPP_DARCY
-      /
     END
     
   END
@@ -175,6 +172,10 @@ END
 # All ordering begins at the bottom of the hole and goes towards 
 # the top of the hole.
 WELLBORE_MODEL well01
+
+  WELL_MODEL_TYPE
+    WIPP_DARCY
+  /
 
   #SINGLE_PHASE
   TWO_PHASE

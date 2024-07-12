@@ -935,6 +935,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input
   type(survey_type), pointer :: survey
+  class(pm_well_type), pointer :: well, cur_well
   type(parameter_type), pointer :: parameter
 
   PetscReal :: dt_init
@@ -950,6 +951,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   internal_units = 'not_assigned'
   nullify(default_time_storage)
   nullify(waypoint_list_time_card)
+  nullify(cur_well)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -2429,7 +2431,20 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('WELLBORE_MODEL')
-        call PMWellReadPass2(input,option)
+        well => PMWellCreate()
+        call InputReadWord(input,option,well%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','WELLBORE_MODEL')
+        call PrintMsg(option,well%name)
+        well%option => option
+        call well%ReadPMBlock(input)
+        if (associated(cur_well)) then
+          cur_well%next_well => well
+          cur_well => cur_well%next_well
+        else
+          simulation%well_process_model_coupler => well
+          cur_well => simulation%well_process_model_coupler
+        endif
+        nullify(well)
 
 !....................
       case ('WELL_MODEL_OUTPUT')
@@ -2504,6 +2519,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
     call WaypointListMerge(simulation%waypoint_list_subsurface, &
                            master_pmc%timestepper%local_waypoint_list,option)
   endif
+
+  nullify(cur_well)
 
 end subroutine FactorySubsurfReadInput
 

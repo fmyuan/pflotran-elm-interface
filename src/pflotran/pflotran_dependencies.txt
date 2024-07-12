@@ -3470,6 +3470,7 @@ simulation_subsurface.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  pm_well.o \
   pmc_base.o \
   pmc_geophysics.o \
   pmc_subsurface.o \

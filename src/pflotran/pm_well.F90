@@ -4634,7 +4634,8 @@ subroutine PMWellUpdateStrata(pm_well,curr_time)
   endif
   pm_well%well_grid%strata_id = all_strata_id
   if (any(pm_well%well_grid%strata_id == UNINITIALIZED_INTEGER) .and. &
-      any(pm_well%well_comm%petsc_rank_list == pm_well%option%myrank)) then
+      any(pm_well%well_comm%petsc_rank_list == pm_well%option%myrank) .and. &
+      pm_well%option%iflowmode == WF_MODE) then
     pm_well%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
         &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
         &of the STRATA block.'

@@ -219,11 +219,11 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
 
   if (associated(pm_well)) then
     if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
-      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
-        option%io_buffer = 'Currently, SCO2 mode can only be &
-                  &used with the HYDROSTATIC well model.'
-        call PrintErrMsg(option)
-      endif
+      ! if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+      !   option%io_buffer = 'Currently, SCO2 mode can only be &
+      !             &used with the HYDROSTATIC well model.'
+      !   call PrintErrMsg(option)
+      ! endif
       sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
       option%nflowdof = option%nflowdof + 1
       option%coupled_well = PETSC_TRUE
