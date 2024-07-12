@@ -970,6 +970,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
     endif
     if (StringCompareIgnoreCase(trim(pm_well_temp%name),trim(pm_well%name))) then
       pm_well_temp%flow_coupling = pm_well%flow_coupling
+      pm_well_temp%well%well_model_type = pm_well%well%well_model_type
 
       pm_well => pm_well%next_well
       pm_well_temp => simulation%well_process_model_coupler

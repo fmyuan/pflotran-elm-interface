@@ -11,12 +11,14 @@ SIMULATION
     WELL_MODEL well1
       OPTIONS
         FLOW_COUPLING FULLY_IMPLICIT
+        TYPE HYDROSTATIC
       END
     END
 
     WELL_MODEL well2
       OPTIONS
         FLOW_COUPLING FULLY_IMPLICIT
+        TYPE HYDROSTATIC
       END
     END
 
@@ -35,10 +37,6 @@ END
 # All ordering begins at the bottom of the hole and goes towards 
 # the top of the hole.
 WELLBORE_MODEL well1
-
-  WELL_MODEL_TYPE
-    HYDROSTATIC
-  /
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 4
@@ -64,10 +62,6 @@ WELLBORE_MODEL well1
 END
 
 WELLBORE_MODEL well2
-
-  WELL_MODEL_TYPE
-    HYDROSTATIC
-  /
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 4

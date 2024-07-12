@@ -2341,14 +2341,6 @@ subroutine PMWellReadPMBlock(this,input)
   enddo
   call InputPopBlock(input,option)
 
-  if (this%nphase == 0 .and. &
-      this%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
-    option%io_buffer = 'The number of fluid phases must be indicated &
-      &in the WELLBORE_MODEL block using one of these keywords: &
-      &SINGLE_PHASE, TWO_PHASE.'
-    call PrintErrMsg(option)
-  endif
-
 end subroutine PMWellReadPMBlock
 
 ! ************************************************************************** !
