@@ -689,9 +689,9 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
   class(pm_base_type), pointer :: cur_pm, cur_pm2
   type(option_type), pointer :: option
   type(dm_ptr_type), pointer :: dm_ptr
-  PetscInt, pointer :: well_cells(:), well_cells_temp(:)
+  PetscInt, pointer :: well_cells(:)
   PetscInt, pointer :: h_all_global_id(:)
-  PetscInt :: num_well_cells, i
+  PetscInt :: num_well_cells
   PetscErrorCode :: ierr
 
   realization => simulation%realization
@@ -760,7 +760,7 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
                                       dm_ptr%ugdm)
     end select
 
-    ! Michael, Create a list of cells needed for ghosting wells and pass in.
+    ! Create a list of cells needed for ghosting wells and pass in.
     ! This list can include local cells (the algorithm ignores them).
     cur_pmc => simulation%process_model_coupler_list
     cur_pm => cur_pmc%pm_list
@@ -781,13 +781,10 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
           enddo
       end select
     enddo
-    num_well_cells = 0
     nullify(well_cells)
-    nullify(well_cells_temp)
     do
       if (.not. associated(pm_well)) exit
-      i = num_well_cells + 1
-      num_well_cells = num_well_cells + pm_well%well_grid%nsegments
+      num_well_cells = pm_well%well_grid%nsegments
       call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
       pm_well%well_comm%petsc_rank = option%myrank
       allocate(h_all_global_id(pm_well%well_grid%nsegments))
@@ -795,17 +792,11 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
                          pm_well%well_grid%nsegments, &
                          MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
       pm_well%well_grid%h_global_id = h_all_global_id
-      ! add up wells cells
-      allocate(well_cells_temp(num_well_cells))
-      if (associated(well_cells)) then
-        well_cells_temp(1:i-1) = well_cells(:)
-        well_cells_temp(i:num_well_cells) = pm_well%well_grid%h_global_id(:)
-        deallocate(well_cells)
-      else
-        well_cells_temp(i:num_well_cells) = pm_well%well_grid%h_global_id(:)
-      endif
       allocate(well_cells(num_well_cells))
-      well_cells(1:num_well_cells) = well_cells_temp(1:num_well_cells)
+      well_cells(:) = pm_well%well_grid%h_global_id(:)
+
+      call UGridAddWellCells(realization%discretization%grid% &
+                              unstructured_grid,well_cells,realization%option)
 
       ! Destroy first-pass well grid
       call DeallocateArray(pm_well%well_grid%dh)
@@ -818,13 +809,15 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
       call DeallocateArray(pm_well%well_grid%strata_id)
       call DeallocateArray(pm_well%well_grid%res_z)
       call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(h_all_global_id)
+      call DeallocateArray(well_cells)
+
       pm_well => pm_well%next_well
+
     enddo
-    call DeallocateArray(h_all_global_id)
-    call UGridAddWellCells(realization%discretization%grid%unstructured_grid, &
-                           well_cells,realization%option)
+
     call GridExpandGhostCells(realization%discretization%grid, &
-                              realization%option)
+                                realization%option)
   endif
 
   ! Destroy the dummy DM's

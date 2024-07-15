@@ -685,9 +685,11 @@ subroutine PMSCO2InitializeTimestep(this)
     pm_well => this%pmwell_ptr
     do
       if (.not. associated(pm_well)) exit
-      call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
-                                         -999,this%option%ierror)
-      pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                          -999,this%option%ierror)
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+      endif
       call PMWellUpdateReservoirSrcSinkFlow(pm_well)
       pm_well => pm_well%next_well
     enddo

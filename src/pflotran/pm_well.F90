@@ -4144,7 +4144,9 @@ subroutine PMWellInitializeTimestep(this)
       (curr_time < this%intrusion_time_start) .and. &
       .not. this%well_on) return
 
-  call PMWellInitializeTimestepFlow(this,curr_time)
+  if (any(this%well_grid%h_rank_id == this%option%myrank)) then
+    call PMWellInitializeTimestepFlow(this,curr_time)
+  endif
 
 end subroutine PMWellInitializeTimestep
 
