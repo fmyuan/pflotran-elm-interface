@@ -1237,9 +1237,11 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
       call PrintErrMsg(option)
   !---------------------------------------------------------------
     case(WELL_SS)
-      ! qsrc = [kg-liq/sec]
+      ! qsrc, from well model = [kmol-liq/sec]
       qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
-      ! density_avg = [kg-liq/m3]
+      ! FMWH2O is in [kg-liq/kmol-liq]
+      qsrc = qsrc*FMWH2O  ! now, qsrc = [kg-liq/sec]
+      ! density_avg = [kg-liq/m^3-liq]
       density_avg = source_sink%flow_condition%well%aux_real(1)
       ! qsrc = [m^3-liq/sec]
       qsrc = qsrc/density_avg
@@ -1889,8 +1891,10 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
       call PrintErrMsg(option)
   !--------------------------------------------------------------
     case(WELL_SS)
-      ! qsrc = [kg-liq/sec]
+      ! qsrc, from well model = [kmol-liq/sec]
       qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      ! FMWH2O is in [kg-liq/kmol-liq]
+      qsrc = qsrc*FMWH2O  ! now, qsrc = [kg-liq/sec]
       ! density_avg = [kg-liq/m3]
       density_avg = source_sink%flow_condition%well%aux_real(1)
       ! qsrc = [m^3-liq/sec]
