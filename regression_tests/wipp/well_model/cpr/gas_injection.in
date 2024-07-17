@@ -94,7 +94,7 @@ END
 !=========================== wellbore model ===================================
 # All ordering begins at the bottom of the hole and goes towards 
 # the top of the hole.
-WELLBORE_MODEL well01
+WELLBORE_MODEL
 
   TWO_PHASE
 

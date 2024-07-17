@@ -2371,7 +2371,6 @@ pm_well.o : \
   geometry.o \
   global_aux.o \
   grid.o \
-  grid_unstructured_cell.o \
   input_aux.o \
   material_aux.o \
   nw_transport_aux.o \

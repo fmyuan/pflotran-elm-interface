@@ -111,7 +111,6 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
-  class(pm_well_type), pointer :: pm_well
 
   option => simulation%option
 
@@ -146,16 +145,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
       class is(pm_auxiliary_type)
         pm_auxiliary => cur_pm
       class is(pm_well_type)
-        if (associated(pm_well_list)) then
-          pm_well => pm_well_list
-          do
-            if (.not.associated(pm_well%next_well)) exit
-            pm_well => pm_well%next_well
-          enddo
-          pm_well%next_well => cur_pm
-        else
-          pm_well_list => cur_pm
-        endif
+        pm_well_list => cur_pm
       class is(pm_material_transform_type)
         pm_material_transform => cur_pm
       class is(pm_parameter_type)
@@ -959,24 +949,14 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   pm_well_temp => simulation%well_process_model_coupler
   pm_well => pm_well_list
   do
-    if (associated(pm_well) .and. &
-        .not. associated(pm_well_temp)) then
-      option%io_buffer = 'Unable to find WELLBORE_MODEL block associated with &
-                   &WELL ' // trim(pm_well%name)
-      call PrintErrMsg(option)
-    elseif (.not. associated(pm_well) .or. &
-            .not. associated(pm_well_temp)) then
-      exit
-    endif
-    if (StringCompareIgnoreCase(trim(pm_well_temp%name),trim(pm_well%name))) then
-      pm_well_temp%flow_coupling = pm_well%flow_coupling
-      pm_well_temp%well%well_model_type = pm_well%well%well_model_type
-
-      pm_well => pm_well%next_well
-      pm_well_temp => simulation%well_process_model_coupler
-    else
-      pm_well_temp => pm_well_temp%next_well
-    endif
+    if (.not. associated(pm_well_temp)) exit
+    pm_well_temp%flow_coupling = pm_well%flow_coupling
+    pm_well_temp%well%well_model_type = pm_well%well%well_model_type
+    pm_well%next_well => PMWellCreate()
+    pm_well => pm_well%next_well
+    pm_well%flow_coupling = pm_well_temp%flow_coupling
+    pm_well%well%well_model_type = pm_well_temp%well%well_model_type
+    pm_well_temp => pm_well_temp%next_well
   enddo
   deallocate(pm_well_list)
   nullify(pm_well_list)

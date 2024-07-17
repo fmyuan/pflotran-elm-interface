@@ -1314,7 +1314,6 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   co2_id = option%co2_id
   sid = option%salt_id
 
-  !MAN: check if we need this
   if (sco2_newton_iteration_number > 1 .and. &
       mod(sco2_newton_iteration_number-1, &
           upwind_dir_update_freq) == 0) then
@@ -2016,10 +2015,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
           if (all(cur_well%well%liq%Q == 0.d0) .and. &
               all(cur_well%well%gas%Q == 0.d0)) then
             ! Don't solve for BHP if there is no flow in the well.
-            ! MAN: This conditional causes a hang with well ghosting.
-            !      Not using it requires setting MAT_NO_OFF_PROC_ZERO_ROWS
-            !      flag to false in PMSCO2InitializeRun. Not deactivating
-            !      a row with 0 well flux causes a solver failure.
             deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
             deactivate_row = deactivate_row - 1

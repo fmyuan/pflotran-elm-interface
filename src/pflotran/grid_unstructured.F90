@@ -3553,7 +3553,7 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
   nullify(cell_vertices_ghosted_new)
   nullify(vertices_new)
 
-  ugrid%num_vertices_local = size(vertex_ids_natural_new)
+  ugrid%num_vertices_local = size(ugrid%vertex_ids_natural)
 
 end subroutine UGridExpandGhostCells
 

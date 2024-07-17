@@ -809,7 +809,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   use NW_Transport_Aux_module
   use SCO2_Aux_module
   use String_module
-  use Grid_Unstructured_Cell_module, only : HEX_TYPE
 
   implicit none
 
@@ -1151,7 +1150,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     ! Num local number of segments across processes,
     ! sorted well nodes by z-location in ascending order.
-    ! MAN: need to add horizontal directions too (horizontal wells).
     call MPI_Allreduce(well_grid%nsegments,nsegments,ONE_INTEGER_MPI, &
                        MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
     allocate(well_nodes(nsegments))
@@ -1160,16 +1158,16 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(collect_z_temp(nsegments*option%comm%size))
     allocate(collect_rank(nsegments*option%comm%size))
     collect_x_temp = UNINITIALIZED_DOUBLE
-    collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+    collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_x(1:well_grid%nsegments)
     collect_y_temp = UNINITIALIZED_DOUBLE
-    collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+    collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_y(1:well_grid%nsegments)
     collect_z_temp = UNINITIALIZED_DOUBLE
-    collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+    collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_z(1:well_grid%nsegments)
     collect_rank = UNINITIALIZED_INTEGER
-    collect_rank(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+    collect_rank(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               option%myrank
     call MPI_Allreduce(MPI_IN_PLACE,collect_x_temp, &
                        nsegments*option%comm%size,MPI_DOUBLE_PRECISION, &
@@ -4685,27 +4683,6 @@ subroutine PMWellSCO2Perturb(pm_well)
           reservoir%dy(k) = reservoir%dx(k)
         endif
       enddo
-    ! else
-      ! ! Perturb the off-process reservoir variables.
-      ! ! MAN: this is simple for an injection well. Need to
-      ! !      pass material info for extraction well.
-
-      ! ! If injection
-      ! do idof = 1,option%nflowdof
-      !   well => pm_well%well_pert(idof)
-      !   reservoir => well%reservoir
-      !   if (idof /= 1) cycle
-      !   if (dabs(well%th_qg) > 0.d0 .or. dabs(well%th_ql) > 0.d0) then
-      !     dpl = max(1.d-1, 1.d-7* dabs(pm_well%well%reservoir%p_l(k)))
-      !     dpg = max(1.d-1, 1.d-7* dabs(pm_well%well%reservoir%p_g(k)))
-      !     reservoir%p_l(k) = reservoir%p_l(k) + dpl
-      !     reservoir%p_g(k) = reservoir%p_g(k) + dpg
-      !   else
-      !   ! Extraction: Need to call SCO2AuxVarPerturb
-
-      !   endif
-      ! enddo
-    ! endif
   enddo
 
   ! Now update fluxes associated with perturbed values
@@ -4981,8 +4958,6 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   endif
 
   do k = 1,pm_well%well_grid%nsegments
-    !MAN: remove this when ghosting is in place
-    ! if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
@@ -5048,7 +5023,7 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
 
   if (update_index < 0 .or. initialize_well_flow) then
     call MPI_Allreduce(MPI_IN_PLACE,pm_well%well%bh_p,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr); &
                      CHKERRQ(ierr)
   endif
 

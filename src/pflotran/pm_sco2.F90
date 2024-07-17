@@ -718,7 +718,6 @@ end subroutine PMSCO2PreSolve
 
 subroutine PMSCO2PostSolve(this)
   !
-  ! MAN: Do we need this?
   !
   ! Author: Michael Nole
   ! Date: 01/26/24
