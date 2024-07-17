@@ -803,6 +803,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   use Transport_Constraint_NWT_module
   use NW_Transport_Aux_module
   use SCO2_Aux_module
+  use String_module
+  use Grid_Unstructured_Cell_module, only : HEX_TYPE
 
   implicit none
 
@@ -811,7 +813,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   type(option_type), pointer :: option
 
   type(point3d_type) :: dummy_h
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(point3d_type), allocatable :: well_nodes(:), face_centroids(:)
+  character(len=MAXSTRINGLENGTH) :: string, string2, dim
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -821,17 +824,21 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   PetscReal :: cum_z, z_dum
   PetscInt, allocatable :: temp_id_list(:)
   PetscReal, allocatable :: temp_z_list(:)
-  PetscInt, allocatable :: temp_repeated_list(:)
+  PetscReal, allocatable :: collect_x_temp(:)
+  PetscReal, allocatable :: collect_y_temp(:)
+  PetscReal, allocatable :: collect_z_temp(:)
+  PetscInt, allocatable :: temp_repeated_list(:), collect_rank(:)
   PetscInt :: cur_id, cum_z_int, cur_cum_z_int
   PetscInt :: repeated
   PetscInt :: num_entries
   PetscReal, allocatable :: dz_list(:), res_dz_list(:)
   PetscReal :: min_dz, dz, z
   PetscInt, allocatable :: cell_id_list(:)
-  PetscInt :: local_id
+  PetscInt :: local_id, ghosted_id
   PetscInt :: res_cell_count
   PetscInt :: nsegments, nsegments_save
   PetscInt :: k, i, j
+  PetscInt :: local_index
   PetscReal :: ds
   PetscReal, pointer :: well_trajectory(:,:)
   PetscReal, pointer :: temp_trajectory(:,:)
@@ -844,6 +851,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   PetscReal, allocatable :: temp_x(:), temp_y(:), temp_z(:)
   PetscReal :: circle_center(3), surface_origin(3)
   type(deviated_well_type), pointer :: well_segment
+  PetscErrorCode :: ierr
 
   num_entries = 10000
   allocate(dz_list(num_entries))
@@ -1063,8 +1071,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_y = UNINITIALIZED_DOUBLE
     temp_z = UNINITIALIZED_DOUBLE
 
-    k = 0; j = 0; cur_id = -999; repeated = 0; cum_z = 0; cur_cum_z_int = 0;
-    ! searchprocedure for finding reservoir cell list within well
+    k = 0
+    j = 0
+    cur_id = -999
+    repeated = 0
+    cum_z = 0
+    cur_cum_z_int = 0
+    ! search procedure for finding reservoir cell list within well
+    ! MAN: This needs to be tested for a case where well goes from
+    ! on-process to off-process and then back on-process.
     do j = 1, nsegments
       dummy_h%x = well_trajectory(j,1)
       dummy_h%y = well_trajectory(j,2)
@@ -1072,7 +1087,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
 
-      if (j == 1) then
+      if (k == 0 .and. Initialized(local_id)) then
         cur_id = local_id
         k = 1
         temp_id_list(k) = local_id
@@ -1107,9 +1122,12 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         dh_y = well_trajectory(j,2)
         dh_z = well_trajectory(j,3)
         temp_casing(k) = well_casing(j)
+        ! Don't count off-process cell ID's, but still compute
+        ! where the change from on- to off- process occurs.
+        if (Uninitialized(local_id)) k = k - 1
       endif
 
-      if (j == nsegments) then
+      if (j == nsegments .and. Initialized(local_id)) then
         dh_x = well_trajectory(j,1) - dh_x
         dh_y = well_trajectory(j,2) - dh_y
         dh_z = well_trajectory(j,3) - dh_z
@@ -1125,8 +1143,62 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_repeated_list(k) = repeated
 
     well_grid%nsegments = k
-    nsegments = well_grid%nsegments
 
+    ! Num local number of segments across processes,
+    ! sorted well nodes by z-location in ascending order.
+    ! MAN: need to add horizontal directions too (horizontal wells).
+    call MPI_Allreduce(well_grid%nsegments,nsegments,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+    allocate(well_nodes(nsegments))
+    allocate(collect_x_temp(nsegments*option%comm%size))
+    allocate(collect_y_temp(nsegments*option%comm%size))
+    allocate(collect_z_temp(nsegments*option%comm%size))
+    allocate(collect_rank(nsegments*option%comm%size))
+    collect_x_temp = UNINITIALIZED_DOUBLE
+    collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+              temp_x(1:well_grid%nsegments)
+    collect_y_temp = UNINITIALIZED_DOUBLE
+    collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+              temp_y(1:well_grid%nsegments)
+    collect_z_temp = UNINITIALIZED_DOUBLE
+    collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+              temp_z(1:well_grid%nsegments)
+    collect_rank = UNINITIALIZED_INTEGER
+    collect_rank(nsegments*option%myrank+1:nsegments*option%myrank+k+1) = &
+              option%myrank
+    call MPI_Allreduce(MPI_IN_PLACE,collect_x_temp, &
+                       nsegments*option%comm%size,MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,collect_y_temp, &
+                       nsegments*option%comm%size,MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,collect_z_temp, &
+                       nsegments*option%comm%size,MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    call MPI_Allreduce(MPI_IN_PLACE,collect_rank, &
+                       nsegments*option%comm%size,MPI_INTEGER, &
+                       MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    ! MAN: not sure if getting the ordering exactly right for all possible
+    ! cases is strictly necessary for hydrostatic well model, but should try.
+    k = 0
+    well_nodes(:)%id = UNINITIALIZED_INTEGER
+    well_nodes(:)%x = UNINITIALIZED_DOUBLE
+    well_nodes(:)%y = UNINITIALIZED_DOUBLE
+    well_nodes(:)%z = UNINITIALIZED_DOUBLE
+    do j = 1,nsegments*option%comm%size
+      if (Initialized(collect_z_temp(j))) then
+        k = k + 1
+        well_nodes(k)%id = collect_rank(j)
+        well_nodes(k)%x = collect_x_temp(j)
+        well_nodes(k)%y = collect_y_temp(j)
+        well_nodes(k)%z = collect_z_temp(j)
+      endif
+    enddo
+    dim = 'z'
+    call UtilitySortArray(well_nodes,dim)
+
+    ! Need to write the well in the reservoir coordinates, from bottom to top
+    well_grid%nsegments = nsegments
     allocate(well_grid%casing(nsegments))
     allocate(well_grid%dh(nsegments))
     allocate(well_grid%h(nsegments))
@@ -1139,39 +1211,85 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%dy(nsegments))
     allocate(well_grid%dz(nsegments))
     allocate(well_grid%res_z(nsegments))
+    allocate(well_grid%res_dz(nsegments))
 
+    well_grid%casing(:) = UNINITIALIZED_DOUBLE
+    well_grid%dh(:) = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%x = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%y = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%z = UNINITIALIZED_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = 0
-
-    ! Need to write the well in the reservoir coordinates, from bottom to top
+    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    well_grid%dx(:) = UNINITIALIZED_DOUBLE
+    well_grid%dy(:) = UNINITIALIZED_DOUBLE
+    well_grid%dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_z(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
 
     do k = 1,well_grid%nsegments
-      index = well_grid%nsegments - k + 1
-      well_grid%h_local_id(index) = temp_id_list(k)
-      well_grid%h_ghosted_id(index) = res_grid%nL2G(well_grid% &
-                                      h_local_id(index))
-      well_grid%h_global_id(index) = res_grid%nG2A(well_grid% &
-                                     h_ghosted_id(index))
-      well_grid%res_z(index) = res_grid%z(well_grid%h_global_id(index))
-      if (temp_casing(k)) then
-        well_grid%casing(index) = 0.d0
-      else
-        well_grid%casing(index) = 1.d0
+      if (well_nodes(k)%id == option%myrank) then
+        do local_index = 1,size(temp_id_list)
+          if (well_nodes(k)%x == temp_x(local_index) .and. &
+              well_nodes(k)%y == temp_y(local_index) .and. &
+              well_nodes(k)%z == temp_z(local_index)) then
+            index = k
+            well_grid%h_rank_id(index) = option%myrank
+            well_grid%h_local_id(index) = temp_id_list(local_index)
+            well_grid%h_ghosted_id(index) = res_grid%nL2G(well_grid% &
+                                            h_local_id(index))
+            ghosted_id = well_grid%h_ghosted_id(index)
+            well_grid%h_global_id(index) = res_grid%nG2A(ghosted_id)
+            well_grid%res_z(index) = res_grid%z(ghosted_id)
+            if (temp_casing(local_index)) then
+              well_grid%casing(index) = 0.d0
+            else
+              well_grid%casing(index) = 1.d0
+            endif
+
+            well_grid%h(index)%id = local_index
+            well_grid%h(index)%x = temp_x(local_index)
+            well_grid%h(index)%y = temp_y(local_index)
+            well_grid%h(index)%z = temp_z(local_index)
+
+            well_grid%dx(index) = dabs(temp_dx(local_index))
+            well_grid%dy(index) = dabs(temp_dy(local_index))
+            well_grid%dz(index) = dabs(temp_dz(local_index))
+            well_grid%dh(index) = sqrt(well_grid%dx(index)**2 + &
+                          well_grid%dy(index)**2 + well_grid%dz(index)**2)
+
+            if (StringCompare(res_grid%ctype,'STRUCTURED')) then
+              well_grid%res_dz(index) = res_grid%structured_grid%dz(index)
+            elseif (StringCompare(res_grid%ctype,'IMPLICIT UNSTRUCTURED')) then
+              if (associated(res_grid%unstructured_grid%face_centroid)) then
+                allocate(face_centroids(size(res_grid%unstructured_grid% &
+                       cell_to_face_ghosted(:,ghosted_id))))
+                do j = 1,size(face_centroids)
+                  face_centroids(j) = res_grid%unstructured_grid%face_centroid(res_grid% &
+                                      unstructured_grid%cell_to_face_ghosted(j, &
+                                      ghosted_id))
+                enddo
+                dim = 'z'
+                call UtilitySortArray(face_centroids,dim)
+                well_grid%res_dz(index) = dabs(face_centroids(size(face_centroids))%z - &
+                                               face_centroids(1)%z)
+                deallocate(face_centroids)
+              endif
+            else
+              option%io_buffer = 'WELL_TRAJECTORY does not support the &
+                                  &specified grid type. Use either STRUCTURED &
+                                  &or IMPLICIT UNSTRUCTURED.'
+              call PrintErrMsg(option)
+            endif
+
+            exit
+          endif
+        enddo
       endif
-
-      well_grid%h(index)%id = k
-      well_grid%h(index)%x = temp_x(k)
-      well_grid%h(index)%y = temp_y(k)
-      well_grid%h(index)%z = temp_z(k)
-
-      well_grid%dx(index) = dabs(temp_dx(k))
-      well_grid%dy(index) = dabs(temp_dy(k))
-      well_grid%dz(index) = dabs(temp_dz(k))
-      well_grid%dh(index) = sqrt(well_grid%dx(index)**2 + &
-                    well_grid%dy(index)**2 + well_grid%dz(index)**2)
     enddo
+
 
     deallocate(well_trajectory)
     deallocate(temp_dx)
@@ -1704,6 +1822,42 @@ subroutine PMWellSetup(this)
                      MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   call MPI_Allreduce(well_grid%h_global_id,h_all_global_id,nsegments, &
                      MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%casing,size(well_grid%casing), &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%dh,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  if (associated(well_grid%dx)) then
+    call MPI_Allreduce(MPI_IN_PLACE,well_grid%dx,nsegments, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+  endif
+  if (associated(well_grid%dy)) then
+    call MPI_Allreduce(MPI_IN_PLACE,well_grid%dy,nsegments, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+  endif
+  if (associated(well_grid%dz)) then
+    call MPI_Allreduce(MPI_IN_PLACE,well_grid%dz,nsegments, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+  endif
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%res_dz,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%res_z,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%h(:)%x,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%h(:)%y,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,well_grid%h(:)%z,nsegments, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
   well_grid%h_rank_id = h_all_rank_id
   well_grid%h_global_id = h_all_global_id
   if (option%iflowmode /= WF_MODE) then
@@ -4957,7 +5111,6 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   type(grid_type), pointer :: res_grid
   type(option_type), pointer :: option
   type(well_comm_type), pointer :: well_comm
-  PetscInt :: TAG, peer, root_rank
   PetscInt :: k, indx
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
@@ -5041,46 +5194,9 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   enddo
 
   if (update_index < 0 .or. initialize_well_flow) then
-    if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
-        root_rank = pm_well%well_comm%rank
-    endif
-    call MPI_Bcast(root_rank,1,MPI_INTEGER,pm_well%well_grid%h_rank_id(1), &
-                   option%mycomm,ierr);CHKERRQ(ierr)
-
-    if (well_comm%commsize > 1) then
-      do k = 1,pm_well%well_grid%nsegments
-        TAG = k
-        if (pm_well%well_grid%h_rank_id(k) /= &
-            pm_well%well_grid%h_rank_id(1)) then
-          if (option%myrank == pm_well%well_grid%h_rank_id(k)) then
-            peer = pm_well%well_grid%h_rank_id(1)
-          endif
-          if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
-            peer = pm_well%well_grid%h_rank_id(k)
-          endif
-          if ((option%myrank == pm_well%well_grid%h_rank_id(k)) .or. &
-              (option%myrank == pm_well%well_grid%h_rank_id(1))) then
-            if (k == 1) then
-              call MPI_Sendrecv_replace(pm_well%well%bh_p,1, &
-                   MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                   MPI_STATUS_IGNORE,ierr)
-            endif
-            call MPI_Sendrecv_replace(pm_well%well_grid%res_z(k),1, &
-                   MPI_DOUBLE_PRECISION,peer,TAG,peer,TAG,option%mycomm, &
-                   MPI_STATUS_IGNORE,ierr)
-          endif
-        endif
-      enddo
-
-      if (pm_well%well_comm%comm /= MPI_COMM_NULL) then
-        call MPI_Bcast(pm_well%well%bh_p,ONE_INTEGER, &
-                       MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
-                       ierr);CHKERRQ(ierr)
-        call MPI_Bcast(pm_well%well_grid%res_z,pm_well%well_grid%nsegments, &
-                       MPI_DOUBLE_PRECISION,root_rank,pm_well%well_comm%comm, &
-                       ierr);CHKERRQ(ierr)
-      endif
-    endif
+    call MPI_Allreduce(MPI_IN_PLACE,pm_well%well%bh_p,ONE_INTEGER, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
+                     CHKERRQ(ierr)
   endif
 
 end subroutine PMWellUpdateReservoirSCO2

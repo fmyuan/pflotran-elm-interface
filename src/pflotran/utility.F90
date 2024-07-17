@@ -59,6 +59,7 @@ module Utility_module
   interface UtilitySortArray
     module procedure UtilitySortArrayReal
     module procedure UtilitySortArrayInt
+    module procedure UtilitySortArray3D
   end interface
 
   interface InterfaceApprox
@@ -2801,6 +2802,58 @@ subroutine UtilitySortArrayReal(array)
   enddo
 
 end subroutine UtilitySortArrayReal
+
+! ************************************************************************** !
+
+subroutine UtilitySortArray3D(point,dim)
+  !
+  ! Sorts a 3D point from lowest value to highest along a given dimension.
+  !
+  ! Author: Michael Nole
+  ! Date: 07/17/24
+  !
+
+  use Option_module
+  use String_module
+  use Geometry_module
+
+  implicit none
+
+  type(point3d_type) :: point(:)
+  character(len=MAXSTRINGLENGTH) :: dim
+
+  PetscBool :: swapped
+  PetscInt :: i
+  type(point3d_type) :: temp_point
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(point)-1
+      if ((StringCompare(dim,'x') .and. &
+          point(i)%x > point(i+1)%x) .or. &
+          (StringCompare(dim,'y') .and. &
+          point(i)%y > point(i+1)%y) .or. &
+          (StringCompare(dim,'z') .and. &
+          point(i)%z > point(i+1)%z)) then
+        temp_point%id = point(i)%id
+        temp_point%x = point(i)%x
+        temp_point%y = point(i)%y
+        temp_point%z = point(i)%z
+        point(i)%id = point(i+1)%id
+        point(i)%x = point(i+1)%x
+        point(i)%y = point(i+1)%y
+        point(i)%z = point(i+1)%z
+        point(i+1)%id = temp_point%id
+        point(i+1)%x = temp_point%x
+        point(i+1)%y = temp_point%y
+        point(i+1)%z = temp_point%z
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArray3D
 
 ! ************************************************************************** !
 
