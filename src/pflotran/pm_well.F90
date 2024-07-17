@@ -1710,13 +1710,7 @@ subroutine PMWellSetup(this)
 
   min_val = minval(h_all_rank_id)-1
   max_val = maxval(h_all_rank_id)
-  !Always include rank 0 in comm
-!  if (min_val > -1) then
-!    h_rank_id_unique(1) = 0
-!    k = 1
-!  else
-!    k = 0
-!  endif
+
   k = 0
   do while (min_val < max_val)
     k = k + 1
@@ -4739,7 +4733,7 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
     ! The rank-updated value will be larger then the initialized value (-1.d20)
     call MPI_Allreduce(MPI_IN_PLACE,reservoir%tmp_flow,vec_size*20,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
-     if (pm_well%transport) then
+    if (pm_well%transport) then
       call MPI_Allreduce(MPI_IN_PLACE,reservoir%tmp_tran,&
                          vec_size*pm_well%nspecies*2,&
                          MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
