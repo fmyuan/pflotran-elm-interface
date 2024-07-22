@@ -1722,7 +1722,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   PetscInt :: well_ndof
   PetscInt :: deactivate_row
 
-  PetscReal :: epsilon = 1.d-30
+  PetscReal, parameter :: epsilon = 1.d-30
 
   well_ndof = ZERO_INTEGER
   deactivate_row = UNINITIALIZED_INTEGER

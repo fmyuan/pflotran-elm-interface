@@ -2440,8 +2440,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
           cur_well%next_well => well
           cur_well => cur_well%next_well
         else
-          simulation%well_process_model_coupler => well
-          cur_well => simulation%well_process_model_coupler
+          simulation%temp_well_process_model_list => well
+          cur_well => simulation%temp_well_process_model_list
         endif
         nullify(well)
 

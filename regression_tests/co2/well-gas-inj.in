@@ -50,16 +50,7 @@ WELLBORE_MODEL well
     WELL_INDEX_MODEL PEACEMAN_3D
   /
 
-  WELL_BOUNDARY_CONDITIONS
-    BOTTOM_OF_HOLE
-      LIQUID_MASS_RATE 0.d0 kg/s
-      GAS_MASS_RATE 0.d0 kg/s
-    /
-    TOP_OF_HOLE
-      LIQUID_MASS_RATE 0.0d0 kg/y 
-      GAS_MASS_RATE 1.d6 kg/y
-    /
-  /
+  USE_WELL_COUPLER
 
 END
 
@@ -270,11 +261,23 @@ FLOW_CONDITION boundary
   SALT_MASS_FRACTION 4.75d-2
 END
 
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 0.d0 1.d6 0.d0 kg/y kg/y kg/y
+END
+
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION all
   FLOW_CONDITION initial
   REGION all
+END
+
+WELL_COUPLER well
+  FLOW_CONDITION injection
+  WELL well
 END
 
 BOUNDARY_CONDITION top

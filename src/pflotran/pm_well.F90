@@ -42,7 +42,6 @@ module PM_Well_class
   PetscBool, public :: well_output = PETSC_FALSE
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
-  PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
 
   PetscInt, parameter :: PEACEMAN_ISO = 1
   PetscInt, parameter :: PEACEMAN_2D = 2
@@ -8666,6 +8665,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   PetscReal :: density_ave_kmol, tot_mole_flux
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
+  PetscReal, parameter :: gravity = -9.80665d0
 
 
   well_grid => pm_well%well_grid
@@ -8875,6 +8875,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
   PetscBool :: upwind
   PetscInt :: itop
   PetscErrorCode :: ierr
+  PetscReal, parameter :: gravity = -9.80665d0
 
   option => pm_well%option
 

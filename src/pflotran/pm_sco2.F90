@@ -219,11 +219,11 @@ subroutine PMSCO2SetFlowMode(pm,pm_well,option)
 
   if (associated(pm_well)) then
     if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
-      ! if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
-      !   option%io_buffer = 'Currently, SCO2 mode can only be &
-      !             &used with the HYDROSTATIC well model.'
-      !   call PrintErrMsg(option)
-      ! endif
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+        option%io_buffer = 'Currently, SCO2 mode can only be &
+                  &used with the HYDROSTATIC well model.'
+        call PrintErrMsg(option)
+      endif
       sco2_well_coupling = SCO2_FULLY_IMPLICIT_WELL
       option%nflowdof = option%nflowdof + 1
       option%coupled_well = PETSC_TRUE
@@ -631,7 +631,9 @@ recursive subroutine PMSCO2InitializeRun(this)
       if (.not. associated(pm_well)) exit
       if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
         call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
-        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        if (this%solver%M /= this%solver%Mpre) then
+          call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        endif
       endif
       pm_well => pm_well%next_well
     enddo
@@ -687,7 +689,7 @@ subroutine PMSCO2InitializeTimestep(this)
       if (.not. associated(pm_well)) exit
       if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
         call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
-                                          -999,this%option%ierror)
+                                     UNINITIALIZED_INTEGER,this%option%ierror)
         pm_well%flow_soln%soln_save%pl = pm_well%well%pl
       endif
       call PMWellUpdateReservoirSrcSinkFlow(pm_well)
@@ -798,7 +800,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       dtt = time_step_max_growth_factor*dt
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
-      governed_dt = -999.d0
+      governed_dt = UNINITIALIZED_DOUBLE
     endif
 
     ! Inform user that time step is being limited by a state variable.
@@ -2049,18 +2051,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
-
-    ! Send out updated well BHP
-    ! if (associated(this%pmwell_ptr)) then
-    !   cur_well => this%pmwell_ptr
-    !   do
-    !     if (.not. associated(cur_well)) exit
-    !     if (cur_well%well_comm%comm /= MPI_COMM_NULL) then
-    !       call cur_well%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
-    !     endif
-    !     cur_well => cur_well%next_well
-    !   enddo
-    ! endif
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX

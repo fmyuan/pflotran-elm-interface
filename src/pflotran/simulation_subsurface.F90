@@ -34,7 +34,7 @@ module Simulation_Subsurface_class
     ! pointer to geophysics process model coupler
     class(pmc_geophysics_type), pointer :: geop_process_model_coupler
     ! pointer to well process model coupler
-    class(pm_well_type), pointer :: well_process_model_coupler
+    class(pm_well_type), pointer :: temp_well_process_model_list
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
     ! regression object
@@ -127,7 +127,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
-  nullify(this%well_process_model_coupler)
+  nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()

@@ -946,7 +946,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   nullify(pmc_dummy)
 
   ! Link each well PM with its respective wellbore model.
-  pm_well_temp => simulation%well_process_model_coupler
+  pm_well_temp => simulation%temp_well_process_model_list
   pm_well => pm_well_list
   do
     if (.not. associated(pm_well_temp)) exit
@@ -960,10 +960,10 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   enddo
   deallocate(pm_well_list)
   nullify(pm_well_list)
-  pm_well_list => simulation%well_process_model_coupler
+  pm_well_list => simulation%temp_well_process_model_list
   nullify(pm_well_temp)
   nullify(pm_well)
-  nullify(simulation%well_process_model_coupler)
+  nullify(simulation%temp_well_process_model_list)
 
   pm_well => pm_well_list
   do

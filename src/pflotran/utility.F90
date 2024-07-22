@@ -59,7 +59,7 @@ module Utility_module
   interface UtilitySortArray
     module procedure UtilitySortArrayReal
     module procedure UtilitySortArrayInt
-    module procedure UtilitySortArray3D
+    module procedure UtilitySortArrayPoint3DByDim
   end interface
 
   interface InterfaceApprox
@@ -2805,7 +2805,7 @@ end subroutine UtilitySortArrayReal
 
 ! ************************************************************************** !
 
-subroutine UtilitySortArray3D(point,dim)
+subroutine UtilitySortArrayPoint3DByDim(point,dim)
   !
   ! Sorts a 3D point from lowest value to highest along a given dimension.
   !
@@ -2853,7 +2853,7 @@ subroutine UtilitySortArray3D(point,dim)
     if (.not.swapped) exit
   enddo
 
-end subroutine UtilitySortArray3D
+end subroutine UtilitySortArrayPoint3DByDim
 
 ! ************************************************************************** !
 
