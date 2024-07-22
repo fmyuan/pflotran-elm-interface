@@ -690,8 +690,8 @@ subroutine PMWellVarCreate(well)
   !MAN: this might break regression tests
   well%bh_ql = UNINITIALIZED_DOUBLE !0.d0
   well%bh_qg = UNINITIALIZED_DOUBLE !0.d0
-  well%th_ql = UNINITIALIZED_DOUBLE !0.d0
-  well%th_qg = UNINITIALIZED_DOUBLE !0.d0
+  well%th_ql = 0.d0
+  well%th_qg = 0.d0
   well%tran_condition_name = ''
   nullify(well%ccid)
   nullify(well%permeability)
@@ -4619,10 +4619,11 @@ subroutine PMWellSCO2Perturb(pm_well)
 
     do idof = 1,option%nflowdof
       well => pm_well%well_pert(idof)
+      well%bh_p = pm_well%well%bh_p
       if (idof == SCO2_WELL_DOF) then
         sco2_auxvar => &
           pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
-        well%bh_p = pm_well%well%bh_p + pm_well%realization%patch%aux%sco2% &
+        well%bh_p = well%bh_p + pm_well%realization%patch%aux%sco2% &
                     auxvars(SCO2_WELL_DOF,ghosted_id)%pert
         if (.not. Initialized(sco2_auxvar%well%pressure_bump)) then
           if (k == 1) then

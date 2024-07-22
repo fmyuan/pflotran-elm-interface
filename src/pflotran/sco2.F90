@@ -1040,8 +1040,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
     cur_well => pm_well
     do
       if (.not. associated(cur_well)) exit
-      if (associated(cur_well%flow_condition) .and. &
-          Initialized(cur_well%well%bh_p))then
+      if (associated(cur_well%flow_condition))then
         well_flow_condition => cur_well%flow_condition
         if (associated(well_flow_condition%sco2%temperature)) then
           cur_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
@@ -1051,10 +1050,12 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
           cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
           cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
         endif
-        do idof = 1,option%nflowdof
-          call PMWellCopyWell(cur_well%well,cur_well%well_pert(idof), &
-                              cur_well%transport)
-        enddo
+        if (Initialized(cur_well%well%bh_p)) then
+          do idof = 1,option%nflowdof
+            call PMWellCopyWell(cur_well%well,cur_well%well_pert(idof), &
+                                cur_well%transport)
+          enddo
+        endif
       endif
       cur_well => cur_well%next_well
     enddo
@@ -1721,6 +1722,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   PetscInt :: well_ndof
   PetscInt :: deactivate_row
 
+  PetscReal :: epsilon = 1.d-30
+
   well_ndof = ZERO_INTEGER
   deactivate_row = UNINITIALIZED_INTEGER
   if (associated(pm_well)) well_ndof = ONE_INTEGER
@@ -2012,8 +2015,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         cur_well => pm_well
         do
           if (.not. associated(cur_well)) exit
-          if (all(cur_well%well%liq%Q == 0.d0) .and. &
-              all(cur_well%well%gas%Q == 0.d0)) then
+          if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
+               dabs(cur_well%well%th_ql) < epsilon) then
             ! Don't solve for BHP if there is no flow in the well.
             deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
