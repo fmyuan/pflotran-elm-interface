@@ -603,6 +603,7 @@ recursive subroutine PMSCO2InitializeRun(this)
   implicit none
 
   class(pm_sco2_type) :: this
+  class(pm_well_type), pointer :: pm_well
 
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -619,14 +620,31 @@ recursive subroutine PMSCO2InitializeRun(this)
                                 this%max_change_isubvar(i))
   enddo
 
-  ! setup coupling in jacobian matrix for well model
+  ! setup coupling in jacobian matrix for the well model
   if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
-    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
                       ierr);CHKERRQ(ierr)
-    call PMWellModifyDummyFlowJacobian(this%pmwell_ptr,this%solver%m,ierr)
-    call MatAssemblyBegin(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%solver%m,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatSetOption(this%solver%m,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
+        if (this%solver%M /= this%solver%Mpre) then
+          call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        endif
+      endif
+      pm_well => pm_well%next_well
+    enddo
+    call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr); &
+                         CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
                       ierr);CHKERRQ(ierr)
   endif
 
@@ -655,6 +673,7 @@ subroutine PMSCO2InitializeTimestep(this)
   implicit none
 
   class(pm_sco2_type) :: this
+  class(pm_well_type), pointer :: pm_well
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 !geh:remove   everywhere
@@ -665,10 +684,18 @@ subroutine PMSCO2InitializeTimestep(this)
 
   call SCO2InitializeTimestep(this%realization)
   if (associated(this%pmwell_ptr)) then
-    call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
-                                         -999,this%option%ierror)
-    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
-    call PMWellUpdateReservoirSrcSinkFlow(this%pmwell_ptr)
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                     UNINITIALIZED_INTEGER,this%option%ierror)
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+      endif
+      call PMWellUpdateReservoirSrcSinkFlow(pm_well)
+      pm_well => pm_well%next_well
+    enddo
+    if (initialize_well_flow) initialize_well_flow = PETSC_FALSE
   endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
@@ -693,7 +720,6 @@ end subroutine PMSCO2PreSolve
 
 subroutine PMSCO2PostSolve(this)
   !
-  ! MAN: Do we need this?
   !
   ! Author: Michael Nole
   ! Date: 01/26/24
@@ -774,7 +800,7 @@ subroutine PMSCO2UpdateTimestep(this,update_dt, &
       dtt = time_step_max_growth_factor*dt
       dt = min(dtt,dt_max)
       dt = max(dt,dt_min)
-      governed_dt = -999.d0
+      governed_dt = UNINITIALIZED_DOUBLE
     endif
 
     ! Inform user that time step is being limited by a state variable.
@@ -918,6 +944,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
+  class(pm_well_type), pointer :: cur_well
   type(sco2_auxvar_type) :: sco2_auxvar
   class(characteristic_curves_type), pointer :: characteristic_curves
   PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
@@ -1225,32 +1252,37 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
       if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
         dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
                                 dX_p(well_index))
-        if (this%pmwell_ptr%well_grid%h_rank_id(ONE_INTEGER) == &
-            option%myrank) then
-          if (ghosted_id == this%pmwell_ptr%well_grid% &
-              h_ghosted_id(ONE_INTEGER)) then
-            ! if (this%pmwell_ptr%well%th_ql > 0.d0 .or. &
-            !     this%pmwell_ptr%well%th_qg > 0.d0) then
-            !   if (this%pmwell_ptr%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
-            !       sco2_auxvar%pres(option%gas_phase) + &
-            !       dX_p(liq_pressure_index)) then
-            !     dX_p(well_index) = (sco2_auxvar%pres(option%gas_phase) + &
-            !                        dX_p(liq_pressure_index)) - &
-            !                        (this%pmwell_ptr%well%pg(ONE_INTEGER) +  &
-            !                        dX_p(well_index))
-            !     dX_p(well_index) = dX_p(well_index) * 1.1d0
-            !   endif
-            ! endif
+        cur_well => this%pmwell_ptr
+        do
+          if (.not. associated(cur_well)) exit
+          if (cur_well%well_grid%h_rank_id(ONE_INTEGER) == &
+              option%myrank) then
+            if (ghosted_id == cur_well%well_grid% &
+                h_ghosted_id(ONE_INTEGER)) then
+              ! if (cur_well%well%th_ql > 0.d0 .or. &
+              !     cur_well%well%th_qg > 0.d0) then
+              !   if (cur_well%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
+              !       sco2_auxvar%pres(option%gas_phase) + &
+              !       dX_p(liq_pressure_index)) then
+              !     dX_p(well_index) = (sco2_auxvar%pres(option%gas_phase) + &
+              !                        dX_p(liq_pressure_index)) - &
+              !                        (cur_well%well%pg(ONE_INTEGER) +  &
+              !                        dX_p(well_index))
+              !     dX_p(well_index) = dX_p(well_index) * 1.1d0
+              !   endif
+              ! endif
 
-            ! MAN: this is a hack to get the well to initialize properly
-            if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
-              dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
-                                 sco2_auxvar%pres(option%gas_phase))
+              ! MAN: this is a hack to get the well to initialize properly
+              if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
+                dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
+                                   sco2_auxvar%pres(option%gas_phase))
+              endif
+              dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
+              ! sco2_auxvar%well%pressure_bump = 0.d0
             endif
-            dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
-            ! sco2_auxvar%well%pressure_bump = 0.d0
           endif
-        endif
+          cur_well => cur_well%next_well
+        enddo
         dX_p2(well_index) = dX_p(well_index)
       endif
 
@@ -1618,8 +1650,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   global_auxvars => patch%aux%Global%auxvars
   sco2_auxvars => this%realization%patch%aux%SCO2%auxvars
 
-  allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states))
-  ! allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states+1))
+  ! allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states))
+  allocate(flags(MAX_INDEX*MAX_DOF*sco2_max_states+1))
   allocate(state_string(sco2_max_states))
   allocate(dof_string(MAX_DOF,sco2_max_states))
 
@@ -2001,14 +2033,16 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     flags(1:MAX_DOF*sco2_max_states*MAX_INDEX) = &
       reshape(this%converged_flag,(/MAX_DOF*sco2_max_states* &
               MAX_INDEX/))
+    flags(MAX_DOF*sco2_max_states*MAX_INDEX + 1) = converged_well
 
-    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+1
+    mpi_int = MAX_DOF*sco2_max_states*MAX_INDEX+2
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
     this%converged_flag = reshape(flags(1:MAX_DOF*sco2_max_states* &
                                   MAX_INDEX),(/MAX_DOF, &
                                   sco2_max_states,MAX_INDEX/))
+    converged_well = flags(MAX_DOF*sco2_max_states*MAX_INDEX + 1)
 
     ! sco2_high_temp_ts_cut = .not.flags(MAX_DOF*sco2_max_states* &
     !                                    MAX_INDEX+1)
@@ -2017,13 +2051,6 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr); &
                        CHKERRQ(ierr)
-
-    ! Send out updated well BHP
-    if (associated(this%pmwell_ptr)) then
-      if (this%pmwell_ptr%well_comm%comm /= MPI_COMM_NULL) then
-        call this%pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,-999,-999,ierr)
-      endif
-    endif
 
     option%convergence = CONVERGENCE_CONVERGED
     do itol = 1, MAX_INDEX

@@ -12,8 +12,20 @@ module Petsc_Utility_module
 
   private
 
+  interface PetUtilLoadVec
+    module procedure PetUtilLoadVecInt
+    module procedure PetUtilLoadVecReal
+  end interface
+
+  interface PetUtilUnloadVec
+    module procedure PetUtilUnloadVecInt
+    module procedure PetUtilUnloadVecReal
+  end interface
+
   public :: PetUtilMatSVBL, &
-            PetUtilVecSVBL
+            PetUtilVecSVBL, &
+            PetUtilLoadVec, &
+            PetUtilUnloadVec
 
 contains
 
@@ -72,5 +84,97 @@ subroutine PetUtilVecSVBL(array,icell,array_block,ndof,replace)
   endif
 
 end subroutine PetUtilVecSVBL
+
+! ************************************************************************** !
+
+subroutine PetUtilLoadVecInt(vec,iarray)
+  !
+  ! Loads values from array into a vec (must be sized identically)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+  !
+  implicit none
+
+  Vec :: vec
+  PetscInt :: iarray(:)
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr(:) = iarray(:)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine PetUtilLoadVecInt
+
+! ************************************************************************** !
+
+subroutine PetUtilLoadVecReal(vec,rarray)
+  !
+  ! Loads values from array into a vec (must be sized identically)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+  !
+  implicit none
+
+  Vec :: vec
+  PetscReal :: rarray(:)
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr(:) = rarray(:)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine PetUtilLoadVecReal
+
+! ************************************************************************** !
+
+subroutine PetUtilUnloadVecInt(vec,iarray)
+  !
+  ! Unloads values from a vec into array (must be sized identically)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+  !
+  implicit none
+
+  Vec :: vec
+  PetscInt :: iarray(:)
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  iarray(:) = int(vec_ptr(:)+1.d-5)
+  call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine PetUtilUnloadVecInt
+
+! ************************************************************************** !
+
+subroutine PetUtilUnloadVecReal(vec,rarray)
+  !
+  ! Unloads values from a vec into array (must be sized identically)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+  !
+  implicit none
+
+  Vec :: vec
+  PetscReal :: rarray(:)
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  rarray(:) = vec_ptr(:)
+  call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine PetUtilUnloadVecReal
 
 end module Petsc_Utility_module

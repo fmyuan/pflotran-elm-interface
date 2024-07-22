@@ -81,7 +81,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(realization_subsurface_type), pointer :: realization
@@ -95,17 +95,17 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_ufd_biosphere)
   nullify(pm_geop)
   nullify(pm_auxiliary)
-  nullify(pm_well)
+  nullify(pm_well_list)
   nullify(pm_parameter_list)
 
   call FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
+                                       pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list)
 
-  call FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
+  call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
 
   realization => RealizationCreate(option)
@@ -116,7 +116,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   call FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                    pm_waste_form,pm_ufd_decay, &
                                    pm_ufd_biosphere,pm_geop,pm_auxiliary, &
-                                   pm_well,pm_material_transform, &
+                                   pm_well_list,pm_material_transform, &
                                    pm_parameter_list)
 
   call FactSubLinkAddPMCEvolvingStrata(simulation)
@@ -427,6 +427,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Patch_module
   use Parameter_module
   use EOS_module !to be removed as already present above
+  use Discretization_module
 
   implicit none
 
@@ -487,6 +488,10 @@ subroutine FactorySubsurfSetupRealization(simulation)
   end select
 
   ! create grid and allocate vectors
+  call DiscretizationDecomposeDomain(realization%discretization,option)
+  if (option%coupled_well) then
+    call FactorySubsurfaceInsertWellCells(simulation)
+  endif
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
@@ -644,5 +649,188 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   endif
 
 end subroutine FactorySubsurfaceJumpStart
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfaceInsertWellCells(simulation)
+  !
+  ! Inserts off-process well cells that are beyond the ghosted halo into the
+  ! ghosting of the local Vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_module, only : UGridEnsureRightHandRule
+  use Grid_Structured_module, only : StructGridCreateTVDGhosts
+  use Discretization_module
+  use PMC_Base_class
+  use PM_Base_class
+  use PM_Well_class
+  use PM_SCO2_class
+  Use Option_module
+  use Field_module
+  use DM_Custom_module
+  use Utility_module
+
+  implicit none
+
+  type(simulation_subsurface_type) :: simulation
+
+  class(realization_subsurface_type), pointer :: realization
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  class(pm_well_type), pointer :: pm_well
+  class(pmc_base_type), pointer :: cur_pmc
+  class(pm_base_type), pointer :: cur_pm, cur_pm2
+  type(option_type), pointer :: option
+  type(dm_ptr_type), pointer :: dm_ptr
+  PetscInt, pointer :: well_cells(:)
+  PetscInt, pointer :: h_all_global_id(:)
+  PetscInt :: num_well_cells
+  PetscErrorCode :: ierr
+
+  realization => simulation%realization
+  discretization => realization%discretization
+  grid => discretization%grid
+  field => realization%field
+  option => simulation%option
+
+  ! skip everything but the unstructured implicit format
+  select case(realization%discretization%itype)
+    case(STRUCTURED_GRID)
+      if (realization%option%comm%size > 1) then
+        option%io_buffer=  'Currently, the well model can only be run in &
+          &parallel using an implicit unstructured grid. Please convert your &
+          &STRUCTURED_GRID to UNSTRUCTURED_IMPLICIT using the provided Python &
+          &utilities.'
+        call PrintErrMsg(option)
+      else
+        return
+      endif
+    case(UNSTRUCTURED_GRID)
+      select case(realization%discretization%grid%itype)
+        case(IMPLICIT_UNSTRUCTURED_GRID)
+        case default
+          if (realization%option%comm%size > 1) then
+            option%io_buffer=  'Currently, the well model can only be run in &
+              &parallel using an implicit unstructured grid.'
+            call PrintErrMsg(option)
+          else
+            return
+          endif
+      end select
+  end select
+
+  nullify (dm_ptr)
+  if (realization%option%comm%size > 1) then
+
+#if PETSC_VERSION_LT(3,21,4)
+  option%io_buffer=  'Running the well model in parallel requires a newer &
+    &version of PETSc. Please update your PETSc version to 3.21.4 or later.'
+  call PrintErrMsg(option)
+#endif
+
+    allocate(dm_ptr)
+    call DiscretizationCreateDM(discretization, dm_ptr, &
+                                 ONE_INTEGER, discretization%stencil_width, &
+                                 discretization%stencil_type, option)
+
+    grid => discretization%grid
+    select case(discretization%itype)
+      case(STRUCTURED_GRID)
+        ! set up nG2L, nL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeSpacing(grid,discretization%origin_global,option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option)
+      case(UNSTRUCTURED_GRID)
+        ! set up nG2L, NL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option, &
+                                      dm_ptr%ugdm)
+    end select
+
+    ! Create a list of cells needed for ghosting wells and pass in.
+    ! This list can include local cells (the algorithm ignores them).
+    cur_pmc => simulation%process_model_coupler_list
+    cur_pm => cur_pmc%pm_list
+    nullify(pm_well)
+    do
+      if (.not. associated(cur_pm)) exit
+      if (associated(pm_well)) exit
+      select type (pm => cur_pm)
+        class is (pm_sco2_type)
+          if (.not. associated(cur_pmc%child)) exit
+          cur_pm2 => cur_pmc%child%pm_list
+          do
+            select type (pm2 => cur_pm2)
+              class is (pm_well_type)
+                pm_well => pm2
+                exit
+            end select
+          enddo
+      end select
+    enddo
+    nullify(well_cells)
+    do
+      if (.not. associated(pm_well)) exit
+      num_well_cells = pm_well%well_grid%nsegments
+      call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
+      pm_well%well_comm%petsc_rank = option%myrank
+      allocate(h_all_global_id(pm_well%well_grid%nsegments))
+      call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id, &
+                         pm_well%well_grid%nsegments, &
+                         MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+      pm_well%well_grid%h_global_id = h_all_global_id
+      allocate(well_cells(num_well_cells))
+      well_cells(:) = pm_well%well_grid%h_global_id(:)
+
+      call UGridAddWellCells(realization%discretization%grid% &
+                              unstructured_grid,well_cells,realization%option)
+
+      ! Destroy first-pass well grid
+      call DeallocateArray(pm_well%well_grid%dh)
+      call DeallocateArray(pm_well%well_grid%res_dz)
+      deallocate(pm_well%well_grid%h)
+      call DeallocateArray(pm_well%well_grid%h_local_id)
+      call DeallocateArray(pm_well%well_grid%h_ghosted_id)
+      call DeallocateArray(pm_well%well_grid%h_global_id)
+      call DeallocateArray(pm_well%well_grid%h_rank_id)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(pm_well%well_grid%res_z)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(h_all_global_id)
+      call DeallocateArray(well_cells)
+
+      pm_well => pm_well%next_well
+
+    enddo
+
+    call GridExpandGhostCells(realization%discretization%grid, &
+                                realization%option)
+  endif
+
+  ! Destroy the dummy DM's
+  ! Eventually put this in a seperate subroutine (down in dm_custom?)
+  if (associated(dm_ptr)) call UGridDMDestroy(dm_ptr%ugdm)
+  nullify(dm_ptr)
+  call DeallocateArray(grid%nG2L)
+  call DeallocateArray(grid%nL2G)
+  call DeallocateArray(grid%nG2A)
+  call DeallocateArray(grid%x)
+  call DeallocateArray(grid%y)
+  call DeallocateArray(grid%z)
+
+end subroutine FactorySubsurfaceInsertWellCells
 
 end module Factory_Subsurface_module

@@ -88,9 +88,6 @@ end interface
   PetscMPIInt :: size
   PetscMPIInt :: rank
   
-  PetscInt :: ndof
-  PetscInt :: my_ndof
-  
   SNES :: snes_base, snes_extended
   Vec :: x
   class(base_type), pointer :: base

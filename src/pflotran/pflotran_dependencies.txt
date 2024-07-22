@@ -481,9 +481,15 @@ factory_subsurface.o : \
   co2_span_wagner.o \
   dataset.o \
   discretization.o \
+  dm_custom.o \
   eos.o \
   factory_subsurface_linkage.o \
+  field.o \
   global.o \
+  grid.o \
+  grid_structured.o \
+  grid_unstructured.o \
+  grid_unstructured_aux.o \
   init_common.o \
   init_subsurface.o \
   init_subsurface_flow.o \
@@ -991,6 +997,7 @@ grid_unstructured.o : \
   hdf5_aux.o \
   input_aux.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   string.o \
   utility.o
@@ -3463,6 +3470,7 @@ simulation_subsurface.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  pm_well.o \
   pmc_base.o \
   pmc_geophysics.o \
   pmc_subsurface.o \
@@ -3774,6 +3782,7 @@ units.o : \
 upwind_direction.o : \
   option.o
 utility.o : \
+  geometry.o \
   input_aux.o \
   option.o \
   pflotran_constants.o \

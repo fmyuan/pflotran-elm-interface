@@ -34,7 +34,8 @@ module Grid_Unstructured_module
             UGridEnsureRightHandRule, &
             UGridMapSideSet, &
             UGridMapSideSet2, &
-            UGridMapBoundFacesInPolVol
+            UGridMapBoundFacesInPolVol, &
+            UGridExpandGhostCells
 
 contains
 
@@ -1067,7 +1068,6 @@ subroutine UGridDecompose(unstructured_grid,option)
   deallocate(int_array)
 
   ! resize vertex array to new size
-  unstructured_grid%num_vertices_natural = unstructured_grid%num_vertices_local
   unstructured_grid%num_vertices_local = vertex_count
   allocate(unstructured_grid%vertices(vertex_count))
   do ivertex = 1, vertex_count
@@ -3312,5 +3312,249 @@ subroutine UGridGetBoundaryFaces(unstructured_grid,option,boundary_faces)
   endif
 
 end subroutine UGridGetBoundaryFaces
+
+! ************************************************************************** !
+
+subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
+                                 option)
+  !
+  ! Expands arrays assocated with ghost cells due to a change in ghosting
+  ! as prescribed by scatter_gtol
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+
+  use Option_module
+  use Petsc_Utility_module
+  use Utility_module
+  use Geometry_module
+
+  implicit none
+
+  type(grid_unstructured_type) :: ugrid
+  VecScatter :: scatter_gtol ! global (non-ghosted) to local (ghosted
+  Vec :: global_vec
+  Vec :: local_vec
+  type(option_type) :: option
+
+  PetscReal, allocatable :: real_array(:)
+  PetscInt, allocatable :: int_array(:)
+  PetscInt, allocatable :: map_unsorted_to_sorted(:)
+  PetscInt, allocatable :: map_sorted_to_reduced(:)
+
+  PetscInt, allocatable :: cell_vertices_natural_new_1d(:)
+  PetscInt, allocatable :: cell_vertices_natural_new_1d_sorted(:)
+  PetscInt, allocatable :: cell_vertices_ghosted_1d(:)
+  PetscInt, pointer :: cell_vertices_ghosted_new(:,:)
+  PetscInt, pointer :: vertex_ids_natural_new(:)
+  type(point3d_type), pointer :: vertices_new(:)
+
+  PetscReal, pointer :: vec_loc_ptr(:)
+
+!  type(point3d_type), allocatable :: vertex_coordinates(:)
+  PetscInt :: num_cells_ghosted_previous
+  PetscInt :: num_vert_full
+  PetscInt :: num_vert_unique
+
+  PetscInt :: ghosted_id
+  PetscInt :: ivert_local
+
+  PetscInt :: ivertex
+  PetscInt :: icell
+  PetscInt :: i, ii
+  PetscErrorCode :: ierr
+
+  ! ugrid%cell_type
+  allocate(int_array(ugrid%nlmax))
+  int_array = ugrid%cell_type(1:ugrid%nlmax)
+  call DeallocateArray(ugrid%cell_type)
+  allocate(ugrid%cell_type(ugrid%ngmax))
+  ugrid%cell_type = UNINITIALIZED_INTEGER
+  call PetUtilLoadVec(global_vec,int_array)
+  call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call PetUtilUnloadVec(local_vec,ugrid%cell_type)
+
+  ! ugrid%cell_vertices
+  ! ugrid%vertex_ids_natural
+
+  ! scatter number of vertices per cell
+  allocate(cell_vertices_ghosted_new(0:ugrid%max_nvert_per_cell,ugrid%ngmax))
+  cell_vertices_ghosted_new = UNINITIALIZED_INTEGER
+  call PetUtilLoadVec(global_vec,ugrid%cell_vertices(0,1:ugrid%nlmax))
+  call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                    SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call PetUtilUnloadVec(local_vec,cell_vertices_ghosted_new(0,1:ugrid%ngmax))
+
+  ! scatter natural ids and calculate local ids of reordered vertices
+  allocate(cell_vertices_natural_new_1d(ugrid%max_nvert_per_cell*ugrid%ngmax))
+  cell_vertices_natural_new_1d = UNINITIALIZED_INTEGER
+  num_cells_ghosted_previous = size(ugrid%cell_vertices,2)
+  do ivertex = 1, ugrid%max_nvert_per_cell
+    do icell = 1, ugrid%nlmax
+      int_array(icell) = &
+        ugrid%vertex_ids_natural(ugrid%cell_vertices(ivertex,icell))
+    enddo
+    call PetUtilLoadVec(global_vec,int_array)
+    call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+    do ghosted_id = 1, ugrid%ngmax
+      cell_vertices_natural_new_1d((ghosted_id-1)* &
+                                   ugrid%max_nvert_per_cell+ivertex) = &
+        int(vec_loc_ptr(ghosted_id)+1.d-4)
+    enddo
+    call VecRestoreArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+  enddo
+  deallocate(int_array)
+  num_vert_full = ugrid%ngmax*ugrid%max_nvert_per_cell
+  allocate(map_unsorted_to_sorted(num_vert_full))
+  map_unsorted_to_sorted = [ (i,i=1,num_vert_full) ] - 1
+  call PetscSortIntWithPermutation(num_vert_full, &
+                                   cell_vertices_natural_new_1d, &
+                                   map_unsorted_to_sorted,ierr);CHKERRQ(ierr)
+  map_unsorted_to_sorted = map_unsorted_to_sorted + 1
+  allocate(cell_vertices_natural_new_1d_sorted(num_vert_full))
+  do i = 1, num_vert_full
+    cell_vertices_natural_new_1d_sorted(i) = &
+      cell_vertices_natural_new_1d(map_unsorted_to_sorted(i))
+  enddo
+  deallocate(cell_vertices_natural_new_1d)
+  ! count number of unique vertices
+  do ii = 1, num_vert_full
+    if (cell_vertices_natural_new_1d_sorted(ii) > UNINITIALIZED_INTEGER) then
+      exit
+    endif
+  enddo
+  num_vert_unique = 1
+  do i = ii, num_vert_full-1
+    if (cell_vertices_natural_new_1d_sorted(i) /= &
+        cell_vertices_natural_new_1d_sorted(i+1)) then
+      num_vert_unique = num_vert_unique + 1
+    endif
+  enddo
+  allocate(map_sorted_to_reduced(num_vert_full))
+  map_sorted_to_reduced = UNINITIALIZED_INTEGER
+  allocate(vertex_ids_natural_new(num_vert_unique))
+  vertex_ids_natural_new = UNINITIALIZED_INTEGER
+  ivert_local = 1
+  map_sorted_to_reduced(ii) = ivert_local
+  vertex_ids_natural_new(1) = cell_vertices_natural_new_1d_sorted(ii)
+  do i = ii+1, num_vert_full
+    if (cell_vertices_natural_new_1d_sorted(i-1) /= &
+        cell_vertices_natural_new_1d_sorted(i)) then
+      ivert_local = ivert_local + 1
+      vertex_ids_natural_new(ivert_local) = &
+        cell_vertices_natural_new_1d_sorted(i)
+    endif
+    map_sorted_to_reduced(i) = ivert_local
+  enddo
+  deallocate(cell_vertices_natural_new_1d_sorted)
+  allocate(cell_vertices_ghosted_1d(num_vert_full))
+  cell_vertices_ghosted_1d = UNINITIALIZED_INTEGER
+  do i = 1, num_vert_full
+    cell_vertices_ghosted_1d(map_unsorted_to_sorted(i)) = &
+      map_sorted_to_reduced(i)
+  enddo
+  deallocate(map_unsorted_to_sorted)
+  deallocate(map_sorted_to_reduced)
+  do ghosted_id = 1, ugrid%ngmax
+    do ivertex = 1, ugrid%max_nvert_per_cell
+      cell_vertices_ghosted_new(ivertex,ghosted_id) = &
+        cell_vertices_ghosted_1d((ghosted_id-1)* &
+                                 ugrid%max_nvert_per_cell+ivertex)
+    enddo
+  enddo
+  do icell = 1, num_cells_ghosted_previous
+    do ivertex = 1, ugrid%max_nvert_per_cell
+      if (vertex_ids_natural_new(cell_vertices_ghosted_new(ivertex,icell)) /= &
+          ugrid%vertex_ids_natural(ugrid%cell_vertices(ivertex,icell))) then
+        call PrintErrMsgByRank(option,'Mismatch between old and new natural &
+                         &ids in UGridExpandGhostCells')
+      endif
+    enddo
+  enddo
+  deallocate(cell_vertices_ghosted_1d)
+
+  ! scatter coordinates of vertices
+  ! this approach is awkward, but it avoids having to create new vectors
+  ! and scatter contexts to set the coordinate values
+  allocate(vertices_new(size(vertex_ids_natural_new)))
+  do i = 1, size(vertices_new)
+    vertices_new(i)%id = 0
+    vertices_new(i)%x = UNINITIALIZED_DOUBLE
+    vertices_new(i)%y = UNINITIALIZED_DOUBLE
+    vertices_new(i)%z = UNINITIALIZED_DOUBLE
+  enddo
+  allocate(real_array(ugrid%nlmax))
+  do i = 1, 3
+    do ivertex = 1, ugrid%max_nvert_per_cell
+      do icell = 1, ugrid%nlmax
+        ! ugrid%cell_vertices is ghosted, but the first nlmax values are local
+        ivert_local = ugrid%cell_vertices(ivertex,icell)
+        select case(i)
+          case(1)
+            real_array(icell) = ugrid%vertices(ivert_local)%x
+          case(2)
+            real_array(icell) = ugrid%vertices(ivert_local)%y
+          case(3)
+            real_array(icell) = ugrid%vertices(ivert_local)%z
+        end select
+      enddo
+      call PetUtilLoadVec(global_vec,real_array)
+      call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                          SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+      do ghosted_id = 1, ugrid%ngmax
+        ivert_local = cell_vertices_ghosted_new(ivertex,ghosted_id)
+        select case(i)
+          case(1)
+            vertices_new(ivert_local)%x = vec_loc_ptr(ghosted_id)
+          case(2)
+            vertices_new(ivert_local)%y = vec_loc_ptr(ghosted_id)
+          case(3)
+            vertices_new(ivert_local)%z = vec_loc_ptr(ghosted_id)
+        end select
+      enddo
+      call VecRestoreArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+    enddo
+  enddo
+  deallocate(real_array)
+
+  do ivertex = 1, ugrid%max_nvert_per_cell
+    do icell = 1, ugrid%nlmax
+      i = ugrid%cell_vertices(ivertex,icell)
+      ii = cell_vertices_ghosted_new(ivertex,icell)
+      if (.not.(Equal(ugrid%vertices(i)%x,vertices_new(ii)%x) .and. &
+                Equal(ugrid%vertices(i)%y,vertices_new(ii)%y) .and. &
+                Equal(ugrid%vertices(i)%z,vertices_new(ii)%z))) then
+        call PrintErrMsgByRank(option,'Mismatch between old and new vertex &
+                          &coordinates for local cells UGridExpandGhostCells')
+      endif
+    enddo
+  enddo
+
+  call DeallocateArray(ugrid%vertex_ids_natural)
+  call DeallocateArray(ugrid%cell_vertices)
+  deallocate(ugrid%vertices)
+  nullify(ugrid%vertices)
+  ugrid%vertex_ids_natural => vertex_ids_natural_new
+  ugrid%cell_vertices => cell_vertices_ghosted_new
+  ugrid%vertices => vertices_new
+  nullify(vertex_ids_natural_new)
+  nullify(cell_vertices_ghosted_new)
+  nullify(vertices_new)
+
+  ugrid%num_vertices_local = size(ugrid%vertex_ids_natural)
+
+end subroutine UGridExpandGhostCells
 
 end module Grid_Unstructured_module

@@ -4,17 +4,15 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE SCO2
       OPTIONS
-        ISOTHERMAL_TEMPERATURE 20.d0  
-      END
+        NO_STATE_TRANSITION_OUTPUT
+      /
     END
-
     WELL_MODEL well
       OPTIONS
         FLOW_COUPLING FULLY_IMPLICIT
         TYPE HYDROSTATIC
       END
     END
-
   END
 END
 
@@ -22,14 +20,14 @@ SUBSURFACE
 
 REGRESSION
   CELL_IDS
-    1
+    2
     4
   /
 END
 
 # All ordering begins at the bottom of the hole and goes towards 
 # the top of the hole.
-WELLBORE_MODEL well
+WELLBORE_MODEL well1
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 4
@@ -37,7 +35,7 @@ WELLBORE_MODEL well
       # Must start from SURFACE_ORIGIN and proceed sequentially.
       # Will populate 1 well segment per reservoir cell occupied
       # Must specify if each segment is CASED or UNCASED
-      SURFACE_ORIGIN 5.d0 5.d0 2.d2
+      SURFACE_ORIGIN 15.d0 5.d0 2.d2
       SEGMENT_DXYZ CASED 0.d0 0.d0 -149.d0
       SEGMENT_DXYZ UNCASED 0.d0 0.d0 -51.d0
     /
@@ -54,6 +52,33 @@ WELLBORE_MODEL well
 
 END
 
+WELLBORE_MODEL well2
+
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 4
+    WELL_TRAJECTORY
+      # Must start from SURFACE_ORIGIN and proceed sequentially.
+      # Will populate 1 well segment per reservoir cell occupied
+      # Must specify if each segment is CASED or UNCASED
+      SURFACE_ORIGIN 35.d0 5.d0 2.d2
+      SEGMENT_DXYZ CASED 0.d0 0.d0 -149.d0
+      SEGMENT_DXYZ UNCASED 0.d0 0.d0 -51.d0
+    /
+  /
+
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+# This will create output in snapshot and observation files.
+# Outside of the well region, the values will read -999
 WELL_MODEL_OUTPUT
   WELL_LIQ_PRESSURE
   WELL_GAS_PRESSURE
@@ -67,6 +92,7 @@ NUMERICAL_METHODS flow
     USE_INFINITY_NORM_CONVERGENCE
     NUMERICAL_JACOBIAN
     MINIMUM_NEWTON_ITERATIONS 2
+    CENTRAL_DIFFERENCE_JACOBIAN
   END
 
   LINEAR_SOLVER
@@ -75,7 +101,7 @@ NUMERICAL_METHODS flow
 
   TIMESTEPPER FLOW
     #PRESSURE_CHANGE_GOVERNOR 1.d9
-    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.125
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.75
   END
 
 END
@@ -83,9 +109,9 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED CARTESIAN
-  NXYZ 1 1 4
+  NXYZ 5 1 4
   DXYZ
-    1@10.d0
+    5@10.d0
     1@10.d0
     4@50.d0
   /
@@ -129,52 +155,32 @@ MATERIAL_PROPERTY soil1
   PERMEABILITY
     PERM_ISO 1.d-13
   /
-  # Need fractional length (0.8) and fractional critical
-  # porosity (0.8)
   SOIL_COMPRESSIBILITY_FUNCTION LINEAR
   SOIL_COMPRESSIBILITY 4.5d-10
   SOIL_REFERENCE_PRESSURE 1.d7
 END
 
-MATERIAL_PROPERTY impermeable
-  ID 2
-  CHARACTERISTIC_CURVES default
-  POROSITY 0.d0 #0.12
-  TORTUOSITY 0.d0
-  ROCK_DENSITY 2650.d0
-  THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
-  THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
-  HEAT_CAPACITY 1000 J/kg-C
-  PERMEABILITY
-    PERM_ISO 1.d-40
-  /
-  # Need fractional length (0.8) and fractional critical
-  # porosity (0.8)
-  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
-  SOIL_COMPRESSIBILITY 4.5d-10
-  SOIL_REFERENCE_PRESSURE 1.d7 
-END
-
-
 #=========================== characteristic curves ============================
 
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION VG_STOMP
-    N 1.84162
-    OVEN_DRIED_CAP_HEAD 102108.2d0
-    ALPHA 5.d-1
-    LIQUID_RESIDUAL_SATURATION 0.d0
-    MAX_TRAPPED_GAS_SAT 0.d0
+  SATURATION_FUNCTION BROOKS_COREY
+    MAX_TRAPPED_GAS_SAT 0.2
+    UNSATURATED_EXTENSION
+    ALPHA 0.00020408163
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    MAX_CAPILLARY_PRESSURE 1.d9
   /
-  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
     PHASE LIQUID
-    M 0.457
-    LIQUID_RESIDUAL_SATURATION 0.3
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
   /
-  PERMEABILITY_FUNCTION MODIFIED_COREY_GAS
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
     PHASE GAS
-    LIQUID_RESIDUAL_SATURATION 0.3
-    GAS_RESIDUAL_SATURATION 0.05
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    GAS_RESIDUAL_SATURATION 0.0597
   /
 END
 
@@ -188,6 +194,7 @@ OUTPUT
    LIQUID_SATURATION
    GAS_SATURATION
    PRECIPITATE_SATURATION
+   TRAPPED_GAS_SATURATION
    LIQUID_MASS_FRACTIONS
    LIQUID_MOLE_FRACTIONS
    GAS_MASS_FRACTIONS
@@ -202,11 +209,10 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 8.64000E+06 s
-  INITIAL_TIMESTEP_SIZE 1.d4 s
-  MAXIMUM_TIMESTEP_SIZE 8.64000E+05 s
+  FINAL_TIME 1.d-2 y
+  INITIAL_TIMESTEP_SIZE 1.d-3 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
 END
-
 
 #=========================== regions ==========================================
 REGION all
@@ -216,25 +222,18 @@ REGION all
   /
 END
 
-REGION well
-  COORDINATES
-    0.d0 0.d0 0.d0
-    1.d1 1.d1 200.d0
-  /
-END
-
 REGION top
   FACE TOP
   COORDINATES
     0.d0 0.d0 200.d0
-    10.d0 10.d0 200.d0
+    50.d0 10.d0 200.d0
   /
 END
 REGION bottom
   FACE BOTTOM
   COORDINATES
     0.d0  0.d0  0.d0 
-    10.d0  10.d0  0.d0 
+    50.d0  10.d0  0.d0 
   /
 END
 #=========================== flow conditions ==================================
@@ -244,10 +243,12 @@ FLOW_CONDITION initial
     LIQUID_PRESSURE DIRICHLET
     CO2_MASS_FRACTION DIRICHLET
     SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 1.2d7
-  CO2_MASS_FRACTION 0.d0 
+  CO2_MASS_FRACTION 1.d-3
   SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
 END
 
 FLOW_CONDITION boundary
@@ -255,17 +256,44 @@ FLOW_CONDITION boundary
     LIQUID_PRESSURE DIRICHLET
     CO2_MASS_FRACTION DIRICHLET
     SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 1.2d7
   CO2_MASS_FRACTION 0.d0
   SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
 END
 
-FLOW_CONDITION injection
+FLOW_CONDITION injection_well_1
+  SYNC_TIMESTEP_WITH_UPDATE
   TYPE
+    TEMPERATURE DIRICHLET
     RATE MASS_RATE
   /
-  RATE 0.d0 1.d6 0.d0 kg/y kg/y kg/y
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 5.d7 0.d0 0.d0
+    5.d-3 0.d0 0.d0 0.d0 0.d0
+  /
+END
+
+FLOW_CONDITION injection_well_2
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+  /
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 5.d6 0.d0 0.d0
+    7.d-3 0.d0 0.d0 0.d0 0.d0
+  /
 END
 
 #=========================== condition couplers ===============================
@@ -275,26 +303,25 @@ INITIAL_CONDITION all
   REGION all
 END
 
-WELL_COUPLER well
-  FLOW_CONDITION injection
-  WELL well
-END
-
 BOUNDARY_CONDITION top
   FLOW_CONDITION boundary
   REGION top
+END
+
+WELL_COUPLER well1
+  FLOW_CONDITION injection_well_1
+  WELL well1
+END
+
+WELL_COUPLER well2
+  FLOW_CONDITION injection_well_2
+  WELL well2
 END
 
 #=========================== stratigraphy couplers ============================
 STRATA
   REGION all
   MATERIAL soil1
-END
-
-STRATA
-  MATERIAL soil1
-  REGION well
-  WELL
 END
 
 #=========================== convergence criteria  ============================

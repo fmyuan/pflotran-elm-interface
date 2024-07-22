@@ -118,7 +118,8 @@ module Grid_module
             GridPrintExtents, &
             GridPrintSize, &
             GridSetupCellNeighbors, &
-            GridMapCellsToConnections
+            GridMapCellsToConnections, &
+            GridExpandGhostCells
 
 contains
 
@@ -2445,5 +2446,144 @@ subroutine GridPrintSize(grid,option)
   endif
 
 end subroutine GridPrintSize
+
+! ************************************************************************** !
+
+subroutine GridExpandGhostCells(grid,option)
+  !
+  ! Expands arrays assocated with ghost cells due to a change in ghosting
+  ! as prescribed by scatter_gtol
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  VecScatter :: scatter_gtol ! global (non-ghosted) to local (ghosted
+  Vec :: global_vec
+  Vec :: local_vec
+  IS :: is_local
+  IS :: is_petsc
+  PetscInt :: icell, local_id, ghosted_id
+  PetscInt :: i
+  PetscInt :: num_ghost_cells
+  PetscInt, allocatable :: int_array(:)
+  PetscInt, allocatable :: int_array2(:)
+  PetscInt, pointer :: int_array_ptr(:)
+
+  PetscErrorCode :: ierr
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      grid%nmax = grid%structured_grid%nmax
+      grid%nlmax = grid%structured_grid%nlmax
+      grid%ngmax = grid%structured_grid%ngmax
+      grid%global_offset = grid%structured_grid%global_offset
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
+         POLYHEDRA_UNSTRUCTURED_GRID)
+      grid%nmax = grid%unstructured_grid%nmax
+      grid%nlmax = grid%unstructured_grid%nlmax
+      grid%ngmax = grid%unstructured_grid%ngmax
+      grid%global_offset = grid%unstructured_grid%global_offset
+  end select
+  num_ghost_cells = grid%ngmax - grid%nlmax
+
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DETERMINE,global_vec, &
+                    ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,grid%ngmax,local_vec,ierr);CHKERRQ(ierr)
+  allocate(int_array(grid%ngmax))
+  int_array = [(i,i=1,grid%ngmax)]
+  allocate(int_array2(grid%ngmax))
+  int_array2 = UNINITIALIZED_INTEGER
+  do local_id = 1, grid%nlmax
+    int_array2(local_id) = grid%global_offset+local_id
+  enddo
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+    case default
+      do icell = 1, num_ghost_cells
+        ghosted_id = icell + grid%nlmax
+        int_array2(ghosted_id) = &
+          grid%unstructured_grid%ghost_cell_ids_petsc(icell)
+      enddo
+  end select
+  int_array = int_array - 1
+  int_array2 = int_array2 - 1
+  call ISCreateGeneral(option%mycomm,grid%ngmax,int_array, &
+                       PETSC_COPY_VALUES,is_local,ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,grid%ngmax,int_array2, &
+                       PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+  deallocate(int_array)
+  deallocate(int_array2)
+
+!#define UGRID_DEBUG
+#if UGRID_DEBUG
+  if (option%myrank == 0) print *, 'is_local'
+  call ISView(is_local,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+  if (option%myrank == 0) print *, 'is_petsc'
+  call ISView(is_petsc,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+#endif
+
+  call VecScatterCreate(global_vec,is_petsc,local_vec,is_local, &
+                        scatter_gtol,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_local,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  if (option%myrank == 0) print *, 'scatter_gtol'
+  call VecScatterView(scatter_gtol,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+#endif
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
+      ! calculate natural ids for modified arrays
+      allocate(int_array_ptr(grid%ngmax))
+      do local_id = 1, grid%nlmax
+        int_array_ptr(local_id) = grid%global_offset+local_id
+      enddo
+      do icell = 1, num_ghost_cells
+        ghosted_id = icell + grid%nlmax
+        int_array_ptr(ghosted_id) = &
+          grid%unstructured_grid%ghost_cell_ids_petsc(icell)
+      enddo
+      int_array_ptr = int_array_ptr-1
+      call AOPetscToApplication(grid%unstructured_grid%ao_natural_to_petsc, &
+                                grid%ngmax,int_array_ptr,ierr);CHKERRQ(ierr)
+      int_array_ptr = int_array_ptr+1
+      ! ensure that natural ids of original ghost cells are not altered
+      do i = 1, size(grid%unstructured_grid%cell_ids_natural)
+        if (int_array_ptr(i) /= &
+            grid%unstructured_grid%cell_ids_natural(i)) then
+          option%io_buffer = 'Mismatch in cell id natural numbering due to &
+            &introduction of well cells (GridExpandGhostCells)'
+          call PrintErrMsgByRank(option)
+        endif
+      enddo
+      call DeallocateArray(grid%unstructured_grid%cell_ids_natural)
+      grid%unstructured_grid%cell_ids_natural => int_array_ptr
+      call UGridExpandGhostCells(grid%unstructured_grid,scatter_gtol, &
+                                 global_vec,local_vec,option)
+    case(EXPLICIT_UNSTRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+    case(POLYHEDRA_UNSTRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+  end select
+
+  call VecDestroy(global_vec,ierr)
+  call VecDestroy(local_vec,ierr)
+  call VecScatterDestroy(scatter_gtol,ierr);CHKERRQ(ierr)
+
+end subroutine GridExpandGhostCells
 
 end module Grid_module

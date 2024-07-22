@@ -24,15 +24,11 @@ REGRESSION
   /
 END
 
-# All ordering begins at the bottom of the hole and goes towards 
-# the top of the hole.
-WELLBORE_MODEL
+WELLBORE_MODEL well1
 
   WELL_GRID
     NUMBER_OF_SEGMENTS 4
-    TOP_OF_HOLE    5.d0 5.d0  200.0d0 #10.0d0   # [x,y,z] in meters
-    BOTTOM_OF_HOLE 5.d0 5.d0  0.0d0 #0.0d0   # [x,y,z] in meters
-    DEVIATED_WELL_TRAJECTORY
+    WELL_TRAJECTORY
       # Must start from SURFACE_ORIGIN and proceed sequentially.
       # Will populate 1 well segment per reservoir cell occupied
       # Must specify if each segment is CASED or UNCASED
@@ -49,28 +45,18 @@ WELLBORE_MODEL
     WELL_INDEX_MODEL PEACEMAN_3D
   /
 
-  WELL_BOUNDARY_CONDITIONS
-    BOTTOM_OF_HOLE
-      LIQUID_MASS_RATE 0.d0 kg/s
-      GAS_MASS_RATE 0.d0 kg/s
-    /
-    TOP_OF_HOLE
-      LIQUID_MASS_RATE 0.0d0 kg/y # positive goes into well; negative goes out of well
-      GAS_MASS_RATE 1.d6 kg/y
-    /
-    TEMPERATURE 20.d0
-  /
-
-  # This will create output in snapshot and observation files.
-  # Outside of the well region, the values will read -999
-  WELL_MODEL_OUTPUT
-    WELL_LIQ_PRESSURE
-    WELL_GAS_PRESSURE
-    WELL_LIQ_Q
-    WELL_GAS_Q
-  /
+  USE_WELL_COUPLER
 
 END
+
+# This will create output in snapshot and observation files.
+# Outside of the well region, the values will read -999
+WELL_MODEL_OUTPUT
+  WELL_LIQ_PRESSURE
+  WELL_GAS_PRESSURE
+  WELL_LIQ_Q
+  WELL_GAS_Q
+/
 
 NUMERICAL_METHODS flow
 
@@ -276,6 +262,16 @@ FLOW_CONDITION boundary
   TEMPERATURE 20.d0
 END
 
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+    TEMPERATURE DIRICHLET
+  /
+  TEMPERATURE 20.d0
+  RATE 0.d0 1.d6 0.d0 0.d0 kg/y kg/y kg/y MW
+END
+
+
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION all
@@ -286,6 +282,11 @@ END
 BOUNDARY_CONDITION top
   FLOW_CONDITION boundary
   REGION top
+END
+
+WELL_COUPLER injection
+  FLOW_CONDITION injection
+  WELL well1
 END
 
 #=========================== stratigraphy couplers ============================

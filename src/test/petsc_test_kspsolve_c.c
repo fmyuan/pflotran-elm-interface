@@ -34,9 +34,6 @@ int main(int argc,char* argv[]){
   DMBoundaryType bt = DM_BOUNDARY_NONE;
   DMDAStencilType stype = DMDA_STENCIL_STAR;
   
-
-  PetscErrorCode ierr;
-
   PetscCall(PetscInitialize(&argc,&argv,(char *)0,(char *)0));
   PetscCall(MPI_Comm_size(PETSC_COMM_WORLD, &size));
   PetscCall(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));

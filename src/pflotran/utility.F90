@@ -18,6 +18,11 @@ module Utility_module
     module procedure CrossProduct1
   end interface
 
+  interface TruncateArray
+    module procedure TruncateIntArray1
+    module procedure TruncateRealArray1
+  end interface
+
   interface ReallocateArray
     module procedure ReallocateIntArray1
     module procedure ReallocateIntArray2
@@ -54,6 +59,7 @@ module Utility_module
   interface UtilitySortArray
     module procedure UtilitySortArrayReal
     module procedure UtilitySortArrayInt
+    module procedure UtilitySortArrayPoint3DByDim
   end interface
 
   interface InterfaceApprox
@@ -75,6 +81,7 @@ module Utility_module
             DotProduct, &
             CrossProduct, &
             ReallocateArray, &
+            TruncateArray, &
             UtilityReadArray, &
             UtilitySortArray, &
             DeallocateArray, &
@@ -341,6 +348,72 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
  endif
 
 end subroutine Natural2LocalIndex
+
+! ************************************************************************** !
+
+function TruncateIntArray1(array,new_size)
+  !
+  ! Truncates an array to a smaller size discarding values beyond end
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/24
+  !
+
+  implicit none
+
+  PetscInt, pointer :: array(:)
+  PetscInt :: new_size
+
+  PetscInt, pointer :: TruncateIntArray1(:)
+
+  PetscInt :: current_size
+
+  current_size = size(array)
+  if (new_size > current_size) then
+    stop 'Error in TruncateIntArray1'
+  else if (new_size == current_size) then
+    TruncateIntArray1 => array
+    nullify(array)
+  else
+    allocate(TruncateIntArray1(new_size))
+    TruncateIntArray1(:) = array(1:new_size)
+    call DeallocateArray(array)
+  endif
+
+end function TruncateIntArray1
+
+! ************************************************************************** !
+
+function TruncateRealArray1(array,new_size)
+  !
+  ! Truncates an array to a smaller size discarding values beyond end
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/10/24
+  !
+
+  implicit none
+
+  PetscReal, pointer :: array(:)
+  PetscInt :: new_size
+
+  PetscReal, pointer :: TruncateRealArray1(:)
+
+  PetscInt :: current_size
+
+  current_size = size(array)
+  if (new_size > current_size) then
+    stop 'Error in TruncateIntArray1'
+  else if (new_size == current_size) then
+    TruncateRealArray1 => array
+    nullify(array)
+  else
+    allocate(TruncateRealArray1(new_size))
+    TruncateRealArray1(:) = array(1:new_size)
+    call DeallocateArray(array)
+  endif
+
+end function TruncateRealArray1
 
 ! ************************************************************************** !
 
@@ -2729,6 +2802,58 @@ subroutine UtilitySortArrayReal(array)
   enddo
 
 end subroutine UtilitySortArrayReal
+
+! ************************************************************************** !
+
+subroutine UtilitySortArrayPoint3DByDim(point,dim)
+  !
+  ! Sorts a 3D point from lowest value to highest along a given dimension.
+  !
+  ! Author: Michael Nole
+  ! Date: 07/17/24
+  !
+
+  use Option_module
+  use String_module
+  use Geometry_module
+
+  implicit none
+
+  type(point3d_type) :: point(:)
+  character(len=MAXSTRINGLENGTH) :: dim
+
+  PetscBool :: swapped
+  PetscInt :: i
+  type(point3d_type) :: temp_point
+
+  do
+    swapped = PETSC_FALSE
+    do i = 1, size(point)-1
+      if ((StringCompare(dim,'x') .and. &
+          point(i)%x > point(i+1)%x) .or. &
+          (StringCompare(dim,'y') .and. &
+          point(i)%y > point(i+1)%y) .or. &
+          (StringCompare(dim,'z') .and. &
+          point(i)%z > point(i+1)%z)) then
+        temp_point%id = point(i)%id
+        temp_point%x = point(i)%x
+        temp_point%y = point(i)%y
+        temp_point%z = point(i)%z
+        point(i)%id = point(i+1)%id
+        point(i)%x = point(i+1)%x
+        point(i)%y = point(i+1)%y
+        point(i)%z = point(i+1)%z
+        point(i+1)%id = temp_point%id
+        point(i+1)%x = temp_point%x
+        point(i+1)%y = temp_point%y
+        point(i+1)%z = temp_point%z
+        swapped = PETSC_TRUE
+      endif
+    enddo
+    if (.not.swapped) exit
+  enddo
+
+end subroutine UtilitySortArrayPoint3DByDim
 
 ! ************************************************************************** !
 

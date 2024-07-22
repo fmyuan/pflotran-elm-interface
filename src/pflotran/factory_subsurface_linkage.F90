@@ -70,7 +70,7 @@ end subroutine FactSubLinkSetupPMCs
 subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_waste_form,pm_ufd_decay, &
                                            pm_ufd_biosphere,pm_geop, &
-                                           pm_auxiliary,pm_well, &
+                                           pm_auxiliary,pm_well_list, &
                                            pm_material_transform, &
                                            pm_parameter_list)
   !
@@ -107,7 +107,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
@@ -120,7 +120,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   nullify(pm_ufd_decay)
   nullify(pm_ufd_biosphere)
   nullify(pm_auxiliary)
-  nullify(pm_well)
+  nullify(pm_well_list)
   nullify(pm_material_transform)
 
   cur_pm => simulation%process_model_list
@@ -145,7 +145,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
       class is(pm_auxiliary_type)
         pm_auxiliary => cur_pm
       class is(pm_well_type)
-        pm_well => cur_pm
+        pm_well_list => cur_pm
       class is(pm_material_transform_type)
         pm_material_transform => cur_pm
       class is(pm_parameter_type)
@@ -179,7 +179,7 @@ end subroutine FactSubLinkExtractPMsFromPMList
 subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
+                                       pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list)
   !
@@ -216,7 +216,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
 
@@ -267,22 +267,22 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
                                         'PMC3MaterialTransform',input)
   endif
-  if (associated(pm_well)) then
-    call FactSubLinkAddPMCWell(simulation,pm_well,'PMCWell',input)
+  if (associated(pm_well_list)) then
+    call FactSubLinkAddPMCWell(simulation,pm_well_list,'PMCWell',input)
     if (associated(pm_flow)) then
       select type(pm_flow)
         class is (pm_wippflo_type)
           ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
-          pm_flow%pmwell_ptr => pm_well
+          pm_flow%pmwell_ptr => pm_well_list
         class is (pm_sco2_type)
-          pm_flow%pmwell_ptr => pm_well
+          pm_flow%pmwell_ptr => pm_well_list
       end select
     endif
     if (associated(pm_tran)) then
       select type(pm_tran)
         class is (pm_nwt_type)
           ! Set up PM NWT linkages for quasi-implicit coupling option
-          pm_tran%pmwell_ptr => pm_well
+          pm_tran%pmwell_ptr => pm_well_list
       end select
     endif
   endif
@@ -907,7 +907,7 @@ end subroutine FactSubLinkAddPMCMaterialTrans
 
 ! ************************************************************************** !
 
-subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
+subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   !
   ! Adds a well PMC
   !
@@ -919,6 +919,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   use PMC_Third_Party_class
   use PM_Well_class
   use Realization_Subsurface_class
+  use String_module
   use Option_module
   use Logging_module
   use Input_Aux_module
@@ -926,65 +927,98 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well,pmc_name,input)
   implicit none
 
   class(simulation_subsurface_type) :: simulation
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   character(len=*) :: pmc_name
   type(input_type), pointer :: input
 
+  class(pm_well_type), pointer :: pm_well,pm_well_temp
   class(pmc_third_party_type), pointer :: pmc_well
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: error_string
   class(pmc_base_type), pointer :: pmc_dummy
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
+  PetscBool :: found
 
   realization => simulation%realization
   option => realization%option
 
   nullify(pmc_dummy)
 
-  string = 'WELLBORE_MODEL'
-  call InputFindStringInFile(input,option,string)
-  call InputFindStringErrorMsg(input,option,string)
-  call pm_well%ReadPMBlock(input)
+  ! Link each well PM with its respective wellbore model.
+  pm_well_temp => simulation%temp_well_process_model_list
+  pm_well => pm_well_list
+  do
+    if (.not. associated(pm_well_temp)) exit
+    pm_well_temp%flow_coupling = pm_well%flow_coupling
+    pm_well_temp%well%well_model_type = pm_well%well%well_model_type
+    pm_well%next_well => PMWellCreate()
+    pm_well => pm_well%next_well
+    pm_well%flow_coupling = pm_well_temp%flow_coupling
+    pm_well%well%well_model_type = pm_well_temp%well%well_model_type
+    pm_well_temp => pm_well_temp%next_well
+  enddo
+  deallocate(pm_well_list)
+  nullify(pm_well_list)
+  pm_well_list => simulation%temp_well_process_model_list
+  nullify(pm_well_temp)
+  nullify(pm_well)
+  nullify(simulation%temp_well_process_model_list)
 
-  select case(option%iflowmode)
+  pm_well => pm_well_list
+  do
+    if (.not. associated(pm_well)) exit
 
-    case (WF_MODE, SCO2_MODE)
+    string = 'WELL_MODEL_OUTPUT'
+    call InputFindStringInFile(input,option,string)
+    if (.not. well_output) then
+      call PMWellReadWellOutput(pm_well,input,option,string,error_string,found)
+      well_output = PETSC_TRUE
+    endif
 
-    case default
-      option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
-               &only be used with WIPP_FLOW mode and SCO2 mode.'
+    select case(option%iflowmode)
+
+      case (WF_MODE, SCO2_MODE)
+
+      case default
+        option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
+                &only be used with WIPP_FLOW mode and SCO2 mode.'
+        call PrintErrMsg(option)
+    end select
+
+    if ( (option%itranmode /= NULL_MODE) .and. &
+        (option%itranmode /= NWT_MODE) ) then
+        option%io_buffer = 'The WELLBORE_MODEL process model can only be &
+                          &used with NWT mode at the moment.'
       call PrintErrMsg(option)
-  end select
+    endif
 
-  if ( (option%itranmode /= NULL_MODE) .and. &
-       (option%itranmode /= NWT_MODE) ) then
-       option%io_buffer = 'The WELLBORE_MODEL process model can only be &
-                        &used with NWT mode at the moment.'
-     call PrintErrMsg(option)
-  endif
+    pmc_well => PMCThirdPartyCreate()
+    call pmc_well%SetName(pmc_name)
+    call pmc_well%SetOption(option)
+    call pmc_well%SetWaypointList(simulation%waypoint_list_subsurface)
+    pmc_well%pm_list => pm_well
+    pmc_well%pm_ptr%pm => pm_well
+    pmc_well%realization => realization
 
-  pmc_well => PMCThirdPartyCreate()
-  call pmc_well%SetName(pmc_name)
-  call pmc_well%SetOption(option)
-  call pmc_well%SetWaypointList(simulation%waypoint_list_subsurface)
-  pmc_well%pm_list => pm_well
-  pmc_well%pm_ptr%pm => pm_well
-  pmc_well%realization => realization
+    ! set up logging stage
+    string = 'WELLBORE_MODEL'
+    call LoggingCreateStage(string,pmc_well%stage)
 
-  ! set up logging stage
-  string = 'WELLBORE_MODEL'
-  call LoggingCreateStage(string,pmc_well%stage)
+    if ( (option%itranmode /= NULL_MODE) .and. &
+         (option%itranmode == NWT_MODE) ) then
+      call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
+          simulation%tran_process_model_coupler%CastToBase(), &
+          pmc_dummy,PM_APPEND)
+    else
+      call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
+          simulation%flow_process_model_coupler%CastToBase(), &
+          pmc_dummy,PM_APPEND)
+    endif
 
-  if ( (option%itranmode /= NULL_MODE) .and. &
-       (option%itranmode == NWT_MODE) ) then
-    call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
-         simulation%tran_process_model_coupler%CastToBase(), &
-         pmc_dummy,PM_APPEND)
-  else
-    call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
-         simulation%flow_process_model_coupler%CastToBase(), &
-         pmc_dummy,PM_APPEND)
-  endif
+    pm_well => pm_well%next_well
+
+  enddo
 
 end subroutine FactSubLinkAddPMCWell
 

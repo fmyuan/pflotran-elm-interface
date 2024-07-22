@@ -147,6 +147,7 @@ subroutine WellSegmentInit(well_segment)
   well_segment%radius_to_horizontal_angle(:) = UNINITIALIZED_DOUBLE
   well_segment%radius_to_vertical = UNINITIALIZED_DOUBLE
   well_segment%cased = PETSC_FALSE
+  nullify(well_segment%next)
 
 end subroutine WellSegmentInit
 
