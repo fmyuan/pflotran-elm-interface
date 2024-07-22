@@ -687,8 +687,8 @@ subroutine PMWellVarCreate(well)
   well%bh_sg = UNINITIALIZED_DOUBLE
   well%th_sg = UNINITIALIZED_DOUBLE
   !MAN: this might break regression tests
-  well%bh_ql = UNINITIALIZED_DOUBLE !0.d0
-  well%bh_qg = UNINITIALIZED_DOUBLE !0.d0
+  well%bh_ql = UNINITIALIZED_DOUBLE
+  well%bh_qg = UNINITIALIZED_DOUBLE
   well%th_ql = 0.d0
   well%th_qg = 0.d0
   well%tran_condition_name = ''
