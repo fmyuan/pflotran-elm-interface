@@ -1006,7 +1006,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
     call LoggingCreateStage(string,pmc_well%stage)
 
     if ( (option%itranmode /= NULL_MODE) .and. &
-        (option%itranmode == NWT_MODE) ) then
+         (option%itranmode == NWT_MODE) ) then
       call PMCBaseSetChildPeerPtr(pmc_well%CastToBase(),PM_CHILD, &
           simulation%tran_process_model_coupler%CastToBase(), &
           pmc_dummy,PM_APPEND)

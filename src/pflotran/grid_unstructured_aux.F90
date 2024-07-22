@@ -2353,18 +2353,12 @@ subroutine UGridAddWellCells(ugrid,well_cells,option)
 
   PetscInt, pointer :: int_array(:)
   PetscInt, pointer :: int_array2(:)
-!  PetscInt, allocatable :: permutation(:)
-!  PetscInt, allocatable :: map_old_to_new(:)
-!  PetscInt, allocatable :: map_full_to_compressed(:)
-!  PetscInt, allocatable :: map_old_to_new_compressed(:)
-!  PetscInt, allocatable :: ghost_cells_optimized(:)
   PetscInt :: i, ii
   PetscInt :: num_well_cells
   PetscInt :: num_non_local_well_cells
   PetscInt :: num_local_well_cells
   PetscInt :: petsc_id
 
-!  PetscInt, allocatable :: geh_ghost_cell_ids(:)
   PetscInt, pointer :: new_ghost_cells(:)
 
   PetscErrorCode :: ierr
