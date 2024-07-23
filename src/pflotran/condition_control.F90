@@ -1006,6 +1006,10 @@ subroutine CondControlAssignFlowInitCond(realization)
               end select
               xx_p(ibegin+HYDRATE_SALT_DOF) = &
                     hydrate%salt_mass%dataset%rarray(1)
+              if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+                xx_p(ibegin + HYDRATE_WELL_DOF) = &
+                    hydrate%liquid_pressure%dataset%rarray(1)
+              endif
               patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase
             enddo
@@ -1023,10 +1027,24 @@ subroutine CondControlAssignFlowInitCond(realization)
               offset = (local_id-1)*option%nflowdof
               istate = initial_condition%flow_aux_int_var(1,iconn)
               do idof = 1, option%nflowdof
-                xx_p(offset+idof) = &
-                  initial_condition%flow_aux_real_var( &
-                    initial_condition%flow_aux_mapping( &
+                if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+                  if (idof /= option%nflowdof) then
+                    xx_p(offset+idof) = &
+                      initial_condition%flow_aux_real_var( &
+                      initial_condition%flow_aux_mapping( &
                       hyd_dof_to_primary_variable(idof,istate)),iconn)
+                  else
+                    xx_p(offset+idof) = &
+                      initial_condition%flow_aux_real_var( &
+                      initial_condition%flow_aux_mapping( &
+                      hyd_dof_to_primary_variable(ONE_INTEGER,istate)),iconn)
+                  endif
+                else
+                  xx_p(offset+idof) = &
+                    initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                    hyd_dof_to_primary_variable(idof,istate)),iconn)
+                endif
               enddo
               patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo

@@ -175,11 +175,13 @@ module Condition_module
             FlowSubConditionCreate, &
             FlowGeneralConditionCreate, &
             FlowSCO2ConditionCreate, &
+            FlowHydrateConditionCreate, &
             FlowConditionGeneralRead, &
             FlowConditionHydrateRead, &
             FlowConditionSCO2Read, &
             FlowGeneralSubConditionPtr, &
             FlowSCO2SubConditionPtr, &
+            FlowHydrateSubConditionPtr, &
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &
@@ -667,6 +669,9 @@ function FlowHydrateSubConditionPtr(input,sub_condition_name,hydrate, &
     case('RATE')
       if (associated(hydrate%rate)) then
         sub_condition_ptr => hydrate%rate
+      elseif (option%coupled_well) then
+        sub_condition_ptr => FlowSubConditionCreate(option%nflowdof-1)
+        hydrate%rate => sub_condition_ptr
       else
         sub_condition_ptr => FlowSubConditionCreate(option%nflowdof)
         hydrate%rate => sub_condition_ptr
