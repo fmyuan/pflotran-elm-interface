@@ -1749,7 +1749,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 res_scaled = dabs(update) / &
                              (dabs(sco2_auxvar%well%bh_p) + epsilon)
               endif
-              
+
               ! res_scaled = min(dabs(update) / &
               !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
               !              dabs(residual/(accumulation + epsilon)))
