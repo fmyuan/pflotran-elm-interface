@@ -1038,12 +1038,18 @@ subroutine PMUFDDecaySetup(this)
        call PrintErrMsg(option)
     endif
     do icount = 1, size(element%Kd_material_name)
-       do jcount = 1, num_continuum
-      material_property => &
-        MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
-                                    material_property_array)
-      this%element_Kd(element%ielement,material_property%internal_id,jcount) = &
-           element%Kd(icount,jcount)
+      do jcount = 1, num_continuum
+        material_property => &
+          MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
+                                      material_property_array)
+        if (.not.associated(material_property)) then
+          option%io_buffer = 'Material property "' &
+                             // trim(element%Kd_material_name(icount)) // &
+                             '" in UFD_DECAY block not found in material list'
+          call PrintErrMsg(option)
+        endif
+        this%element_Kd(element%ielement,material_property%internal_id,jcount) = &
+          element%Kd(icount,jcount)
       enddo
     enddo
 
