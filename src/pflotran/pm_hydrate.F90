@@ -2154,8 +2154,9 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             if (dabs(update) > 0.d0) then
               update = update - hyd_auxvar%well%pressure_bump
             endif
-            res_scaled = dabs(update) / &
-                         (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            ! res_scaled = dabs(update) / &
+            !              (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            res_scaled = dabs(residual/(accumulation + epsilon))
             if (dabs(res_scaled) > &
                 this%residual_scaled_inf_tol(ONE_INTEGER)) then
               converged_well = PETSC_FALSE

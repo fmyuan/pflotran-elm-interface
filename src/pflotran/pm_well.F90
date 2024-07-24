@@ -5962,7 +5962,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
   !
 
   use Option_module
-  use SCO2_Aux_module, only : SCO2_WELL_DOF
+  use SCO2_Aux_module, only : SCO2_WELL_DOF, SCO2_TEMPERATURE_DOF, sco2_thermal
   use Hydrate_Aux_module, only : HYDRATE_WELL_DOF, HYDRATE_ENERGY_DOF, &
                                  hydrate_fmw_comp
 
@@ -6051,7 +6051,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
         ! Calculate Jacobian entries wrt reservoir perturbation:
         ! BHP residual and reservoir source/sink residuals.
 
-        ! Unperturbed residual
+        ! Unperturbed residuals
         well => this%well
         do k = 1,this%well_grid%nsegments
           do irow = 1, option%nflowspec
@@ -6071,6 +6071,14 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             endif
             residual(k,option%nflowdof) = Q - sum_q
           endif
+          ! Energy residual
+          if (sco2_thermal) then
+            irow = SCO2_TEMPERATURE_DOF
+            residual(k,irow) = well%liq%q(k)* &
+                               well%liq%H(k) + &
+                               well%gas%q(k)* &
+                               well%gas%H(k)
+          endif
         enddo
 
         ! Perturbations
@@ -6082,7 +6090,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             pert = this%realization%patch%aux%SCO2% &
                           auxvars(idof,ghosted_id)%pert
             ! Compute dRwell / dXres: only in the cell that owns the
-            ! well bottom
+            ! well bottom.
             if (this%well_grid%h_rank_id(1) == option%myrank) then
               res_pert = 0.d0
               if (dabs(well_pert%th_qg) > 0.d0) then
@@ -6103,7 +6111,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
 
             endif
             if (this%well_grid%h_rank_id(k) == option%myrank) then
-              ! Compute dRres / dXres at a given P_BHP
+              ! Compute dRres / dXres at a given BHP
               do irow = 1,option%nflowspec
                 res_pert = well_pert%liq%q(k)* &
                            well_pert%liq%xmass(k,irow) + &
@@ -6111,6 +6119,14 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
                            well_pert%gas%xmass(k,irow)
                 J_block(irow,idof) = (res_pert - residual(k,irow))/pert
               enddo
+              if (sco2_thermal) then
+                irow = SCO2_TEMPERATURE_DOF
+                res_pert = well_pert%liq%q(k)* &
+                           well_pert%liq%H(k) + &
+                           well_pert%gas%q(k)* &
+                           well_pert%gas%H(k)
+                J_block(irow,idof) = (res_pert - residual(k,irow))/pert
+              endif
             endif
           enddo
           if (any(dabs(J_block) > 0.d0)) then
@@ -6171,6 +6187,25 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
                                       J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
           enddo
+          if (sco2_thermal) then
+            ! Energy contribution
+            j = SCO2_TEMPERATURE_DOF - 1
+            res = this%well%liq%q(k)*this%well%liq%H(k) + &
+                  this%well%gas%q(k)*this%well%gas%H(k)
+            res_pert = well_pert%liq%q(k)* &
+                        well_pert%liq%H(k) + &
+                        well_pert%gas%q(k)* &
+                        well_pert%gas%H(k)
+            ! Just change 1 column
+            local_row_index = (ghosted_id-1)*option%nflowdof + j
+            local_col_index = this%well_grid%h_ghosted_id(1)* &
+                              option%nflowdof-1
+            J_well = (res_pert - res)/pert
+            if (dabs(J_well) > 0.d0) then
+              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                      J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
+          endif
 
           if (any(dabs(J_block) > 0.d0)) then
             call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
@@ -6453,6 +6488,17 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
                                     J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         enddo
+        if (option%nflowdof > 4) then
+          j = 3
+          local_row_index = (ghosted_id-1)*option%nflowdof + j
+          local_col_index = this%well_grid%h_ghosted_id(1)* &
+                              option%nflowdof-1
+          J_well = UNINITIALIZED_DOUBLE
+            if (dabs(J_well) > 0.d0) then
+              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+                                      J_well,ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
+        endif
 
         if (any(dabs(J_block) > 0.d0)) then
           call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
@@ -10559,6 +10605,7 @@ subroutine PMWellCopyWell(well,well_copy,transport)
   well_copy%th_qg = well%th_qg
   well_copy%liq%visc(:) = well%liq%visc(:)
   well_copy%gas%visc(:) = well%gas%visc(:)
+  well_copy%temp(:) = well%temp(:)
   call PMWellCopyReservoir(well%reservoir, well_copy%reservoir,transport)
 
 

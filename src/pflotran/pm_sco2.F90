@@ -1738,8 +1738,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               if (dabs(update) > 0.d0) then
                 update = update - sco2_auxvar%well%pressure_bump
               endif
-              res_scaled = dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              res_scaled = dabs(residual/(accumulation + epsilon))
+              ! res_scaled = dabs(update) / &
+              !              (dabs(sco2_auxvar%well%bh_p) + epsilon)
               ! res_scaled = min(dabs(update) / &
               !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
               !              dabs(residual/(accumulation + epsilon)))
@@ -1751,8 +1752,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             if (dabs(update) > 0.d0) then
               update = update - sco2_auxvar%well%pressure_bump
             endif
-            res_scaled = dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            res_scaled = dabs(residual/(accumulation + epsilon))
+            ! res_scaled = dabs(update) / &
+            !                (dabs(sco2_auxvar%well%bh_p) + epsilon)
             ! res_scaled = min(dabs(update) / &
             !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
             !                dabs(residual/(accumulation + epsilon)))
@@ -1946,6 +1948,10 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
           if (idof /= FIVE_INTEGER) then
             if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+              converged_scaled = PETSC_FALSE
+            endif
+          else
+            if (res_scaled > this%residual_scaled_inf_tol(ONE_INTEGER)) then
               converged_scaled = PETSC_FALSE
             endif
           endif

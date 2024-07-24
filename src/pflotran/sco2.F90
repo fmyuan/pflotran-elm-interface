@@ -1377,6 +1377,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  ! This is for the convergence check.
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well

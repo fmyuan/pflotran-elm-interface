@@ -1331,6 +1331,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  ! This is for the convergence check.
   if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well
