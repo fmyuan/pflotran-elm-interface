@@ -1043,7 +1043,7 @@ subroutine PMUFDDecaySetup(this)
           MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
                                       material_property_array)
         if (.not.associated(material_property)) then
-          option%io_buffer = 'Material property "' & 
+          option%io_buffer = 'Material property "' &
                              // trim(element%Kd_material_name(icount)) // &
                              '" in UFD_DECAY block not found in material list'
           call PrintErrMsg(option)
