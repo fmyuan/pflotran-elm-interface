@@ -750,6 +750,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   Pc_entry = 0.d0
   select type(sf => characteristic_curves%saturation_function)
    class is (sat_func_VG_STOMP_type)
+   class is (sat_func_Exp_Freezing_type)
    class default
      Pc_entry = (1.d0 / characteristic_curves% &
      saturation_function%GetAlpha_())
@@ -2293,6 +2294,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   Pc_entry = 0.d0
   select type(sf => characteristic_curves%saturation_function)
    class is (sat_func_VG_STOMP_type)
+   class is (sat_func_Exp_Freezing_type)
    class default
      Pc_entry = (1.d0 / characteristic_curves% &
      saturation_function%GetAlpha_())
