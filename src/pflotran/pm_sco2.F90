@@ -12,6 +12,7 @@ module PM_SCO2_class
   PetscBool :: sco2_use_governors = PETSC_FALSE
   PetscBool :: sco2_check_updates = PETSC_FALSE
   PetscBool :: sco2_stomp_convergence = PETSC_TRUE
+  PetscBool :: sco2_well_residual_convergence = PETSC_FALSE
 
   PetscInt, parameter :: ABS_UPDATE_INDEX = 1
   PetscInt, parameter :: REL_UPDATE_INDEX = 2
@@ -395,6 +396,8 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
       sco2_check_updates = PETSC_TRUE
     case('USE_FULL_CONVERGENCE_CRITERIA')
       sco2_stomp_convergence = PETSC_FALSE
+    case('CONVERGE_ON_WELL_RESIDUAL')
+      sco2_well_residual_convergence = PETSC_TRUE
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -1738,9 +1741,15 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               if (dabs(update) > 0.d0) then
                 update = update - sco2_auxvar%well%pressure_bump
               endif
-              res_scaled = dabs(residual/(accumulation + epsilon))
-              ! res_scaled = dabs(update) / &
-              !              (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              if (sco2_well_residual_convergence) then
+                !Converge on well residual
+                res_scaled = dabs(residual/(accumulation + epsilon))
+              else
+                !Converge on well BHP update
+                res_scaled = dabs(update) / &
+                             (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              endif
+              
               ! res_scaled = min(dabs(update) / &
               !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
               !              dabs(residual/(accumulation + epsilon)))
@@ -1750,11 +1759,17 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             ! There is a fully implicit well, in DOF 4
             ! Just check update
             if (dabs(update) > 0.d0) then
+              !Converge on well residual
               update = update - sco2_auxvar%well%pressure_bump
             endif
-            res_scaled = dabs(residual/(accumulation + epsilon))
-            ! res_scaled = dabs(update) / &
-            !                (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            if (sco2_well_residual_convergence) then
+              !Converge on well BHP update
+              res_scaled = dabs(residual/(accumulation + epsilon))
+            else
+              res_scaled = dabs(update) / &
+                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            endif
+
             ! res_scaled = min(dabs(update) / &
             !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
             !                dabs(residual/(accumulation + epsilon)))
