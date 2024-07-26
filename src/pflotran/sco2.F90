@@ -1042,7 +1042,8 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
       if (.not. associated(cur_well)) exit
       if (associated(cur_well%flow_condition))then
         well_flow_condition => cur_well%flow_condition
-        if (associated(well_flow_condition%sco2%temperature)) then
+        if (associated(well_flow_condition%sco2%temperature) .and. &
+            associated(cur_well%well%temp)) then
           cur_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
                               rarray(1)
         endif

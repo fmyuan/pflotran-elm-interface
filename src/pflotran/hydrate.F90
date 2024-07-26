@@ -1043,7 +1043,8 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
       if (associated(cur_well%flow_condition) .and. &
           Initialized(cur_well%well%bh_p))then
         well_flow_condition => cur_well%flow_condition
-        if (associated(well_flow_condition%hydrate%temperature)) then
+        if (associated(well_flow_condition%hydrate%temperature) .and. &
+            associated(cur_well%well%temp)) then
           cur_well%well%temp = well_flow_condition%hydrate%temperature% &
                                dataset%rarray(1)
         endif
