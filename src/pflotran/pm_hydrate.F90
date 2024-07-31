@@ -5,7 +5,7 @@ module PM_Hydrate_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use Hydrate_Aux_module
-
+  use PM_Well_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,6 +30,7 @@ module PM_Hydrate_class
     PetscReal :: abs_update_inf_tol(4,15)
     PetscReal :: rel_update_inf_tol(4,15)
     PetscReal :: damping_factor
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMHydrateReadSimOptionsBlock
@@ -241,13 +242,15 @@ function PMHydrateCreate()
   allocate(this%hydrate_parameters)
   nullify(this%hydrate_parameters%methanogenesis)
 
+  nullify(this%pmwell_ptr)
+
   PMHydrateCreate => this
 
 end function PMHydrateCreate
 
 ! ************************************************************************** !
 
-subroutine PMHydrateSetFlowMode(option)
+subroutine PMHydrateSetFlowMode(pm_well,option)
 !
 ! Sets the flow mode for equilibrium hydrate formation and dissociation
 !
@@ -259,6 +262,7 @@ subroutine PMHydrateSetFlowMode(option)
 
   implicit none
 
+  class(pm_well_type), pointer :: pm_well
   type(option_type) :: option
 
   option%iflowmode = H_MODE
@@ -287,6 +291,24 @@ subroutine PMHydrateSetFlowMode(option)
   option%nflowdof = 4
   option%nflowspec = 3
   option%use_isothermal = PETSC_FALSE
+
+  if (associated(pm_well)) then
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+        option%io_buffer = 'Currently, HYDRATE mode can only be &
+                  &used with the HYDROSTATIC well model.'
+        call PrintErrMsg(option)
+      endif
+      hydrate_well_coupling = HYDRATE_FULLY_IMPLICIT_WELL
+      option%nflowdof = option%nflowdof + 1
+      option%coupled_well = PETSC_TRUE
+      HYDRATE_WELL_DOF = option%nflowdof
+    else
+      option%io_buffer = 'Currently, only FULLY_IMPLICIT &
+                  &wellbore coupling is implemented for Hydrate Mode.'
+      call PrintErrMsg(option)
+    endif
+  endif
 
 end subroutine PMHydrateSetFlowMode
 
@@ -919,6 +941,7 @@ recursive subroutine PMHydrateInitializeRun(this)
 
   class(pm_hydrate_type) :: this
 
+  class(pm_well_type), pointer :: pm_well
   PetscInt :: i
   PetscErrorCode :: ierr
 
@@ -933,6 +956,34 @@ recursive subroutine PMHydrateInitializeRun(this)
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
   enddo
+
+  ! setup coupling in jacobian matrix for the well model
+  if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
+        if (this%solver%M /= this%solver%Mpre) then
+          call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        endif
+      endif
+      pm_well => pm_well%next_well
+    enddo
+    call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr); &
+                         CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+  endif
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
@@ -959,6 +1010,8 @@ subroutine PMHydrateInitializeTimestep(this)
 
   class(pm_hydrate_type) :: this
 
+  class (pm_well_type), pointer :: pm_well
+
   call PMSubsurfaceFlowInitializeTimestepA(this)
 !geh:remove   everywhere
   call MaterialAuxVarCommunicate(this%comm1, &
@@ -967,6 +1020,20 @@ subroutine PMHydrateInitializeTimestep(this)
                                  ZERO_INTEGER)
 
   call HydrateInitializeTimestep(this%realization)
+  if (associated(this%pmwell_ptr)) then
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                     UNINITIALIZED_INTEGER,this%option%ierror)
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+      endif
+      call PMWellUpdateReservoirSrcSinkFlow(pm_well)
+      pm_well => pm_well%next_well
+    enddo
+    if (initialize_well_flow) initialize_well_flow = PETSC_FALSE
+  endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMHydrateInitializeTimestep
@@ -1142,7 +1209,7 @@ subroutine PMHydrateResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  call HydrateResidual(snes,xx,r,this%realization,ierr)
+  call HydrateResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMHydrateResidual
 
@@ -1164,7 +1231,7 @@ subroutine PMHydrateJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call HydrateJacobian(snes,xx,A,B,this%realization,ierr)
+  call HydrateJacobian(snes,xx,A,B,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMHydrateJacobian
 
@@ -1204,11 +1271,12 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(hydrate_auxvar_type) :: hyd_auxvar
   class(characteristic_curves_type), pointer :: characteristic_curves
+  class(pm_well_type), pointer :: cur_well
   PetscInt :: local_id, ghosted_id, lid, gid, hid, iid, apid, sid
   PetscInt :: offset
   PetscInt :: liq_pressure_index, gas_pressure_index, air_pressure_index, &
               air_frac_index, temp_index, liq_sat_index, gas_sat_index, &
-              hyd_sat_index, ice_sat_index, salt_index
+              hyd_sat_index, ice_sat_index, salt_index, well_index
   PetscReal :: s_extra
   PetscReal :: Pc_entry, dP, Psat
   PetscReal :: Tf_ice, xsl
@@ -1263,6 +1331,9 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
       temp_index = ZERO_INTEGER
       salt_index = offset + FOUR_INTEGER
       gas_pressure_index = ZERO_INTEGER
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        well_index = offset + FIVE_INTEGER
+      endif
 
       ! Compute surface tension
       ! Compute entry pressure
@@ -1733,6 +1804,44 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
       !  dX_p2(salt_index) = 0.d0
       !endif
 
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
+                                dX_p(well_index))
+        cur_well => this%pmwell_ptr
+        do
+          if (.not. associated(cur_well)) exit
+          if (cur_well%well_grid%h_rank_id(ONE_INTEGER) == &
+              option%myrank) then
+            if (ghosted_id == cur_well%well_grid% &
+                h_ghosted_id(ONE_INTEGER)) then
+              ! if (cur_well%well%th_ql > 0.d0 .or. &
+              !     cur_well%well%th_qg > 0.d0) then
+              !   if (cur_well%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
+              !       hyd_auxvar%pres(option%gas_phase) + &
+              !       dX_p(liq_pressure_index)) then
+              !     dX_p(well_index) = (hyd_auxvar%pres(option%gas_phase) + &
+              !                        dX_p(liq_pressure_index)) - &
+              !                        (cur_well%well%pg(ONE_INTEGER) +  &
+              !                        dX_p(well_index))
+              !     dX_p(well_index) = dX_p(well_index) * 1.1d0
+              !   endif
+              ! endif
+              ! MAN: this is a hack to get the well to initialize properly
+              if (X_p(well_index) == hyd_auxvar%pres(option%gas_phase)) then
+                dX_p(well_index) = dX_p(well_index) + (hyd_auxvar%well%bh_p - &
+                                   hyd_auxvar%pres(option%gas_phase))
+              elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                dX_p(well_index) = dX_p(well_index) + &
+                                   (cur_well%well%bh_p - X_p(well_index))
+              endif
+              ! dX_p(well_index) = dX_p(well_index) + hyd_auxvar%well%pressure_bump
+              ! hyd_auxvar%well%pressure_bump = 0.d0
+            endif
+          endif
+          cur_well => cur_well%next_well
+        enddo
+        dX_p2(well_index) = dX_p(well_index)
+      endif
     enddo
   endif
 
@@ -1944,7 +2053,8 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
-  PetscBool :: flags(241)
+  PetscBool :: flags(242)
+  PetscBool :: converged_well
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscBool :: rho_flag
@@ -2017,6 +2127,8 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     hydrate_newtontrdc_prev_iter_num = it
   endif
 
+  converged_well = PETSC_TRUE
+
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
@@ -2038,47 +2150,143 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         istate = global_auxvars(ghosted_id)%istate
         do idof = 1, option%nflowdof
           ival = offset+idof
-          converged_absolute = PETSC_TRUE
-          converged_scaled = PETSC_TRUE
-          ! infinity norms on residual
-          R = dabs(r_p(ival))
-          A = dabs(accum2_p(ival))
-
-          if (A > 1.d0) then
-            R_A = R/A
+          if (idof == FIVE_INTEGER) then
+            ! Well DOF
+            residual = r_p(ival)
+            accumulation = accum2_p(ival)
+            update = dX_p(ival)
+            if (dabs(update) > 0.d0) then
+              update = update - hyd_auxvar%well%pressure_bump
+            endif
+            ! res_scaled = dabs(update) / &
+            !              (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            res_scaled = dabs(residual/(accumulation + epsilon))
+            if (dabs(res_scaled) > &
+                this%residual_scaled_inf_tol(ONE_INTEGER)) then
+              converged_well = PETSC_FALSE
+            endif
           else
-            R_A = R
-          endif
-
-          if (R > this%residual_abs_inf_tol(idof)) then
-            converged_absolute = PETSC_FALSE
-          endif
-
-          if (hyd_auxvar%sat(hid) > 9.9d-1) then
-            if (R < this%residual_abs_inf_tol(idof) * 1.d2) then
+            if (option%nflowdof == FIVE_INTEGER .and. &
+                idof > ONE_INTEGER .and. idof < FOUR_INTEGER .and. &
+               (istate == L_STATE .or. istate == GA_STATE)) then
               converged_absolute = PETSC_TRUE
-            endif
-          endif
+              converged_scaled = PETSC_TRUE
+              ! Convergence modification for fully implicit wells
+              select case (istate)
+                case (L_STATE)
+                  if (idof == TWO_INTEGER) then
+                    !---  Air mass equation, ignore residual for small mass
+                    call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+                    xsl = min(hyd_auxvar%m_salt(1),xsl)
+                    call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl, &
+                                                        Psat)
+                    Pv = hyd_auxvar%pres(vpid)
+                    Prvap = Psat
+                    x_salt_dissolved = xsl
+                    call HydrateEquilibrate(hyd_auxvar%temp, &
+                                            hyd_auxvar%pres(lid), &
+                                            istate, 0.d0, &
+                                            Pa, Pv, Psat, Prvap, &
+                                            xag, xwg, xal, xsl, xwl, &
+                                            xmolag, xmolwg, xmolal, xmolsl, &
+                                            xmolwl, option)
+                    x_salt_dissolved = x_salt_dissolved + &
+                                       (xsl - x_salt_dissolved) * &
+                                       (hyd_auxvar%xmass(acid,lid) / xal)
+                    if (hyd_auxvar%xmass(acid,lid) > (1.d-6 * xal)) then
+                      Hc = HydrateHenryCO2(hyd_auxvar%temp,x_salt_dissolved)
+                      res_scaled = min(dabs(update) / &
+                                   max(hyd_auxvar%pres(gid)/Hc, &
+                                   HYDRATE_REFERENCE_PRESSURE/Hc), &
+                                   dabs(residual / (accumulation + epsilon)))
+                      ! find max value regardless of convergence
+                      if (converged_scaled_residual_real(idof,istate) < &
+                              res_scaled) then
+                        converged_scaled_residual_real(idof,istate) = &
+                          res_scaled
+                        converged_scaled_residual_cell(idof,istate) = &
+                          natural_id
+                      endif
+                    endif
+                  endif
+                case (GA_STATE)
+                  if (idof == TWO_INTEGER) then
+                    ! Air equation
+                    if (hyd_auxvar%sat(gid) > 1.d-3) then
+                      res_scaled = min(dabs(update)/ &
+                                   dabs(hyd_auxvar%sat(gid)), &
+                                   dabs(residual/(accumulation + epsilon)))
+                      ! find max value regardless of convergence
+                      if (converged_scaled_residual_real(idof,istate) < &
+                          res_scaled) then
+                        converged_scaled_residual_real(idof,istate) = &
+                          res_scaled
+                        converged_scaled_residual_cell(idof,istate) = &
+                          natural_id
+                      endif
+                    endif
+                  endif
+              end select
+              if (idof == THREE_INTEGER) then
+                !--- Energy Equation ---!
+                res_scaled = 1.d-1 * min(dabs(update) / &
+                               (hyd_auxvar%temp + 237.15d0), &
+                               dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
 
-          ! find max value regardless of convergence
-          if (converged_abs_residual_real(idof,istate) < R) then
-            converged_abs_residual_real(idof,istate) = R
-            converged_abs_residual_cell(idof,istate) = natural_id
-          endif
-          if (A > A_zero) then
-            if (R_A > this%residual_scaled_inf_tol(idof)) then
-              converged_scaled = PETSC_FALSE
+              if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+                converged_scaled = PETSC_FALSE
+              endif
+            else
+              converged_absolute = PETSC_TRUE
+              converged_scaled = PETSC_TRUE
+              ! infinity norms on residual
+              R = dabs(r_p(ival))
+              A = dabs(accum2_p(ival))
+
+              if (A > 1.d0) then
+                R_A = R/A
+              else
+                R_A = R
+              endif
+
+              if (R > this%residual_abs_inf_tol(idof)) then
+                converged_absolute = PETSC_FALSE
+              endif
+
+              if (hyd_auxvar%sat(hid) > 9.9d-1) then
+                if (R < this%residual_abs_inf_tol(idof) * 1.d2) then
+                  converged_absolute = PETSC_TRUE
+                endif
+              endif
+
+              ! find max value regardless of convergence
+              if (converged_abs_residual_real(idof,istate) < R) then
+                converged_abs_residual_real(idof,istate) = R
+                converged_abs_residual_cell(idof,istate) = natural_id
+              endif
+              if (A > A_zero) then
+                if (R_A > this%residual_scaled_inf_tol(idof)) then
+                  converged_scaled = PETSC_FALSE
+                endif
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < R_A) then
+                  converged_scaled_residual_real(idof,istate) = R_A
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+               endif
+              endif
+              ! only enter this condition if both are not converged
+              if (.not.(converged_absolute .or. converged_scaled)) then
+                converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+                converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+              endif
             endif
-            ! find max value regardless of convergence
-            if (converged_scaled_residual_real(idof,istate) < R_A) then
-              converged_scaled_residual_real(idof,istate) = R_A
-              converged_scaled_residual_cell(idof,istate) = natural_id
-            endif
-          endif
-          ! only enter this condition if both are not converged
-          if (.not.(converged_absolute .or. converged_scaled)) then
-            converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-            converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
           endif
         enddo
       enddo
@@ -2103,6 +2311,30 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           residual = r_p(ival)
           accumulation = accum2_p(ival)
           update = dX_p(ival)
+
+          if (idof == FIVE_INTEGER) then
+            ! Well DOF
+            if (dabs(update) > 0.d0) then
+              update = update - hyd_auxvar%well%pressure_bump
+            endif
+            res_scaled = dabs(update) / &
+                         (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            if (dabs(res_scaled) > 1.d-6) then
+              converged_well = PETSC_FALSE
+            endif
+          endif
+          if (idof == FOUR_INTEGER) then
+            !---      Salt mass equation  ---
+            call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+            res_scaled = min(dabs(update) / xsl, &
+                         dabs(residual / (accumulation + epsilon)))
+            res_scaled = 1.d-1 * res_scaled
+            if (converged_scaled_residual_real(idof,istate) < &
+                res_scaled) then
+              converged_scaled_residual_real(idof,istate) = res_scaled
+              converged_scaled_residual_cell(idof,istate) = natural_id
+            endif
+          endif
 
           select case (istate)
             case(L_STATE)
@@ -2130,10 +2362,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                      Pa, Pv, Psat, Prvap, &
                                      xag, xwg, xal, xsl, xwl, &
                                      xmolag, xmolwg, xmolal, xmolsl, &
-                                     xmolwl, &
-                                     patch%characteristic_curves_array( &
-                                     patch%cc_id(ghosted_id))%ptr, &
-                                     material_auxvar, option)
+                                     xmolwl, option)
                 x_salt_dissolved = x_salt_dissolved + &
                                    (xsl - x_salt_dissolved) * &
                                    (hyd_auxvar%xmass(acid,lid) / xal)
@@ -2255,7 +2484,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               elseif (idof == TWO_INTEGER) then
               ! Air equation
                 if (hyd_auxvar%sat(gid) > 1.d-3) then
-                  res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                  res_scaled = min(dabs(update)/dabs(hyd_auxvar%sat(gid)), &
                                dabs(residual/(accumulation + epsilon)))
                   ! find max value regardless of convergence
                   if (converged_scaled_residual_real(idof,istate) < &
@@ -2623,13 +2852,15 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     !mpi_int = 9*MAX_INDEX
     flags(1:60*MAX_INDEX) = reshape(this%converged_flag,(/60*MAX_INDEX/))
     flags(241) = .not.hydrate_high_temp_ts_cut
-    mpi_int = 241
+    flags(242) = converged_well
+    mpi_int = 242
     ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_LOGICAL,MPI_LAND, &
                        option%mycomm,ierr);CHKERRQ(ierr)
     this%converged_flag = reshape(flags(1:60*MAX_INDEX),(/4,15,MAX_INDEX/))
     hydrate_high_temp_ts_cut = .not.flags(241)
+    converged_well = flags(242)
 
     mpi_int = 60*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
@@ -2641,6 +2872,12 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     do itol = 1, MAX_INDEX
       do istate = 1, 15
         do idof = 1, option%nflowdof
+          if (idof == FIVE_INTEGER) then
+            if (.not. converged_well) then
+              option%convergence = CONVERGENCE_KEEP_ITERATING
+            endif
+            cycle
+          endif
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
             if (this%logging_verbosity > 0) then
@@ -2811,7 +3048,7 @@ subroutine PMHydrateUpdateAuxVars(this)
 
   class(pm_hydrate_type) :: this
 
-  call HydrateUpdateAuxVars(this%realization,PETSC_FALSE)
+  call HydrateUpdateAuxVars(this%realization,this%pmwell_ptr,PETSC_FALSE)
 
 end subroutine PMHydrateUpdateAuxVars
 

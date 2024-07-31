@@ -188,7 +188,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
     class is (pm_general_type)
       call PMGeneralSetFlowMode(pm_flow,option)
     class is (pm_hydrate_type)
-      call PMHydrateSetFlowMode(option)
+      call PMHydrateSetFlowMode(pm_well,option)
     class is (pm_mphase_type)
       option%iflowmode = MPH_MODE
       option%nphase = 2
