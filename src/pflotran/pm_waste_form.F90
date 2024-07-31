@@ -319,6 +319,28 @@ module PM_Waste_Form_class
   end type wf_mechanism_custom_type
 ! -------------------------------------------------------------------------
 
+
+! OBJECT wf_mechanism_analytical_type:
+! ================================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of a custom type of waste
+! form containing high level nuclear waste using an analytical solution.
+! This object extends the base mechanism object.
+! ---------------------------------------------------------------------------
+! frac_dissolution_rate: [1/sec] fractional dissolution rate of the waste form
+! time: [sec] time of simulation
+! dt: [sec] current time step size
+! Dissolution (procedure): calculates the CUSTOM dissolution rate
+! -------------------------------------------------------------------------
+  type, public, extends(wf_mechanism_base_type) :: wf_mechanism_analytical_type
+    PetscReal :: frac_dissolution_rate
+    PetscReal :: time
+    PetscReal :: dt
+  contains
+    procedure, public :: Dissolution => WFMechAnalyticalDissolution
+  end type wf_mechanism_analytical_type
+! -------------------------------------------------------------------------
+
 ! OBJECT waste_form_base_type:
 ! ============================
 ! ---------------------------------------------------------------------------
@@ -333,6 +355,7 @@ module PM_Waste_Form_class
 ! scaling_factor(:): [-] array of volume scaling factor for each grid cell
 !    in the waste form's region object
 ! init_volume: [m3] initial waste form volume
+! previous_volume: [m3] waste form volume from previous time step
 ! volume: [m3] current waste form volume
 ! exposure_factor: [-] multiplying factor to the waste form dissolution rate,
 !    by default the value is 1.d0
@@ -370,6 +393,7 @@ module PM_Waste_Form_class
     type(region_type), pointer :: region
     PetscReal, pointer :: scaling_factor(:)
     PetscReal :: init_volume
+    PetscReal :: previous_volume
     PetscReal :: volume
     PetscReal :: exposure_factor
     PetscReal :: eff_dissolution_rate
@@ -560,7 +584,8 @@ module PM_Waste_Form_class
             PMWFMechanismWIPPCreate, &
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
-            PMWFMechanismFMDMSurrogateCreate
+            PMWFMechanismFMDMSurrogateCreate, &
+            PMWFMechanismAnalyticalCreate
 
 contains
 
@@ -847,6 +872,35 @@ function PMWFMechanismCustomCreate()
 
 end function PMWFMechanismCustomCreate
 
+! ************************************************************************** !
+
+function PMWFMechanismAnalyticalCreate()
+  !
+  ! Creates the 'analytical' waste form mechanism package
+  !
+  ! Author: Rosie Leone
+  ! Date: 07/30/2024
+
+  implicit none
+
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismAnalyticalCreate (output): new ANALYTICAL mechanism object
+! analytical: new ANALYTICAL mechanism object with shorter name
+! ---------------------------------------------------------------------
+  class(wf_mechanism_analytical_type), pointer :: PMWFMechanismAnalyticalCreate
+  class(wf_mechanism_analytical_type), pointer :: analytical
+! ---------------------------------------------------------------------
+
+  allocate(analytical)
+  call PMWFMechanismInit(analytical)
+  analytical%frac_dissolution_rate = UNINITIALIZED_DOUBLE ! 1/sec
+  analytical%time = UNINITIALIZED_DOUBLE ! sec
+  analytical%dt = UNINITIALIZED_DOUBLE ! sec
+
+  PMWFMechanismAnalyticalCreate => analytical
+
+end function PMWFMechanismAnalyticalCreate
 
 ! ************************************************************************** !
 
@@ -938,6 +992,7 @@ function PMWFWasteFormCreate()
   wf%region_name = ''
   nullify(wf%scaling_factor)            ! [-]
   wf%init_volume = UNINITIALIZED_DOUBLE ! m3
+  wf%previous_volume = UNINITIALIZED_DOUBLE ! m3
   wf%volume = UNINITIALIZED_DOUBLE      ! m3
   wf%exposure_factor = 1.0d0            ! [-]
   wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE ! kg/sec
@@ -1419,6 +1474,11 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           error_string = trim(error_string) // ' CUSTOM'
           new_mechanism => PMWFMechanismCustomCreate()
       !---------------------------------
+        case('ANALYTICAL')
+          error_string = trim(error_string) // ' ANALYTICAL'
+          allocate(new_mechanism)
+          new_mechanism => PMWFMechanismAnalyticalCreate()
+      !---------------------------------
         case default
           option%io_buffer = 'Unrecognized mechanism type &
                              &in the ' // trim(error_string) // ' block.'
@@ -1502,6 +1562,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                       trim(error_string)//',fractional dissolution rate',option)
             select type(new_mechanism)
               type is(wf_mechanism_custom_type)
+                new_mechanism%frac_dissolution_rate = double
+              type is(wf_mechanism_analytical_type)
                 new_mechanism%frac_dissolution_rate = double
               class default
                 option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE cannot &
@@ -2022,6 +2084,14 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             call PrintMsg(option)
             num_errors = num_errors + 1
           endif
+        type is(wf_mechanism_analytical_type)
+          if (Uninitialized(new_mechanism%frac_dissolution_rate)) then
+            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE must be &
+                               &specified in ' // trim(error_string) // ' ' // &
+                               trim(new_mechanism%name) // ' block.'
+            call PrintMsg(option)
+            num_errors = num_errors + 1
+          endif
       end select
       if (Uninitialized(new_mechanism%matrix_density)) then
         option%io_buffer = 'ERROR: MATRIX_DENSITY must be specified in ' // &
@@ -2160,6 +2230,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                                           'm^3',trim(error_string)//',volume', &
                                           option)
             new_waste_form%init_volume = new_waste_form%volume
+            new_waste_form%previous_volume = new_waste_form%volume
         !-----------------------------
           case('COORDINATE')
             call GeometryReadCoordinate(input,option, &
@@ -3351,6 +3422,10 @@ subroutine PMWFInitializeTimestep(this)
       class is(wf_mechanism_dsnf_type)
         ! note: do nothing here because the volume update for dsnf and/or
         ! wipp mechanisms has already occured (if breached)
+      class is(wf_mechanism_analytical_type)
+        cur_waste_form%volume = cur_waste_form%previous_volume
+        cwfm%time = option%time
+        cwfm%dt = dt
       class default
          dV = cur_waste_form%eff_dissolution_rate / &   ! kg-matrix/sec
            cwfm%matrix_density * &                      ! kg-matrix/m^3-matrix
@@ -4803,6 +4878,52 @@ subroutine WFMechCustomDissolution(this,waste_form,pm,ierr)
   endif
 
 end subroutine WFMechCustomDissolution
+
+! ************************************************************************** !
+
+subroutine WFMechAnalyticalDissolution(this,waste_form,pm,ierr)
+  !
+  ! Calculates the "analytical" waste form dissolution rate
+  !
+  ! Author: Rosie Leone
+  ! Date: 07/30/2024
+
+  use Global_Aux_module
+
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): analytical mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
+  class(wf_mechanism_analytical_type) :: this
+  class(waste_form_base_type) :: waste_form
+  class(pm_waste_form_type) :: pm
+  PetscErrorCode :: ierr
+! -----------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+  PetscReal :: current_mass
+
+  ierr = 0
+
+  ! kg-matrix
+  current_mass = (waste_form%init_volume * this%matrix_density) * &
+    exp(-this%frac_dissolution_rate * (this%time - &
+    waste_form%breach_time)) * waste_form%exposure_factor
+
+  ! kg-matrix / sec
+  waste_form%eff_dissolution_rate = &
+    ((waste_form%previous_volume * this%matrix_density) - current_mass) / &
+    this%dt
+
+  waste_form%previous_volume = current_mass / this%matrix_density
+
+end subroutine WFMechAnalyticalDissolution
 
 ! ************************************************************************** !
 
