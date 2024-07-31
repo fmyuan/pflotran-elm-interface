@@ -8665,10 +8665,12 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res,save_flux)
   PetscReal :: density_ave_kmol, tot_mole_flux
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
-  PetscReal, parameter :: gravity = -9.80665d0
+  PetscReal :: gravity
 
 
   well_grid => pm_well%well_grid
+
+  gravity = pm_well%option%gravity(Z_DIRECTION)
 
   Res(:) = 0.d0
 
@@ -8875,13 +8877,14 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
   PetscBool :: upwind
   PetscInt :: itop
   PetscErrorCode :: ierr
-  PetscReal, parameter :: gravity = -9.80665d0
+  PetscReal :: gravity
 
   option => pm_well%option
 
   well_grid => pm_well%well_grid
   reservoir => pm_well%well%reservoir
-
+  
+  gravity = option%gravity(Z_DIRECTION)
   t = 25.d0 !Constant temperature
 
   Res(:) = 0.d0
