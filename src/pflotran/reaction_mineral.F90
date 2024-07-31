@@ -884,10 +884,10 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
         ! Im_const: m^2 mnrl/m^3 bulk
         ! sum_prefactor_rate: mol/m^2 mnrl/sec
         Im = Im_const*sign_* &
-             abs(affinity_factor)**mineral%kinmnrl_affinity_power(imnrl)* &
+             dabs(affinity_factor)**mineral%kinmnrl_affinity_power(imnrl)* &
              sum_prefactor_rate
       else
-        Im = Im_const*sign_*abs(affinity_factor)*sum_prefactor_rate
+        Im = Im_const*sign_*dabs(affinity_factor)*sum_prefactor_rate
       endif
       ! store volumetric rate to be used in updating mineral volume fractions
       ! at end of time step
@@ -917,7 +917,15 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     ! calculate derivatives of rate with respect to free
     ! units = mol/sec
     if (associated(mineral%kinmnrl_affinity_power)) then
-      dIm_dQK = -Im*mineral%kinmnrl_affinity_power(imnrl)/abs(affinity_factor)
+      tempreal = mineral%kinmnrl_affinity_power(imnrl)
+      dIm_dQK = Im_const*tempreal* &
+                dabs(affinity_factor)**(tempreal-1.d0)* &
+                sum_prefactor_rate
+      ! The separation of sign(affinity_factor) and dabs(affinity_factor)
+      ! results in erroneous derivatives when the sign is negative. The
+      ! call to sign(dIm_dQK,-Im_const*sum_prefactor_rate)
+      ! corrects this issue.
+      dIm_dQK = sign(dIm_dQK,-Im_const*sum_prefactor_rate)
     else
       dIm_dQK = -Im_const*sum_prefactor_rate
     endif
@@ -1247,10 +1255,10 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
       ! Im_const: m^2 mnrl/m^3 bulk
       ! sum_prefactor_rate: mol/m^2 mnrl/sec
       Im = Im_const*sign_* &
-            abs(affinity_factor)**mineral%kinmnrl_affinity_power(imnrl)* &
+            dabs(affinity_factor)**mineral%kinmnrl_affinity_power(imnrl)* &
             sum_prefactor_rate
     else
-      Im = Im_const*sign_*abs(affinity_factor)*sum_prefactor_rate
+      Im = Im_const*sign_*dabs(affinity_factor)*sum_prefactor_rate
     endif
     ! store volumetric rate to be used in updating mineral volume fractions
     ! at end of time step
