@@ -430,26 +430,26 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
-        class is(sat_func_VG_type)
+        class is(sat_func_vg_type)
           sf%m     = auxvar%bc_lambda
           sf%alpha = auxvar%bc_alpha
-        class is(sat_func_BC_type)
+        class is(sat_func_bc_type)
             sf%lambda = auxvar%bc_lambda
             sf%alpha  = auxvar%bc_alpha
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
-            'sat_func_VG_type and sat_func_BC_type'
+            'sat_func_vg_type and sat_func_bc_type'
           call printErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
-        class is(rpf_Mualem_VG_liq_type)
+        class is(rpf_mualem_vg_liq_type)
           rpf%m = auxvar%bc_lambda
-        class is(rpf_Burdine_BC_liq_type)
+        class is(rpf_burdine_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Mualem_BC_liq_type)
+        class is(rpf_mualem_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Burdine_VG_liq_type)
+        class is(rpf_burdine_vg_liq_type)
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
@@ -718,7 +718,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! Check if user specified ice model via thermal characteristic curves
   select type(tcf => thermal_cc%thermal_conductivity_function)
-  class is (kT_frozen_type)
+  class is (kt_frozen_type)
     if (Initialized(tcf%ice_model)) then
       th_ice_model = tcf%ice_model
     endif

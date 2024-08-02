@@ -250,11 +250,11 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   type(material_parameter_type), pointer :: material_parameter
   type(option_type), pointer :: option
 
-  class(sat_func_VG_type), pointer :: sf
-  class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
-  class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas
+  class(sat_func_vg_type), pointer :: sf
+  class(rpf_mualem_vg_liq_type), pointer :: rpf_liq
+  class(rpf_mualem_vg_gas_type), pointer :: rpf_gas
 
-  class(kT_power_type), pointer :: tcf
+  class(kt_power_type), pointer :: tcf
 
   if (.not.associated(general_parameter)) then
     allocate(general_parameter)

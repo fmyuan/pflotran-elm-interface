@@ -85,7 +85,7 @@ contains
     this%cc_bcb%saturation_function%Sr = 0.2d0
     this%cc_bcb%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         sf%lambda = 0.7d0
         sf%alpha = 9.869d-6
       class default
@@ -139,7 +139,7 @@ contains
     this%cc_vgm%saturation_function%Sr = 0.143d0
     this%cc_vgm%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_vgm%saturation_function)
-      class is(sat_func_VG_type)
+      class is(sat_func_vg_type)
         sf%m = 0.527d0
         sf%alpha = 5.1054d-5
       class default
@@ -148,7 +148,7 @@ contains
     this%cc_vgm%liq_rel_perm_function => RPFMualemVGLiqCreate()
     this%cc_vgm%liq_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgm%liq_rel_perm_function)
-      class is(rpf_Mualem_VG_liq_type)
+      class is(rpf_mualem_vg_liq_type)
         sf%m = 0.527d0
       class default
         print *, 'not Mualem VG Liq type'
@@ -202,7 +202,7 @@ contains
     this%cc_lm%saturation_function%Sr = 0.143d0
     this%cc_lm%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_lm%saturation_function)
-      class is(sat_func_Linear_type)
+      class is(sat_func_linear_type)
         sf%alpha = 5.1054d-5
       class default
         print *, 'not Linear type in setUp'
@@ -238,7 +238,7 @@ contains
     this%cc_mk3%saturation_function%Sr = 1.53D-1
     this%cc_mk3%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_mk3%saturation_function)
-      class is(sat_func_mK_type)
+      class is(sat_func_mk_type)
         sf%nparam = 3
         sf%sigmaz = 3.37D-1
         sf%muz = -6.3D0
@@ -257,7 +257,7 @@ contains
     this%cc_mk3%gas_rel_perm_function => RPFmKGasCreate()
     this%cc_mk3%gas_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk3%gas_rel_perm_function)
-      class is(rpf_mK_gas_type)
+      class is(rpf_mk_gas_type)
         sf%sigmaz = 3.37D-1
         sf%Srg = 1.0D-3
       class default
@@ -270,7 +270,7 @@ contains
     this%cc_mk4%saturation_function%Sr = 1.53D-1
     this%cc_mk4%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_mk4%saturation_function)
-      class is(sat_func_mK_type)
+      class is(sat_func_mk_type)
         sf%nparam = 4
         sf%sigmaz = 3.37D-1
         sf%muz = -6.3D0
@@ -290,7 +290,7 @@ contains
     this%cc_mk4%gas_rel_perm_function => RPFmKGasCreate()
     this%cc_mk4%gas_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk4%gas_rel_perm_function)
-      class is(rpf_mK_gas_type)
+      class is(rpf_mk_gas_type)
         sf%sigmaz = 3.37D-1
         sf%Srg = 1.0D-3
       class default
@@ -343,7 +343,7 @@ contains
     this%cc_krp2%saturation_function%Sr = 0.10d0
     this%cc_krp2%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp2%saturation_function)
-      class is(sat_func_KRP2_type)
+      class is(sat_func_krp2_type)
         sf%lambda = 0.25d0
         sf%alpha = 5.0d-5
         sf%ignore_permeability = PETSC_TRUE
@@ -368,7 +368,7 @@ contains
     this%cc_krp3%saturation_function%Sr = 0.15d0
     this%cc_krp3%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp3%saturation_function)
-      class is(sat_func_KRP3_type)
+      class is(sat_func_krp3_type)
         sf%Srg = 0.25d0
         sf%lambda = 0.35d0
         sf%alpha = 5.0d-3
@@ -396,7 +396,7 @@ contains
     this%cc_krp4%saturation_function%Sr = 0.15d0
     this%cc_krp4%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp4%saturation_function)
-      class is(sat_func_KRP4_type)
+      class is(sat_func_krp4_type)
         sf%Srg = 0.25d0
         sf%lambda = 0.35d0
         sf%alpha = 5.0d-3
@@ -424,7 +424,7 @@ contains
     this%cc_krp5%saturation_function%Sr = 0.05d0
     this%cc_krp5%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp5%saturation_function)
-      class is(sat_func_KRP5_type)
+      class is(sat_func_krp5_type)
         sf%alpha = 5.0d-4
         sf%Srg = 0.20d0
         sf%ignore_permeability = PETSC_TRUE
@@ -505,7 +505,7 @@ contains
     this%cc_krp12%saturation_function%Sr = 0.12d0
     this%cc_krp12%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp12%saturation_function)
-      class is(sat_func_KRP12_type)
+      class is(sat_func_krp12_type)
         sf%lambda = 0.2d0
         sf%alpha = 5.0d-4
         sf%s_min = 0.015d0
@@ -632,7 +632,7 @@ contains
 
     ! saturation = f(capillary_pressure) below the polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         capillary_pressure = 0.94d0/sf%alpha
       class default
         print *, 'not bc type in testsf_Brooks_Corey'
@@ -663,7 +663,7 @@ contains
 
     ! saturation = f(capillary_pressure) within the polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         capillary_pressure = 0.96d0/sf%alpha
       class default
         print *, 'not bc type in testsf_Brooks_Corey'
@@ -694,7 +694,7 @@ contains
 
     ! saturation = f(capillary_pressure) above the polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         capillary_pressure = 1.06d0/sf%alpha
       class default
         print *, 'not bc type in testsf_Brooks_Corey'
@@ -744,7 +744,7 @@ contains
 
     ! capillary pressure = f(saturation) well within polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         liquid_saturation = 1.00001d0**(-sf%lambda)
       class default
         print *, 'not bc type in capillary pressure Brooks Corey'
@@ -763,7 +763,7 @@ contains
 
     ! capillary pressure = f(saturation) slightly within polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         liquid_saturation = 1.04d0**(-sf%lambda)
       class default
         print *, 'not bc type in capillary pressure Brooks Corey'
@@ -782,7 +782,7 @@ contains
 
     ! capillary pressure = f(saturation) above polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         liquid_saturation = 1.06d0**(-sf%lambda)
       class default
         print *, 'not bc type in capillary pressure Brooks Corey'
@@ -938,7 +938,7 @@ contains
 
     ! saturation = f(capillary_pressure) at high capillary pressure
     select type(sf=>this%cc_vgm%saturation_function)
-      class is(sat_func_VG_type)
+      class is(sat_func_vg_type)
         capillary_pressure = 10.d0/sf%alpha
       class default
         print *, 'not vg type in testsf_van_Genuchten'
@@ -1172,7 +1172,7 @@ contains
 
     ! saturation = f(capillary_pressure) at high capillary pressure
     select type(sf=>this%cc_lm%saturation_function)
-      class is(sat_func_Linear_type)
+      class is(sat_func_linear_type)
         capillary_pressure = 10.d0/sf%alpha
       class default
         print *, 'not linear type in testsf_Linear'
@@ -1713,7 +1713,7 @@ contains
     value = 51637.669399930157d0
     @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp2%saturation_function)
-      class is(sat_func_KRP2_type)
+      class is(sat_func_krp2_type)
         capillary_pressure = 15.d0/sf%alpha
     end select
     call this%cc_krp2%saturation_function%Saturation(capillary_pressure, &
@@ -2129,7 +2129,7 @@ contains
     value = 2294.5062171637132d0
     @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     select type(sf=>this%cc_krp9%saturation_function)
-      class is(sat_func_KRP9_type)
+      class is(sat_func_krp9_type)
         capillary_pressure = 8.d5
     end select
     call this%cc_krp9%saturation_function%Saturation(capillary_pressure, &

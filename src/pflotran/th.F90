@@ -205,7 +205,7 @@ subroutine THSetupPatch(realization)
 
     select type(tcf => thermal_cc%thermal_conductivity_function)
       !------------------------------------------
-      type is(kT_frozen_type)
+      type is(kt_frozen_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
@@ -218,7 +218,7 @@ subroutine THSetupPatch(realization)
           tcf%kT_frozen = tcf%kT_frozen*option%scale ! apply scale to original value
         endif
       !------------------------------------------
-      type is(kT_constant_type)
+      type is(kt_constant_type)
         patch%aux%TH%th_parameter%ckdry(icct) = &
           tcf%constant_thermal_conductivity*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = &
@@ -227,35 +227,35 @@ subroutine THSetupPatch(realization)
           tcf%constant_thermal_conductivity*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
-      type is(kT_default_type)
+      type is(kt_default_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
-      type is(kT_linear_type)
+      type is(kt_linear_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
-      type is(kT_linear_resistivity_type)
+      type is(kt_linear_resistivity_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
-      type is(kT_cubic_polynomial_type)
+      type is(kt_cubic_polynomial_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
-      type is(kT_power_type)
+      type is(kt_power_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value

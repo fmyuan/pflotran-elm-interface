@@ -223,9 +223,9 @@ subroutine WIPPFloDerivativeSetup(wippflo_parameter, &
   type(material_parameter_type), pointer :: material_parameter
   type(option_type), pointer :: option
   
-  class(sat_func_VG_type), pointer :: sf
-  class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
-  class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas  
+  class(sat_func_vg_type), pointer :: sf
+  class(rpf_mualem_vg_liq_type), pointer :: rpf_liq
+  class(rpf_mualem_vg_gas_type), pointer :: rpf_gas  
   
   if (.not.associated(wippflo_parameter)) then
     allocate(wippflo_parameter)

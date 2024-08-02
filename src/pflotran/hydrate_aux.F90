@@ -749,8 +749,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   sg_min = 1.d-3
   Pc_entry = 0.d0
   select type(sf => characteristic_curves%saturation_function)
-   class is (sat_func_VG_STOMP_type)
-   class is (sat_func_Exp_Freezing_type)
+   class is (sat_func_vg_stomp_type)
+   class is (sat_func_exp_freezing_type)
    class default
      Pc_entry = (1.d0 / characteristic_curves% &
      saturation_function%GetAlpha_())
@@ -2293,8 +2293,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   sg_min = 1.d-3
   Pc_entry = 0.d0
   select type(sf => characteristic_curves%saturation_function)
-   class is (sat_func_VG_STOMP_type)
-   class is (sat_func_Exp_Freezing_type)
+   class is (sat_func_vg_stomp_type)
+   class is (sat_func_exp_freezing_type)
    class default
      Pc_entry = (1.d0 / characteristic_curves% &
      saturation_function%GetAlpha_())
@@ -4686,7 +4686,7 @@ subroutine CalcFreezingTempDepression(sat,Tf_ice,characteristic_curves,dTf,optio
   call characteristic_curves%saturation_function% &
          CapillaryPressure(sat,Pc,dpc_dsatl,option)
   select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_VG_STOMP_type)
+    class is (sat_func_vg_stomp_type)
       ! Pc is the capillary head
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta
     class default
@@ -4735,7 +4735,7 @@ subroutine GibbsThomsonHydrate(sat,Hf,rho,Tb,dTf,characteristic_curves,&
   call characteristic_curves%saturation_function% &
             CapillaryPressure(sat_temp,Pc,dpc_dsatl,option)
   select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_VG_STOMP_type)
+    class is (sat_func_vg_stomp_type)
       ! Pc is the capillary head
       Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta
     class default
@@ -6328,7 +6328,7 @@ subroutine HydrateComputeSatHysteresis(characteristic_curves, Pc, Sl_min, &
   Sgt = 0.d0
 
   select type(sf => characteristic_curves%saturation_function)
-    class is (sat_func_VG_STOMP_type)
+    class is (sat_func_vg_stomp_type)
       capillary_head = max(beta_gl * Pc / &
                        (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
       call characteristic_curves%saturation_function% &
@@ -6409,7 +6409,7 @@ subroutine HydrateComputePcHysteresis(characteristic_curves, Sl, Sgt, beta_gl,&
   call characteristic_curves%saturation_function%CapillaryPressure(Sl_eff, Pc, &
                                                             dpc_dsatl,option)
   select type(sf => characteristic_curves%saturation_function)
-      class is (sat_func_VG_STOMP_type)
+      class is (sat_func_vg_stomp_type)
         ! Pc is the capillary head
         Pc = Pc * LIQUID_REFERENCE_DENSITY * gravity / beta_gl
       class default
