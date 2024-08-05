@@ -403,7 +403,7 @@ subroutine PMSubsurfaceFlowSetup(this)
       if (.not.associated(cur_cc)) exit
       if (     associated(cur_cc%saturation_function) ) then
       select type(sf => cur_cc%saturation_function)
-        class is(sat_func_WIPP_type)
+        class is(sat_func_wipp_type)
           if (.not.sf%ignore_permeability .and. &
               .not.(this%option%iflowmode == WF_MODE .or. &
                     this%option%iflowmode == G_MODE .or. &

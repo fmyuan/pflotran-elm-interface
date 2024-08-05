@@ -1328,72 +1328,72 @@ subroutine WIPPCCVerify(saturation_func, &
   glamda = UNINITIALIZED_DOUBLE
 
   select type(sat_func => saturation_func)
-    class is (sat_func_KRP1_type)
+    class is (sat_func_krp1_type)
       sswr = sat_func%Sr
       ssgr = sat_func%Srg
       slamda = sat_func%m
-      stype = ' sat_func_KRP1_type'
-    class is (sat_func_KRP4_type)
+      stype = ' sat_func_krp1_type'
+    class is (sat_func_krp4_type)
       sswr = sat_func%Sr
       ssgr = sat_func%Srg
       slamda = sat_func%lambda
-      stype = ' sat_func_KRP4_type'
-    class is (sat_func_KRP11_type)
+      stype = ' sat_func_krp4_type'
+    class is (sat_func_krp11_type)
       sswr = sat_func%Sr
 !      ssgr = sat_func%Srg
 !      slamda = sat_func%lambda
-      stype = ' sat_func_KRP11_type'
-    class is (sat_func_KRP12_type)
+      stype = ' sat_func_krp11_type'
+    class is (sat_func_krp12_type)
       sswr = sat_func%Sr
 !      ssgr = sat_func%Srg
       slamda = sat_func%lambda
-      stype = ' sat_func_KRP12_type'
+      stype = ' sat_func_krp12_type'
   end select
 
   select type(liq_rpf => liq_rel_perm_func)
-    class is(rpf_KRP1_liq_type)
+    class is(rpf_krp1_liq_type)
       lswr = liq_rpf%Sr
       lsgr = liq_rpf%Srg
       llamda = liq_rpf%m
-      ltype = ' rpf_KRP1_liq_type'
-    class is(rpf_KRP4_liq_type)
+      ltype = ' rpf_krp1_liq_type'
+    class is(rpf_krp4_liq_type)
       lswr = liq_rpf%Sr
       lsgr = liq_rpf%Srg
       llamda = liq_rpf%lambda
-      ltype = ' rpf_KRP4_liq_type'
-    class is(rpf_KRP11_liq_type)
+      ltype = ' rpf_krp4_liq_type'
+    class is(rpf_krp11_liq_type)
       lswr = liq_rpf%Sr
       lsgr = liq_rpf%Srg
 !      llamda = liq_rpf%lambda
-      ltype = ' rpf_KRP11_liq_type'
-    class is(rpf_KRP12_liq_type)
+      ltype = ' rpf_krp11_liq_type'
+    class is(rpf_krp12_liq_type)
       lswr = liq_rpf%Sr
       lsgr = liq_rpf%Srg
       llamda = liq_rpf%lambda
-      ltype = ' rpf_KRP12_liq_type'
+      ltype = ' rpf_krp12_liq_type'
   end select
 
   select type(gas_rpf => gas_rel_perm_func)
-    class is(rpf_KRP1_gas_type)
+    class is(rpf_krp1_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%m
-      gtype = ' rpf_KRP1_gas_type'
-    class is(rpf_KRP4_gas_type)
+      gtype = ' rpf_krp1_gas_type'
+    class is(rpf_krp4_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%lambda
-      gtype = ' rpf_KRP4_gas_type'
-    class is(rpf_KRP11_gas_type)
+      gtype = ' rpf_krp4_gas_type'
+    class is(rpf_krp11_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
 !      glamda = gas_rpf%lambda
-      gtype = ' rpf_KRP11_gas_type'
-    class is(rpf_KRP12_gas_type)
+      gtype = ' rpf_krp11_gas_type'
+    class is(rpf_krp12_gas_type)
       gswr = gas_rpf%Sr
       gsgr = gas_rpf%Srg
       glamda = gas_rpf%lambda
-      gtype = ' rpf_KRP12_gas_type'
+      gtype = ' rpf_krp12_gas_type'
   end select
 
   if (.not.Equal(sswr,lswr) .or. .not.Equal(lswr,gswr)) then
@@ -1511,7 +1511,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
   pctexp = 0.d0
   pcmax = 0.d0
   select type(sat_func => saturation_func)
-    class is (sat_func_WIPP_type)
+    class is (sat_func_wipp_type)
       kpc = sat_func%kpc
       pcta = sat_func%pct_a
       pctexp = sat_func%pct_exp
@@ -1519,31 +1519,31 @@ subroutine WIPPCharacteristicCurves(saturation, &
   end select
 
   select type(liq_rpf => liq_rel_perm_func)
-    class is(rpf_KRP1_liq_type)
+    class is(rpf_krp1_liq_type)
       krp = 1
       xlamda = liq_rpf%m / (1.d0-liq_rpf%m)
-    class is(rpf_KRP4_liq_type)
+    class is(rpf_krp4_liq_type)
       krp = 4
       xlamda = liq_rpf%lambda
-    class is(rpf_KRP11_liq_type)
+    class is(rpf_krp11_liq_type)
       krp = 11
       xlamda = 0.d0
-    class is(rpf_KRP12_liq_type)
+    class is(rpf_krp12_liq_type)
       krp = 12
       xlamda = liq_rpf%lambda
   end select
 
   select type(gas_rpf => gas_rel_perm_func)
-    class is(rpf_KRP1_gas_type)
+    class is(rpf_krp1_gas_type)
       krp = 1
       sgr = gas_rpf%Srg
-    class is(rpf_KRP4_gas_type)
+    class is(rpf_krp4_gas_type)
       krp = 4
       sgr = gas_rpf%Srg
-    class is(rpf_KRP11_gas_type)
+    class is(rpf_krp11_gas_type)
       krp = 11
       sgr = gas_rpf%Srg
-    class is(rpf_KRP12_gas_type)
+    class is(rpf_krp12_gas_type)
       krp = 12
       sgr = gas_rpf%Srg
   end select
@@ -1840,7 +1840,7 @@ subroutine WIPPCharacteristicCurves(saturation, &
   gas_rel_perm = krnw
 
   select type(sf => saturation_func)
-    class is(sat_func_WIPP_type)
+    class is(sat_func_wipp_type)
       sf%pct = sf%pct_a * permeability ** sf%pct_exp
       option%flow%pct_updated = PETSC_TRUE
     class default

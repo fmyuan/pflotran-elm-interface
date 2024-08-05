@@ -712,7 +712,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     do i = 1, size(patch%char_curves_thermal_array)
       select type(tcf => patch%char_curves_thermal_array(i)%ptr% &
                   thermal_conductivity_function)
-      class is(kT_composite_type)
+      class is(kt_composite_type)
         call CompositeTCCList(patch%characteristic_curves_thermal, &
                               tcf,option)
       end select
@@ -782,7 +782,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       do i = 1, size(patch%char_curves_thermal_array)
          select type(tcf => patch%char_curves_thermal_array(i)%ptr% &
                      thermal_conductivity_function)
-         class is(kT_composite_type)
+         class is(kt_composite_type)
            call CompositeTCCList(patch%characteristic_curves_thermal, &
                                  tcf,option)
          end select
