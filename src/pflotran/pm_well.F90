@@ -566,8 +566,8 @@ subroutine PMWellTranCreate(pm_well)
   pm_well%tran_soln%cut_timestep = PETSC_FALSE
   pm_well%tran_soln%max_iter = 8
   pm_well%tran_soln%max_ts_cut = 20
-  pm_well%tran_soln%ts_cut_factor = 2.0d0
-  pm_well%tran_soln%ts_ramp_factor = 1.1d0
+  pm_well%tran_soln%ts_cut_factor = 2.0d0  ! these are not used in transport
+  pm_well%tran_soln%ts_ramp_factor = 1.1d0 ! these are not used in transport
   pm_well%tran_soln%itol_abs_res = 1.0d-8
   pm_well%tran_soln%itol_scaled_res = 1.0d-4
   pm_well%tran_soln%n_steps = 0
@@ -3572,14 +3572,16 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
                                error_string)
         !-----------------------------
           case('TIMESTEP_CUT_FACTOR')
-            call InputReadDouble(input,option,pm_well%tran_soln%ts_cut_factor)
-            call InputErrorMsg(input,option,'TIMESTEP_CUT_FACTOR', &
-                               error_string)
+            option%io_buffer = 'WELL_TRANSPORT_SOLVER, TIMESTEP_CUT_FACTOR &
+              &has been depreciated for the wellbore model. All time step &
+              &cuts are controlled by the transport mode for the reservoir.'
+            call PrintErrMsg(option)
         !-----------------------------
           case('TIMESTEP_RAMP_FACTOR')
-            call InputReadDouble(input,option,pm_well%tran_soln%ts_ramp_factor)
-            call InputErrorMsg(input,option,'TIMESTEP_RAMP_FACTOR', &
-                               error_string)
+            option%io_buffer = 'WELL_TRANSPORT_SOLVER, TIMESTEP_RAMP_FACTOR &
+              &has been depreciated for the wellbore model. All time step &
+              &cuts are controlled by the transport mode for the reservoir.'
+            call PrintErrMsg(option)
         !-----------------------------
           case('ITOL_ABSOLUTE_RESIDUAL')
             call InputReadDouble(input,option,pm_well%tran_soln%itol_abs_res)
