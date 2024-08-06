@@ -1424,10 +1424,17 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%strata_id(nsegments))
     allocate(well_grid%res_z(nsegments))
 
+    well_grid%dh(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%x = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%y = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%z = UNINITIALIZED_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = 0
+    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    well_grid%res_z(:) = UNINITIALIZED_DOUBLE
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -1500,10 +1507,17 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%strata_id(nsegments))
     allocate(well_grid%res_z(nsegments))
 
+    well_grid%dh(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%x = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%y = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%z = UNINITIALIZED_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    well_grid%res_z(:) = UNINITIALIZED_DOUBLE
 
     ! sort the z-list in ascending order, in case it was not provided that way
     allocate(temp_z_list(nsegments))
@@ -1588,10 +1602,19 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(well_grid%strata_id(nsegments))
     allocate(well_grid%res_z(nsegments))
 
+    well_grid%dh(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%x = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%y = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%z = UNINITIALIZED_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    well_grid%res_z(:) = UNINITIALIZED_DOUBLE
+
+
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -1689,6 +1712,18 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
      allocate(well_grid%h_rank_id(nsegments))
      allocate(well_grid%strata_id(nsegments))
      allocate(well_grid%res_z(nsegments))
+
+    well_grid%dh(:) = UNINITIALIZED_DOUBLE
+    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%x = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%y = UNINITIALIZED_DOUBLE
+    well_grid%h(:)%z = UNINITIALIZED_DOUBLE
+    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+    well_grid%res_z(:) = UNINITIALIZED_DOUBLE
 
      well_grid%h_rank_id(:) = 0
      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)

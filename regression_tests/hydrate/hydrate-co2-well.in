@@ -4,6 +4,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE HYDRATE
       OPTIONS
+        NO_STATE_TRANSITION_OUTPUT
       /
     /
     WELL_MODEL well
@@ -175,8 +176,8 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 2.00000d2 y
-  INITIAL_TIMESTEP_SIZE 1.d-3 y #1.d-6 h
+  FINAL_TIME 1.00000d1 y
+  INITIAL_TIMESTEP_SIZE 1.d0 y #1.d-6 h
   MAXIMUM_TIMESTEP_SIZE 1.d1 y #1.d0 d #4.d-6 d
 END
 
@@ -220,7 +221,7 @@ FLOW_CONDITION initial
   END
   LIQUID_PRESSURE 10.d6
   MASS_FRACTION 0.d0 
-  TEMPERATURE 1.5d0
+  TEMPERATURE 2.d0
   SALT_MASS_FRACTION 1.d-1
 END
 

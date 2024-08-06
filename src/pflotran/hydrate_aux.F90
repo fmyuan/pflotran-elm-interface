@@ -4362,7 +4362,6 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         PE = 11.889d0 * T_k - 3356.4d0
         dP = 11.889d0 * (T_k - dTf) - 3356.4d0
       endif
-     PE = exp(PE)
      PE = min(PE,1.d3)
      dP = min(dP,1.d3)
      dP = dP * 1.d6

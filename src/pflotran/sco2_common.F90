@@ -156,8 +156,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
   PetscReal :: xmass(option%nflowspec), xmol(option%nflowspec)
   PetscReal :: tot_mass_flux, component_mass_flux, co2_mass_flux, &
-               co2_mole_flux, salt_mass_flux, tot_mole_flux, salt_mole_flux, &
-               wat_mole_flux, water_mass_flux, salt_diff_flux
+               co2_mole_flux, salt_mass_flux, tot_mole_flux, &
+               water_mass_flux, salt_diff_flux
   PetscReal :: delta_xmass, delta_xmol, den_dn, den_up, density_ave
   PetscReal :: den_kg_up, den_kg_dn, density_kg_ave
   PetscReal :: sat_dn, sat_up
@@ -172,14 +172,18 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
   PetscReal :: tempreal
   PetscReal, parameter :: epsilon = 1.d-20
 
-  PetscReal :: ddensity_ave_dden_dn, ddensity_ave_dden_up, ddiffusion_coef_dpdn, &
-               ddiffusion_coef_dpup, ddiffusion_coef_dTdn, ddiffusion_coef_dTup, &
-               delta_X_whatever, delta_X_whatever_dxmoldn, delta_X_whatever_dxmolup, &
-               dheat_flux_dkeff_ave, diffusion_scale, dkeff_ave_dkeffdn, dkeff_ave_dkeffup, &
-               dsatdn, dsatup, dstpd_ave_over_dist_dstpd_dn, dstpd_ave_over_dist_dstpd_up, &
-               dstpd_dn_ddendn, dstpd_dn_dpordn, dstpd_dn_dsatdn, dstpd_up_ddenup, dstpd_up_dporup, &
-               dstpd_up_dsatup, dtot_mole_flux_ddenave, dtot_mole_flux_ddiffusion_coef, &
-               dtot_mole_flux_dstpd, tot_mass_flux_ddel_pressure, dtot_mass_flux_ddeltaX
+  PetscReal :: ddensity_ave_dden_dn, ddensity_ave_dden_up, &
+               ddiffusion_coef_dpdn, ddiffusion_coef_dpup, &
+               ddiffusion_coef_dTdn, ddiffusion_coef_dTup, &
+               delta_X_whatever, delta_X_whatever_dxmoldn, &
+               delta_X_whatever_dxmolup, dheat_flux_dkeff_ave, &
+               diffusion_scale, dkeff_ave_dkeffdn, dkeff_ave_dkeffup, &
+               dsatdn, dsatup, dstpd_ave_over_dist_dstpd_dn, &
+               dstpd_ave_over_dist_dstpd_up, dstpd_dn_ddendn, &
+               dstpd_dn_dpordn, dstpd_dn_dsatdn, dstpd_up_ddenup, &
+               dstpd_up_dporup, dstpd_up_dsatup, dtot_mole_flux_ddenave, &
+               dtot_mole_flux_ddiffusion_coef, dtot_mole_flux_dstpd, &
+               tot_mass_flux_ddel_pressure, dtot_mass_flux_ddeltaX
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1005,17 +1009,18 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
   PetscInt :: idof
   PetscReal, parameter :: epsilon = 1.d-20
 
-  PetscReal :: ddensity_ave_dden_dn, ddensity_ave_dden_up, ddiffusion_coef_dpdn, &
-               ddiffusion_coef_dpup, ddiffusion_coef_dTdn, ddiffusion_coef_dTup, &
-               delta_X_whatever, delta_X_whatever_dxmoldn, delta_X_whatever_dxmolup, &
-               dheat_flux_dkeff_ave, diffusion_scale, dkeff_ave_dkeffdn, dkeff_ave_dkeffup, &
-               dsatdn, dsatup, dstpd_ave_over_dist_dstpd_dn, dstpd_ave_over_dist_dstpd_up, &
-               dstpd_dn_ddendn, dstpd_dn_dpordn, dstpd_dn_dsatdn, dstpd_up_ddenup, dstpd_up_dporup, &
-               dstpd_up_dsatup, dtot_mole_flux_ddenave, dtot_mole_flux_ddiffusion_coef, &
+  PetscReal :: ddensity_ave_dden_dn, ddensity_ave_dden_up, &
+               ddiffusion_coef_dpdn, ddiffusion_coef_dTdn, &
+               delta_X_whatever, delta_X_whatever_dxmoldn, &
+               dheat_flux_dkeff_ave, diffusion_scale, dkeff_ave_dkeffdn, &
+               dsatdn, dstpd_ave_over_dist_dstpd_dn, &
+               dstpd_dn_ddendn, dstpd_dn_dpordn, dstpd_dn_dsatdn, &
+               dtot_mole_flux_ddenave, dtot_mole_flux_ddiffusion_coef, &
                dtot_mole_flux_dstpd, tot_mass_flux_ddel_pressure
-  PetscReal :: ddelta_pressure_dpadn, ddelta_pressure_dpdn, ddelta_pressure_dtdn, &
-               ddensity_kg_ave_dden_kg_up, den_kg_ave, density_ave, &
-               dtot_mass_flux_ddeltax, dv_darcy_dmobility, tot_mass_flux_dmobility, &
+  PetscReal :: ddelta_pressure_dpadn, ddelta_pressure_dpdn, &
+               ddelta_pressure_dtdn, ddensity_kg_ave_dden_kg_up, &
+               den_kg_ave, density_ave, dtot_mass_flux_ddeltax, &
+               dv_darcy_dmobility, tot_mass_flux_dmobility, &
                tot_mole_flux
   PetscBool :: dirichlet_solute
 
