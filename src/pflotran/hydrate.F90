@@ -1040,8 +1040,7 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
     cur_well => pm_well
     do
       if (.not. associated(cur_well)) exit
-      if (associated(cur_well%flow_condition) .and. &
-          Initialized(cur_well%well%bh_p))then
+      if (associated(cur_well%flow_condition))then
         well_flow_condition => cur_well%flow_condition
         if (associated(well_flow_condition%hydrate%temperature) .and. &
             associated(cur_well%well%temp)) then

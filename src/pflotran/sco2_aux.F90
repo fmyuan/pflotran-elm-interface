@@ -19,6 +19,7 @@ module SCO2_Aux_module
   PetscReal, parameter :: LIQUID_REFERENCE_VISCOSITY = 1.01764892595942d-3
   PetscReal, parameter, public :: LIQUID_REFERENCE_DENSITY=998.32142721500441d0
   PetscReal, parameter, public :: SCO2_REFERENCE_PRESSURE = 101325.d0
+  PetscReal, public :: sco2_co2_dispersivity = 0.d0
 
   ! Solution Control
   PetscReal, public :: sco2_phase_chng_epsilon = 1.d-6
@@ -42,6 +43,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_truncate_updates = PETSC_TRUE
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
+  PetscBool, public :: sco2_stomp_fluxes = PETSC_TRUE
 
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
@@ -121,10 +123,13 @@ module SCO2_Aux_module
   PetscInt, parameter, public :: SCO2_UPDATE_FOR_SS = 3
 
   ! Physics Options
+  PetscInt, parameter, public :: DENSITY_ALENDAL = ONE_INTEGER
+  PetscInt, parameter, public :: DENSITY_GARCIA = TWO_INTEGER
   PetscBool, public :: sco2_thermal = PETSC_TRUE
   PetscBool, public :: sco2_update_permeability = PETSC_FALSE
   PetscReal, public :: permeability_func_porosity_exp = 1.d0
   PetscInt, public :: permeability_reduction_model = TWO_INTEGER
+  PetscInt, public :: sco2_composite_density = DENSITY_ALENDAL
 
   ! DOF map
   PetscInt, public, pointer :: dof_to_primary_variable(:,:)
@@ -373,6 +378,8 @@ subroutine SCO2AuxVarInit(auxvar,option)
     auxvar%well%Qg = UNINITIALIZED_DOUBLE
     auxvar%well%bh_p = UNINITIALIZED_DOUBLE
     auxvar%well%pressure_bump = 0.d0
+  else
+    nullify(auxvar%well)
   endif
 
 end subroutine SCO2AuxVarInit
@@ -2673,7 +2680,7 @@ end subroutine SCO2BrineEnthalpy
 subroutine SCO2DensityCompositeLiquid(T,rho_b,x_co2, rho_l)
   !
   ! Computes density of the liquid phase as a funtion of brine density and
-  ! CO2 concentration, Alendal and Drange, 2001
+  ! CO2 concentration, Alendal and Drange, 2001 and Garcia, 2001
   !
   ! Author: Michael Nole
   ! Date: 01/26/24
@@ -2690,16 +2697,25 @@ subroutine SCO2DensityCompositeLiquid(T,rho_b,x_co2, rho_l)
                                          3.296d-9, -3.702d-12]
 
   PetscReal :: pv_co2, c_co2
+  PetscReal :: v_phi, rho_n_phi
   PetscInt :: i
 
-  pv_co2 = 0.d0
-  do i = 1,5
-    pv_co2 = pv_co2 + pv_coeff(i) * (T ** (i-1))
-  enddo
+  select case (sco2_composite_density)
+    case(DENSITY_ALENDAL)
+      pv_co2 = 0.d0
+      do i = 1,5
+        pv_co2 = pv_co2 + pv_coeff(i) * (T ** (i-1))
+      enddo
 
-  c_co2 = pv_co2 * rho_b * x_co2 / fmw_comp(2)
+      c_co2 = pv_co2 * rho_b * x_co2 / fmw_comp(2)
 
-  rho_l = rho_b / (1.d0 + c_co2 - x_co2)
+      rho_l = rho_b / (1.d0 + c_co2 - x_co2)
+    case(DENSITY_GARCIA)
+      v_phi = 1.d-6 * (37.51d0 - 9.585d-2 * T + 8.74d-4 * T**2 - 5.044d-7 * &
+                       T**3)
+      rho_n_phi = fmw_comp(TWO_INTEGER) / v_phi
+      rho_l = 1.d0 / ((1.d0 - x_co2) / (rho_b) + x_co2 / rho_n_phi)
+  end select
 
 
 end subroutine SCO2DensityCompositeLiquid
@@ -3246,6 +3262,8 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,gid) = &
                                sco2_auxvar%effective_diffusion_coeff(wid,gid)
+
+  sco2_auxvar%dispersivity(co2_id,lid) = sco2_co2_dispersivity
 
 end subroutine SCO2EffectiveDiffusion
 

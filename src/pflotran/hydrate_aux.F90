@@ -855,8 +855,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
       hyd_auxvar%m_salt(2) = x(HYDRATE_SALT_MASS_FRAC_DOF)
 
-      T_temp = hyd_auxvar%temp - Tf_ice
-
       ! hyd_auxvar%m_salt(2) = x(HYD_SALT_MASS_FRAC_DOF)
 
       ! Secondary Variables
@@ -3640,7 +3638,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
     nwelldof = 1
   endif
 
-  do idof = 1, option%nflowdof
+  do idof = 1, option%nflowdof - nwelldof
 
     if (hydrate_central_diff_jacobian) then
       ! pert(idof) = max(1.d-7 * x(idof),1.d-7)

@@ -2311,7 +2311,7 @@ subroutine PMWellSetup(this)
     case(H_MODE)
       well_bottom_ghosted = well_grid%h_ghosted_id(1)
       well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_ghosted > 0 .and. &
+      if (well_bottom_local > 0 .and. &
           realization%patch%aux%hydrate%inactive_cells_exist) then
         if (size(realization%patch%aux%hydrate%matrix_zeroing% &
             inactive_rows_local) == 1) then
@@ -6231,12 +6231,22 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
         well => this%well
         do k = 1,this%well_grid%nsegments
           do irow = 1, option%nflowspec
-            residual(k,irow) = well%liq%q(k)* &
-                               well%liq%xmass(k,irow) / &
-                               hydrate_fmw_comp(irow) + &
-                               well%gas%q(k)* &
-                               well%gas%xmass(k,irow) / &
-                               hydrate_fmw_comp(irow)
+            ! Salt is 3rd component, but 4th row
+            if (irow == option%nflowspec) then
+              residual(k,irow+1) = well%liq%q(k)* &
+                                well%liq%xmass(k,irow) / &
+                                hydrate_fmw_comp(irow) + &
+                                well%gas%q(k)* &
+                                well%gas%xmass(k,irow) / &
+                                hydrate_fmw_comp(irow)
+            else
+              residual(k,irow) = well%liq%q(k)* &
+                                well%liq%xmass(k,irow) / &
+                                hydrate_fmw_comp(irow) + &
+                                well%gas%q(k)* &
+                                well%gas%xmass(k,irow) / &
+                                hydrate_fmw_comp(irow)
+            endif
           enddo
           if (k==1) then
             sum_q = 0.d0
@@ -6249,6 +6259,11 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             endif
             residual(k,option%nflowdof) = Q - sum_q
           endif
+          irow = HYDRATE_ENERGY_DOF
+          residual(k,irow) = well%liq%q(k)* &
+                               well%liq%H(k)+ &
+                               well%gas%q(k)* &
+                               well%gas%H(k)
         enddo
 
         ! Perturbations
@@ -6293,7 +6308,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
                           hydrate_fmw_comp(irow)
                 ! Salt is 3rd component, but 4th row
                 if (irow == option%nflowspec) then
-                  J_block(irow+1,idof) = (res_pert - residual(k,irow))/pert
+                  J_block(irow+1,idof) = (res_pert - residual(k,irow+1))/pert
                 else
                   J_block(irow,idof) = (res_pert - residual(k,irow))/pert
                 endif
@@ -9109,26 +9124,6 @@ subroutine PMWellComputeWellIndex(pm_well)
       dy_tot = 0.d0
       dz_tot = 0.d0
       do k = 1,pm_well%well_grid%nsegments
-        if (pm_well%well_grid%casing(k) <= 0.d0) then
-          pm_well%well%WI(k) = 0.d0
-          cycle
-        endif
-        kyz = sqrt(reservoir%ky(k)/reservoir%kz(k))
-        kzy = sqrt(reservoir%kz(k)/reservoir%ky(k))
-        kzx = sqrt(reservoir%kz(k)/reservoir%kx(k))
-        kxz = sqrt(reservoir%kx(k)/reservoir%kz(k))
-        kyx = sqrt(reservoir%ky(k)/reservoir%kx(k))
-        kxy = sqrt(reservoir%kx(k)/reservoir%ky(k))
-        dx = reservoir%dx(k) / pm_well%well%friction_factor(k)
-        dy = reservoir%dy(k) / pm_well%well%friction_factor(k)
-        dz = reservoir%dz(k) / pm_well%well%friction_factor(k)
-        r0x = 2.8d-1*sqrt(kyz*(dz**2) + kzy*(dy**2)) / &
-              (sqrt(kyz)+sqrt(kzy))
-        r0y = 2.8d-1*sqrt(kzx*(dx**2) + kxz*(dz**2)) / &
-              (sqrt(kzx)+sqrt(kxz))
-        r0z = 2.8d-1*sqrt(kyx*(dx**2) + kxy*(dy**2)) / &
-              (sqrt(kyx)+sqrt(kxy))
-
         if (associated(pm_well%well_grid%dx)) then
           dh_x = pm_well%well_grid%dx(k)
           dh_y = pm_well%well_grid%dy(k)
@@ -9154,6 +9149,29 @@ subroutine PMWellComputeWellIndex(pm_well)
           dy_tot = dy_tot + dh_y
           dz_tot = dz_tot + dh_z
         endif
+
+        if (pm_well%well_grid%casing(k) <= 0.d0) then
+          pm_well%well%WI(k) = 0.d0
+          cycle
+        endif
+
+        kyz = sqrt(reservoir%ky(k)/reservoir%kz(k))
+        kzy = sqrt(reservoir%kz(k)/reservoir%ky(k))
+        kzx = sqrt(reservoir%kz(k)/reservoir%kx(k))
+        kxz = sqrt(reservoir%kx(k)/reservoir%kz(k))
+        kyx = sqrt(reservoir%ky(k)/reservoir%kx(k))
+        kxy = sqrt(reservoir%kx(k)/reservoir%ky(k))
+        dx = reservoir%dx(k) / pm_well%well%friction_factor(k)
+        dy = reservoir%dy(k) / pm_well%well%friction_factor(k)
+        dz = reservoir%dz(k) / pm_well%well%friction_factor(k)
+        r0x = 2.8d-1*sqrt(kyz*(dz**2) + kzy*(dy**2)) / &
+              (sqrt(kyz)+sqrt(kzy))
+        r0y = 2.8d-1*sqrt(kzx*(dx**2) + kxz*(dz**2)) / &
+              (sqrt(kzx)+sqrt(kxz))
+        r0z = 2.8d-1*sqrt(kyx*(dx**2) + kxy*(dy**2)) / &
+              (sqrt(kyx)+sqrt(kxy))
+
+
 
 
         wix = 2.d0 * PI * sqrt(reservoir%ky(k) * &
