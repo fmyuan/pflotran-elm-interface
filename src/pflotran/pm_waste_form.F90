@@ -98,6 +98,7 @@ module PM_Waste_Form_class
 ! -----------------------------------------------------------
   type, public :: wf_mechanism_base_type
     type(rad_species_type), pointer :: rad_species_list(:)
+    type(becc_parameters_type), pointer :: becc_parameters
     PetscInt :: num_species
     PetscInt :: seed
     PetscBool :: canister_degradation_model
@@ -412,6 +413,7 @@ module PM_Waste_Form_class
     PetscReal :: breach_time
     PetscBool :: breached
     PetscReal :: decay_start_time
+    PetscReal :: becc(8)
     character(len=MAXWORDLENGTH) :: mech_name
     character(len=MAXWORDLENGTH) :: spacer_mech_name
     character(len=MAXWORDLENGTH) :: criticality_mech_name
@@ -576,6 +578,37 @@ module PM_Waste_Form_class
   end type spacer_mechanism_base_type
 
 ! -----------------------------------------------------
+  type, public :: becc_parameters_type
+    ! Model based on Posiva 2013, Section 6.11 and 6.19
+    ! and Neretnieks et al. 2017 buffer erosion, Chapter 4
+    PetscReal :: smec_den        ! smectite particle density
+    PetscReal :: bh_rad          ! borehole radius
+    PetscReal :: diff_coef_bh    ! diffusion coeffficient in borehole
+    PetscReal :: smec_vf_bh_init ! smectite vol. frac. borehole initially
+    PetscReal :: smec_vf_int_rim ! smectite vol. frac. at intruding rim
+    PetscReal :: y0              ! coefficients for total buffer extruded over
+    PetscReal :: y1              ! time. Users must understand conditions/
+    PetscReal :: y2              ! uncertainty/assumptions due to these coefs
+    PetscReal :: ci_ub           ! upper bound Conc. ion for buffer erosion
+    PetscReal :: ci_lb           ! lower bound Conc. ion for buffer erosion
+    PetscReal :: c_sed           ! Sediment release constant
+    PetscReal :: af_vis          ! Agglomerate Fluid (AF) viscosity
+    PetscReal :: af_den          ! AF density
+    PetscReal :: af_vol_den      ! AF volume density
+    PetscReal :: buffer_por      ! buffer porosity
+    PetscReal :: can_rad         ! canister radius
+    PetscReal :: critical_volume
+    PetscReal :: can_den         ! Canister Density
+    PetscReal :: can_wall        ! Canister Wall Thickness
+    PetscReal :: c_hs          ! Reactant concentration (HS-)
+    PetscReal :: N_m           ! MW canister metal (Cu)
+    PetscReal :: N_r           ! MW reactant (HS-)
+    PetscReal :: ratio_M       ! Metal to reactant
+    PetscReal :: f2            ! Exposed surface multiplier
+    PetscReal :: f1            ! Volume multiplier
+  end type becc_parameters_type
+
+! -----------------------------------------------------
 
   public :: PMWFCreate, &
             PMWFSetup, &
@@ -620,6 +653,7 @@ subroutine PMWFMechanismInit(this)
   this%vitality_rate_stdev = UNINITIALIZED_DOUBLE
   this%vitality_rate_trunc = UNINITIALIZED_DOUBLE
   this%canister_material_constant = UNINITIALIZED_DOUBLE
+  nullify(this%becc_parameters)
  !------------------------------------------------------
 
 end subroutine PMWFMechanismInit
@@ -964,6 +998,41 @@ end function PMWFSpacerMechCreate
 
 ! ************************************************************************** !
 
+function PMWFBufferCopperCorosionCreate()
+
+  type(becc_parameters_type), pointer :: PMWFBufferCopperCorosionCreate
+
+  allocate(PMWFBufferCopperCorosionCreate)
+  PMWFBufferCopperCorosionCreate%smec_den = 2700
+  PMWFBufferCopperCorosionCreate%bh_rad = UNINITIALIZED_DOUBLE
+  PMWFBufferCopperCorosionCreate%diff_coef_bh = 1.d-9
+  PMWFBufferCopperCorosionCreate%smec_vf_bh_init = 0.574
+  PMWFBufferCopperCorosionCreate%smec_vf_int_rim = 0.015
+  PMWFBufferCopperCorosionCreate%y0 = 93.74
+  PMWFBufferCopperCorosionCreate%y1 = -0.0004521
+  PMWFBufferCopperCorosionCreate%y2 = 2.236d-9
+  PMWFBufferCopperCorosionCreate%ci_ub = 4
+  PMWFBufferCopperCorosionCreate%ci_lb = 1
+  PMWFBufferCopperCorosionCreate%c_sed = 1000
+  PMWFBufferCopperCorosionCreate%af_vis = 0.1
+  PMWFBufferCopperCorosionCreate%af_den = 1017
+  PMWFBufferCopperCorosionCreate%af_vol_den = 0.01
+  PMWFBufferCopperCorosionCreate%f1 = 1.0
+  PMWFBufferCopperCorosionCreate%buffer_por = UNINITIALIZED_DOUBLE
+  PMWFBufferCopperCorosionCreate%can_rad = UNINITIALIZED_DOUBLE
+  PMWFBufferCopperCorosionCreate%critical_volume = 0.d0
+  PMWFBufferCopperCorosionCreate%can_den = 8900
+  PMWFBufferCopperCorosionCreate%can_wall = UNINITIALIZED_DOUBLE
+  PMWFBufferCopperCorosionCreate%c_hs = UNINITIALIZED_DOUBLE
+  PMWFBufferCopperCorosionCreate%N_m = 63.54
+  PMWFBufferCopperCorosionCreate%N_r = 33.07
+  PMWFBufferCopperCorosionCreate%ratio_M = 2
+  PMWFBufferCopperCorosionCreate%f2 = 1.d0
+  PMWFBufferCopperCorosionCreate%f1 = 1.d0
+
+end function PMWFBufferCopperCorosionCreate
+! ************************************************************************** !
+
 function PMWFWasteFormCreate()
   !
   ! Creates a waste form and initializes all parameters
@@ -1000,6 +1069,7 @@ function PMWFWasteFormCreate()
   wf%spacer_mech_name = ''
   wf%criticality_mech_name = ''
   wf%decay_start_time = 0.d0          ! sec (default value)
+  wf%becc = 0.d0
   nullify(wf%instantaneous_mass_rate) ! mol-rad/sec
   nullify(wf%cumulative_mass)         ! mol-rad
   nullify(wf%rad_mass_fraction)       ! g-rad/g-matrix
@@ -1237,7 +1307,7 @@ subroutine PMWFReadPMBlock(this,input)
 
     if (.not.cur_waste_form%mechanism%canister_degradation_model) then
       ! canister vitality specified, but can.deg. model is off:
-      if (initialized(cur_waste_form%canister_vitality_rate)) then
+      if (Initialized(cur_waste_form%canister_vitality_rate)) then
         option%io_buffer = 'WASTE_FORM MECHANISM ' // &
           trim(cur_waste_form%mech_name) // ' does not have the canister &
           &degradation model turned on, but at least one of the waste forms &
@@ -1245,7 +1315,7 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
       ! canister breach time specified, but can.deg. model is off:
-      if (initialized(cur_waste_form%breach_time)) then
+      if (Initialized(cur_waste_form%breach_time)) then
         option%io_buffer = 'WASTE_FORM MECHANISM ' // &
           trim(cur_waste_form%mech_name) // ' does not have the canister &
           &degradation model turned on, but at least one of the waste forms &
@@ -1256,10 +1326,10 @@ subroutine PMWFReadPMBlock(this,input)
 
     ! both waste form and mechanism canister vitality rate parameters
     ! are specified:
-    if (initialized(cur_waste_form%canister_vitality_rate) .and. &
-        ( initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
-          initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
-          initialized(cur_waste_form%mechanism%vitality_rate_trunc) )) then
+    if (Initialized(cur_waste_form%canister_vitality_rate) .and. &
+        ( Initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
+          Initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
+          Initialized(cur_waste_form%mechanism%vitality_rate_trunc) )) then
       option%io_buffer = 'Either CANISTER_VITALITY_RATE within the &
         &WASTE_FORM blocks -or- the VITALITY_LOG10_MEAN, &
         &VITALITY_LOG10_STDEV, and VITALITY_UPPER_TRUNCATION within &
@@ -1275,21 +1345,23 @@ subroutine PMWFReadPMBlock(this,input)
       if ( (Uninitialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
             Uninitialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
             Uninitialized(cur_waste_form%mechanism%vitality_rate_trunc) ) .and. &
-          Uninitialized(cur_waste_form%canister_vitality_rate) .and. &
-          Uninitialized(cur_waste_form%breach_time)                 )  then
+            Uninitialized(cur_waste_form%canister_vitality_rate) .and. &
+            Uninitialized(cur_waste_form%breach_time) .and. &
+            Uninitialized(cur_waste_form%becc(1)))  then
         option%io_buffer = 'CANISTER_VITALITY_RATE within the WASTE_FORM &
           &blocks -or- CANISTER_BREACH_TIME within the WASTE_FORM blocks &
           &-or- the VITALITY_LOG10_MEAN, VITALITY_LOG10_STDEV, and &
-          &VITALITY_UPPER_TRUNCATION within the WASTE_FORM with MECHANISM ' // &
+          &VITALITY_UPPER_TRUNCATION -or- BUFFER_ERROSION_COPPER_COROSION &
+          &within the WASTE_FORM with MECHANISM ' // &
           trim(cur_waste_form%mechanism%name) // ' is missing.'
         call PrintErrMsg(option)
       endif
       ! all parameters are given:
-      if ( (initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
-            initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
-            initialized(cur_waste_form%mechanism%vitality_rate_trunc) ) .and. &
-          initialized(cur_waste_form%canister_vitality_rate) .and. &
-          initialized(cur_waste_form%breach_time)                 )  then
+      if ( (Initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
+            Initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
+            Initialized(cur_waste_form%mechanism%vitality_rate_trunc) ) .and. &
+            Initialized(cur_waste_form%canister_vitality_rate) .and. &
+            Initialized(cur_waste_form%breach_time))  then
         option%io_buffer = 'CANISTER_VITALITY_RATE within the WASTE_FORM &
           &blocks -or- CANISTER_BREACH_TIME within the WASTE_FORM blocks &
           &-or- the VITALITY_LOG10_MEAN, VITALITY_LOG10_STDEV, and &
@@ -1299,8 +1371,8 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
       ! both breach time and can. deg. rate were given
-      if (initialized(cur_waste_form%canister_vitality_rate) .and. &
-          initialized(cur_waste_form%breach_time)) then
+      if (Initialized(cur_waste_form%canister_vitality_rate) .and. &
+          Initialized(cur_waste_form%breach_time)) then
         option%io_buffer = 'Either CANISTER_VITALITY_RATE -or- &
           &CANISTER_BREACH_TIME within the WASTE_FORM block with &
           &WASTE_FORM MECHANISM ' // trim(cur_waste_form%mechanism%name) &
@@ -1308,10 +1380,10 @@ subroutine PMWFReadPMBlock(this,input)
         call PrintErrMsg(option)
       endif
       ! both breach time and can. deg. distribution were given
-      if ((initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
-           initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
-           initialized(cur_waste_form%mechanism%vitality_rate_trunc)) .and. &
-          initialized(cur_waste_form%breach_time)) then
+      if ((Initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
+           Initialized(cur_waste_form%mechanism%vitality_rate_stdev) .or. &
+           Initialized(cur_waste_form%mechanism%vitality_rate_trunc)) .and. &
+           Initialized(cur_waste_form%breach_time)) then
         option%io_buffer = 'Either CANISTER_BREACH_TIME within the &
           &WASTE_FORM block with WASTE_FORM MECHANISM ' &
           // trim(cur_waste_form%mechanism%name) // ' -or- the &
@@ -1936,6 +2008,147 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                      new_mechanism%canister_material_constant)
                 call InputErrorMsg(input,option,'canister material constant', &
                                    error_string)
+              case('BUFFER_EROSION_COPPER_CORROSION')
+                allocate(new_mechanism%becc_parameters)
+                new_mechanism%becc_parameters => PMWFBufferCopperCorosionCreate()
+                call InputPushBlock(input,option)
+                do
+                  call InputReadPflotranString(input,option)
+                  if (InputCheckExit(input,option)) exit
+                  call InputReadCard(input,option,word)
+                  call StringToUpper(word)
+                  select case(trim(word))
+                    case('SMECTITE_PARTICLE_DENSITY')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%smec_den)
+                      call InputErrorMsg(input,option,'smectite density',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('BOREHOLE_RADIUS')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%bh_rad)
+                      call InputErrorMsg(input,option,'borehole radius',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('DIFFUSION_COEFFICIENT_IN_BOREHOLE',&
+                         'DIFFUSION_IN_BOREHOLE',&
+                         'DIFF_COEF_IN_BH')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%diff_coef_bh)
+                      call InputErrorMsg(input,option,&
+                                         'diffusion coefficient in borehole',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('SMECTITE_VOLUME_FRACTION_BOREHOLE_INIT',&
+                         'SMECTITE_VOL_FRAC_BH_INIT')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%smec_vf_bh_init)
+                      call InputErrorMsg(input,option,&
+                                         'smectite volume fraction borehole initially',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('SMECTITE_VOLUME_FRACTION_AT_RIM',&
+                         'SMECTITE_VOL_FRAC_AT_RIM')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%smec_vf_int_rim)
+                      call InputErrorMsg(input,option,&
+                                         'smectite volume fraction borehole at intruding rim',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('Y0')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%y0)
+                      call InputErrorMsg(input,option,&
+                                         'Y0 coefficient for total buffer extruded over time',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('Y1')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%y1)
+                      call InputErrorMsg(input,option,&
+                                         'Y1 coefficient for total buffer extruded over time',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('Y2')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%y2)
+                      call InputErrorMsg(input,option,&
+                                         'Y2 coefficient for total buffer extruded over time',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('CI_UPPER_BOUND','ION_CONCENTRATION_UPPER_BOUND')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%ci_ub)
+                      call InputErrorMsg(input,option,&
+                                         'upper bound ion concentration',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('CI_LOWER_BOUND','ION_CONCENTRATION_LOWER_BOUND')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%ci_lb)
+                      call InputErrorMsg(input,option,&
+                                         'lower bound ion concentration',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('SEDIMENT_RELEASE_CONSTANT')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%c_sed)
+                      call InputErrorMsg(input,option,&
+                                         'lower bound ion concentration',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('AGGLOMERATE_FLUID_VISCOSITY', 'AF_VISCOSITY')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%af_vis)
+                      call InputErrorMsg(input,option,&
+                                         'agglomerate fluid viscosity',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('AGGLOMERATE_FLUID_DENSITY', 'AF_DENSITY')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%af_den)
+                      call InputErrorMsg(input,option,&
+                                         'agglomerate fluid density',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('AGGLOMERATE_FLUID_VOLUME_DENSITY', 'AF_VOL_DEN')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%af_vol_den)
+                      call InputErrorMsg(input,option,&
+                                         'agglomerate fluid volume density',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('VOLUME_MULTIPLIER','F1')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%f1)
+                      call InputErrorMsg(input,option,&
+                                         'volume multiplier',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('BUFFER_POROSITY')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%buffer_por)
+                      call InputErrorMsg(input,option,&
+                                         'buffer porosity',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('CANISTER_RADIUS')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%can_rad)
+                      call InputErrorMsg(input,option,&
+                                         'canister radius',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('CANISTER_DENSITY')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%can_den)
+                      call InputErrorMsg(input,option,&
+                                         'canister density',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('CANISTER_WALL_THICKNESS')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%can_wall)
+                      call InputErrorMsg(input,option,&
+                                         'canister wall thickness',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('REACTANT_CONC_HS')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%c_hs)
+                      call InputErrorMsg(input,option,&
+                                         'reactant concentration',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('MW_CANISTER_METAL')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%N_m)
+                      call InputErrorMsg(input,option,&
+                                         'Molecular weight of canister material',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('MW_REACTANT')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%N_r)
+                      call InputErrorMsg(input,option,&
+                                         'Molecular weight or corroding agent',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('METAL_TO_REACTANT_RATIO','RATIO')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%ratio_M)
+                      call InputErrorMsg(input,option,&
+                                         'metal to reactant ratio',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case('EXPOSED_SURFACE_MULTIPLIER')
+                      call InputReadDouble(input,option,new_mechanism%becc_parameters%f2)
+                      call InputErrorMsg(input,option,&
+                                         'exposed surface multiplier',&
+                                         'BUFFER_EROSION, GENERAL')
+                    case default
+                      option%io_buffer = "Keyword not recognized"
+                  end select
+                enddo
+                new_mechanism%becc_parameters%critical_volume = new_mechanism%becc_parameters%f1 * &
+                  ((PI**2 * 0.5 * new_mechanism%becc_parameters%bh_rad * &
+                  (new_mechanism%becc_parameters%bh_rad - new_mechanism%becc_parameters%can_rad)**2) - &
+                  (((2*PI) / 3) * (new_mechanism%becc_parameters%bh_rad - new_mechanism%becc_parameters%can_rad)**3))
+                call InputPopBlock(input,option)
               case default
                 option%io_buffer = 'Keyword ' // trim(word) // &
                                    ' not recognized in the ' // &
@@ -2286,6 +2499,18 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
             call StringToUpper(word)
             new_waste_form%spacer_mech_name = trim(word)
             new_waste_form%spacer_degradation_flag = PETSC_TRUE
+          case('FRACTURE_ANGLE') !steady state for now
+            call InputReadDouble(input,option,new_waste_form%becc(1))
+            call InputErrorMsg(input,option,'fracture angle',error_string)
+          case('FRACTURE_APERTURE')
+            call InputReadDouble(input,option,new_waste_form%becc(2))
+            call InputErrorMsg(input,option,'fracture aperture',error_string)
+          case('WATER_VELOCITY')
+            call InputReadDouble(input,option,new_waste_form%becc(3))
+            call InputErrorMsg(input,option,'water velocity',error_string)
+          case('ION_CONCENTRATION')
+            call InputReadDouble(input,option,new_waste_form%becc(4))
+            call InputErrorMsg(input,option,'ion concentration',error_string)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2868,13 +3093,12 @@ subroutine PMWFSetup(this)
       cur_waste_form%canister_degradation_flag = PETSC_TRUE
       cur_waste_form%canister_vitality = 1.d0
       ! waste form breach time specified:
-      if (initialized(cur_waste_form%breach_time) .and. &
+      if (Initialized(cur_waste_form%breach_time) .and. &
           Uninitialized(cur_waste_form%canister_vitality_rate)) then
         cur_waste_form%eff_canister_vit_rate = &
           (1.d0/cur_waste_form%breach_time)
       ! distribution for canister degradation rate specified:
-      elseif (Uninitialized(cur_waste_form%canister_vitality_rate) .and. &
-              Uninitialized(cur_waste_form%breach_time)) then
+      elseif (Initialized(cur_waste_form%mechanism%vitality_rate_mean)) then
         ! call to random number generator must be done while each processor
         ! knows about every other processor's waste forms, otherwise the
         ! memory of the random number generator will not be global
@@ -3457,20 +3681,30 @@ subroutine PMWFInitializeTimestep(this)
         cur_waste_form%eff_canister_vit_rate = &
           cur_waste_form%eff_canister_vit_rate
       else
-        avg_temp_local = 0.d0
-        do i = 1,cur_waste_form%region%num_cells
-          local_id = cur_waste_form%region%cell_ids(i)
-          ghosted_id = grid%nL2G(local_id)
-          avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp * &
-                           cur_waste_form%scaling_factor(i)
-        enddo
-        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+        if (associated(cwfm%becc_parameters)) then
+          if (cur_waste_form%becc(6) > 0.d0) then
+            call CalculateCC(cur_waste_form,cwfm%becc_parameters,option)
+          else
+            call CalculateBE(cur_waste_form,cwfm%becc_parameters, &
+                             option)
+          endif
+        endif
+        if (Initialized(cur_waste_form%canister_vitality_rate)) then
+          avg_temp_local = 0.d0
+          do i = 1,cur_waste_form%region%num_cells
+            local_id = cur_waste_form%region%cell_ids(i)
+            ghosted_id = grid%nL2G(local_id)
+            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp * &
+                             cur_waste_form%scaling_factor(i)
+          enddo
+          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                              avg_temp_global)
-        avg_temp_global = avg_temp_global+T273K   ! Kelvin
-        cur_waste_form%eff_canister_vit_rate = &
-          cur_waste_form%canister_vitality_rate * &
-          exp( cwfm%canister_material_constant * ( (1.d0/333.15d0) - &
-          (1.d0/(avg_temp_global))) )
+          avg_temp_global = avg_temp_global+T273K   ! Kelvin
+          cur_waste_form%eff_canister_vit_rate = &
+            cur_waste_form%canister_vitality_rate * &
+            exp( cwfm%canister_material_constant * ( (1.d0/333.15d0) - &
+            (1.d0/(avg_temp_global))) )
+        endif
       endif
       cur_waste_form%canister_vitality = cur_waste_form%canister_vitality &
                                  - (cur_waste_form%eff_canister_vit_rate*dt)
@@ -5106,6 +5340,12 @@ subroutine PMWFOutput(this)
                                   cur_waste_form%spacer_vitality
     endif
     cwfm => cur_waste_form%mechanism
+    if (associated(cwfm%becc_parameters)) then
+      write(fid,100,advance="no") cur_waste_form%becc(5), &
+                                  cur_waste_form%becc(6), &
+                                  cur_waste_form%becc(7), &
+                                  cur_waste_form%becc(8)
+    endif
     select type(cwfm => cur_waste_form%mechanism)
       type is(wf_mechanism_fmdm_surrogate_type)
          write(fid,100,advance="no") cwfm%temp, &
@@ -5230,7 +5470,7 @@ subroutine PMWFOutputHeader(this)
   cur_waste_form => this%waste_form_list
   do
     if (.not.associated(cur_waste_form)) exit
-    if (initialized(cur_waste_form%coordinate%z)) then
+    if (Initialized(cur_waste_form%coordinate%z)) then
       ! cell natural id
       write(cell_string,*) grid%nG2A(grid%nL2G(cur_waste_form%region%cell_ids(1)))
       cell_string = ' (' // trim(adjustl(cell_string)) // ')'
@@ -5297,6 +5537,27 @@ subroutine PMWFOutputHeader(this)
                                icolumn)
     endif
     cwfm => cur_waste_form%mechanism
+    if (associated(cwfm%becc_parameters)) then
+      variable_string = 'Buffer Eroded'
+      units_string = 'm^3'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Buffer Erosion Time'
+      units_string = 'yr'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Copper Corroded'
+      units_string = 'm'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+
+      variable_string = 'Copper Corrosion'
+      units_string = 'yr'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+    endif
     select type (cwfm => cur_waste_form%mechanism)
       type is(wf_mechanism_fmdm_surrogate_type)
         variable_string = 'Temperature'
@@ -9264,6 +9525,220 @@ function KnnrIsInfinite(value1)
   endif
 
 end function KnnrIsInfinite
+
+! ************************************************************************** !
+
+subroutine BELambertWSolve(x0_in, const, tol, max_iter, sol, status)
+
+  !
+  !  Author: Heeho Park
+  !  Date: 03/22/2023
+  !
+
+  PetscReal, intent(in) :: x0_in, const, tol
+  PetscInt, intent(in) :: max_iter
+  PetscReal, intent(out) :: sol
+  PetscInt, intent(out) :: status
+
+  PetscReal :: x0, f, fp
+  PetscInt :: iter
+
+  x0 = x0_in
+  iter = 0
+  sol = x0
+  do
+    f = sol * exp(sol) - const
+    fp = (1.0d0 + sol) * exp(sol)
+    sol = sol - f / fp
+
+    ! Check for convergence
+    if (abs(sol - x0) < tol) then
+      status = 0
+      exit
+    endif
+
+    x0 = sol
+    iter = iter + 1
+
+    ! Check for maximum number of iterations
+    if (iter >= max_iter) then
+      status = 1
+      exit
+    endif
+  end do
+
+end subroutine BELambertWSolve
+
+! ************************************************************************** !
+
+subroutine CalculateBE(wf, becc_parameters, option)
+
+  use Option_module
+  use PFLOTRAN_Constants_module
+  use Global_Aux_module
+
+  implicit none
+
+  class(waste_form_base_type), pointer :: wf
+  type(becc_parameters_type) :: becc_parameters
+  PetscReal :: density
+  type(option_type) :: option
+
+  PetscReal :: spy, t_yr, dt_yr                  ! simulation time in years
+  PetscReal :: Fexp, ratio, sedLamWx
+  PetscReal :: Dr, G, y, expo
+  PetscReal :: seepLamWx, buffer_volume_eroded
+  PetscReal :: rRSS, NexpSed, Nal
+  PetscReal :: intr_rate, eros_rate, sed_rate, loss_rate
+  PetscInt :: status
+
+  spy = 60.d0*60.d0*24.d0*365.d0
+  t_yr = option%time / (spy)  ! sec,min,hr,day
+  dt_yr = option%dt / (spy)
+  density = 1000.d0
+
+  !Intrusion Rate
+  intr_rate =  wf%becc(2) * (becc_parameters%y0 + &
+               2.0d0* becc_parameters%y1*t_yr + 3.0d0* becc_parameters%y2*t_yr**2.0d0)
+
+  !Seeping Erosion
+  ! calculate diffusion coefficient at the rim
+  if (wf%becc(4) > becc_parameters%ci_ub) then
+    Dr = 0.0d0  ! m^2/s
+    y = 0.0d0
+  else
+    if (wf%becc(4) > becc_parameters%ci_lb) then
+      y = log10(wf%becc(4))
+    else
+      y = -1.0d0
+    end if
+    expo = -9.42911d0 - 1.309d0*y - 1.88737d0*y**2.d0 - 0.783596*y**3.d0
+    Dr = 10.d0 ** expo
+  end if
+
+  ! Equation 4-6
+  G = (becc_parameters%diff_coef_bh*spy * PI*(becc_parameters%smec_vf_bh_init-becc_parameters%smec_vf_int_rim)) / &
+      (2.d0*becc_parameters%smec_vf_int_rim*sqrt(Dr*spy*becc_parameters%bh_rad*wf%becc(3)))
+
+  ! ProductLog(G/2) in Eq. 4-7 (i.e., Lambert W)
+  ! solving with Newton's Method
+  !               init_guess, const, tol, max_iter, sol, status
+  call BELambertWSolve(1.d0, G/2.d0, 1.d-8, 100, seepLamWx, status)
+  if (status == 1) then
+    option%io_buffer = "Newton's method did not converge" // &
+                       " within the maximum number of iterations" // &
+                       " to solve Lambert W in" // &
+                       " Buffer Erosion by Seeping water erosion"
+    call PrintErrMsg(option)
+  end if
+
+  ! radius of rim at steady state
+  rRSS = becc_parameters%bh_rad*((G/2.d0)/seepLamWx)**2.d0  ! (m)
+
+  eros_rate = becc_parameters%smec_den*wf%becc(2)*becc_parameters%smec_vf_int_rim * &
+              4.0d0*sqrt(Dr*spy*PI*rRSS*wf%becc(3))
+
+  !Sedimentation Erosion
+  Fexp = becc_parameters%diff_coef_bh * spy * becc_parameters%smec_den * &
+         (becc_parameters%smec_vf_bh_init - becc_parameters%af_vol_den) / &
+         (becc_parameters%c_sed*sin(wf%becc(1)))
+
+  ratio = Fexp/becc_parameters%bh_rad
+
+  ! ProductLog(G/2) in Eq. 4-7 (i.e., Lambert W)
+  ! solving with Newton's Method
+  !               init_guess, const, tol, max_iter, sol, status
+  call BELambertWSolve(1.d0, ratio, 1.d-8, 100, sedLamWx, status)
+  if (status == 1) then
+    option%io_buffer = "Newton's method did not converge" // &
+                       " within the maximum number of iterations" // &
+                       " to solve Lambert W in" // &
+                       " Buffer Erosion by Sedimentation"
+    call PrintErrMsg(option)
+  end if
+
+  rRSS = Fexp/sedLamWx
+  NexpSed = becc_parameters%c_sed * wf%becc(2) * 2.d0 * PI * &
+            rRSS * sin(wf%becc(1))**2.0d0
+  Nal = wf%becc(2)**3.d0 / (12 * (becc_parameters%af_vis/spy)) * &
+        (becc_parameters%af_den - density) * EARTH_GRAVITY * &
+        becc_parameters%af_vol_den * becc_parameters%smec_den * (2.0d0 * rRSS)
+  sed_rate = min(Nal,NexpSed)
+
+  !total loss rate
+  if (wf%becc(4) < becc_parameters%ci_ub) then
+    loss_rate = max(eros_rate+sed_rate,intr_rate)
+  else
+    loss_rate = intr_rate
+  end if
+
+  buffer_volume_eroded = ((loss_rate * dt_yr) &
+                         / ((1 - becc_parameters%buffer_por) * becc_parameters%smec_den))
+
+  wf%becc(5) = wf%becc(5) + buffer_volume_eroded
+
+  if (wf%becc(5) >= becc_parameters%critical_volume) then
+     !interpolate time
+     wf%becc(6) = (t_yr - dt_yr) + ((becc_parameters%critical_volume - (wf%becc(5) - buffer_volume_eroded)) &
+                                   / buffer_volume_eroded) * dt_yr
+     wf%becc(5) = becc_parameters%critical_volume
+  endif
+
+end subroutine CalculateBE
+
+! ************************************************************************** !
+
+subroutine CalculateCC(wf, becc_parameters, option)
+
+  use Option_module
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  class(waste_form_base_type), pointer :: wf
+  type(becc_parameters_type) :: becc_parameters
+  type(option_type) :: option
+
+  PetscReal :: Qa, V, Qlim, Qah, A, spy
+  PetscReal :: r_sub, dt_yr, total_corroded
+
+  spy = 60.d0*60.d0*24.d0*365.d0
+  dt_yr = option%dt / (60.d0*60.d0*24.d0*365.d0)
+
+  r_sub = becc_parameters%bh_rad - becc_parameters%can_rad
+
+  ! Fracture flow rate across twice the borehole diameter
+  Qa = wf%becc(3) * wf%becc(2) * (2.d0 * 2.d0 * becc_parameters%bh_rad)
+
+  ! Critical volume of buffer loss to expose copper
+  V = becc_parameters%f1 * &
+      (PI**2.d0 * 0.5d0 * becc_parameters%bh_rad * r_sub**2.d0 &
+      - (2.d0/3.d0 * PI * r_sub**3.d0))
+
+  ! Equivalent rate with diffusion in borehole
+  Qlim = (4.d0 * PI**(-1.d0) * V * becc_parameters%diff_coef_bh * spy) / r_sub**2.d0
+
+  ! Equivalent flow rate
+  Qah = min(Qa, sqrt(Qa*Qlim))
+
+  ! Area of copper exposed after buffer erosion
+  A = becc_parameters%f2 * (PI * becc_parameters%can_rad * r_sub)
+
+  total_corroded = becc_parameters%ratio_M * becc_parameters%N_m * (Qah * becc_parameters%c_hs * dt_yr) / &
+    (becc_parameters%can_den * A)
+
+  wf%becc(7) = wf%becc(7) + total_corroded
+
+  if (wf%becc(7) >= becc_parameters%can_wall) then
+    wf%becc(8) = (option%time / (60.d0*60.d0*24.d0*365.d0) - dt_yr) + ((becc_parameters%can_wall &
+                 - (wf%becc(7) - total_corroded)) &
+                 / total_corroded) * dt_yr
+    wf%canister_vitality = 0.d0
+    wf%eff_canister_vit_rate = 0.d0
+    wf%becc(7) = becc_parameters%can_wall
+  endif
+
+end subroutine CalculateCC
 
 ! ************************************************************************** !
 

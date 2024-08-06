@@ -1,0 +1,317 @@
+
+#================================ RICHARDS Mode ===============================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+    WASTE_FORM wf_general
+      TYPE GENERAL
+    /
+  /
+
+END
+
+SUBSURFACE
+
+#================================ chemistry ===================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  /
+
+  TRUNCATE_CONCENTRATION 1.0d-20
+
+  OUTPUT
+    TOTAL
+    all
+  /
+
+END
+
+#================================ regression ==================================
+REGRESSION
+  CELL_IDS
+    2
+    3
+    4
+  /
+END
+
+#============================== debug settings ================================
+
+#============================== discretization ================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.0d+0 0.0d+0 0.0d+0
+  NXYZ 7 1 7
+  BOUNDS
+    1.0d+0 0.0d+0 1.0d+0
+    8.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+#============================ fluid properties ================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.0d-9
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES cc_default
+  POROSITY 5.0d-1
+  TORTUOSITY 5.0d-1
+  PERMEABILITY
+    PERM_ISO 1.0d-12
+  /
+/
+
+MATERIAL_PROPERTY wp
+  ID 2
+  CHARACTERISTIC_CURVES cc_default
+  POROSITY 5.0d-1
+  TORTUOSITY 1.0d+0
+  PERMEABILITY
+    PERM_ISO 1.0d-12
+  /
+/
+
+MATERIAL_PROPERTY buffer1
+  ID 3
+  CHARACTERISTIC_CURVES cc_default
+  POROSITY 5.0d-1
+  PERMEABILITY
+    PERM_ISO 1.0d-16
+  /
+/
+
+#============================ characteristic curves ===========================
+CHARACTERISTIC_CURVES cc_default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 2.86d-1
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 1.15d-1
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 2.86d-1
+    LIQUID_RESIDUAL_SATURATION 1.15d-1
+  /
+END
+
+#================================== times =====================================
+TIME
+  FINAL_TIME 2.0d+6 y
+  INITIAL_TIMESTEP_SIZE 1.0d-7 y
+  MAXIMUM_TIMESTEP_SIZE 1.0d+6 y
+END
+
+#================================== regions ===================================
+REGION all
+  COORDINATES
+    1.0d+0 0.0d+0 1.0d+0
+    8.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+REGION buffer1
+  COORDINATES
+    3.0d+0 0.0d+0 3.0d+0
+    6.0d+0 1.0d+0 4.0d+0
+  /
+END
+
+REGION buffer2
+  COORDINATES
+    3.0d+0 0.0d+0 4.0d+0
+    4.0d+0 1.0d+0 6.0d+0
+  /
+END
+
+REGION buffer4
+  COORDINATES
+    5.0d+0 0.0d+0 4.0d+0
+    6.0d+0 1.0d+0 6.0d+0
+  /
+END
+
+REGION buffer3
+  COORDINATES
+    3.0d+0 0.0d+0 5.0d+0
+    6.0d+0 1.0d+0 6.0d+0
+  /
+END
+
+REGION wp
+  COORDINATES
+    4.0d+0 0.0d+0 4.0d+0
+    5.0d+0 1.0d+0 5.0d+0
+  /
+END
+
+REGION north
+  COORDINATES
+    1.0d+0 0.0d+0 1.0d+0
+    8.0d+0 1.0d+0 1.0d+0
+  /
+  FACE NORTH
+END
+
+REGION south
+  COORDINATES
+    1.0d+0 0.0d+0 8.0d+0
+    8.0d+0 1.0d+0 8.0d+0
+  /
+  FACE SOUTH
+END
+
+#============================= flow conditions ================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 5.00000d+6 Pa
+END
+
+FLOW_CONDITION inflow
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 5.00001d+6 Pa
+END
+
+FLOW_CONDITION outflow
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 5.00000d+6 Pa
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.0d+0 initial
+  /
+END
+
+#========================== transport constraints =============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    Tracer     1.0d-20 T
+  /
+END
+
+#====================== initial and boundary conditions =======================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION inflow
+  TRANSPORT_CONDITION initial
+  REGION north
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION outflow
+  TRANSPORT_CONDITION initial
+  REGION south
+END
+
+#========================== stratigraphy couplers =============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+STRATA
+  MATERIAL wp
+  REGION wp
+/
+
+STRATA
+  MATERIAL buffer1
+  REGION buffer1
+/
+
+STRATA
+  MATERIAL buffer1
+  REGION buffer2
+/
+
+STRATA
+  MATERIAL buffer1
+  REGION buffer3
+/
+
+STRATA
+  MATERIAL buffer1
+  REGION buffer4
+/
+
+END_SUBSURFACE
+
+#=============================== waste forms ==================================
+
+WASTE_FORM_GENERAL
+
+  WASTE_FORM
+    REGION wp
+    EXPOSURE_FACTOR 1.0d+0
+    VOLUME 1.0d+0 m^3
+    MECHANISM_NAME csnf
+    FRACTURE_ANGLE 1.5708
+    FRACTURE_APERTURE 0.0001
+    WATER_VELOCITY  41
+    ION_CONCENTRATION 1.946
+  /
+
+  MECHANISM CUSTOM
+    NAME csnf
+    FRACTIONAL_DISSOLUTION_RATE 1.0d-6 1/y
+    MATRIX_DENSITY 10920.0d+0
+    SPECIES
+    # iso  | g/mol   | 1/s     | g/g waste | instant release fraction | daughter
+      Tracer  1.3691d+2 0.d0  1.5d-7      1.0d+0
+    /
+    CANISTER_DEGRADATION_MODEL
+      CANISTER_MATERIAL_CONSTANT 1500.
+      BUFFER_EROSION_COPPER_CORROSION
+        SMECTITE_PARTICLE_DENSITY 2700
+        BOREHOLE_RADIUS 0.925
+        DIFF_COEF_IN_BH 1d-9
+        SMECTITE_VOL_FRAC_BH_INIT 0.574
+        SMECTITE_VOL_FRAC_AT_RIM 0.015
+        Y0 93.74
+        Y1 -0.0004521
+        Y2  2.236d-9
+        CI_UPPER_BOUND 4
+        CI_LOWER_BOUND 1
+        SEDIMENT_RELEASE_CONSTANT 1000
+        AGGLOMERATE_FLUID_VISCOSITY 0.1
+        AF_DENSITY  1017
+        AF_VOL_DEN 0.01
+        F1 1.0
+        BUFFER_POROSITY 0.35
+        CANISTER_RADIUS 0.525
+        CANISTER_DENSITY 8900
+	CANISTER_WALL_THICKNESS 0.047
+	REACTANT_CONC_HS 1.21d-4
+	MW_CANISTER_METAL  63.54
+	MW_REACTANT 33.07
+	METAL_TO_REACTANT_RATIO 2
+	EXPOSED_SURFACE_MULTIPLIER  1.0
+	F1  1.0
+     /
+    /
+  END #MECHANISM CUSTOM
+
+END_WASTE_FORM_GENERAL
+
