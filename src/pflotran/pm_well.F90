@@ -9613,7 +9613,7 @@ subroutine PMWellBCFlux(pm_well,well,Res,save_flux)
 
   well_grid => pm_well%well_grid
   reservoir => pm_well%well%reservoir
-  
+
   gravity = option%gravity(Z_DIRECTION)
   t = 25.d0 !Constant temperature
 
