@@ -82,7 +82,7 @@ END
 !=========================== discretization ===================================
 
 GRID
-  GRAVITY 0.0d0  0.0d+00  -9.8d0  ! use y as the vertical direction
+  GRAVITY 0.0d0  0.0d+00  -9.80665d0  ! use y as the vertical direction
   TYPE structured
   NXYZ 1 1 30
   BOUNDS

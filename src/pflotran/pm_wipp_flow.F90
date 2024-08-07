@@ -737,7 +737,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   field => this%realization%field
   option => this%option
 
-  gravity = -option%gravity(Z_DIRECTION)
+  gravity = -1.d0*option%gravity(Z_DIRECTION)
 
   if (this%scale_linear_system .and. option%flow%scale_all_pressure) then
     option%io_buffer = 'cannot be used with SCALE_JACOBIAN, &
