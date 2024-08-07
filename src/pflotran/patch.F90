@@ -1054,15 +1054,31 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             endif
           endif
         else if (coupler%itype == WELL_COUPLER_TYPE) then
-          if (associated(coupler%flow_condition%sco2)) then
-            if (associated(coupler%flow_condition%sco2%rate)) then
-              select case(coupler%flow_condition%sco2%rate%itype)
-                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                  allocate(coupler%flow_aux_real_var(1,num_connections))
-                  coupler%flow_aux_real_var = 0.d0
-              end select
-            endif
-          endif
+          select case (option%iflowmode)
+            case (SCO2_MODE)
+              if (associated(coupler%flow_condition%sco2)) then
+                if (associated(coupler%flow_condition%sco2%rate)) then
+                  select case(coupler%flow_condition%sco2%rate%itype)
+                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                      allocate(coupler%flow_aux_real_var(1,num_connections))
+                      coupler%flow_aux_real_var = 0.d0
+                  end select
+                endif
+              endif
+            case (H_MODE)
+              if (associated(coupler%flow_condition%hydrate)) then
+                if (associated(coupler%flow_condition%hydrate%rate)) then
+                  select case(coupler%flow_condition%hydrate%rate%itype)
+                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                      allocate(coupler%flow_aux_real_var(1,num_connections))
+                      coupler%flow_aux_real_var = 0.d0
+                  end select
+                endif
+              endif
+            case default
+              option%io_buffer = 'The selected flow mode does not support &
+                                &using WELL_COUPLERs.'
+          end select
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -3750,6 +3766,10 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           endif
       ! ---------------------------------------------------------------------- !
       end select
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        coupler%flow_aux_real_var(HYDRATE_WELL_DOF, iconn) = &
+                  coupler%flow_aux_real_var(HYDRATE_GAS_PRESSURE_DOF,iconn)
+      endif
     enddo
   endif
 
@@ -8038,43 +8058,82 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           end select
         case(SCO2_MODE)
           select case(ivar)
-          case(WELL_LIQ_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%pl
-            enddo
-          case(WELL_GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%pg
-            enddo
-          case(WELL_LIQ_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%sl
-            enddo
-          case(WELL_GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%sg
-            enddo
-          case(WELL_LIQ_Q)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%Ql
-            enddo
-          case(WELL_GAS_Q)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%sco2%auxvars(ZERO_INTEGER, &
-                                          grid%nL2G(local_id))%well%Qg
-            enddo
-        end select
+            case(WELL_LIQ_PRESSURE)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%pl
+              enddo
+            case(WELL_GAS_PRESSURE)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%pg
+              enddo
+            case(WELL_LIQ_SATURATION)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%sl
+              enddo
+            case(WELL_GAS_SATURATION)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%sg
+              enddo
+            case(WELL_LIQ_Q)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%Ql
+              enddo
+            case(WELL_GAS_Q)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%Qg
+              enddo
+          end select
+        case(H_MODE)
+          select case(ivar)
+            case(WELL_LIQ_PRESSURE)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%pl
+              enddo
+            case(WELL_GAS_PRESSURE)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%pg
+              enddo
+            case(WELL_LIQ_SATURATION)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%sl
+              enddo
+            case(WELL_GAS_SATURATION)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%sg
+              enddo
+            case(WELL_LIQ_Q)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%Ql
+              enddo
+            case(WELL_GAS_Q)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%hydrate%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%Qg
+              enddo
+          end select
       end select
     case(NAMED_PARAMETER)
       do local_id=1,grid%nlmax
@@ -9321,6 +9380,27 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(WELL_GAS_Q)
             value = &
               patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg
+        end select
+      case (H_MODE)
+        select case(ivar)
+          case(WELL_LIQ_PRESSURE)
+            value = &
+                patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%pl
+          case(WELL_GAS_PRESSURE)
+            value = &
+                patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%pg
+          case(WELL_LIQ_SATURATION)
+            value = &
+                patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%sl
+          case(WELL_GAS_SATURATION)
+            value = &
+                patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%sg
+          case(WELL_LIQ_Q)
+            value = &
+              patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%Ql
+          case(WELL_GAS_Q)
+            value = &
+              patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%Qg
         end select
       end select
     case(NAMED_PARAMETER)

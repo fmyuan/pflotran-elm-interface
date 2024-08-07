@@ -12,6 +12,7 @@ module PM_SCO2_class
   PetscBool :: sco2_use_governors = PETSC_FALSE
   PetscBool :: sco2_check_updates = PETSC_FALSE
   PetscBool :: sco2_stomp_convergence = PETSC_TRUE
+  PetscBool :: sco2_well_residual_convergence = PETSC_FALSE
 
   PetscInt, parameter :: ABS_UPDATE_INDEX = 1
   PetscInt, parameter :: REL_UPDATE_INDEX = 2
@@ -395,6 +396,8 @@ subroutine PMSCO2ReadNewtonSelectCase(this,input,keyword,found, &
       sco2_check_updates = PETSC_TRUE
     case('USE_FULL_CONVERGENCE_CRITERIA')
       sco2_stomp_convergence = PETSC_FALSE
+    case('CONVERGE_ON_WELL_RESIDUAL')
+      sco2_well_residual_convergence = PETSC_TRUE
     case('MAX_NEWTON_ITERATIONS')
       call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                   'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
@@ -1143,7 +1146,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
         case(SCO2_LIQUID_GAS_STATE)
           Pc_entry = 0.d0
           select type(sf => characteristic_curves%saturation_function)
-            class is (sat_func_VG_STOMP_type)
+            class is (sat_func_vg_stomp_type)
               ! Pc_entry = characteristic_curves% &
               !          saturation_function%GetAlpha_() * &
               !          LIQUID_REFERENCE_DENSITY * gravity
@@ -1172,7 +1175,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) > &
              5.d8) dX_p(gas_pressure_index) = 5.d8 - X_p(gas_pressure_index)
           select type(sf => characteristic_curves%saturation_function)
-            class is (sat_func_VG_STOMP_type)
+            class is (sat_func_vg_stomp_type)
               Pc_max = characteristic_curves%saturation_function%Pcmax * &
                          LIQUID_REFERENCE_DENSITY * gravity
             class default
@@ -1276,8 +1279,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
                 dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
                                    sco2_auxvar%pres(option%gas_phase))
+              elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                dX_p(well_index) = dX_p(well_index) + &
+                                   (cur_well%well%bh_p - X_p(well_index))
               endif
-              dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
+              ! dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
               ! sco2_auxvar%well%pressure_bump = 0.d0
             endif
           endif
@@ -1738,8 +1744,15 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               if (dabs(update) > 0.d0) then
                 update = update - sco2_auxvar%well%pressure_bump
               endif
-              res_scaled = dabs(update) / &
-                           (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              if (sco2_well_residual_convergence) then
+                !Converge on well residual
+                res_scaled = dabs(residual/(accumulation + epsilon))
+              else
+                !Converge on well BHP update
+                res_scaled = dabs(update) / &
+                             (dabs(sco2_auxvar%well%bh_p) + epsilon)
+              endif
+
               ! res_scaled = min(dabs(update) / &
               !              (dabs(sco2_auxvar%well%bh_p) + epsilon), &
               !              dabs(residual/(accumulation + epsilon)))
@@ -1749,10 +1762,17 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             ! There is a fully implicit well, in DOF 4
             ! Just check update
             if (dabs(update) > 0.d0) then
+              !Converge on well residual
               update = update - sco2_auxvar%well%pressure_bump
             endif
-            res_scaled = dabs(update) / &
+            if (sco2_well_residual_convergence) then
+              !Converge on well BHP update
+              res_scaled = dabs(residual/(accumulation + epsilon))
+            else
+              res_scaled = dabs(update) / &
                            (dabs(sco2_auxvar%well%bh_p) + epsilon)
+            endif
+
             ! res_scaled = min(dabs(update) / &
             !                (dabs(sco2_auxvar%well%bh_p) + epsilon), &
             !                dabs(residual/(accumulation + epsilon)))
@@ -1946,6 +1966,10 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
           if (idof /= FIVE_INTEGER) then
             if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+              converged_scaled = PETSC_FALSE
+            endif
+          else
+            if (res_scaled > this%residual_scaled_inf_tol(ONE_INTEGER)) then
               converged_scaled = PETSC_FALSE
             endif
           endif

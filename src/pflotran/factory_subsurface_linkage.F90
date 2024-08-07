@@ -200,6 +200,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_WIPP_Flow_class
   use PM_NWT_class
   use PM_SCO2_class
+  use PM_Hydrate_class
   use PM_Parameter_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
@@ -275,6 +276,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
           ! Set up PM WIPP FLOW linkages for quasi-implicit coupling option
           pm_flow%pmwell_ptr => pm_well_list
         class is (pm_sco2_type)
+          pm_flow%pmwell_ptr => pm_well_list
+        class is (pm_hydrate_type)
           pm_flow%pmwell_ptr => pm_well_list
       end select
     endif
@@ -978,11 +981,11 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
 
     select case(option%iflowmode)
 
-      case (WF_MODE, SCO2_MODE)
+      case (WF_MODE, SCO2_MODE, H_MODE)
 
       case default
         option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
-                &only be used with WIPP_FLOW mode and SCO2 mode.'
+               &only be used with WIPP_FLOW mode, SCO2 mode, and HYDRATE mode.'
         call PrintErrMsg(option)
     end select
 

@@ -34,16 +34,16 @@ implicit none
 ! Common WIPP Characteristic Curve Types
 ! **************************************************************************** !
 
-type, public, extends(sat_func_base_type) :: sf_WIPP_type
+type, public, extends(sat_func_base_type) :: sf_wipp_type
   private
     procedure(set_k_type), public, pointer :: setK
-    procedure(set_Swj_type), pointer :: setSwj
+    procedure(set_swj_type), pointer :: setSwj
 
-    procedure(calc_Pc_type), pointer :: KPCPc
-    procedure(calc_Sw_type), pointer :: KPCSw
+    procedure(calc_pc_type), pointer :: KPCPc
+    procedure(calc_sw_type), pointer :: KPCSw
 
-    procedure(calc_Pc_type), pointer :: KRPPc
-    procedure(calc_Sw_type), pointer :: KRPSw
+    procedure(calc_pc_type), pointer :: KRPPc
+    procedure(calc_sw_type), pointer :: KRPSw
 
 !   PFLOTRAN object parameter             BRAGFLO equivalent
 
@@ -85,9 +85,9 @@ end type
 
 ! **************************************************************************** !
 
-type, public, extends(rel_perm_func_base_type) :: rpf_WIPP_type
+type, public, extends(rel_perm_func_base_type) :: rpf_wipp_type
   private
-    procedure(calc_Kr_type), pointer :: KRPKr
+    procedure(calc_kr_type), pointer :: KRPKr
 
 !   Effective Saturation Parameters
     PetscReal :: Swr                      ! SWR
@@ -114,33 +114,33 @@ end type
 ! **************************************************************************** !
 
 abstract interface
-  function set_Swj_type(this, Swj) result (error)
-    import sf_WIPP_type
-    class(sf_WIPP_type), intent(inout) :: this
+  function set_swj_type(this, Swj) result (error)
+    import sf_wipp_type
+    class(sf_wipp_type), intent(inout) :: this
     PetscReal, intent(in)  :: Swj
     PetscInt :: error
   end function
-  pure subroutine calc_Pc_type(this, Sw, Pc, dPc_dSw)
-    import sf_WIPP_type
-    class(sf_WIPP_type), intent(in) :: this
+  pure subroutine calc_pc_type(this, Sw, Pc, dPc_dSw)
+    import sf_wipp_type
+    class(sf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Sw
     PetscReal, intent(out) :: Pc, dPc_dSw
   end subroutine
-  pure subroutine calc_Kr_type(this, Sw, Kr, dKr_dSw)
-    import rpf_WIPP_type
-    class(rpf_WIPP_type), intent(in) :: this
+  pure subroutine calc_kr_type(this, Sw, Kr, dKr_dSw)
+    import rpf_wipp_type
+    class(rpf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Sw
     PetscReal, intent(out) :: Kr, dKr_dSw
   end subroutine
-  pure subroutine calc_Sw_type(this, Pc, Sw)
-    import sf_WIPP_type
-    class(sf_WIPP_type), intent(in) :: this
+  pure subroutine calc_sw_type(this, Pc, Sw)
+    import sf_wipp_type
+    class(sf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Pc
     PetscReal, intent(out) :: Sw
   end subroutine
   subroutine set_k_type(this, k)
-    import sf_WIPP_type
-    class(sf_WIPP_type), intent(inout) :: this
+    import sf_wipp_type
+    class(sf_wipp_type), intent(inout) :: this
     PetscReal, intent(in)  :: k
   end subroutine
 end interface
@@ -184,7 +184,7 @@ contains
 
 function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
                     Pct_expon, Pcmax, Swj) result (new)
-  class(sf_WIPP_type), pointer :: new
+  class(sf_wipp_type), pointer :: new
   PetscInt, intent(in)  :: KRP, KPC
   PetscReal, intent(in) :: Swr, Sgr, expon, Pct_alpha, Pct_expon, Pcmax
   PetscReal, intent(inout) ::  Swj ! KRP12 sends Semin and returns Swj
@@ -356,7 +356,7 @@ end function
 subroutine SFWIPPCapillaryPressure(this, liquid_saturation, capillary_pressure,&
                                    dpc_dsatl, option, &
                                    trapped_gas_saturation, Sl_min)
-  class(sf_WIPP_type)                :: this
+  class(sf_wipp_type)                :: this
   PetscReal, intent(in)              :: liquid_saturation
   PetscReal, intent(out)             :: capillary_pressure, dpc_dsatl
   type(option_type), intent(inout)   :: option
@@ -364,7 +364,7 @@ subroutine SFWIPPCapillaryPressure(this, liquid_saturation, capillary_pressure,&
   PetscReal, intent(inout), optional :: Sl_min
 
   if (present(trapped_gas_saturation)) then
-    option%io_buffer = 'The sf_WIPP_type capillary pressure function &
+    option%io_buffer = 'The sf_wipp_type capillary pressure function &
                   &does not currently support gas trapping.'
     call PrintErrMsg(option)
   endif
@@ -381,7 +381,7 @@ end subroutine
 subroutine SFWIPPSaturation(this, capillary_pressure, liquid_saturation, &
                                   dsat_dpres, option,&
                                   trapped_gas_saturation, Sl_min)
-  class(sf_WIPP_type)              :: this
+  class(sf_wipp_type)              :: this
   PetscReal, intent(in)            :: capillary_pressure
   PetscReal, intent(out)           :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
@@ -401,7 +401,7 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SFWIPPSetK(this, permeability)
-  class(sf_WIPP_type), intent(inout) :: this
+  class(sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: permeability
   PetscInt :: error
 
@@ -419,7 +419,7 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SFWIPPIgnoreK(this, permeability)
-  class(sf_WIPP_type), intent(inout) :: this
+  class(sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: permeability
 end subroutine
 
@@ -428,7 +428,7 @@ end subroutine
 ! **************************************************************************** !
 
 function SFWIPPKPC1Swj(this,Swj) result (error)
-  class (sf_WIPP_type), intent(inout) :: this
+  class (sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: Swj
   PetscInt :: error
 
@@ -441,7 +441,7 @@ end function
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC1Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
 
@@ -452,7 +452,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC1Sw(this, Pc, Sw)
- class(sf_WIPP_type), intent(in) :: this
+ class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
 
@@ -462,7 +462,7 @@ end subroutine
 ! **************************************************************************** !
 
 function SFWIPPKPC2Swj(this,Swj) result (error)
-  class (sf_WIPP_type), intent(inout) :: this
+  class (sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: Swj
   PetscInt :: error
 
@@ -477,7 +477,7 @@ end function
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC2Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
 
@@ -488,7 +488,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC2Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
 
@@ -498,7 +498,7 @@ end subroutine
 ! **************************************************************************** !
 
 function SFWIPPKPC6Swj(this,Swj) result (error)
-  class(sf_WIPP_type), intent(inout) :: this
+  class(sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: Swj
   PetscInt :: error
 
@@ -515,7 +515,7 @@ end function
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC6Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
 
@@ -530,7 +530,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC6Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
 
@@ -544,7 +544,7 @@ end subroutine
 ! **************************************************************************** !
 
 function SFWIPPKPC7Swj(this,Swj) result (error)
-  class(sf_WIPP_type), intent(inout) :: this
+  class(sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: Swj
   PetscInt :: error
 
@@ -562,7 +562,7 @@ end function
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC7Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
 
@@ -577,7 +577,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKPC7Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
 
@@ -591,7 +591,7 @@ end subroutine
 ! **************************************************************************** !
 
 function SFWIPPKRP12Swj(this, Swj) result (error)
-  class(sf_WIPP_type), intent(inout) :: this
+  class(sf_wipp_type), intent(inout) :: this
   PetscReal, intent(in) :: Swj
   PetscInt :: error
   ! Update Pcmax and dPcj_dSwj for a fixed Swj due to changes in Pct
@@ -606,7 +606,7 @@ end function
 pure subroutine SFWIPPVGPc(this, Sw, Pc, dPc_dSw)
 ! Author: Heeho Park; Modified by Jennifer Frederick; Refactored matpaul
 ! Date: 11/17/16; Modified 04/26/2017 ; Refactored 12/1/2021
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
   PetscReal :: Se, Se_mrtrec, aPc_n
@@ -628,7 +628,7 @@ end subroutine
 pure subroutine SFWIPPVGSw(this, Pc, Sw)
 ! Author: Heeho Park; Modified by Jennifer Frederick; Refactored matpaul
 ! Date: 11/17/16; Modified 04/26/2017; Refactored 12/1/2021
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   PetscReal :: aPc_n, Se_mrtrec, Se
@@ -646,7 +646,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPBCPc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
   PetscReal :: Se
@@ -664,7 +664,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPBCSw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   PetscReal :: Se
@@ -681,7 +681,7 @@ end subroutine
 
 pure subroutine SFWIPPKRP4Pc(this, Sw, Pc, dPc_dSw)
 ! Brooks-Corey extending past Sgr
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
   PetscReal :: Se
@@ -694,7 +694,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP4Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   PetscReal :: Se
@@ -706,7 +706,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP5Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
 !------- Linear model (A)
@@ -725,7 +725,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP5Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   PetscReal :: Se
@@ -741,7 +741,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP9Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
   ! Computes the capillary_pressure as a function of saturation
@@ -775,7 +775,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP9Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   PetscReal :: Se9
@@ -794,7 +794,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP11Pc(this, Sw, Pc, dPc_dSw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Pc, dPc_dSw
   Pc = 0d0
@@ -804,7 +804,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine SFWIPPKRP11Sw(this, Pc, Sw)
-  class(sf_WIPP_type), intent(in) :: this
+  class(sf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sw
   Sw = 1d0
@@ -815,7 +815,7 @@ end subroutine
 ! **************************************************************************** !
 
 function RPFWIPPctor(liquid, KRP, Swr, Sgr, expon) result (new)
-  class(rpf_WIPP_type), pointer :: new
+  class(rpf_wipp_type), pointer :: new
   PetscBool, intent(in) :: liquid
   PetscInt , intent(in) :: KRP
   PetscReal, intent(in) :: Swr, Sgr, expon
@@ -943,7 +943,7 @@ end function
 
 subroutine RPFWIPPRelativePermeability(this, liquid_saturation, &
                   relative_permeability, dkr_sat, option)
-  class(rpf_WIPP_type)             :: this
+  class(rpf_wipp_type)             :: this
   PetscReal, intent(in)            :: liquid_saturation
   PetscReal, intent(out)           :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
@@ -963,7 +963,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPMVGKrw(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, f
@@ -982,7 +982,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPMVGKrg(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp
@@ -999,7 +999,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPBBCKrw(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
   PetscReal :: Se
@@ -1013,7 +1013,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPBBCKrg(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
   PetscReal :: Se, Se_comp, Se_expon_comp
@@ -1029,7 +1029,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPlinKrw(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
 
@@ -1040,7 +1040,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPlinKrg(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
 
@@ -1051,7 +1051,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPKRP9Krw(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
 
@@ -1072,7 +1072,7 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPFWIPPKRP9Krg(this, Sw, Kr, dKr_dSw)
-  class(rpf_WIPP_type), intent(in) :: this
+  class(rpf_wipp_type), intent(in) :: this
   PetscReal, intent(in)  :: Sw
   PetscReal, intent(out) :: Kr, dKr_dSw
   PetscReal, parameter :: a = 28.768353d0

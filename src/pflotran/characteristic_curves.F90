@@ -430,43 +430,43 @@ function SaturationFunctionRead(saturation_function,input,option) &
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
-    class is(sat_func_VG_type)
+    class is(sat_func_vg_type)
       error_string = trim(error_string) // 'VAN_GENUCHTEN'
-    class is(sat_func_BC_type)
+    class is(sat_func_bc_type)
       error_string = trim(error_string) // 'BROOKS_COREY'
-    class is (sat_func_BC_SPE11_type)
+    class is (sat_func_bc_spe11_type)
     error_string = trim(error_string) // 'BROOKS_COREY_SPE11'
-    class is(sat_func_Linear_type)
+    class is(sat_func_linear_type)
       error_string = trim(error_string) // 'LINEAR'
-    class is(sat_func_mK_type)
+    class is(sat_func_mk_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI'
-    class is(sat_func_KRP1_type)
+    class is(sat_func_krp1_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP1'
-    class is(sat_func_KRP2_type)
+    class is(sat_func_krp2_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP2'
-    class is(sat_func_KRP3_type)
+    class is(sat_func_krp3_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP3'
-    class is(sat_func_KRP4_type)
+    class is(sat_func_krp4_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP4'
-    class is(sat_func_KRP5_type)
+    class is(sat_func_krp5_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP5'
-    class is(sat_func_KRP8_type)
+    class is(sat_func_krp8_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP8'
-    class is(sat_func_KRP9_type)
+    class is(sat_func_krp9_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP9'
-    class is(sat_func_KRP11_type)
+    class is(sat_func_krp11_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP11'
-    class is(sat_func_KRP12_type)
+    class is(sat_func_krp12_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
-    class is(sat_func_IGHCC2_type)
+    class is(sat_func_ighcc2_type)
       error_string = trim(error_string) // 'IGHCC2'
-    class is(sat_func_Exp_Freezing_type)
+    class is(sat_func_exp_freezing_type)
       error_string = trim(error_string) // 'EXP_FREEZING'
-    class is (sat_func_Table_type)
+    class is (sat_func_table_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE'
     class is (sf_pchip_type)
       error_string = trim(error_string) // 'PCHIP'
-    class is (sat_func_VG_STOMP_type)
+    class is (sat_func_vg_stomp_type)
       error_string = trim(error_string) // 'VG_STOMP'
   end select
 
@@ -520,7 +520,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'constant saturation function',option)
         end select
     !------------------------------------------
-      class is(sat_func_VG_type)
+      class is(sat_func_vg_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -543,7 +543,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'van Genuchten saturation function',option)
         end select
     !------------------------------------------
-      class is(sat_func_BC_type)
+      class is(sat_func_bc_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,sf%lambda)
@@ -558,7 +558,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'Brooks-Corey saturation function',option)
         end select
     !------------------------------------------
-        class is(sat_func_BC_SPE11_type)
+        class is(sat_func_bc_spe11_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,sf%lambda)
@@ -571,7 +571,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'Brooks-Corey saturation function',option)
         end select
     !------------------------------------------
-      class is(sat_func_Linear_type)
+      class is(sat_func_linear_type)
         select case(keyword)
           case('ALPHA')
             call InputReadDouble(input,option,sf%alpha)
@@ -581,7 +581,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'Linear saturation function',option)
         end select
     !------------------------------------------
-        class is(sat_func_mK_type)
+        class is(sat_func_mk_type)
           select case(keyword)
             case('SIGMAZ')
               call InputReadDouble(input,option,sf%sigmaz)
@@ -603,7 +603,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'MODIFIED_KOSUGI saturation function',option)
           end select
     !------------------------------------------
-      class is(sat_func_KRP1_type)
+      class is(sat_func_krp1_type)
         wipp_krp = 1
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -644,7 +644,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP1',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP2_type)
+      class is(sat_func_krp2_type)
         wipp_krp = 2
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -679,7 +679,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP2',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP3_type)
+      class is(sat_func_krp3_type)
         wipp_krp = 3
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -719,7 +719,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP3',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP4_type)
+      class is(sat_func_krp4_type)
         wipp_krp = 4
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -759,7 +759,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP4',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP5_type)
+      class is(sat_func_krp5_type)
         wipp_krp = 5
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -795,7 +795,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP5',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP8_type)
+      class is(sat_func_krp8_type)
         wipp_krp = 8
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -834,7 +834,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP8',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP9_type)
+      class is(sat_func_krp9_type)
         wipp_krp = 9
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -844,7 +844,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP9',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP11_type)
+      class is(sat_func_krp11_type)
         wipp_krp = 11
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -854,7 +854,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP11',option)
         end select
     !------------------------------------------
-      class is(sat_func_KRP12_type)
+      class is(sat_func_krp12_type)
         wipp_krp = 12
         select case(keyword)
           case('LOOP_INVARIANT')
@@ -898,7 +898,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
         end select
     !------------------------------------------
-      class is(sat_func_IGHCC2_type)
+      class is(sat_func_ighcc2_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,sf%m)
@@ -911,7 +911,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'saturation function IGHCC2 Comparison',option)
         end select
     !------------------------------------------
-      class is(sat_func_Exp_Freezing_type)
+      class is(sat_func_exp_freezing_type)
         select case(keyword)
           case('W')
             call InputReadDouble(input,option,sf%w)
@@ -921,7 +921,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
                    'saturation function exponential freezing',option)
         end select
     !------------------------------------------
-      class is (sat_func_VG_STOMP_type)
+      class is (sat_func_vg_stomp_type)
         select case(keyword)
           case('N')
             call InputReadDouble(input,option,n)
@@ -936,7 +936,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
             sf%Pcmax = enpr
             call InputErrorMsg(input,option,keyword,error_string)
         end select
-      class is (sat_func_Table_type)
+      class is (sat_func_table_type)
         select case(keyword)
           case('FILE')
             internal_units = 'unitless , Pa'
@@ -1011,7 +1011,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       end if
     else ! Old object type is used to identify common invariants
       select type (saturation_function)
-      class is (sat_func_VG_type)
+      class is (sat_func_vg_type)
         call StringtoUpper(unsat_ext)
         sf_swap => SFVGctor(unsat_ext, alpha, m, Sr, Sgt_max, vg_rpf_opt, &
                             Pcmax, Slj)
@@ -1044,18 +1044,18 @@ function SaturationFunctionRead(saturation_function,input,option) &
       option%io_buffer = 'Constant saturation function is being used.'
       call PrintWrnMsg(option)
   !------------------------------------------
-    class is(sat_func_VG_type)
+    class is(sat_func_vg_type)
   !------------------------------------------
-    class is(sat_func_BC_type)
+    class is(sat_func_bc_type)
       if (.not.smooth) then
         option%io_buffer = 'Brooks-Corey saturation function is being used &
           &without SMOOTH option.'
         call PrintWrnMsg(option)
       endif
   !------------------------------------------
-    class is(sat_func_Linear_type)
+    class is(sat_func_linear_type)
   !------------------------------------------
-    class is(sat_func_WIPP_type)
+    class is(sat_func_wipp_type)
       if (sf%ignore_permeability .and. Uninitialized(sf%alpha)) then
         option%io_buffer = 'If a WIPP capillary presure - saturation function &
           &is being used with the IGNORE_PERMEABILITY feature, you must &
@@ -1136,89 +1136,89 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   new_phase_keyword = 'NONE'
   error_string = 'CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION,'
   select type(rpf => permeability_function)
-    class is(rpf_Mualem_VG_liq_type)
+    class is(rpf_mualem_vg_liq_type)
       error_string = trim(error_string) // 'MUALEM_VG_LIQ'
-    class is(rpf_Mualem_VG_gas_type)
+    class is(rpf_mualem_vg_gas_type)
       error_string = trim(error_string) // 'MUALEM_VG_GAS'
-    class is(rpf_Burdine_BC_liq_type)
+    class is(rpf_burdine_bc_liq_type)
       error_string = trim(error_string) // 'BURDINE_BC_LIQ'
-    class is(rpf_Burdine_BC_gas_type)
+    class is(rpf_burdine_bc_gas_type)
       error_string = trim(error_string) // 'BURDINE_BC_GAS'
-    class is(rpf_TOUGH2_IRP7_gas_type)
+    class is(rpf_tough2_irp7_gas_type)
       error_string = trim(error_string) // 'TOUGH2_IRP7_GAS'
-    class is(rpf_Mualem_BC_liq_type)
+    class is(rpf_mualem_bc_liq_type)
       error_string = trim(error_string) // 'MUALEM_BC_LIQ'
-    class is(rpf_Mualem_BC_gas_type)
+    class is(rpf_mualem_bc_gas_type)
       error_string = trim(error_string) // 'MUALEM_BC_GAS'
-    class is(rpf_Burdine_VG_liq_type)
+    class is(rpf_burdine_vg_liq_type)
       error_string = trim(error_string) // 'BURDINE_VG_LIQ'
-    class is(rpf_Burdine_VG_gas_type)
+    class is(rpf_burdine_vg_gas_type)
       error_string = trim(error_string) // 'BURDINE_VG_GAS'
-    class is(rpf_Mualem_Linear_liq_type)
+    class is(rpf_mualem_linear_liq_type)
       error_string = trim(error_string) // 'MUALEM_Linear_LIQ'
-    class is(rpf_Mualem_Linear_gas_type)
+    class is(rpf_mualem_linear_gas_type)
       error_string = trim(error_string) // 'MUALEM_Linear_GAS'
-    class is(rpf_Burdine_Linear_liq_type)
+    class is(rpf_burdine_linear_liq_type)
       error_string = trim(error_string) // 'BURDINE_Linear_LIQ'
-    class is(rpf_Burdine_Linear_gas_type)
+    class is(rpf_burdine_linear_gas_type)
       error_string = trim(error_string) // 'BURDINE_Linear_GAS'
-    class is(rpf_KRP1_liq_type)
+    class is(rpf_krp1_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP1_LIQ'
-    class is(rpf_KRP1_gas_type)
+    class is(rpf_krp1_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP1_GAS'
-    class is(rpf_KRP2_liq_type)
+    class is(rpf_krp2_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP2_LIQ'
-    class is(rpf_KRP2_gas_type)
+    class is(rpf_krp2_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP2_GAS'
-    class is(rpf_KRP3_liq_type)
+    class is(rpf_krp3_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP3_LIQ'
-    class is(rpf_KRP3_gas_type)
+    class is(rpf_krp3_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP3_GAS'
-    class is(rpf_KRP4_liq_type)
+    class is(rpf_krp4_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP4_LIQ'
-    class is(rpf_KRP4_gas_type)
+    class is(rpf_krp4_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP4_GAS'
-    class is(rpf_KRP5_liq_type)
+    class is(rpf_krp5_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP5_LIQ'
-    class is(rpf_KRP5_gas_type)
+    class is(rpf_krp5_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP5_GAS'
-    class is(rpf_KRP8_liq_type)
+    class is(rpf_krp8_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP8_LIQ'
-    class is(rpf_KRP8_gas_type)
+    class is(rpf_krp8_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP8_GAS'
-    class is(rpf_KRP9_liq_type)
+    class is(rpf_krp9_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP9_LIQ'
-    class is(rpf_KRP9_gas_type)
+    class is(rpf_krp9_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP9_GAS'
-    class is(rpf_KRP11_liq_type)
+    class is(rpf_krp11_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP11_LIQ'
-    class is(rpf_KRP11_gas_type)
+    class is(rpf_krp11_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP11_GAS'
-    class is(rpf_KRP12_liq_type)
+    class is(rpf_krp12_liq_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12_LIQ'
-    class is(rpf_KRP12_gas_type)
+    class is(rpf_krp12_gas_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12_GAS'
-    class is(rpf_mK_liq_type)
+    class is(rpf_mk_liq_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
-    class is(rpf_mK_gas_type)
+    class is(rpf_mk_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
-    class is(rpf_IGHCC2_liq_type)
+    class is(rpf_ighcc2_liq_type)
       error_string = trim(error_string) // 'IGHCC2_LIQ'
-    class is(rpf_IGHCC2_gas_type)
+    class is(rpf_ighcc2_gas_type)
       error_string = trim(error_string) // 'IGHCC2_GAS'
-      class is(rpf_mod_Brooks_Corey_liq_type)
+      class is(rpf_mod_brooks_corey_liq_type)
       error_string = trim(error_string) // 'MODIFIED_BROOKS_COREY_LIQ'
-    class is(rpf_mod_Brooks_Corey_gas_type)
+    class is(rpf_mod_brooks_corey_gas_type)
       error_string = trim(error_string) // 'MODIFIED_BROOKS_COREY_GAS'
-    class is(rpf_Table_liq_type)
+    class is(rpf_table_liq_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE_LIQ'
-    class is(rpf_Table_gas_type)
+    class is(rpf_table_gas_type)
       error_string = trim(error_string) // 'LOOKUP_TABLE_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
     class is(rpf_pchip_type)
       error_string = trim(error_string) // 'PCHIP'
-    class is(rpf_Modified_Corey_gas_type)
+    class is(rpf_modified_corey_gas_type)
       error_string = trim(error_string) // 'MODIFIED_COREY_GAS'
   end select
 
@@ -1254,7 +1254,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
     select type(rpf => permeability_function)
     !------------------------------------------
-      class is(rpf_Mualem_VG_liq_type)
+      class is(rpf_mualem_vg_liq_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -1268,7 +1268,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_VG_gas_type)
+      class is(rpf_mualem_vg_gas_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -1286,7 +1286,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_BC_liq_type)
+      class is(rpf_burdine_bc_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1297,7 +1297,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_BC_gas_type)
+      class is(rpf_burdine_bc_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1311,7 +1311,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_TOUGH2_IRP7_gas_type)
+      class is(rpf_tough2_irp7_gas_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -1325,7 +1325,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
                    'TOUGH2 IRP7 gas relative permeability function',option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_BC_liq_type)
+      class is(rpf_mualem_bc_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1336,7 +1336,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_BC_gas_type)
+      class is(rpf_mualem_bc_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1350,7 +1350,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_VG_liq_type)
+      class is(rpf_burdine_vg_liq_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -1364,7 +1364,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_VG_gas_type)
+      class is(rpf_burdine_vg_gas_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
@@ -1382,7 +1382,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_Linear_liq_type)
+      class is(rpf_mualem_linear_liq_type)
         select case(keyword)
           case('MAX_CAPILLARY_PRESSURE')
             call InputReadDouble(input,option,rpf%pcmax)
@@ -1397,7 +1397,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_Linear_gas_type)
+      class is(rpf_mualem_linear_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1415,7 +1415,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_Linear_liq_type)
+      class is(rpf_burdine_linear_liq_type)
         select case(keyword)
           case default
             call InputKeywordUnrecognized(input,keyword, &
@@ -1423,7 +1423,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_Linear_gas_type)
+      class is(rpf_burdine_linear_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1434,7 +1434,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP1_liq_type)
+      class is(rpf_krp1_liq_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,rpf%m)
@@ -1451,7 +1451,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP1_gas_type)
+      class is(rpf_krp1_gas_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,rpf%m)
@@ -1468,7 +1468,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP2_liq_type)
+      class is(rpf_krp2_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1481,7 +1481,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP2_gas_type)
+      class is(rpf_krp2_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1494,7 +1494,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP3_liq_type)
+      class is(rpf_krp3_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1511,7 +1511,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP3_gas_type)
+      class is(rpf_krp3_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1529,7 +1529,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         end select
 
     !------------------------------------------
-      class is(rpf_KRP4_liq_type)
+      class is(rpf_krp4_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1546,7 +1546,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP4_gas_type)
+      class is(rpf_krp4_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1563,7 +1563,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP5_liq_type)
+      class is(rpf_krp5_liq_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1577,7 +1577,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP5_gas_type)
+      class is(rpf_krp5_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1591,7 +1591,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP8_liq_type)
+      class is(rpf_krp8_liq_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,rpf%m)
@@ -1604,7 +1604,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP8_gas_type)
+      class is(rpf_krp8_gas_type)
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,rpf%m)
@@ -1617,7 +1617,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP9_liq_type)
+      class is(rpf_krp9_liq_type)
         select case(keyword)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1627,7 +1627,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP9_gas_type)
+      class is(rpf_krp9_gas_type)
         select case(keyword)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1637,7 +1637,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP11_liq_type)
+      class is(rpf_krp11_liq_type)
         select case(keyword)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1654,7 +1654,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP11_gas_type)
+      class is(rpf_krp11_gas_type)
         select case(keyword)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1671,7 +1671,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP12_liq_type)
+      class is(rpf_krp12_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1688,7 +1688,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_KRP12_gas_type)
+      class is(rpf_krp12_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1705,7 +1705,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_mK_liq_type)
+      class is(rpf_mk_liq_type)
         select case(keyword)
           case('SIGMAZ')
             call InputReadDouble(input,option,rpf%sigmaz)
@@ -1716,7 +1716,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
                  &'function',option)
         end select
     !------------------------------------------
-      class is(rpf_mK_gas_type)
+      class is(rpf_mk_gas_type)
         select case(keyword)
           case('SIGMAZ')
             call InputReadDouble(input,option,rpf%sigmaz)
@@ -1744,7 +1744,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_IGHCC2_liq_type)
+      class is(rpf_ighcc2_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1755,7 +1755,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_IGHCC2_gas_type)
+      class is(rpf_ighcc2_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1769,7 +1769,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_mod_Brooks_Corey_liq_type)
+      class is(rpf_mod_brooks_corey_liq_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1786,7 +1786,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_mod_Brooks_Corey_gas_type)
+      class is(rpf_mod_brooks_corey_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1803,7 +1803,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Table_liq_type)
+      class is(rpf_table_liq_type)
         select case(keyword)
           case('FILE')
             internal_units = 'unitless , unitless'
@@ -1817,7 +1817,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Table_gas_type)
+      class is(rpf_table_gas_type)
         select case(keyword)
           case('FILE')
             internal_units = 'unitless , unitless'
@@ -1851,7 +1851,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         end select
         spline = rpf_dataset%time_storage%max_time_index
     !------------------------------------------
-      class is (rpf_Modified_Corey_gas_type)
+      class is (rpf_modified_corey_gas_type)
         select case(keyword)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,Srg)
@@ -1875,49 +1875,49 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   ! to replace with optimized relative permeability functions
   if (loop_invariant) then
     select type (rpf => permeability_function)
-    class is (RPF_mualem_VG_liq_type)
+    class is (rpf_mualem_vg_liq_type)
       rpf_swap => RPFMVGliqCtor(m, Sr)
-    class is (RPF_burdine_VG_liq_type)
+    class is (rpf_burdine_vg_liq_type)
       rpf_swap => RPFBVGliqCtor(m, Sr)
-    class is (RPF_mualem_VG_gas_type)
+    class is (rpf_mualem_vg_gas_type)
       rpf_swap => RPFMVGgasCtor(m, Sr, Srg)
-    class is (RPF_burdine_VG_gas_type)
+    class is (rpf_burdine_vg_gas_type)
       rpf_swap => RPFBVGgasCtor(m, Sr, Srg)
-    class is (rpf_KRP1_liq_type)
+    class is (rpf_krp1_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,1,rpf%Sr,rpf%Srg,rpf%m)
-    class is (rpf_KRP1_gas_type)
+    class is (rpf_krp1_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,1,rpf%Sr,rpf%Srg,rpf%m)
-    class is (rpf_KRP2_liq_type)
+    class is (rpf_krp2_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,2,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP2_gas_type)
+    class is (rpf_krp2_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,2,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP3_liq_type)
+    class is (rpf_krp3_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,3,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP3_gas_type)
+    class is (rpf_krp3_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,3,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP4_liq_type)
+    class is (rpf_krp4_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,4,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP4_gas_type)
+    class is (rpf_krp4_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,4,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP5_liq_type)
+    class is (rpf_krp5_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,5,rpf%Sr,rpf%Srg,0d0)
-    class is (rpf_KRP5_gas_type)
+    class is (rpf_krp5_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,5,rpf%Sr,rpf%Srg,0d0)
-    class is (rpf_KRP8_liq_type)
+    class is (rpf_krp8_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,8,rpf%Sr,rpf%Srg,rpf%m)
-    class is (rpf_KRP8_gas_type)
+    class is (rpf_krp8_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,8,rpf%Sr,rpf%Srg,rpf%m)
-    class is (rpf_KRP9_liq_type)
+    class is (rpf_krp9_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,9,rpf%Sr,rpf%Srg,0d0)
-    class is (rpf_KRP9_gas_type)
+    class is (rpf_krp9_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,9,rpf%Sr,rpf%Srg,0d0)
-    class is (rpf_KRP11_liq_type)
+    class is (rpf_krp11_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,11,rpf%Sr,rpf%Srg,rpf%tolc)
-    class is (rpf_KRP11_gas_type)
+    class is (rpf_krp11_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,11,rpf%Sr,rpf%Srg,rpf%tolc)
-    class is (rpf_KRP12_liq_type)
+    class is (rpf_krp12_liq_type)
       rpf_swap => RPFWIPPctor(PETSC_TRUE,12,rpf%Sr,rpf%Srg,rpf%lambda)
-    class is (rpf_KRP12_gas_type)
+    class is (rpf_krp12_gas_type)
       rpf_swap => RPFWIPPctor(PETSC_FALSE,12,rpf%Sr,rpf%Srg,rpf%lambda)
     end select
   end if
@@ -1980,13 +1980,13 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   end if
 
   select type(rpf => permeability_function)
-    class is(rpf_Burdine_VG_liq_type)
+    class is(rpf_burdine_vg_liq_type)
       if (.not.smooth) then
         option%io_buffer = 'Burdine-van Genuchten relative permeability &
           &function is being used without SMOOTH option.'
         call PrintWrnMsg(option)
       endif
-    class is(rpf_Mualem_VG_liq_type)
+    class is(rpf_mualem_vg_liq_type)
       if (.not.smooth) then
         option%io_buffer = 'Mualem-van Genuchten relative permeability &
           &function is being used without SMOOTH option.'
@@ -2124,84 +2124,84 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
       if (option%nphase > 1 .and. &
           associated(characteristic_curves%gas_rel_perm_function) ) then
         select type(rpf=>characteristic_curves%gas_rel_perm_function)
-          class is(rpf_Mualem_VG_liq_type)
+          class is(rpf_mualem_vg_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Mualem_VG_gas_type)
+          class is(rpf_mualem_vg_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Burdine_BC_liq_type)
+          class is(rpf_burdine_bc_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Burdine_BC_gas_type)
+          class is(rpf_burdine_bc_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Mualem_BC_liq_type)
+          class is(rpf_mualem_bc_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Mualem_BC_gas_type)
+          class is(rpf_mualem_bc_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Burdine_VG_liq_type)
+          class is(rpf_burdine_vg_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Burdine_VG_gas_type)
+          class is(rpf_burdine_vg_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_TOUGH2_IRP7_gas_type)
+          class is(rpf_tough2_irp7_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Mualem_Linear_liq_type)
+          class is(rpf_mualem_linear_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Mualem_Linear_gas_type)
+          class is(rpf_mualem_linear_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Burdine_Linear_liq_type)
+          class is(rpf_burdine_linear_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Burdine_Linear_gas_type)
+          class is(rpf_burdine_linear_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP1_liq_type)
+          class is(rpf_krp1_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP1_gas_type)
+          class is(rpf_krp1_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP2_liq_type)
+          class is(rpf_krp2_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP2_gas_type)
+          class is(rpf_krp2_gas_type)
             ! KRP2 does not use a Srg, so return 0.d0
             gas_res_sat = 0.d0
-          class is(rpf_KRP3_liq_type)
+          class is(rpf_krp3_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP3_gas_type)
+          class is(rpf_krp3_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP4_liq_type)
+          class is(rpf_krp4_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP4_gas_type)
+          class is(rpf_krp4_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP5_liq_type)
+          class is(rpf_krp5_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP5_gas_type)
+          class is(rpf_krp5_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP8_liq_type)
+          class is(rpf_krp8_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP8_gas_type)
+          class is(rpf_krp8_gas_type)
             ! KRP8 does not use a Srg, so return 0.d0
             gas_res_sat = 0.d0
-          class is(rpf_KRP9_liq_type)
+          class is(rpf_krp9_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP9_gas_type)
+          class is(rpf_krp9_gas_type)
             ! KRP9 does not use a Srg, so return 0.d0
             gas_res_sat = 0.d0
-          class is(rpf_KRP11_liq_type)
+          class is(rpf_krp11_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP11_gas_type)
+          class is(rpf_krp11_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_KRP12_liq_type)
+          class is(rpf_krp12_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_KRP12_gas_type)
+          class is(rpf_krp12_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_mK_liq_type)
+          class is(rpf_mk_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_mK_gas_type)
+          class is(rpf_mk_gas_type)
             gas_res_sat = rpf%Srg
-          ! class is(rpf_mod_BC_liq_type)
+          ! class is(rpf_mod_bc_liq_type)
           !   gas_res_sat = rpf%Sr
           class is(rel_perm_func_constant_type)
             gas_res_sat = rpf%Sr
           class is(rel_perm_func_default_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_IGHCC2_liq_type)
+          class is (rpf_ighcc2_liq_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_IGHCC2_gas_type)
+          class is (rpf_ighcc2_gas_type)
             gas_res_sat = rpf%Srg
           class default
             option%io_buffer = 'Relative permeability class not supported in &
@@ -2401,7 +2401,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
       write(id,'(a29)',advance='no') 'saturation function: '
       select type (sf => cur_ccurve%saturation_function)
       !---------------------------------
-        class is (sat_func_VG_type)
+        class is (sat_func_vg_type)
           write(id,'(a)') 'van Genuchten'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) sf%m
@@ -2410,7 +2410,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%alpha
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_BC_type)
+        class is (sat_func_bc_type)
           write(id,'(a)') 'Brooks Corey'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) sf%alpha
@@ -2419,13 +2419,13 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_Linear_type)
+        class is (sat_func_linear_type)
           write(id,'(a)') 'linear'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) sf%alpha
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_mK_type)
+        class is (sat_func_mk_type)
           write(id,'(a)') 'Modified Kosugi'
           write(id,'(a29)',advance='no') 'sigmaz: '
           write(word1,*) sf%sigmaz
@@ -2443,7 +2443,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%r0
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP1_type)
+        class is (sat_func_krp1_type)
           write(id,'(a)') 'Bragflo KRP1 modified van Genuchten'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2461,7 +2461,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP2_type)
+        class is (sat_func_krp2_type)
           write(id,'(a)') 'Bragflo KRP2 original Brooks Corey'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2476,7 +2476,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP3_type)
+        class is (sat_func_krp3_type)
           write(id,'(a)') 'Bragflo KRP3 1st modified Brooks Corey'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2494,7 +2494,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP4_type)
+        class is (sat_func_krp4_type)
           write(id,'(a)') 'Bragflo KRP4 2nd modified Brooks Corey'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2512,7 +2512,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP5_type)
+        class is (sat_func_krp5_type)
           write(id,'(a)') 'Bragflo KRP5 modified Linear'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2527,7 +2527,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP8_type)
+        class is (sat_func_krp8_type)
           write(id,'(a)') 'Bragflo KRP8 original van Genuchten-Parker'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2545,13 +2545,13 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) sf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
-        class is (sat_func_KRP9_type)
+        class is (sat_func_krp9_type)
           write(id,'(a)') 'Bragflo KRP9 Vauchlin infiltration test'
       !---------------------------------
-        class is (sat_func_KRP11_type)
+        class is (sat_func_krp11_type)
           write(id,'(a)') 'Bragflo KRP11 open cavity modification'
       !---------------------------------
-        class is (sat_func_KRP12_type)
+        class is (sat_func_krp12_type)
           write(id,'(a)') 'Bragflo KRP12 waste area modification'
           write(id,'(a29)',advance='no') 'kpc: '
           write(word1,*) sf%kpc
@@ -2591,19 +2591,19 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rel_perm_func_default_type)
           write(id,'(a)') 'default'
       !------------------------------------
-        class is (rpf_Mualem_VG_liq_type)
+        class is (rpf_mualem_vg_liq_type)
           write(id,'(a)') 'mualem_vg_liq/tough2_irp7_liq'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Mualem_BC_liq_type)
+        class is (rpf_mualem_bc_liq_type)
           write(id,'(a)') 'mualem_bc_liq'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Mualem_Linear_liq_type)
+        class is (rpf_mualem_linear_liq_type)
           write(id,'(a)') 'mualem_linear_liq'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) rpf%alpha
@@ -2612,22 +2612,22 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%pcmax
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_VG_liq_type)
+        class is (rpf_burdine_vg_liq_type)
           write(id,'(a)') 'burdine_vg_liq'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_BC_liq_type)
+        class is (rpf_burdine_bc_liq_type)
           write(id,'(a)') 'burdine_bc_liq'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_Linear_liq_type)
+        class is (rpf_burdine_linear_liq_type)
           write(id,'(a)') 'burdine_linear_liq'
       !------------------------------------
-        class is (rpf_KRP1_liq_type)
+        class is (rpf_krp1_liq_type)
           write(id,'(a)') 'Bragflo KRP1 liquid'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2636,13 +2636,13 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP2_liq_type)
+        class is (rpf_krp2_liq_type)
           write(id,'(a)') 'Bragflo KRP2 liquid'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP3_liq_type)
+        class is (rpf_krp3_liq_type)
           write(id,'(a)') 'Bragflo KRP3 liquid'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2651,28 +2651,28 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP4_liq_type)
+        class is (rpf_krp4_liq_type)
           write(id,'(a)') 'Bragflo KRP4 liquid'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP5_liq_type)
+        class is (rpf_krp5_liq_type)
           write(id,'(a)') 'Bragflo KRP5 liquid'
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP8_liq_type)
+        class is (rpf_krp8_liq_type)
           write(id,'(a)') 'Bragflo KRP1 liquid'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP9_liq_type)
+        class is (rpf_krp9_liq_type)
           write(id,'(a)') 'Bragflo KRP9 liquid'
       !------------------------------------
-        class is (rpf_KRP11_liq_type)
+        class is (rpf_krp11_liq_type)
           write(id,'(a)') 'Bragflo KRP11 liquid'
           write(id,'(a29)',advance='no') 'tolc: '
           write(word1,*) rpf%tolc
@@ -2681,7 +2681,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP12_liq_type)
+        class is (rpf_krp12_liq_type)
           write(id,'(a)') 'Bragflo KRP12 liquid'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2690,7 +2690,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_mK_liq_type)
+        class is (rpf_mk_liq_type)
           write(id,'(a)') 'modified_kosugi_liq'
           write(id,'(a29)',advance='no') 'sigmaz: '
           write(word1,*) rpf%sigmaz
@@ -2712,7 +2712,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rel_perm_func_default_type)
           write(id,'(a)') 'default'
       !------------------------------------
-        class is (rpf_Mualem_VG_gas_type)
+        class is (rpf_mualem_vg_gas_type)
           write(id,'(a)') 'mualem_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2721,7 +2721,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Mualem_BC_gas_type)
+        class is (rpf_mualem_bc_gas_type)
           write(id,'(a)') 'mualem_bc_gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2730,7 +2730,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Mualem_Linear_gas_type)
+        class is (rpf_mualem_linear_gas_type)
           write(id,'(a)') 'mualem_linear_gas'
           write(id,'(a29)',advance='no') 'alpha: '
           write(word1,*) rpf%alpha
@@ -2742,7 +2742,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_TOUGH2_IRP7_gas_type)
+        class is (rpf_tough2_irp7_gas_type)
           write(id,'(a)') 'tough2_irp7_gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2751,7 +2751,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_VG_gas_type)
+        class is (rpf_burdine_vg_gas_type)
           write(id,'(a)') 'burdine_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2760,7 +2760,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_BC_gas_type)
+        class is (rpf_burdine_bc_gas_type)
           write(id,'(a)') 'burdine_bc_gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2769,13 +2769,13 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_linear_gas_type)
+        class is (rpf_burdine_linear_gas_type)
           write(id,'(a)') 'burdine_linear_gas'
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP1_gas_type)
+        class is (rpf_krp1_gas_type)
           write(id,'(a)') 'Bragflo KRP1 gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2784,13 +2784,13 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP2_gas_type)
+        class is (rpf_krp2_gas_type)
           write(id,'(a)') 'Bragflo KRP2 gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP3_gas_type)
+        class is (rpf_krp3_gas_type)
           write(id,'(a)') 'Bragflo KRP3 gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2799,7 +2799,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP4_gas_type)
+        class is (rpf_krp4_gas_type)
           write(id,'(a)') 'Bragflo KRP4 gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2808,22 +2808,22 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP5_gas_type)
+        class is (rpf_krp5_gas_type)
           write(id,'(a)') 'Bragflo KRP5 gas'
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP8_gas_type)
+        class is (rpf_krp8_gas_type)
           write(id,'(a)') 'Bragflo KRP1 gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP9_gas_type)
+        class is (rpf_krp9_gas_type)
           write(id,'(a)') 'Bragflo KRP9 gas'
       !------------------------------------
-        class is (rpf_KRP11_gas_type)
+        class is (rpf_krp11_gas_type)
           write(id,'(a)') 'Bragflo KRP11 gas'
           write(id,'(a29)',advance='no') 'tolc: '
           write(word1,*) rpf%tolc
@@ -2832,7 +2832,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_KRP12_gas_type)
+        class is (rpf_krp12_gas_type)
           write(id,'(a)') 'Bragflo KRP12 gas'
           write(id,'(a29)',advance='no') 'lambda: '
           write(word1,*) rpf%lambda
@@ -2841,7 +2841,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_mK_gas_type)
+        class is (rpf_mk_gas_type)
           write(id,'(a)') 'modified_kosugi_gas'
           write(id,'(a29)',advance='no') 'sigmaz: '
           write(word1,*) rpf%sigmaz

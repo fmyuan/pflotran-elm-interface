@@ -1042,7 +1042,8 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
       if (.not. associated(cur_well)) exit
       if (associated(cur_well%flow_condition))then
         well_flow_condition => cur_well%flow_condition
-        if (associated(well_flow_condition%sco2%temperature)) then
+        if (associated(well_flow_condition%sco2%temperature) .and. &
+            associated(cur_well%well%temp)) then
           cur_well%well%temp = well_flow_condition%sco2%temperature%dataset% &
                               rarray(1)
         endif
@@ -1377,6 +1378,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  ! This is for the convergence check.
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well

@@ -245,8 +245,6 @@ WELLBORE_MODEL
   WELL_TRANSPORT_SOLVER
     MAXIMUM_NUMBER_OF_ITERATIONS 4      ! default=8
     MAXIMUM_NUMBER_OF_TS_CUTS 15        ! default=20
-    TIMESTEP_CUT_FACTOR 2.0             ! default 2.0
-    TIMESTEP_RAMP_FACTOR 1.1            ! default 1.1
     ITOL_ABSOLUTE_RESIDUAL 1.0d-10       ! default 1.0d-8
     ITOL_SCALED_RESIDUAL 1.0d-3         ! default 1.0d-4
     ITOL_ABSOLUTE_UPDATE 1.0d0          ! default 1.0d0 

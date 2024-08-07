@@ -1881,7 +1881,7 @@ end subroutine HydrateSrcSink
 
 subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
                                   z,offset,hydrate_parameter, &
-                                  soil_heat_capacity,option,J)
+                                  soil_heat_capacity,option,well_ndof,J)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -1901,6 +1901,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: z,offset
   type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(option_type) :: option
+  PetscInt :: well_ndof
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
@@ -1921,7 +1922,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
     J = jac
   else
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
                                material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
@@ -1938,7 +1939,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
                                material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
@@ -1964,7 +1965,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                                  thermal_conductivity_dn, &
                                  area, dist, upwind_direction_, &
                                  hydrate_parameter, &
-                                 option,Jup,Jdn)
+                                 option,well_ndof,Jup,Jdn)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -1982,6 +1983,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
+  PetscInt :: well_ndof
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
@@ -2027,7 +2029,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   else
     ! upgradient derivatives
     if(hydrate_central_diff_jacobian) then
-       do idof = 1, option%nflowdof
+       do idof = 1, option%nflowdof - well_ndof
          call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -2061,7 +2063,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
          enddo !irow
        enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -2086,7 +2088,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
 
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -2122,7 +2124,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -2157,7 +2159,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    thermal_conductivity_dn, &
                                    area,dist,upwind_direction_, &
                                    hydrate_parameter, &
-                                   option,Jdn)
+                                   option,well_ndof,Jdn)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
@@ -2183,6 +2185,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
+  PetscInt :: well_ndof
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -2218,7 +2221,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   else
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          hyd_auxvar_up,global_auxvar_up, &
                          hyd_auxvar_dn(idof),global_auxvar_dn, &
@@ -2252,7 +2255,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          hyd_auxvar_up,global_auxvar_up, &
                          hyd_auxvar_dn(idof),global_auxvar_dn, &
@@ -2279,7 +2282,8 @@ end subroutine HydrateBCFluxDerivative
 ! ************************************************************************** !
 
 subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
-                                    hyd_auxvars,global_auxvar,scale,Jac)
+                                    hyd_auxvars,global_auxvar,scale,well_ndof,&
+                                    Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -2297,6 +2301,7 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   type(hydrate_auxvar_type) :: hyd_auxvars(0:), hyd_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
+  PetscInt :: well_ndof
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
   PetscReal :: qsrc(option%nflowdof)
@@ -2324,7 +2329,7 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   else
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                           hyd_auxvars(idof),global_auxvar,dummy_real, &
                           scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
@@ -2339,7 +2344,7 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                           hyd_auxvars(idof),global_auxvar,dummy_real, &
                           scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
