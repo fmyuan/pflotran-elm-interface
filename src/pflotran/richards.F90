@@ -1900,7 +1900,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                                            global_auxvars(ghosted_id)%den(1)
       endif
       if (associated(patch%ss_flow_fluxes)) then
-        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
+        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec]
         patch%ss_flow_fluxes(1,sum_connection) = qsrc_mol
       endif
     enddo
