@@ -2382,7 +2382,7 @@ subroutine OutputMassBalance(realization_base)
   character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: fid = 86
-  PetscInt :: i,icol
+  PetscInt :: i,icol,j
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
@@ -2766,10 +2766,41 @@ subroutine OutputMassBalance(realization_base)
           if (option%nflowdof > 0) then
             select case(option%iflowmode)
               case(SCO2_MODE)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Liq Phase Wat Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // ' CO2 Mass'
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Gas Phase Wat Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // ' Salt Mass'
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Salt Pre. Wat Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Trap. Gas Wat Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Liq Phase CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Gas Phase CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Salt Pre. CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Trap. Gas CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Liq Phase Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Gas Phase Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Salt Pre. Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // &
+                         ' Trap. Gas Salt Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
               case(G_MODE)
                 call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -3543,6 +3574,9 @@ subroutine OutputMassBalance(realization_base)
                                                total_mass(:,:))
 
               case(SCO2_MODE)
+                deallocate(total_mass,global_total_mass)
+                allocate(total_mass(option%nflowspec,option%nphase))
+                allocate(global_total_mass(option%nflowspec,option%nphase+1))
                 call SCO2ComputeComponentMassBalance(realization_base, &
                                                      cur_mbr%num_cells,option%nflowspec, &
                                                      option%nphase,total_mass, &
@@ -3565,7 +3599,7 @@ subroutine OutputMassBalance(realization_base)
         end select
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE)
             int_mpi = option%nflowspec * option%nphase
             call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
                             MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
@@ -3574,6 +3608,19 @@ subroutine OutputMassBalance(realization_base)
               do i =1,option%nflowspec
                 global_total_mass_sum = sum(global_total_mass(i,:))
                 write(fid,110,advance="no") global_total_mass_sum
+              enddo
+            endif
+          case(SCO2_MODE)
+            ! Split up by phase, include trapped gas
+            int_mpi = option%nflowspec * (option%nphase + 1)
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            if (OptionIsIORank(option)) then
+              do i =1,option%nflowspec
+                do j = 1,option%nphase + 1
+                  write(fid,110,advance="no") global_total_mass(i,j)
+                enddo
               enddo
             endif
         end select

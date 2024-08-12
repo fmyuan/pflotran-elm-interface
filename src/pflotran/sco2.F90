@@ -547,18 +547,26 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
     volume = material_auxvars(ghosted_id)%volume
 
 
-    do iphase = 1,num_phase
+    do iphase = 1,num_phase+1
       do icomp = 1,num_comp
         if (iphase /=3) then
           porosity = sco2_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
         else
           porosity = material_auxvars(ghosted_id)%porosity
         endif
-        sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+        if (iphase == option%trapped_gas_phase) then
+          sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
+                    porosity * volume
+        else
+          sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
                     porosity * volume
+        endif
       enddo
     enddo
   enddo
