@@ -2836,9 +2836,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                    x_salt
           if (associated(hydrate%energy_flux)) then
             coupler%flow_bc_type(THREE_INTEGER) = DIRICHLET_BC
-          else
-            coupler%flow_bc_type(HYDRATE_SALT_MASS_FRAC_DOF) = DIRICHLET_BC
           endif
+          coupler%flow_bc_type(HYDRATE_SALT_MASS_FRAC_DOF) = DIRICHLET_BC
           dof4 = PETSC_TRUE
 
         case default
@@ -2869,7 +2868,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                 coupler%flow_bc_type(3) = DIRICHLET_BC
               endif
             elseif (associated(hydrate%energy_flux)) then
-              coupler%flow_bc_type(4) = NEUMANN_BC
+              coupler%flow_bc_type(3) = NEUMANN_BC
             endif
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
@@ -3702,7 +3701,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                 endif
               elseif (associated(hydrate%energy_flux)) then
                 if (hydrate%energy_flux%itype == NEUMANN_BC) then
-                  coupler%flow_bc_type(4) = NEUMANN_BC
+                  coupler%flow_bc_type(3) = NEUMANN_BC
                 endif
               endif
               ! ---> see code that just prints error

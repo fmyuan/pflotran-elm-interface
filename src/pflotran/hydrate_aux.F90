@@ -196,6 +196,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_no_pc = PETSC_FALSE
   PetscBool, public :: hydrate_with_methanogenesis = PETSC_FALSE
   PetscBool, public :: hydrate_compute_surface_tension = PETSC_FALSE
+  PetscBool, public :: hydrate_legacy_fluxes = PETSC_FALSE
 
   ! Well
   PetscInt, public :: hydrate_well_coupling = UNINITIALIZED_INTEGER
@@ -2389,7 +2390,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
               hyd_auxvar%sat(hid) = delta_sh
               istatechng = PETSC_TRUE
               global_auxvar%istate = HA_STATE
-            else
+            elseif (hyd_auxvar%pres(lid) > 0.d0) then
               hyd_auxvar%sat(gid) = delta_sg
               istatechng = PETSC_TRUE
               global_auxvar%istate = GA_STATE
@@ -2439,7 +2440,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
               if (hyd_auxvar%pres(lid) >= PE_hyd) then
                 istatechng = PETSC_TRUE
                 global_auxvar%istate = HA_STATE
-              else
+              elseif (hyd_auxvar%pres(lid) > 0.d0) then
                  istatechng = PETSC_TRUE
                  global_auxvar%istate = GA_STATE
               endif

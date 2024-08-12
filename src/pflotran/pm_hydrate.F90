@@ -626,6 +626,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CALCULATE_SURFACE_TENSION')
         hydrate_compute_surface_tension = PETSC_TRUE
+      case('LEGACY_FLUXES')
+        hydrate_legacy_fluxes = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
