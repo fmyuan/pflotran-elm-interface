@@ -2766,41 +2766,41 @@ subroutine OutputMassBalance(realization_base)
           if (option%nflowdof > 0) then
             select case(option%iflowmode)
               case(SCO2_MODE)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Liq Phase Wat Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase Water Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Gas Phase Wat Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Gas Phase Water Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Salt Pre. Wat Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. Water Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Trap. Gas Wat Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas Water Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Liq Phase CO2 Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase CO2 Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
+                string = trim(cur_mbr%region_name) // &
                          ' Gas Phase CO2 Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Salt Pre. CO2 Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. CO2 Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Trap. Gas CO2 Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas CO2 Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Liq Phase Salt Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase Salt Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
+                string = trim(cur_mbr%region_name) // &
                          ' Gas Phase Salt Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Salt Pre. Salt Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. Salt Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
-                string = 'Region ' // trim(cur_mbr%region_name) // &
-                         ' Trap. Gas Salt Mass'
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas Salt Mass'
                 call OutputWriteToHeader(fid,string,'kg','',icol)
               case(G_MODE)
                 call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -3575,11 +3575,11 @@ subroutine OutputMassBalance(realization_base)
 
               case(SCO2_MODE)
                 deallocate(total_mass,global_total_mass)
-                allocate(total_mass(option%nflowspec,option%nphase))
-                allocate(global_total_mass(option%nflowspec,option%nphase+1))
+                allocate(total_mass(option%nflowspec,option%trapped_gas_phase))
+                allocate(global_total_mass(option%nflowspec,option%trapped_gas_phase))
                 call SCO2ComputeComponentMassBalance(realization_base, &
                                                      cur_mbr%num_cells,option%nflowspec, &
-                                                     option%nphase,total_mass, &
+                                                     option%trapped_gas_phase,total_mass, &
                                                      cur_mbr%region_cell_ids)
 
               case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE)
