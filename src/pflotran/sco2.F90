@@ -547,7 +547,7 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
     volume = material_auxvars(ghosted_id)%volume
 
 
-    do iphase = 1,num_phase+1
+    do iphase = 1,num_phase
       do icomp = 1,num_comp
         if (iphase /=3) then
           porosity = sco2_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity

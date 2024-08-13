@@ -3576,6 +3576,7 @@ subroutine OutputMassBalance(realization_base)
               case(SCO2_MODE)
                 deallocate(total_mass,global_total_mass)
                 allocate(total_mass(option%nflowspec,option%trapped_gas_phase))
+                total_mass = 0.d0
                 allocate(global_total_mass(option%nflowspec,option%trapped_gas_phase))
                 call SCO2ComputeComponentMassBalance(realization_base, &
                                                      cur_mbr%num_cells,option%nflowspec, &
@@ -3612,13 +3613,13 @@ subroutine OutputMassBalance(realization_base)
             endif
           case(SCO2_MODE)
             ! Split up by phase, include trapped gas
-            int_mpi = option%nflowspec * (option%nphase + 1)
+            int_mpi = option%nflowspec * option%trapped_gas_phase
             call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
                             MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
                             option%mycomm,ierr);CHKERRQ(ierr)
             if (OptionIsIORank(option)) then
               do i =1,option%nflowspec
-                do j = 1,option%nphase + 1
+                do j = 1,option%trapped_gas_phase
                   write(fid,110,advance="no") global_total_mass(i,j)
                 enddo
               enddo
