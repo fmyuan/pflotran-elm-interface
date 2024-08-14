@@ -528,6 +528,7 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
   PetscInt :: ghosted_id
   PetscInt :: icomp, iphase, k
   PetscReal :: porosity, volume
+  PetscReal :: Srg
 
   option => realization%option
   patch => realization%patch
@@ -555,11 +556,21 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
           porosity = material_auxvars(ghosted_id)%porosity
         endif
         if (iphase == option%trapped_gas_phase) then
-          sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
-                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
-                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
-                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
-                    porosity * volume
+          ! SPE11 definition of trapped gas
+          Srg = patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
+                ptr%gas_rel_perm_function%Srg
+          if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) > Srg) then
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
+                      Srg * porosity * volume
+          else
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) * &
+                      porosity * volume
+          endif
         else
           sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,iphase) * &
