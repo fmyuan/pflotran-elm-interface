@@ -2615,7 +2615,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       elseif (hyd_auxvar%temp > Tf_ice) then
         ! Compute what gas saturation would be
         !sg_est = 1.d-5
-        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - eps_sg !delta_sg
+        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - delta_sg !eps_sg
+        hyd_auxvar%sat(hid) = max(hyd_auxvar%sat(hid),eps_sg)
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGA_STATE
         ha_epsilon = hydrate_phase_chng_epsilon
@@ -3311,7 +3312,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))
       if (hyd_auxvar(ZERO_INTEGER)%pres(lid) > PE_hyd) then
         dxs = dxs
-      elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+      elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > dxs) then
         dxs = -dxs
       endif
 
