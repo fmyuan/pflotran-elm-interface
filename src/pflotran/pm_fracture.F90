@@ -55,9 +55,51 @@ module PM_Fracture_class
     class(fracture_type), pointer :: next
   end type fracture_type
 
+  type :: fracfam_type
+    ! fracture family ID number
+    PetscInt :: id
+    ! number of fractures in the family
+    PetscInt :: nfrac_in_fam
+    ! fracture intensity of fracture family [num fractures]
+    PetscInt :: intensity_fracfam
+    ! total surface area of fracture family [m^2] (includes both sides of fracture)
+    PetscReal :: surface_area_fracfam
+    ! fracture family hydraulic aperture, initial [m]
+    PetscReal :: hap0
+    ! fracture family hydraulic aperture, initial maximum [m]
+    PetscReal :: hap0_max
+    ! fracture family hydraulic standard deviation, initial [m]
+    PetscReal :: hap0_stdev
+    ! fracture family hydraulic aperture seed [-]
+    PetscInt :: hap0_seed
+    ! fracture family center coordinates [m]
+    type(point3d_type) :: center
+    ! fracture family center coordinates standard deviation [m]
+    type(point3d_type) :: center_stdev
+    ! fracture family center seed [-]
+    PetscInt :: center_seed
+    ! fracture family normal vector [m]
+    type(point3d_type) :: normal
+    ! fracture family normal vector coordinates standard deviation [m]
+    type(point3d_type) :: normal_stdev
+    ! fracture family normal vector seed [-]
+    PetscInt :: normal_seed
+    ! fracture family radius lengths [m]
+    type(point3d_type) :: radius
+    ! fracture family radius lengths standard deviation [m]
+    type(point3d_type) :: radius_stdev
+    ! fracture family radius seed [-]
+    PetscInt :: radius_seed
+    ! list of fractures in this family
+    class(fracture_type), pointer :: fracture_list
+    ! linked list next object
+    class(fracfam_type), pointer :: next
+  end type fracfam_type
+
   type, public, extends(pm_base_type) :: pm_fracture_type
     class(realization_subsurface_type), pointer :: realization
     class(fracture_type), pointer :: fracture_list
+    class(fracfam_type), pointer :: fracfam_list
     ! list of all global cell ids that contain fractures (some repeated)
     PetscInt, pointer :: allfrac_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
@@ -69,6 +111,8 @@ module PM_Fracture_class
     PetscReal :: t_coeff
     ! number of fractures in the domain
     PetscInt :: nfrac
+    ! maximum number of fractures in the domain
+    PetscInt :: max_frac
     ! flag to update material_auxvar (permeability) object
     PetscBool :: update_material_auxvar_perm
   contains
@@ -87,6 +131,7 @@ module PM_Fracture_class
   end type pm_fracture_type
 
   public :: PMFracCreate, &
+            PMFracFamCreate, &
             PMFracReadPMBlock, &
             PMFracReadPass2
 
@@ -113,11 +158,13 @@ function PMFracCreate()
 
   nullify(this%realization)
   nullify(this%fracture_list)
+  nullify(this%fracfam_list)
   nullify(this%allfrac_cell_ids)
   nullify(this%frac_common_cell_ids)
   this%nfrac = 0
+  this%max_frac = UNINITIALIZED_INTEGER
   this%max_distance = 5.0
-  this%t_coeff = 40.d-6 ! granite value
+  this%t_coeff = UNINITIALIZED_DOUBLE ! 40.d-6 is value for granite
   this%update_material_auxvar_perm = PETSC_FALSE
 
   PMFracCreate => this
@@ -141,6 +188,24 @@ function PMFractureCreate()
   call PMFractureInit(PMFractureCreate)
 
 end function PMFractureCreate
+
+! ************************************************************************** !
+
+function PMFracFamCreate()
+  !
+  ! Creates a fracture family object.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/19/2024
+
+  implicit none
+
+  class(fracfam_type), pointer :: PMFracFamCreate
+
+  allocate(PMFracFamCreate)
+  call PMFractureFamInit(PMFracFamCreate)
+
+end function PMFracFamCreate
 
 ! ************************************************************************** !
 
@@ -182,6 +247,53 @@ end subroutine PMFractureInit
 
 ! ************************************************************************** !
 
+subroutine PMFractureFamInit(this)
+  !
+  ! Initializes variables associated with a fracture family object.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/19/2024
+  !
+  implicit none
+
+  class(fracfam_type) :: this
+
+  nullify(this%next)
+  nullify(this%fracture_list)
+  this%id = UNINITIALIZED_INTEGER
+  this%nfrac_in_fam = 0
+  this%intensity_fracfam= UNINITIALIZED_DOUBLE
+  this%surface_area_fracfam = 0.d0
+  this%hap0 = UNINITIALIZED_DOUBLE
+  this%hap0_stdev = UNINITIALIZED_DOUBLE
+  this%hap0_seed = 5 
+  this%hap0_max = UNINITIALIZED_DOUBLE
+  this%center%x = UNINITIALIZED_DOUBLE
+  this%center%y = UNINITIALIZED_DOUBLE
+  this%center%z = UNINITIALIZED_DOUBLE
+  this%center_stdev%x = UNINITIALIZED_DOUBLE
+  this%center_stdev%y = UNINITIALIZED_DOUBLE
+  this%center_stdev%z = UNINITIALIZED_DOUBLE
+  this%center_seed = 10
+  this%normal%x = UNINITIALIZED_DOUBLE
+  this%normal%y = UNINITIALIZED_DOUBLE
+  this%normal%z = UNINITIALIZED_DOUBLE
+  this%normal_stdev%x = UNINITIALIZED_DOUBLE
+  this%normal_stdev%y = UNINITIALIZED_DOUBLE
+  this%normal_stdev%z = UNINITIALIZED_DOUBLE
+  this%normal_seed = 20
+  this%radius%x = UNINITIALIZED_DOUBLE
+  this%radius%y = UNINITIALIZED_DOUBLE
+  this%radius%z = UNINITIALIZED_DOUBLE
+  this%radius_stdev%x = UNINITIALIZED_DOUBLE
+  this%radius_stdev%y = UNINITIALIZED_DOUBLE
+  this%radius_stdev%z = UNINITIALIZED_DOUBLE
+  this%radius_seed = 30
+
+end subroutine PMFractureFamInit
+
+! ************************************************************************** !
+
 subroutine PMFracSetup(this)
   !
   ! Initializes variables associated with the fracture process model.
@@ -197,7 +309,8 @@ subroutine PMFracSetup(this)
   class(pm_fracture_type) :: this
 
   type(option_type), pointer :: option
-  type(fracture_type), pointer :: cur_fracture
+  type(fracture_type), pointer :: cur_fracture,new_fracture_list
+  type(fracfam_type), pointer :: cur_fracfam
   type(point3d_type) :: coordinate
   type(grid_type), pointer :: res_grid
   character(len=MAXWORDLENGTH) :: word
@@ -211,6 +324,7 @@ subroutine PMFracSetup(this)
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
   PetscBool :: within_x,within_y,within_z
+  PetscBool :: added
 
   option => this%option
   res_grid => this%realization%patch%grid
@@ -220,6 +334,42 @@ subroutine PMFracSetup(this)
   allocate(temp_cell_ids(read_max))
   allocate(temp_allfrac_cell_ids(read_max*10))
   allocate(temp_frac_common_cell_ids(read_max))
+
+  cur_fracfam => this%fracfam_list
+  do
+    if (.not.associated(cur_fracfam)) exit
+
+    ! generate fractures in this fracture family
+    call PMFracGenerateFracFam(cur_fracfam)
+
+    cur_fracfam => cur_fracfam%next
+  enddo
+
+  added = PETSC_FALSE
+  cur_fracfam => this%fracfam_list
+  do
+    if (.not.associated(cur_fracfam)) exit
+    new_fracture_list => cur_fracfam%fracture_list
+
+    ! add fracture family fractures to the individual fracture list
+    if (.not.associated(this%fracture_list)) then
+      this%fracture_list => new_fracture_list
+    else
+      cur_fracture => this%fracture_list
+      do
+        if (.not.associated(cur_fracture)) exit
+        if (.not.associated(cur_fracture%next)) then
+          cur_fracture%next => new_fracture_list
+          added = PETSC_TRUE
+        endif
+        if (added) exit
+        cur_fracture => cur_fracture%next
+      enddo
+    endif
+
+    cur_fracfam => cur_fracfam%next
+    added = PETSC_FALSE
+  enddo
 
   cur_fracture => this%fracture_list
   do
@@ -329,6 +479,12 @@ subroutine PMFracSetup(this)
     ! a X b = c, where c is perpendicular to a and b (a and b can't be parallel)
     ! take a as the unit normal, and b as slightly rotated unit normal
     ! then c will be perpendicular to a, and parallel to fracture plane
+    vmag = sqrt((cur_fracture%normal%x)**2.d0 + &
+                (cur_fracture%normal%y)**2.d0 + &
+                (cur_fracture%normal%z)**2.d0)
+    cur_fracture%normal%x = cur_fracture%normal%x/vmag
+    cur_fracture%normal%y = cur_fracture%normal%y/vmag
+    cur_fracture%normal%z = cur_fracture%normal%z/vmag
     a1 = cur_fracture%normal%x; b1 = cur_fracture%normal%x + 0.25
     a2 = cur_fracture%normal%y; b2 = cur_fracture%normal%y + 0.5
     a3 = cur_fracture%normal%z; b3 = cur_fracture%normal%z + 1.0
@@ -342,7 +498,6 @@ subroutine PMFracSetup(this)
     vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
         	    (cur_fracture%parallel%y)**2.d0 + &
         	    (cur_fracture%parallel%z)**2.d0)
-
     cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
     cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
     cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
@@ -624,9 +779,11 @@ subroutine PMFracReadPMBlock(this,input)
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
+  PetscBool :: found,fracfam_given,frac_given
 
   option => this%option
+  fracfam_given = PETSC_FALSE
+  frac_given = PETSC_FALSE
   input%ierr = 0
   error_string = 'GEOTHERMAL_FRACTURE_MODEL'
 
@@ -658,11 +815,22 @@ subroutine PMFracReadPMBlock(this,input)
         	               error_string)
         cycle
     !-------------------------------------
+      case('MAXIMUM_NUMBER_OF_FRACTURES')
+        call InputReadInt(input,option,this%max_frac)
+        call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_FRACTURES', &
+        	               error_string)
+        cycle
+    !-------------------------------------
+
     end select
 
     ! Read sub-blocks within GEOTHERMAL_FRACTURE_MODEL block:
     error_string = 'GEOTHERMAL_FRACTURE_MODEL'
     call PMFracReadFracture(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'GEOTHERMAL_FRACTURE_MODEL'
+    call PMFracReadFracFam(this,input,option,word,error_string,found)
     if (found) cycle
 
     if (.not. found) then
@@ -673,6 +841,28 @@ subroutine PMFracReadPMBlock(this,input)
 
   enddo
   call InputPopBlock(input,option)
+
+if (Uninitialized(this%t_coeff)) then
+  option%io_buffer = 'THERMAL_EXPANSION_COEFFICIENT not provided in &
+    &the GEOTHERMAL_FRACTURE_MODEL block.'
+  call PrintErrMsg(option)
+endif
+
+if (Uninitialized(this%max_frac)) then
+  this%max_frac = 100000000  ! set to a very high number so the max
+                             ! is never reached
+endif
+
+! Is this where I should check whether individual FRACTURE blocks were given, or
+! if FRACTURE_FAMILY blocks were given?
+if (Associated(this%fracfam_list)) fracfam_given = PETSC_TRUE
+if (Associated(this%fracture_list)) frac_given = PETSC_TRUE
+
+if (.not.fracfam_given .and. .not.frac_given) then
+  option%io_buffer = 'At least one FRACTURE or FRACTURE_FAMILY block must &
+    &be given in the GEOTHERMAL_FRACTURE_MODEL block.'
+  call PrintErrMsg(option)
+endif
 
 end subroutine PMFracReadPMBlock
 
@@ -849,6 +1039,357 @@ end subroutine PMFracReadFracture
 
 ! ************************************************************************** !
 
+subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
+	                          found)
+  !
+  ! Reads input file parameters associated with the fracture model grid.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/19/2024
+  !
+
+  implicit none
+
+  class(pm_fracture_type) :: pm_fracture
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  class(fracfam_type), pointer :: new_fracfam, cur_fracfam
+  character(len=MAXWORDLENGTH) :: word
+  PetscBool :: added
+  PetscInt :: num_errors
+
+  error_string = trim(error_string) // ',FRACTURE_FAMILY'
+  found = PETSC_TRUE
+  added = PETSC_FALSE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('FRACTURE_FAMILY')
+      allocate(new_fracfam)
+      new_fracfam => PMFracFamCreate()
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('ID')
+            call InputReadInt(input,option,new_fracfam%id)
+            call InputErrorMsg(input,option,'ID',error_string)
+        !-----------------------------
+          case('NUMBER_OF_FRACTURES')
+            call InputReadInt(input,option,new_fracfam%intensity_fracfam)
+            call InputErrorMsg(input,option,'NUMBER_OF_FRACTURES',error_string)
+        !-----------------------------
+          case('HYDRAULIC_APERTURE')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                !----------------------------------
+                  case('HYDRAULIC_APERTURE_VALUE')
+                    call InputReadDouble(input,option,new_fracfam%hap0)
+                    call InputErrorMsg(input,option, &
+                                       'HYDRAULIC_APERTURE_VALUE',error_string)
+                !----------------------------------
+                  case('HYDRAULIC_APERTURE_MAX')
+                    call InputReadDouble(input,option,new_fracfam%hap0_max)
+                    call InputErrorMsg(input,option, &
+                                       'HYDRAULIC_APERTURE_MAX',error_string)
+                !----------------------------------
+                  case('HYDRAULIC_APERTURE_STDEV')
+                    call InputReadDouble(input,option,new_fracfam%hap0_stdev)
+                    call InputErrorMsg(input,option, &
+                                       'HYDRAULIC_APERTURE_STDEV',error_string)
+                !-----------------------------
+                  case('HYDRAULIC_APERTURE_SEED')
+                    call InputReadInt(input,option,new_fracfam%hap0_seed)
+                    call InputErrorMsg(input,option,'HYDRAULIC_APERTURE_SEED', &
+                                       error_string)
+                !-----------------------------------
+                  case default
+                    call InputKeywordUnrecognized(input,word, &
+                                                  error_string,option)
+                !-----------------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case('CENTER')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                !----------------------------------
+                  case('COORDINATE')
+                    call InputReadDouble(input,option,new_fracfam%center%x)
+                    call InputErrorMsg(input,option,'CENTER,X COORDINATE', &
+                                       error_string)
+                    call InputReadDouble(input,option,new_fracfam%center%y)
+                    call InputErrorMsg(input,option,'CENTER,Y COORDINATE', &
+                                       error_string)
+                    call InputReadDouble(input,option,new_fracfam%center%z)
+                    call InputErrorMsg(input,option,'CENTER,Z COORDINATE', &
+                                       error_string)
+                !----------------------------------
+                  case('XCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%center_stdev%x)
+                    call InputErrorMsg(input,option,'CENTER,XCOORD_STDEV', &
+                                       error_string)
+                !----------------------------------
+                  case('YCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%center_stdev%y)
+                    call InputErrorMsg(input,option,'CENTER,YCOORD_STDEV', &
+                                       error_string)
+                !----------------------------------
+                  case('ZCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%center_stdev%z)
+                    call InputErrorMsg(input,option,'CENTER,ZCOORD_STDEV', &
+                                       error_string)
+                !-----------------------------
+                  case('CENTER_SEED')
+                    call InputReadInt(input,option,new_fracfam%center_seed)
+                    call InputErrorMsg(input,option,'CENTER_SEED',error_string)
+                !-----------------------------------
+                  case default
+                    call InputKeywordUnrecognized(input,word, &
+                                                  error_string,option)
+                !-----------------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case('NORMAL_VECTOR')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                !----------------------------------
+                  case('VECTOR_COORDINATES')
+                    call InputReadDouble(input,option,new_fracfam%normal%x)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,X COORDINATE',error_string)
+                    call InputReadDouble(input,option,new_fracfam%normal%y)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,Y COORDINATE',error_string)
+                    call InputReadDouble(input,option,new_fracfam%normal%z)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,Z COORDINATE',error_string)
+                !----------------------------------
+                  case('XCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%normal_stdev%x)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,XCOORD_STDEV',error_string)
+                !----------------------------------
+                  case('YCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%normal_stdev%y)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,YCOORD_STDEV',error_string)
+                !----------------------------------
+                  case('ZCOORD_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%normal_stdev%z)
+                    call InputErrorMsg(input,option, &
+                      'NORMAL_VECTOR,ZCOORD_STDEV',error_string)
+                !-----------------------------
+                  case('NORMAL_SEED')
+                    call InputReadInt(input,option,new_fracfam%normal_seed)
+                    call InputErrorMsg(input,option,'NORMAL_SEED',error_string)
+                !-----------------------------------
+                  case default
+                    call InputKeywordUnrecognized(input,word, &
+                                                  error_string,option)
+                !-----------------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case('RADIUS')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                !----------------------------------
+                  case('RADIUS_XYZ')
+                    call InputReadDouble(input,option,new_fracfam%radius%x)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,X',error_string)
+                    call InputReadDouble(input,option,new_fracfam%radius%y)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,Y',error_string)
+                    call InputReadDouble(input,option,new_fracfam%radius%z)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,Z',error_string)
+                !----------------------------------
+                  case('RAD_X_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%radius_stdev%x)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,RAD_X_STDEV', &
+                                       error_string)
+                !----------------------------------
+                  case('RAD_Y_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%radius_stdev%y)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,RAD_Y_STDEV', &
+                                       error_string)
+                !----------------------------------
+                  case('RAD_Z_STDEV')
+                    call InputReadDouble(input,option, &
+                                         new_fracfam%radius_stdev%z)
+                    call InputErrorMsg(input,option,'RADIUS_XYZ,RAD_Z_STDEV', &
+                                       error_string)
+                !-----------------------------
+                  case('RADIUS_SEED')
+                    call InputReadInt(input,option,new_fracfam%radius_seed)
+                    call InputErrorMsg(input,option,'RADIUS_SEED',error_string)
+                !-----------------------------------
+                  case default
+                    call InputKeywordUnrecognized(input,word, &
+                                                  error_string,option)
+                !-----------------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      !------ error messaging ----------------------------------------
+      if (Uninitialized(new_fracfam%id)) then
+        option%io_buffer = 'ERROR: ID must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%intensity_fracfam)) then
+        option%io_buffer = 'ERROR: FRACTURE_INTENSITY must be specified &
+          &in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%hap0)) then
+        option%io_buffer = 'ERROR: HYDRAULIC_APERTURE,HYDRAULIC_APERTURE_VALUE &
+        &must be specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%hap0_max)) then
+        option%io_buffer = 'ERROR: HYDRAULIC_APERTURE,HYDRAULIC_APERTURE_MAX &
+        &must be specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%hap0_stdev)) then
+        option%io_buffer = 'ERROR: HYDRAULIC_APERTURE,HYDRAULIC_APERTURE_STDEV &
+        &must be specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%center%x) .or. &
+      	  Uninitialized(new_fracfam%center%y) .or. &
+      	  Uninitialized(new_fracfam%center%z)) then
+        option%io_buffer = 'ERROR: CENTER coordinate must be specified in ' // &
+                           trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%center_stdev%x) .or. &
+          Uninitialized(new_fracfam%center_stdev%y) .or. &
+          Uninitialized(new_fracfam%center_stdev%z)) then
+        option%io_buffer = 'ERROR: CENTER,(X/Y/Z)COORD_STDEV must be &
+          &specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%normal%x) .or. &
+          Uninitialized(new_fracfam%normal%y) .or. &
+          Uninitialized(new_fracfam%normal%z)) then
+        option%io_buffer = 'ERROR: NORMAL_VECTOR coordinate must be &
+                           &specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%normal_stdev%x) .or. &
+          Uninitialized(new_fracfam%normal_stdev%y) .or. &
+          Uninitialized(new_fracfam%normal_stdev%z)) then
+        option%io_buffer = 'ERROR: NORMAL,(X/Y/Z)COORD_STDEV must be &
+          &specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%radius%x) .or. &
+          Uninitialized(new_fracfam%radius%y) .or. &
+          Uninitialized(new_fracfam%radius%z)) then
+        option%io_buffer = 'ERROR: RADIUS,RADIUS_XYZ must be &
+                           &specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_fracfam%radius_stdev%x) .or. &
+          Uninitialized(new_fracfam%radius_stdev%y) .or. &
+          Uninitialized(new_fracfam%radius_stdev%z)) then
+        option%io_buffer = 'ERROR: RADIUS,RAD_(X/Y/Z)_STDEV must be &
+          &specified in ' // trim(error_string) // ' block.'
+        call PrintMsg(option); num_errors = num_errors + 1
+      endif
+
+      if (num_errors > 0) then
+        write(option%io_buffer,*) num_errors
+        option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                           &the FRACTURE_FAMILY block. See above to fix.'
+        call PrintErrMsg(option)
+      endif
+      !------ add fracture family to list -----------------------------------
+      if (.not.associated(pm_fracture%fracfam_list)) then
+        pm_fracture%fracfam_list => new_fracfam
+      else
+        cur_fracfam => pm_fracture%fracfam_list
+        do
+          if (.not.associated(cur_fracfam)) exit
+          if (.not.associated(cur_fracfam%next)) then
+            cur_fracfam%next => new_fracfam
+            added = PETSC_TRUE
+          endif
+          if (added) exit
+          cur_fracfam => cur_fracfam%next
+        enddo
+      endif
+      nullify(new_fracfam)
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+end subroutine PMFracReadFracFam
+
+! ************************************************************************** !
+
 subroutine PMFracReadPass2(input,option)
   !
   ! Reads input file parameters associated with the fracture process model.
@@ -885,12 +1426,95 @@ subroutine PMFracReadPass2(input,option)
       case('FRACTURE')
         call InputSkipToEND(input,option,card)
       !--------------------
+      case('FRACTURE_FAMILY')
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+      !--------------------
     end select
 
   enddo
   call InputPopBlock(input,option)
 
 end subroutine PMFracReadPass2
+
+! ************************************************************************** !
+
+subroutine PMFracGenerateFracFam(fracfam)
+  !
+  ! Generates fractures based on the information about a fracture family.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/20/2024
+  !
+  use Utility_module
+
+  implicit none
+
+  class(fracfam_type) :: fracfam
+
+  class(fracture_type), pointer :: new_fracture,cur_fracture
+  PetscReal :: temp_real
+  PetscBool :: added
+
+  do while (fracfam%nfrac_in_fam < fracfam%intensity_fracfam)
+    added = PETSC_FALSE
+    allocate(new_fracture)
+    fracfam%nfrac_in_fam = fracfam%nfrac_in_fam + 1
+    new_fracture => PMFractureCreate()
+    new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
+
+    call GetRndNumFromNormalDist(fracfam%center%x,fracfam%center_stdev%x, &
+      new_fracture%center%x,(fracfam%center_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%center%y,fracfam%center_stdev%y, &
+      new_fracture%center%y,(fracfam%center_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%center%z,fracfam%center_stdev%z, &
+      new_fracture%center%z,(fracfam%center_seed + fracfam%nfrac_in_fam))
+
+    call GetRndNumFromNormalDist(fracfam%normal%x,fracfam%normal_stdev%x, &
+      new_fracture%normal%x,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%normal%y,fracfam%normal_stdev%y, &
+      new_fracture%normal%y,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%normal%z,fracfam%normal_stdev%z, &
+      new_fracture%normal%z,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+
+    call GetRndNumFromNormalDist(fracfam%radius%x,fracfam%radius_stdev%x, &
+      new_fracture%radx,(fracfam%radius_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%radius%y,fracfam%radius_stdev%y, &
+      new_fracture%rady,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist(fracfam%radius%z,fracfam%radius_stdev%z, &
+      new_fracture%radz,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    new_fracture%radx = abs(new_fracture%radx)  ! ensures radius is positive
+    new_fracture%rady = abs(new_fracture%rady)  ! ensures radius is positive
+    new_fracture%radz = abs(new_fracture%radz)  ! ensures radius is positive
+
+    call GetRndNumFromNormalDist(fracfam%hap0,fracfam%hap0_stdev, &
+      new_fracture%hap0,(fracfam%hap0_seed + fracfam%nfrac_in_fam))
+    new_fracture%hap0 = abs(new_fracture%hap0)  ! ensures hap0 is positive
+    new_fracture%hap0 = min(new_fracture%hap0,fracfam%hap0_max)
+
+    !------ add fracture to list -------------------------
+    if (.not.associated(fracfam%fracture_list)) then
+      fracfam%fracture_list => new_fracture
+    else
+      cur_fracture => fracfam%fracture_list
+      do
+        if (.not.associated(cur_fracture)) exit
+        if (.not.associated(cur_fracture%next)) then
+          cur_fracture%next => new_fracture
+          added = PETSC_TRUE
+        endif
+        if (added) exit
+        cur_fracture => cur_fracture%next
+      enddo
+    endif
+
+    nullify(new_fracture)
+  enddo
+
+end subroutine PMFracGenerateFracFam
 
 ! ************************************************************************** !
 
