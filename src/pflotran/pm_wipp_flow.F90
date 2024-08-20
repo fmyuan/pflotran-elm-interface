@@ -730,12 +730,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal :: rhob
   PetscReal :: Pb
   PetscBool :: found
-  PetscReal, parameter :: gravity = 9.80665d0
+  PetscReal :: gravity
 
   patch => this%realization%patch
   grid => patch%grid
   field => this%realization%field
   option => this%option
+
+  gravity = -1.d0*option%gravity(Z_DIRECTION)
 
   if (this%scale_linear_system .and. option%flow%scale_all_pressure) then
     option%io_buffer = 'cannot be used with SCALE_JACOBIAN, &
