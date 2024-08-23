@@ -5134,7 +5134,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
       ! ---------------------------------------------------------------------- !
         case(SCO2_ANY_STATE)
           ! With energy
-            ! temperature; 4th dof ------------------------- !
+          ! temperature; 4th dof ------------------------- !
           if (sco2_thermal) then
             select case(sco2%temperature%itype)
               case(DIRICHLET_BC)

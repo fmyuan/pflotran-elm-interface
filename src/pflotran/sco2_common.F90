@@ -212,9 +212,11 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
   if (sco2_stomp_fluxes) then
 
-    do iphase = 1 , option%nphase - 1 ! No advection or diffusion through salt phase
+    ! No advection or diffusion through salt phase
+    do iphase = 1 , option%nphase - 1
 
-      if (sco2_auxvar_up%sat(iphase) + sco2_auxvar_dn%sat(iphase) <= 0.d0) cycle
+      if (sco2_auxvar_up%sat(iphase) + &
+          sco2_auxvar_dn%sat(iphase) <= 0.d0) cycle
 
       ! Advection
 
@@ -259,9 +261,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
 
         if (sco2_harmonic_viscosity) then
         ! Harmonic mean on viscosity
-          visc_mean = (sco2_auxvar_up%visc(iphase) * sco2_auxvar_dn%visc(iphase) * &
-                  (dist_up + dist_dn)) / (sco2_auxvar_up%visc(iphase) * dist_up + &
-                    sco2_auxvar_dn%visc(iphase) * dist_dn)
+          visc_mean = (sco2_auxvar_up%visc(iphase) * &
+                       sco2_auxvar_dn%visc(iphase) * &
+                      (dist_up + dist_dn)) / (sco2_auxvar_up%visc(iphase) * &
+                       dist_up + sco2_auxvar_dn%visc(iphase) * dist_dn)
 
           ! STOMP takes harmonic mean on density when old velocity is 0
           mobility = kr / visc_mean
@@ -288,8 +291,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
           enddo
           if (sco2_thermal) then
             ! Energy flux
-            Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-                                              tot_mass_flux * uH
+            Res(SCO2_ENERGY_EQUATION_INDEX) = &
+                Res(SCO2_ENERGY_EQUATION_INDEX) + tot_mass_flux * uH
           endif
         endif
       endif
@@ -388,11 +391,11 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       endif
 
       al = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-            0.d0)
+          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+           epsilon))) ** 5, 0.d0)
       alp = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-            0.d0)
+          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+           epsilon))) ** 5, 0.d0)
 
       salt_mass_flux = (al * sco2_auxvar_up%xmass(sid,iphase) * &
                             sco2_auxvar_up%den_kg(iphase) - &
@@ -526,7 +529,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       heat_flux = dheat_flux_ddelta_temp * delta_temp
 
       ! MJ/s or MW
-      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                        heat_flux
     endif
   else
     iphase = LIQUID_PHASE
@@ -575,7 +579,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         ! if (.not. sco2_non_darcy_flow) then
             ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
             !                    dP[Pa]]
-            v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+            v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                              delta_pressure
 
             ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
             q = v_darcy(iphase) * area
@@ -596,9 +601,12 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         water_mass_flux = tot_mass_flux * xmass(wid)
         co2_mass_flux = tot_mass_flux * xmass(co2_id)
         salt_mass_flux = tot_mass_flux * xmass(sid)
-        Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + water_mass_flux
-        Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + co2_mass_flux
-        Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + salt_mass_flux
+        Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
+                                         water_mass_flux
+        Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
+                                       co2_mass_flux
+        Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
+                                        salt_mass_flux
         if (sco2_thermal) then
           Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
                                           tot_mass_flux * uH
@@ -653,7 +661,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         ! if (.not. sco2_non_darcy_flow) then
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
-          v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+          v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                            delta_pressure
 
           ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
           q = v_darcy(iphase) * area
@@ -674,10 +683,13 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
         !                                 xmass[kg comp/kg phase]
         water_mass_flux = tot_mass_flux * xmass(wid)
         co2_mass_flux = tot_mass_flux * xmass(co2_id)
-        Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + water_mass_flux
-        Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + co2_mass_flux
+        Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) + &
+                                         water_mass_flux
+        Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
+                                       co2_mass_flux
         if (sco2_thermal) then
-          Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + tot_mass_flux * uH
+          Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                            tot_mass_flux * uH
         endif
       endif
     endif
@@ -757,8 +769,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     ! units = [mole/m^4 bulk]
     tempreal = stpd_up*dist_dn+stpd_dn*dist_up
     stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
-    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
-    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
+    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                   tempreal
+    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                   tempreal
 
     ! delta of mole fraction
     delta_xmol = sco2_auxvar_up%xmol(co2_id,iphase) - &
@@ -789,8 +803,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
     ! units = [kg/m^4 bulk]
     tempreal = stpd_up*dist_dn+stpd_dn*dist_up
     stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
-    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
-    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
+    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                   tempreal
+    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                   tempreal
     delta_xmass = sco2_auxvar_up%xmass(sid,iphase) - &
                   sco2_auxvar_dn%xmass(sid,iphase)
     delta_X_whatever = delta_xmass
@@ -854,8 +870,10 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       ! units = [mole/m^4 bulk]
       tempreal = stpd_up*dist_dn+stpd_dn*dist_up
       stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
-      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
-      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                     tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                     tempreal
 
       delta_xmol = sco2_auxvar_up%xmol(co2_id,iphase) - &
                   sco2_auxvar_dn%xmol(co2_id,iphase)
@@ -927,7 +945,8 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
 
       ! MJ/s or MW
-      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                        heat_flux
     endif
   endif
 
@@ -1201,8 +1220,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           enddo
           if (sco2_thermal) then
             ! Energy flux
-            Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
-                                            tot_mass_flux * uH
+            Res(SCO2_ENERGY_EQUATION_INDEX) = &
+                  Res(SCO2_ENERGY_EQUATION_INDEX) + tot_mass_flux * uH
           endif
         endif
       endif
@@ -1286,11 +1305,11 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
       endif
 
       al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-            0.d0)
+            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+            epsilon))) ** 5, 0.d0)
       alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
-              (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + epsilon))) ** 5, &
-              0.d0)
+              (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+              epsilon))) ** 5, 0.d0)
 
       salt_mass_flux = (alp * sco2_auxvar_up%xmass(sid,iphase) * &
                             sco2_auxvar_up%den_kg(iphase) - &
@@ -1337,10 +1356,11 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
 
         ! derive wet and dry conductivities with anisotropy tensor and direction
         call thermal_cc_dn%thermal_conductivity_function% &
-            TCondTensorToScalar(dist,option)
-        call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-              sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
-              k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+             TCondTensorToScalar(dist,option)
+        call thermal_cc_dn%thermal_conductivity_function% &
+             CalculateTCond(sat_dn, &
+             sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
+             k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
 
         if (k_eff_dn > 0.d0) then
@@ -1369,7 +1389,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
       end select
 
       ! ! MJ/s or MW
-      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + heat_flux
+      Res(SCO2_ENERGY_EQUATION_INDEX) = Res(SCO2_ENERGY_EQUATION_INDEX) + &
+                                        heat_flux
     endif
   else
     iphase = LIQUID_PHASE
@@ -1786,7 +1807,8 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
 
       salt_mass_flux = dtot_mass_flux_ddeltaX * delta_X_whatever
 
-      tot_mole_flux = (co2_mole_flux + salt_mass_flux / fmw_comp(THREE_INTEGER))
+      tot_mole_flux = (co2_mole_flux + salt_mass_flux / &
+                       fmw_comp(THREE_INTEGER))
 
       Res(SCO2_WATER_EQUATION_INDEX) = Res(SCO2_WATER_EQUATION_INDEX) - &
                                         tot_mole_flux * fmw_comp(ONE_INTEGER)
@@ -1864,9 +1886,10 @@ subroutine SCO2BCFlux(ibndtype, auxvar_mapping, auxvars, sco2_auxvar_up, &
           sat_dn = sco2_auxvar_dn%sat(option%liquid_phase)
           call thermal_cc_dn%thermal_conductivity_function% &
                 TCondTensorToScalar(dist,option)
-          call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-                sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
-                k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+          call thermal_cc_dn%thermal_conductivity_function% &
+               CalculateTCond(sat_dn, &
+               sco2_auxvar_dn%temp,sco2_auxvar_dn%effective_porosity, &
+               k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
           dkeff_ave_dkeffdn = 1.d0 / dist(0)
           k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn

@@ -1735,7 +1735,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:), &
                                         sco2_auxvars_bc(:), &
                                         sco2_auxvars_ss(:,:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:), &
+  type(global_auxvar_type), pointer :: global_auxvars(:), &
+                                       global_auxvars_bc(:), &
                                        global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
