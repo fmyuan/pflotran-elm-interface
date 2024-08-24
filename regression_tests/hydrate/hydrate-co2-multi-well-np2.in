@@ -25,16 +25,35 @@ REGRESSION
   /
 END
 
-WELLBORE_MODEL well
-  # Uncommenting PRINT_WELL_FILE will create the .well file at each time step
-  #PRINT_WELL_FILE
+WELLBORE_MODEL well1
 
-  # Note the SEGMENT_CENTER_Z_VALUES must be provided in ascending order!
+
   WELL_GRID
     NUMBER_OF_SEGMENTS 10
-    TOP_OF_HOLE    12.5d0 5.d-1  500.0d0   # [x,y,z] in meters
-    BOTTOM_OF_HOLE 12.5d0 5.d-1  0.0d0   # [x,y,z] in meters
-    CASING 1.d0 0.d0 8@1.d0
+    TOP_OF_HOLE    15.d0 5.d0   500.0d0   # [x,y,z] in meters
+    BOTTOM_OF_HOLE 15.d0 5.d0  0.0d0   # [x,y,z] in meters
+    CASING 10@0.d0 
+  /
+
+
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+WELLBORE_MODEL well2
+
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 10
+    TOP_OF_HOLE    35.d0 5.d0   500.0d0   # [x,y,z] in meters
+    BOTTOM_OF_HOLE 35.d0 5.d0  0.0d0   # [x,y,z] in meters
+    CASING 1.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 1.d0
   /
 
   WELL
@@ -47,6 +66,13 @@ WELLBORE_MODEL well
   USE_WELL_COUPLER
 
 END
+
+WELL_MODEL_OUTPUT
+  WELL_LIQ_PRESSURE
+  WELL_GAS_PRESSURE
+  WELL_LIQ_Q
+  WELL_GAS_Q
+/
 
 HYDRATE
   GT_3PHASE
@@ -73,13 +99,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE STRUCTURED CARTESIAN
-  NXYZ 1 1 10 
-  DXYZ
-    25.d0
-    1.d0
-    10@5.d1
-  /
+  TYPE UNSTRUCTURED mesh.ugi
 END
 
 #=========================== fluid properties =================================
@@ -176,9 +196,9 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1.00000d1 y
-  INITIAL_TIMESTEP_SIZE 1.d0 y #1.d-6 h
-  MAXIMUM_TIMESTEP_SIZE 1.d1 y #1.d0 d #4.d-6 d
+  FINAL_TIME 1.00000d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-1 y #1.d-6 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y #1.d0 d #4.d-6 d
 END
 
 #=========================== regions ==========================================
@@ -191,18 +211,12 @@ END
 
 REGION top
   FACE TOP
-  COORDINATES
-    0.d0 0.d0  500.d0
-    25.d0 1.d0 500.d0
-  /
+  FILE mesh_ugi_top.ss
 END
 
 REGION bottom
   FACE BOTTOM
-  COORDINATES
-    0.d0 0.d0  0.d0
-    25.d0 1.d0 0.d0
-  /
+  FILE mesh_ugi_bottom.ss
 END
 
 
@@ -221,25 +235,43 @@ FLOW_CONDITION initial
   END
   LIQUID_PRESSURE 10.d6
   MASS_FRACTION 0.d0 
-  TEMPERATURE 2.d0
+  TEMPERATURE 7.5d0
   SALT_MASS_FRACTION 1.d-1
 END
 
-FLOW_CONDITION injection
+FLOW_CONDITION injection1
   SYNC_TIMESTEP_WITH_UPDATE
   TYPE
     TEMPERATURE DIRICHLET
     RATE MASS_RATE
   /
-  TEMPERATURE 2.d0
+  TEMPERATURE 12.d0
   RATE LIST
     TIME_UNITS y
     DATA_UNITS kg/y kg/y kg/y MW
     INTERPOLATION STEP
-    0.d0 0.d0 5.d4 0.d0 0.d0
-    1.5d2 0.d0 0.d6 0.d0 0.d0
+    0.d0 0.d0 9.d4 0.d0 0.d0
+    1.d0 0.d0 0.d6 0.d0 0.d0
   /
 END
+
+FLOW_CONDITION injection2
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+  /
+  TEMPERATURE 12.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 0.d0 0.d0 0.d0
+    0.5d0 0.d0 3.d4 0.d0 0.d0
+    1.d0 0.d0 0.d6 0.d0 0.d0
+  /
+END
+
 
 #=========================== condition couplers ===============================
 # initial condition
@@ -253,9 +285,14 @@ BOUNDARY_CONDITION top
   REGION top
 END
 
-WELL_COUPLER injection
-  FLOW_CONDITION injection
-  WELL well
+WELL_COUPLER injection1
+  FLOW_CONDITION injection1
+  WELL well1
+END
+
+WELL_COUPLER injection2
+  FLOW_CONDITION injection2
+  WELL well2
 END
 
 #=========================== stratigraphy couplers ============================

@@ -196,6 +196,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_no_pc = PETSC_FALSE
   PetscBool, public :: hydrate_with_methanogenesis = PETSC_FALSE
   PetscBool, public :: hydrate_compute_surface_tension = PETSC_FALSE
+  PetscBool, public :: hydrate_legacy_fluxes = PETSC_FALSE
 
   ! Well
   PetscInt, public :: hydrate_well_coupling = UNINITIALIZED_INTEGER
@@ -854,8 +855,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%pres(apid) = x(HYDRATE_G_STATE_AIR_PRESSURE_DOF)
       hyd_auxvar%temp = x(HYDRATE_ENERGY_DOF)
       hyd_auxvar%m_salt(2) = x(HYDRATE_SALT_MASS_FRAC_DOF)
-
-      T_temp = hyd_auxvar%temp - Tf_ice
 
       ! hyd_auxvar%m_salt(2) = x(HYD_SALT_MASS_FRAC_DOF)
 
@@ -2391,7 +2390,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
               hyd_auxvar%sat(hid) = delta_sh
               istatechng = PETSC_TRUE
               global_auxvar%istate = HA_STATE
-            else
+            elseif (hyd_auxvar%pres(lid) > 0.d0) then
               hyd_auxvar%sat(gid) = delta_sg
               istatechng = PETSC_TRUE
               global_auxvar%istate = GA_STATE
@@ -2441,7 +2440,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
               if (hyd_auxvar%pres(lid) >= PE_hyd) then
                 istatechng = PETSC_TRUE
                 global_auxvar%istate = HA_STATE
-              else
+              elseif (hyd_auxvar%pres(lid) > 0.d0) then
                  istatechng = PETSC_TRUE
                  global_auxvar%istate = GA_STATE
               endif
@@ -2616,7 +2615,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       elseif (hyd_auxvar%temp > Tf_ice) then
         ! Compute what gas saturation would be
         !sg_est = 1.d-5
-        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - eps_sg !delta_sg
+        hyd_auxvar%sat(hid) = hyd_auxvar%sat(hid) - delta_sg !eps_sg
+        hyd_auxvar%sat(hid) = max(hyd_auxvar%sat(hid),eps_sg)
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGA_STATE
         ha_epsilon = hydrate_phase_chng_epsilon
@@ -3312,7 +3312,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       dxs = max(1.d-12,1.d-6*hyd_auxvar(ZERO_INTEGER)%m_salt(1))
       if (hyd_auxvar(ZERO_INTEGER)%pres(lid) > PE_hyd) then
         dxs = dxs
-      elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > 0.d0) then
+      elseif (hyd_auxvar(ZERO_INTEGER)%m_salt(1) > dxs) then
         dxs = -dxs
       endif
 
@@ -3640,7 +3640,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
     nwelldof = 1
   endif
 
-  do idof = 1, option%nflowdof
+  do idof = 1, option%nflowdof - nwelldof
 
     if (hydrate_central_diff_jacobian) then
       ! pert(idof) = max(1.d-7 * x(idof),1.d-7)
@@ -4364,7 +4364,6 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         PE = 11.889d0 * T_k - 3356.4d0
         dP = 11.889d0 * (T_k - dTf) - 3356.4d0
       endif
-     PE = exp(PE)
      PE = min(PE,1.d3)
      dP = min(dP,1.d3)
      dP = dP * 1.d6

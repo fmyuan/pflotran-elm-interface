@@ -671,7 +671,8 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
   use PM_Base_class
   use PM_Well_class
   use PM_SCO2_class
-  Use Option_module
+  use PM_Hydrate_class
+  use Option_module
   use Field_module
   use DM_Custom_module
   use Utility_module
@@ -779,6 +780,20 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
                 exit
             end select
           enddo
+        class is (pm_hydrate_type)
+          if (.not. associated(cur_pmc%child)) exit
+          cur_pm2 => cur_pmc%child%pm_list
+          do
+            select type (pm2 => cur_pm2)
+              class is (pm_well_type)
+                pm_well => pm2
+                exit
+            end select
+          enddo
+        class default
+          option%io_buffer = 'The fully implicit well model can only be run &
+                               & in SCO2 or HYDRATE mode right now.'
+          call PrintErrMsg(option)
       end select
     enddo
     nullify(well_cells)

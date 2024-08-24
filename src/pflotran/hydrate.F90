@@ -871,8 +871,8 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
         do idof = 1, option%nflowdof
           if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL .and. &
               idof == option%nflowdof) cycle
-          real_index = boundary_condition%flow_aux_mapping(&
-                    dof_to_primary_variable(idof,istate))
+          real_index = boundary_condition% &
+                       flow_aux_mapping(dof_to_primary_variable(idof,istate))
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
@@ -1040,8 +1040,7 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
     cur_well => pm_well
     do
       if (.not. associated(cur_well)) exit
-      if (associated(cur_well%flow_condition) .and. &
-          Initialized(cur_well%well%bh_p))then
+      if (associated(cur_well%flow_condition)) then
         well_flow_condition => cur_well%flow_condition
         if (associated(well_flow_condition%hydrate%temperature) .and. &
             associated(cur_well%well%temp)) then
@@ -1680,6 +1679,9 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,pm_well,ierr)
   PetscInt :: well_ndof
   PetscInt :: deactivate_row
   PetscReal, parameter :: epsilon = 1.d-30
+
+  Jup = 0.d0
+  Jdn = 0.d0
 
   well_ndof = ZERO_INTEGER
   deactivate_row = UNINITIALIZED_INTEGER

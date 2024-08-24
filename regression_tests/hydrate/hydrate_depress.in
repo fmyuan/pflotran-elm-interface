@@ -6,6 +6,7 @@ SIMULATION
       MODE HYDRATE
       OPTIONS
         WINDOW_EPSILON 0.d0
+        LEGACY_FLUXES
       /
     /
   /
