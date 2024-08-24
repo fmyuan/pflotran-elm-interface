@@ -11089,7 +11089,8 @@ subroutine PMWellMassBalance(pm_well)
   well => pm_well%well
   nsegments = pm_well%well_grid%nsegments
 
-  if (pm_well%well_comm%comm == MPI_COMM_NULL) then
+  if (pm_well%well_comm%comm == MPI_COMM_NULL .or. &
+      pm_well%option%iflowmode /= WF_MODE) then
     well%mass_balance_liq = UNINITIALIZED_DOUBLE
     return
   endif
@@ -11170,7 +11171,8 @@ subroutine PMWellUpdateMass(pm_well)
   well => pm_well%well
   nsegments = pm_well%well_grid%nsegments
 
-  if (pm_well%well_comm%comm == MPI_COMM_NULL) then
+  if (pm_well%well_comm%comm == MPI_COMM_NULL .or. &
+        pm_well%option%iflowmode /= WF_MODE) then
     well%liq_mass = UNINITIALIZED_DOUBLE
     well%liq_cum_mass = UNINITIALIZED_DOUBLE
     return

@@ -3117,6 +3117,11 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
 
+  res = 0.d0
+  res_pert_minus = 0.d0
+  jac = 0.d0
+  jac_pert = 0.d0
+
   if (.not. hydrate_central_diff_jacobian) then
     call HydrateAccumulation(hyd_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,z,offset,hydrate_parameter, &
