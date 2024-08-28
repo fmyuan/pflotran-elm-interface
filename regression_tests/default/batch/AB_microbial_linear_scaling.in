@@ -57,7 +57,6 @@ CHEMISTRY
     /
     CONCENTRATION_UNITS ACTIVITY
   /
-  DATABASE ../../../database/hanford.dat
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
     ALL

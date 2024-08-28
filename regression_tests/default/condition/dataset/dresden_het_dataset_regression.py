@@ -187,7 +187,7 @@ h5grp = h5file.create_group('Permeability')
 h5grp.attrs['Dimension'] = numpy.string_('XYZ')
 h5grp.attrs['Discretization'] = [dx,dy,dz]
 h5grp.attrs['Origin'] = [0.,0.,0.]
-h5grp.attrs['Interpolation Method'] = numpy.string_('Linear')
+h5grp.attrs['Space Interpolation Method'] = numpy.string_('Linear')
 h5grp.attrs['Cell Centered'] = numpy.string_('True')
 
 index = 0
@@ -211,7 +211,7 @@ h5dset = h5grp.create_dataset('Data', data=rarray)
 #h5grp.attrs['Dimension'] = numpy.string_('XYZ')
 #h5grp.attrs['Discretization'] = [dx,dy,dz]
 #h5grp.attrs['Origin'] = [0.,0.,0.]
-#h5grp.attrs['Interpolation Method'] = numpy.string_('Linear')
+#h5grp.attrs['Space Interpolation Method'] = numpy.string_('Linear')
 #h5grp.attrs['Cell Centered'] = numpy.string_('True')
 #
 #index = 0

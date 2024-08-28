@@ -39,8 +39,8 @@ module Reaction_Solid_Soln_Aux_module
   end type solid_solution_rxn_type
 #endif
 
-  public :: SolidSolutionCreate, &
-            SolidSolutionDestroy
+  public :: ReactionSolidSolnCreateAux, &
+            ReactionSolidSolnDestroyAux
 
 contains
 
@@ -48,7 +48,7 @@ contains
 
 ! ************************************************************************** !
 
-function SolidSolutionReactionCreate()
+function ReactionSolidSolnCreateRxn()
   !
   ! Allocate and initialize solid solution reaction
   ! object
@@ -59,7 +59,7 @@ function SolidSolutionReactionCreate()
 
   implicit none
 
-  type(solid_solution_rxn_type), pointer :: SolidSolutionReactionCreate
+  type(solid_solution_rxn_type), pointer :: ReactionSolidSolnCreateRxn
 
   type(solid_solution_rxn_type), pointer :: solid_solution_rxn
 
@@ -70,16 +70,16 @@ function SolidSolutionReactionCreate()
 
   nullify(solid_solution_rxn%list)
 
-  solid_solution_rxn%mineral => MineralReactionCreate()
+  solid_solution_rxn%mineral => ReactionMnrleactionCreate()
 
-  SolidSolutionReactionCreate => solid_solution_rxn
+  ReactionSolidSolnCreateRxn => solid_solution_rxn
 
-end function SolidSolutionReactionCreate
+end function ReactionSolidSolnCreateRxn
 #endif
 
 ! ************************************************************************** !
 
-function SolidSolutionCreate()
+function ReactionSolidSolnCreateAux()
   !
   ! Allocate and initialize solid solution object
   !
@@ -89,7 +89,7 @@ function SolidSolutionCreate()
 
   implicit none
 
-  type(solid_solution_type), pointer :: SolidSolutionCreate
+  type(solid_solution_type), pointer :: ReactionSolidSolnCreateAux
 
   type(solid_solution_type), pointer :: solid_solution
 
@@ -105,15 +105,15 @@ function SolidSolutionCreate()
   nullify(solid_solution%stoich_solid_ids)
   nullify(solid_solution%next)
 
-  SolidSolutionCreate => solid_solution
+  ReactionSolidSolnCreateAux => solid_solution
 
-end function SolidSolutionCreate
+end function ReactionSolidSolnCreateAux
 
 #if 0
 
 ! ************************************************************************** !
 
-function StoichiometricSolidCreate()
+function ReactionSolidSolnCreateStoiSolid()
   !
   ! Allocate and initialize stoichiometric solid
   ! object
@@ -124,7 +124,7 @@ function StoichiometricSolidCreate()
 
   implicit none
 
-  type(stoichiometric_solid_type), pointer :: StoichiometricSolidCreate
+  type(stoichiometric_solid_type), pointer :: ReactionSolidSolnCreateStoiSolid
 
   type(stoichiometric_solid_type), pointer :: stoich_solid
 
@@ -134,13 +134,13 @@ function StoichiometricSolidCreate()
   nullify(stoich_solid%end_members) ! nullify the list for now
   nullify(stoich_solid%next)
 
-  StoichiometricSolidCreate => stoich_solid
+  ReactionSolidSolnCreateStoiSolid => stoich_solid
 
-end function StoichiometricSolidCreate
+end function ReactionSolidSolnCreateStoiSolid
 
 ! ************************************************************************** !
 
-subroutine StoichiometricSolidDestroy(stoich_solid)
+subroutine ReactionSolidSolnDestStoichSolid(stoich_solid)
   !
   ! Deallocates solid solution object
   !
@@ -163,19 +163,19 @@ subroutine StoichiometricSolidDestroy(stoich_solid)
     if (.not.associated(cur_mineral)) exit
     prev_mineral => cur_mineral
     cur_mineral => cur_mineral%next
-    call MineralDestroy(prev_mineral)
+    call ReactionMnrlDestroyAux(prev_mineral)
   enddo
-  call MineralDestroy(stoich_solid%mineral)
+  call ReactionMnrlDestroyAux(stoich_solid%mineral)
 
   deallocate(stoich_solid)
   nullify(stoich_solid)
 
-end subroutine StoichiometricSolidDestroy
+end subroutine ReactionSolidSolnDestStoichSolid
 #endif
 
 ! ************************************************************************** !
 
-recursive subroutine SolidSolutionDestroy(solid_solution)
+recursive subroutine ReactionSolidSolnDestroyAux(solid_solution)
   !
   ! Deallocates solid solution object
   !
@@ -195,7 +195,7 @@ recursive subroutine SolidSolutionDestroy(solid_solution)
   if (.not.associated(solid_solution)) return
 
   ! recursive
-  call SolidSolutionDestroy(solid_solution%next)
+  call ReactionSolidSolnDestroyAux(solid_solution%next)
 
 #if 0
   ! I don't want to destroy recursively here as the memory use may
@@ -205,7 +205,7 @@ recursive subroutine SolidSolutionDestroy(solid_solution)
     if (.not.associated(cur_stoich_solid)) exit
     prev_stoich_solid => cur_stoich_solid
     cur_stoich_solid => cur_stoich_solid%next
-    call StoichiometricSolidDestroy(prev_stoich_solid)
+    call ReactionSolidSolnDestStoichSolid(prev_stoich_solid)
   enddo
 #endif
   deallocate(solid_solution%stoich_solid_names)
@@ -216,13 +216,13 @@ recursive subroutine SolidSolutionDestroy(solid_solution)
   deallocate(solid_solution)
   nullify(solid_solution)
 
-end subroutine SolidSolutionDestroy
+end subroutine ReactionSolidSolnDestroyAux
 
 #if 0
 
 ! ************************************************************************** !
 
-subroutine SolidSolutionReactionDestroy(solid_solution)
+subroutine ReactionSolidSolnDestroyRxn(solid_solution)
   !
   ! Deallocates a solid solution object
   !
@@ -235,12 +235,12 @@ subroutine SolidSolutionReactionDestroy(solid_solution)
   type(solid_solution_rxn_type), pointer :: solid_solution
 
   ! recursive
-  call SolidSolutionDestroy(solid_solution%list)
+  call ReactionSolidSolnDestroyAux(solid_solution%list)
 
   deallocate(solid_solution)
   nullify(solid_solution)
 
-end subroutine SolidSolutionReactionDestroy
+end subroutine ReactionSolidSolnDestroyRxn
 #endif
 
 end module Reaction_Solid_Soln_Aux_module

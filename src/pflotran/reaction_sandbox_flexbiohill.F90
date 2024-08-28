@@ -171,8 +171,8 @@ subroutine FlexBioHillSetup(this,reaction,option)
   !
   ! Sets up the flexible biodegradation reaction with hardwired parameters
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
   use Option_module
 
   implicit none

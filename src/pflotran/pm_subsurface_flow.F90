@@ -29,10 +29,12 @@ module PM_Subsurface_Flow_class
     PetscReal :: max_temperature_change
     PetscReal :: max_saturation_change
     PetscReal :: max_xmol_change
+    PetscReal :: max_salt_mass_change
     PetscReal :: pressure_change_governor
     PetscReal :: temperature_change_governor
     PetscReal :: saturation_change_governor
     PetscReal :: xmol_change_governor
+    PetscReal :: salt_mass_change_governor
     PetscReal :: cfl_governor
     ! these limit (truncate) the maximum change in a Newton iteration
     ! truncation occurs within PMXXXCheckUpdatePre
@@ -46,10 +48,10 @@ module PM_Subsurface_Flow_class
 
   contains
 !geh: commented out subroutines can only be called externally
-    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: ReadTSBlock => PMSubsurfaceFlowReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMSubsurfaceFlowReadNewtonSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
+    procedure, public :: Setup => PMSubsurfaceFlowSetup
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
 !    procedure, public :: InitializeTimestep => PMSubsurfaceFlowInitializeTimestep
@@ -121,10 +123,12 @@ subroutine PMSubsurfaceFlowInit(this)
   this%max_temperature_change = 0.d0
   this%max_saturation_change = 0.d0
   this%max_xmol_change = 0.d0
+  this%max_salt_mass_change = 0.d0
   this%pressure_change_governor = 5.d5
   this%temperature_change_governor = 5.d0
   this%saturation_change_governor = 0.5d0
   this%xmol_change_governor = 1.d0
+  this%salt_mass_change_governor = 1.d1
   this%cfl_governor = UNINITIALIZED_DOUBLE
   this%pressure_dampening_factor = UNINITIALIZED_DOUBLE
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
@@ -239,6 +243,10 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%saturation_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
+    case('SALT_MASS_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%salt_mass_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -327,19 +335,33 @@ subroutine PMSubsurfaceFlowSetup(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Discretization_module
-  use Communicator_Structured_class
-  use Communicator_Unstructured_class
-  use Grid_module
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
+  use Condition_Control_module
+  use Discretization_module
+  use Grid_module
+  use Init_Subsurface_Flow_module
   use Option_module
+  use Matrix_Zeroing_module
+  use Patch_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
 
   class(characteristic_curves_type), pointer :: cur_cc
+
+  ! assign initial conditionsRealizAssignFlowInitCond
+  call CondControlAssignFlowInitCond(this%realization)
+  ! override initial conditions if they are to be read from a file
+  if (len_trim(this%option%initialize_flow_filename) > 1) then
+    call InitSubsurfFlowReadInitCond(this%realization, &
+                                     this%option%initialize_flow_filename)
+  endif
+
+  call this%UpdateAuxvars()
 
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -381,7 +403,7 @@ subroutine PMSubsurfaceFlowSetup(this)
       if (.not.associated(cur_cc)) exit
       if (     associated(cur_cc%saturation_function) ) then
       select type(sf => cur_cc%saturation_function)
-        class is(sat_func_WIPP_type)
+        class is(sat_func_wipp_type)
           if (.not.sf%ignore_permeability .and. &
               .not.(this%option%iflowmode == WF_MODE .or. &
                     this%option%iflowmode == G_MODE .or. &
@@ -405,30 +427,25 @@ end subroutine PMSubsurfaceFlowSetup
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowSetRealization(this,realization)
+subroutine PMSubsurfaceFlowSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
   use Realization_Subsurface_class
-  use Option_module
-  use Grid_module
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
+  this%realization => RealizationCast(this%realization_base)
   ! scale pressures down to the range near saturation (0 to 1)
   if (this%option%flow%scale_all_pressure) then
-    this%solution_vec = realization%field%flow_scaled_xx
+    this%solution_vec = this%realization%field%flow_scaled_xx
   else
-    this%solution_vec = realization%field%flow_xx
+    this%solution_vec = this%realization%field%flow_xx
   endif
-  this%residual_vec = realization%field%flow_r
+  this%residual_vec = this%realization%field%flow_r
 
 end subroutine PMSubsurfaceFlowSetRealization
 

@@ -23,6 +23,7 @@ module Saturation_Function_module
     PetscReal :: lambda
     PetscReal :: alpha
     PetscReal :: pcwmax
+    PetscReal :: Sgt_max
     PetscReal :: betac
     PetscReal :: power
     PetscInt :: hysteresis_id
@@ -33,9 +34,9 @@ module Saturation_Function_module
     PetscReal :: pres_spline_low
     PetscReal :: pres_spline_high
     PetscReal :: pres_spline_coefficients(4)
-    PetscReal :: ani_A       ! parameters for anisotropic relative permeability model
-    PetscReal :: ani_B       ! parameters for anisotropic relative permeability model
-    PetscReal :: ani_C       ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_A  ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_B  ! parameters for anisotropic relative permeability model
+    PetscReal :: ani_C  ! parameters for anisotropic relative permeability model
 
     type(saturation_function_type), pointer :: next
   end type saturation_function_type
@@ -123,6 +124,7 @@ function SaturationFunctionCreate(option)
   saturation_function%lambda = 0.d0
   saturation_function%alpha = 0.d0
   saturation_function%pcwmax = 1.d9
+  saturation_function%Sgt_max = 0.d0
   saturation_function%betac = 0.d0
   saturation_function%power = 0.d0
   saturation_function%hysteresis_id = 0
@@ -167,9 +169,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   PetscReal :: tempreal
 
   select case(option%iflowmode)
-    case(G_MODE,H_MODE,WF_MODE)
+    case(G_MODE,H_MODE,WF_MODE,SCO2_MODE)
       option%io_buffer = 'SATURATION_FUNCTION card is no longer ' // &
-        'supported for GENERAL mode.  Please use CHARACTERISTIC_' // &
+        'supported for multiphase modes.  Please use CHARACTERISTIC_' // &
         'CURVES card defined on the PFLOTRAN wiki.'
       call PrintErrMsg(option)
   end select
@@ -231,7 +233,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,saturation_function%Sr(iphase))
             word = trim(keyword) // ' residual saturation'
             call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
-          case(G_MODE,H_MODE)
+          case(G_MODE,H_MODE,SCO2_MODE)
             iphase = 0
             string = input%buf
             call InputReadDouble(input,option,tempreal)
@@ -278,6 +280,10 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       case('MAX_CAPILLARY_PRESSURE')
         call InputReadDouble(input,option,saturation_function%pcwmax)
         call InputErrorMsg(input,option,'maximum capillary pressure','SATURATION_FUNCTION')
+      case('MAX_TRAPPED_GAS_SAT')
+        call InputReadDouble(input,option,saturation_function%Sgt_max)
+        call InputErrorMsg(input,option,'maximum trapped gas saturation', &
+                           'SATURATION_FUNCTION')
       case('BETAC')
         call InputReadDouble(input,option,saturation_function%betac)
         call InputErrorMsg(input,option,'betac','SATURATION_FUNCTION')
@@ -1022,7 +1028,7 @@ implicit none
   PetscReal :: pth, dSe_dpc_at_pth
   PetscReal, parameter :: den_ice = 9.167d2 !in kg/m3 at 273.15K
   PetscReal, parameter :: interfacial_tensions_ratio = 2.33
-  PetscReal, parameter :: T_0 = 273.15d0 !in K
+  PetscReal, parameter :: T_0 = T273K !in K
 
   dsl_pl = 0.d0
   dsl_temp = 0.d0
@@ -1219,7 +1225,7 @@ subroutine CalculateImplicitIceFunc(alpha,lambda,Pcgl,T,s_i,func_val,dfunc_val)
   PetscReal :: sat_PC, dsat_dpc, dfunc_val
   PetscReal, parameter :: beta = 2.33          ! dimensionless -- ratio of surf. tens
   PetscReal, parameter :: rho_i = 9.167d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
 
   if (T >= 0.d0) then   ! T is in C
     temp_term = 0.d0
@@ -1377,7 +1383,7 @@ subroutine CalcPhasePartitionIceDeriv(alpha,lambda,Pcgl,T,s_g,s_i,s_l, &
   PetscReal :: L, M, N
   PetscReal, parameter :: beta = 2.33          ! dimensionless -- ratio of surf. tens
   PetscReal, parameter :: rho_i = 9.167d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
 
 #if 0
   PetscReal :: dsi_dpl_num, dsi_dT_num
@@ -1620,7 +1626,7 @@ implicit none
   PetscReal :: S, dS, Sinv, dSinv
   PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
   PetscReal :: T_f, theta, X, dS_dX
 
@@ -1754,7 +1760,7 @@ implicit none
   PetscReal :: S, dS, Sinv, dSinv
   PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
   PetscReal :: T_f, theta, X, dS_dX
 
@@ -1914,7 +1920,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
   !PetscReal, parameter :: beta = 2.2           ! dimensionless -- ratio of surf. tension
   PetscReal, parameter :: beta = 1             ! dimensionless [assumed as 1.d0]
   PetscReal, parameter :: rho_l = 9.998d2      ! in kg/m^3
-  PetscReal, parameter :: T_0 = 273.15         ! in K
+  PetscReal, parameter :: T_0 = T273K         ! in K
   PetscReal, parameter :: L_f = 3.34d5         ! in J/kg
 
   T_star_th = 5.d-1 ! [K]
@@ -2426,7 +2432,7 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
         capillary_pressure = (pc_alpha_neg_lambda**(-1.d0/lambda))/alpha
       endif
     case(LEVERETT)
-      tk = 273.15d0 + temp
+      tk = T273K + temp
       Se = (saturation-Sr)/(1.d0-Sr)
       os = 1.d0-Se
       f = os*(1.417d0 + os*(-2.120d0 + 1.263d0*os))

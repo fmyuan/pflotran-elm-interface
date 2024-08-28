@@ -87,7 +87,7 @@ module PM_UFD_Decay_class
     type(element_type), pointer :: element_list
   contains
 !geh: commented out subroutines can only be called externally
-    procedure, public :: Setup => PMUFDDecayInit
+    procedure, public :: Setup => PMUFDDecaySetup
     procedure, public :: ReadPMBlock => PMUFDDecayReadPMBlock
     procedure, public :: SetRealization => PMUFDDecaySetRealization
     procedure, public :: InitializeRun => PMUFDDecayInitializeRun
@@ -204,14 +204,7 @@ module PM_UFD_Decay_class
 ! --------------------------------------------------------------
 
   public :: PMUFDDecayCreate, &
-            PMUFDDecayInit !, &
-!            PMUFDDecayInitializeTimestepA, &
-!            PMUFDDecayInitializeTimestepB, &
-!            PMUFDDecayInitializeRun, &
-!            PMUFDDecayUpdateSolution, &
-!            PMUFDDecayUpdatePropertiesNI, &
-!            PMUFDDecayTimeCut, &
-!            PMUFDDecayDestroy
+            PMUFDDecaySetup !, &
 
 contains
 
@@ -875,7 +868,7 @@ end function GetElementKdFromIndices
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecayInit(this)
+subroutine PMUFDDecaySetup(this)
   !
   ! Initializes variables associated with the UFD decay process model
   !
@@ -950,6 +943,7 @@ subroutine PMUFDDecayInit(this)
   PetscInt :: g, ig, p, ip, d, id,cell
 ! -----------------------------------------------------------------------
 
+  call this%SetRealization()
   option => this%realization%option
   grid => this%realization%patch%grid
   if (associated(this%realization%reaction)) then
@@ -1044,12 +1038,18 @@ subroutine PMUFDDecayInit(this)
        call PrintErrMsg(option)
     endif
     do icount = 1, size(element%Kd_material_name)
-       do jcount = 1, num_continuum
-      material_property => &
-        MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
-                                    material_property_array)
-      this%element_Kd(element%ielement,material_property%internal_id,jcount) = &
-           element%Kd(icount,jcount)
+      do jcount = 1, num_continuum
+        material_property => &
+          MaterialPropGetPtrFromArray(element%Kd_material_name(icount), &
+                                      material_property_array)
+        if (.not.associated(material_property)) then
+          option%io_buffer = 'Material property "' &
+                             // trim(element%Kd_material_name(icount)) // &
+                             '" in UFD_DECAY block not found in material list'
+          call PrintErrMsg(option)
+        endif
+        this%element_Kd(element%ielement,material_property%internal_id,jcount) = &
+          element%Kd(icount,jcount)
       enddo
     enddo
 
@@ -1155,7 +1155,7 @@ subroutine PMUFDDecayInit(this)
     this%isotope_name(isotope%iisotope) = isotope%name
     if (associated(reaction)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
-        GetPrimarySpeciesIDFromName(isotope%name,reaction,option)
+        ReactionAuxGetPriSpecIDFromName(isotope%name,reaction,option)
     elseif (associated(reaction_nw)) then
       this%isotope_to_primary_species(isotope%iisotope) = &
         NWTGetSpeciesIDFromName(isotope%name,reaction_nw,option)
@@ -1164,7 +1164,7 @@ subroutine PMUFDDecayInit(this)
     word = trim(word) // '(s)'
     if (associated(reaction)) then
       this%isotope_to_mineral(isotope%iisotope) = &
-        GetKineticMineralIDFromName(word,reaction%mineral,option)
+        ReactionMnrlGetKinMnrlIDFromName(word,reaction%mineral,option)
     endif
     this%element_isotopes(0,isotope%ielement) = &
       this%element_isotopes(0,isotope%ielement) + 1
@@ -1286,11 +1286,11 @@ subroutine PMUFDDecayInit(this)
   this%element_solubility = 0.d0
 #endif
 
-end subroutine PMUFDDecayInit
+end subroutine PMUFDDecaySetup
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecaySetRealization(this,realization)
+subroutine PMUFDDecaySetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 06/24/15
@@ -1302,14 +1302,11 @@ subroutine PMUFDDecaySetRealization(this,realization)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): UFD Decay process model object
-! realization (input): pointer to subsurface realization object
 ! ----------------------------------------------------------
   class(pm_ufd_decay_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 ! ----------------------------------------------------------
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMUFDDecaySetRealization
 
@@ -2504,7 +2501,7 @@ subroutine PMUFDDecayInputRecord(this)
     enddo
     element => element%next
   enddo
-    
+
   do iiso = 1, this%num_isotopes
     write(id,'(2x,"Isotope: ",a)') this%isotope_name(iiso)
     if (associated(this%realization%reaction)) then

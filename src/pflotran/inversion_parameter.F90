@@ -3,7 +3,7 @@ module Inversion_Parameter_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                VG_SR, VG_ALPHA, VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
@@ -339,7 +339,7 @@ function InversionParamGetItypeFromName(name_,driver)
 
   select case(name_)
     case('ELECTRICAL_CONDUCTIVITY')
-      i = ELECTRICAL_CONDUCTIVITY
+      i = MATERIAL_ELECTRICAL_CONDUCTIVITY
     case('PERMEABILITY')
       i = PERMEABILITY
     case('POROSITY')
@@ -392,7 +392,7 @@ function InversionParamGetNameFromItype(itype,driver)
   character(len=MAXWORDLENGTH) :: word
 
   select case(itype)
-    case(ELECTRICAL_CONDUCTIVITY)
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
       word = 'ELECTRICAL_CONDUCTIVITY'
     case(PERMEABILITY)
       word = 'PERMEABILITY'
@@ -442,7 +442,7 @@ function InvParamItypeToItypeInternal(itype)
   PetscInt :: i
 
   select case(itype)
-    case(ELECTRICAL_CONDUCTIVITY)
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
       i = MAP_ELEC_COND
     case(PERMEABILITY)
       i = MAP_PERM
@@ -489,7 +489,7 @@ subroutine InversionParamInitBounds()
   PetscReal, parameter :: default_upper_bound = 1.d20
 
   parameter_bounds(:,:) = UNINITIALIZED_DOUBLE
-  call InversionParamSetGlobalBounds(ELECTRICAL_CONDUCTIVITY, &
+  call InversionParamSetGlobalBounds(MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                      default_lower_bound,default_upper_bound)
   call InversionParamSetGlobalBounds(PERMEABILITY,1.d-30,1.d-7)
   call InversionParamSetGlobalBounds(POROSITY,0.d0,1.d0)

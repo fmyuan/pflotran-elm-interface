@@ -48,7 +48,6 @@ CHEMISTRY
     Tracer
     Tracer_Age
   /
-  DATABASE ../../../database/hanford.dat
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
     ALL

@@ -34,7 +34,7 @@ subroutine ERTSetup(realization)
   use Patch_module
   use Grid_module
   use Survey_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+  use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
@@ -58,6 +58,7 @@ subroutine ERTSetup(realization)
   PetscBool :: require_electrical_conductivity
   PetscBool :: archies_parameters_defined
   PetscBool :: error_found
+  PetscBool :: dof_is_active(1)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -86,14 +87,14 @@ subroutine ERTSetup(realization)
         &is being run)."
       call PrintErrMsg(option)
     endif
-    if (electrical_conductivity_index == 0) then
+    if (material_elec_conduct_index == 0) then
       option%io_buffer = "ELECTRICAL_CONDUCTIVITY must be assigned as &
         &a MATERIAL_PROPERTY when running the ERT process model without &
         &a flow or transport process model."
       call PrintErrMsg(option)
     endif
   else
-    if (electrical_conductivity_index > 0) then
+    if (material_elec_conduct_index > 0) then
       option%io_buffer = "ELECTRICAL_CONDUCTIVITY cannot be assigned as &
         &a MATERIAL_PROPERTY when using a flow or transport process model &
         &as the bulk conductivity will be calculated through Archie's Law &
@@ -113,7 +114,7 @@ subroutine ERTSetup(realization)
     if (patch%imat(ghosted_id) <= 0) cycle
     if (require_electrical_conductivity) then
       if (Uninitialized(MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                               ELECTRICAL_CONDUCTIVITY)) .and. &
+                                     MATERIAL_ELECTRICAL_CONDUCTIVITY)) .and. &
           flag(1) == 0) then
         option%io_buffer = 'ERROR: Non-initialized electrical conductivity.'
         call PrintMsgByRank(option)
@@ -201,6 +202,10 @@ subroutine ERTSetup(realization)
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%ERT%matrix_zeroing, &
+                            patch%aux%ERT%inactive_cells_exist,option)
 
 end subroutine ERTSetup
 

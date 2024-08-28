@@ -90,11 +90,11 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
   volume = material_auxvar%volume
   ! accumulation term units = kmol/s
   Res = 0.d0
-  do iphase = 1, option%nphase
+  do iphase = 1, option%nphase - 1
     ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] *
     !                           den[kmol phase/m^3 phase] *
     !                           xmol[kmol comp/kmol phase]
-    do icomp = 1, option%nflowspec
+    do icomp = 1, option%nflowspec - 1
       Res(icomp) = Res(icomp) + hyd_auxvar%sat(iphase) * &
                                 hyd_auxvar%den(iphase) * &
                                 hyd_auxvar%xmol(icomp,iphase)
@@ -104,8 +104,14 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
   ! scale by porosity * volume / dt
   ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] *
   !                 vol[m^3 bulk] / dt[sec]
-  Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
+  Res(1:option%nflowspec-1) = Res(1:option%nflowspec-1) * &
                             porosity * volume_over_dt
+
+  ! Salt precipitate is calculated as fraction of total porosity,
+  ! so it needs to be added separately.
+  Res(HYDRATE_SALT_EQUATION_INDEX) = Res(HYDRATE_SALT_EQUATION_INDEX) + &
+                              hyd_auxvar%m_salt(TWO_INTEGER) * &
+                              volume_over_dt / hydrate_fmw_comp(3)
 
   do iphase = 1, option%nphase
     ! Res[MJ/m^3 void] = sat[m^3 phase/m^3 void] *
@@ -123,6 +129,7 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * hyd_auxvar%temp) * volume_over_dt
 
+  ! Methanogenesis
   q_meth = 0.d0
   if (associated(hydrate_parameter%methanogenesis) .and. offset > 0.d0) then
     if (material_auxvar%id /= 1000) then
@@ -132,6 +139,7 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
       Res(air_comp_id) = Res(air_comp_id) + q_meth
     endif
   endif
+
 end subroutine HydrateAccumulation
 
 
@@ -189,9 +197,10 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: dist_up, dist_dn
   PetscReal :: upweight
   PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: salt_comp_id, salt_dof_id
   PetscInt :: iphase
 
-  PetscReal :: xmol(option%nflowspec)
+  PetscReal :: xmol(option%nflowspec), xmass(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
   PetscReal :: perm_ave_over_dist(option%nphase)
@@ -199,11 +208,13 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: xmol_air_up, xmol_air_dn
   PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
+  PetscReal :: al, alp, dsalt_mass_flux_ddeltaX
   PetscReal :: delta_X_whatever
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, q
-  PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
+  PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux, salt_mole_flux
+  PetscReal :: tot_mass_flux, salt_mass_flux, salt_diff_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
@@ -214,10 +225,10 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   ! Darcy flux
   PetscReal :: up_scale, dn_scale
   PetscBool :: upwind
-  PetscReal :: tot_mole_flux_ddel_pressure
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
   PetscReal :: perm3(3)
+  PetscReal :: visc_mean, kr
 
   ! Diffusion
   PetscReal :: dstpd_up_dporup, dstpd_dn_dpordn
@@ -233,6 +244,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: ddiffusion_coef_dpup, ddiffusion_coef_dpdn
   PetscReal :: dtot_mole_flux_ddiffusion_coef
   PetscReal :: dstpd_ave_over_dist_dstpd_up, dstpd_ave_over_dist_dstpd_dn
+  PetscReal :: dtot_mass_flux_ddeltax, tot_mole_flux_ddel_pressure
 
   ! Conduction
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
@@ -243,7 +255,9 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: energy_flux
   PetscReal :: liq_sat, gas_sat, hyd_sat
   PetscReal :: v_sed
-  PetscInt  :: gid, lid, hid
+  PetscInt  :: gid, lid, hid, sid
+
+  PetscReal, parameter :: epsilon = 1.d-20
 
   lid = 1
   gid = 2
@@ -252,6 +266,11 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  ! Salt is DOF4, but component 3
+  salt_comp_id = option%salt_id
+  salt_dof_id = option%salt_id + 1
+  sid = option%salt_id
+
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
@@ -285,483 +304,1120 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
 
   v_darcy = 0.d0
 
+  if (hydrate_legacy_fluxes) then
 #ifdef CONVECTION
 #ifdef LIQUID_DARCY_FLUX
-  iphase = LIQUID_PHASE
-  if (hyd_auxvar_up%mobility(iphase) + &
-      hyd_auxvar_dn%mobility(iphase) > eps) then
+    iphase = LIQUID_PHASE
+    if (hyd_auxvar_up%mobility(iphase) + &
+        hyd_auxvar_dn%mobility(iphase) > eps) then
 
-    density_kg_ave = HydrateAverageDensity(iphase, &
-                                           global_auxvar_up%istate, &
-                                           global_auxvar_dn%istate, &
-                                           hyd_auxvar_up%den_kg, &
-                                           hyd_auxvar_dn%den_kg, &
-                                           ddensity_kg_ave_dden_kg_up, &
-                                           ddensity_kg_ave_dden_kg_dn)
+      density_kg_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den_kg, &
+                                            hyd_auxvar_dn%den_kg, &
+                                            ddensity_kg_ave_dden_kg_up, &
+                                            ddensity_kg_ave_dden_kg_dn)
 
-    gravity_term = density_kg_ave * dist_gravity
-    delta_pressure = hyd_auxvar_up%pres(iphase) - &
-                     hyd_auxvar_dn%pres(iphase) + &
-                     gravity_term
-    up_scale = 0.d0
-    dn_scale = 0.d0
-    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
-                             .not.analytical_derivatives, &
-                             count_upwind_direction_flip_, &
-                             liq_upwind_flip_count_by_res, &
-                             liq_upwind_flip_count_by_jac)
-    if (upwind) then
-      up_scale = 1.d0
-      mobility = hyd_auxvar_up%mobility(iphase)
-      xmol(:) = hyd_auxvar_up%xmol(:,iphase)
-      uH = hyd_auxvar_up%H(iphase)
-    else
-      dn_scale = 1.d0
-      mobility = hyd_auxvar_dn%mobility(iphase)
-      xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
-      uH = hyd_auxvar_dn%H(iphase)
+      gravity_term = density_kg_ave * dist_gravity
+      delta_pressure = hyd_auxvar_up%pres(iphase) - &
+                      hyd_auxvar_dn%pres(iphase) + &
+                      gravity_term
+      up_scale = 0.d0
+      dn_scale = 0.d0
+      upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                              .not.analytical_derivatives, &
+                              count_upwind_direction_flip_, &
+                              liq_upwind_flip_count_by_res, &
+                              liq_upwind_flip_count_by_jac)
+      if (upwind) then
+        up_scale = 1.d0
+        mobility = hyd_auxvar_up%mobility(iphase)
+        xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+        uH = hyd_auxvar_up%H(iphase)
+      else
+        dn_scale = 1.d0
+        mobility = hyd_auxvar_dn%mobility(iphase)
+        xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+        uH = hyd_auxvar_dn%H(iphase)
+      endif
+
+      if (mobility > floweps ) then
+        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+        !                    dP[Pa]]
+        v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                          delta_pressure
+        density_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den, &
+                                            hyd_auxvar_dn%den, &
+                                            ddensity_ave_dden_up, &
+                                            ddensity_ave_dden_dn)
+        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+        q = v_darcy(iphase) * area
+        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+        !                             density_ave[kmol phase/m^3 phase]
+        tot_mole_flux = q*density_ave
+        tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
+                                        mobility * area * density_ave
+        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+        !                                 xmol[kmol comp/kmol phase]
+        wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
+        air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+        salt_mole_flux = tot_mole_flux * xmol(salt_comp_id)
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+        Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
+      endif
     endif
-
-    if (mobility > floweps ) then
-      ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-      !                    dP[Pa]]
-      v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-      density_ave = HydrateAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          hyd_auxvar_up%den, &
-                                          hyd_auxvar_dn%den, &
-                                          ddensity_ave_dden_up, &
-                                          ddensity_ave_dden_dn)
-      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(iphase) * area
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-      !                             density_ave[kmol phase/m^3 phase]
-      tot_mole_flux = q*density_ave
-      tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave
-      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-      !                                 xmol[kmol comp/kmol phase]
-      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
-    endif
-  endif
 #endif
 #ifdef GAS_DARCY_FLUX
-  iphase = GAS_PHASE
-  if (hyd_auxvar_up%mobility(iphase) + &
-      hyd_auxvar_dn%mobility(iphase) > eps) then
+    iphase = GAS_PHASE
+    if (hyd_auxvar_up%mobility(iphase) + &
+        hyd_auxvar_dn%mobility(iphase) > eps) then
 
-    density_kg_ave = HydrateAverageDensity(iphase, &
-                                           global_auxvar_up%istate, &
-                                           global_auxvar_dn%istate, &
-                                           hyd_auxvar_up%den_kg, &
-                                           hyd_auxvar_dn%den_kg, &
-                                           ddensity_kg_ave_dden_kg_up, &
-                                           ddensity_kg_ave_dden_kg_dn)
+      density_kg_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den_kg, &
+                                            hyd_auxvar_dn%den_kg, &
+                                            ddensity_kg_ave_dden_kg_up, &
+                                            ddensity_kg_ave_dden_kg_dn)
 
-    gravity_term = density_kg_ave * dist_gravity
-    delta_pressure = hyd_auxvar_up%pres(iphase) - &
-                     hyd_auxvar_dn%pres(iphase) + &
-                     gravity_term
-    ! if a gas phase does not exist on either side of the connection, the gas
-    ! phase properties from the opposite side are used.
-    up_scale = 0.d0
-    dn_scale = 0.d0
-    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
-                             .not.analytical_derivatives, &
-                             count_upwind_direction_flip_, &
-                             gas_upwind_flip_count_by_res, &
-                             gas_upwind_flip_count_by_jac)
-    if (upwind) then
-      up_scale = 1.d0
-      mobility = hyd_auxvar_up%mobility(iphase)
-      xmol(:) = hyd_auxvar_up%xmol(:,iphase)
-      uH = hyd_auxvar_up%H(iphase)
-    else
-      dn_scale = 1.d0
-      mobility = hyd_auxvar_dn%mobility(iphase)
-      xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
-      uH = hyd_auxvar_dn%H(iphase)
+      gravity_term = density_kg_ave * dist_gravity
+      delta_pressure = hyd_auxvar_up%pres(iphase) - &
+                      hyd_auxvar_dn%pres(iphase) + &
+                      gravity_term
+      ! if a gas phase does not exist on either side of the connection, the gas
+      ! phase properties from the opposite side are used.
+      up_scale = 0.d0
+      dn_scale = 0.d0
+      upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                              .not.analytical_derivatives, &
+                              count_upwind_direction_flip_, &
+                              gas_upwind_flip_count_by_res, &
+                              gas_upwind_flip_count_by_jac)
+      if (upwind) then
+        up_scale = 1.d0
+        mobility = hyd_auxvar_up%mobility(iphase)
+        xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+        uH = hyd_auxvar_up%H(iphase)
+      else
+        dn_scale = 1.d0
+        mobility = hyd_auxvar_dn%mobility(iphase)
+        xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+        uH = hyd_auxvar_dn%H(iphase)
+      endif
+
+      if (mobility > floweps) then
+        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+        !                    dP[Pa]]
+        v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                          delta_pressure
+        density_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den, &
+                                            hyd_auxvar_dn%den, &
+                                            ddensity_ave_dden_up, &
+                                            ddensity_ave_dden_dn)
+        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+        q = v_darcy(iphase) * area
+        ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+        !                             density_ave[kmol phase/m^3 phase]
+        tot_mole_flux = q*density_ave
+        tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
+                                        mobility * area * density_ave
+        ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+        !                                 xmol[kmol comp/kmol phase]
+        wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
+        air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+      endif
     endif
-
-    if (mobility > floweps) then
-      ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-      !                    dP[Pa]]
-      v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-      density_ave = HydrateAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          hyd_auxvar_up%den, &
-                                          hyd_auxvar_dn%den, &
-                                          ddensity_ave_dden_up, &
-                                          ddensity_ave_dden_dn)
-      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(iphase) * area
-      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-      !                             density_ave[kmol phase/m^3 phase]
-      tot_mole_flux = q*density_ave
-      tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave
-      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-      !                                 xmol[kmol comp/kmol phase]
-      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
-    endif
-  endif
 #endif
   ! CONVECTION
 #endif
 
-  ! Sedimentation flux: hydrate
+    ! Sedimentation flux: hydrate
 
-  ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
-  ! need to make sure this has a direction, so condition upon gravity?
-  ! sedimentation and methanogenesis are linked right now
-  if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
-    methanogenesis => hydrate_parameter%methanogenesis
-    v_sed = methanogenesis%omega
-    dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+    ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
+    ! need to make sure this has a direction, so condition upon gravity?
+    ! sedimentation and methanogenesis are linked right now
+    if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
+      methanogenesis => hydrate_parameter%methanogenesis
+      v_sed = methanogenesis%omega
+      dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-    if (dabs(dist_gravity) > 0.d0) then
-      wat_mole_flux = 0.d0
-      air_mole_flux = 0.d0
+      if (dabs(dist_gravity) > 0.d0) then
+        wat_mole_flux = 0.d0
+        air_mole_flux = 0.d0
+        salt_mole_flux = 0.d0
 
-      q = v_sed * area
+        q = v_sed * area
 
-      upwind = dist_gravity > 0.d0
+        upwind = dist_gravity > 0.d0
 
-      if (dist_gravity < 0.d0) q = -q
+        if (dist_gravity < 0.d0) q = -q
 
-      if (upwind) then
+        if (upwind) then
 
-        up_scale = 1.d0
+          up_scale = 1.d0
 
-        hyd_sat = hyd_auxvar_up%sat(hid)
-        gas_sat = min(hyd_auxvar_up%sat(gid),hyd_auxvar_up%srg)
-        liq_sat = min(hyd_auxvar_up%sat(lid),hyd_auxvar_up%srl)
+          hyd_sat = hyd_auxvar_up%sat(hid)
+          gas_sat = min(hyd_auxvar_up%sat(gid),hyd_auxvar_up%srg)
+          liq_sat = min(hyd_auxvar_up%sat(lid),hyd_auxvar_up%srl)
 
-        wat_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(wat_comp_id, &
-                        lid)*liq_sat
-        wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up%&
-                        xmol(wat_comp_id,gid)*gas_sat
-        wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up%&
-                        xmol(wat_comp_id,hid)*hyd_sat
-        wat_mole_flux = q  * wat_mole_flux
+          wat_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                          xmol(wat_comp_id,lid)*liq_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(gid)* &
+                          hyd_auxvar_up%xmol(wat_comp_id,gid)*gas_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(hid)* &
+                          hyd_auxvar_up%xmol(wat_comp_id,hid)*hyd_sat
+          wat_mole_flux = q  * wat_mole_flux
 
-        air_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(air_comp_id, &
-                        lid)*liq_sat
-        air_mole_flux = air_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up% &
-                        xmol(air_comp_id,gid)*gas_sat
-        air_mole_flux = air_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up% &
-                        xmol(air_comp_id,hid)*hyd_sat
-        air_mole_flux = q  * air_mole_flux
+          air_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                          xmol(air_comp_id,lid)*liq_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_up%den(gid)* &
+                          hyd_auxvar_up%xmol(air_comp_id,gid)*gas_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_up%den(hid)* &
+                          hyd_auxvar_up%xmol(air_comp_id,hid)*hyd_sat
+          air_mole_flux = q  * air_mole_flux
 
-
-        energy_flux = q * hyd_auxvar_up%effective_porosity* &
-           (hyd_auxvar_up%den(lid) * hyd_auxvar_up%H(lid) * &
-           liq_sat + hyd_auxvar_up%den(gid) * hyd_auxvar_up%H(gid) * gas_sat + &
-           hyd_auxvar_up%den(hid) * hyd_auxvar_up%H(hid) * hyd_sat)
-
-      else
-        dn_scale = 1.d0
-
-        hyd_sat = hyd_auxvar_dn%sat(hid)
-        gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
-        liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
-
-        wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
-                        lid)*liq_sat
-        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
-                        xmol(wat_comp_id,gid)*gas_sat
-        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
-                        xmol(wat_comp_id,hid)*hyd_sat
-        wat_mole_flux = q  * wat_mole_flux
-
-        air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
-                        lid)*liq_sat
-        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
-                        xmol(air_comp_id,gid)*gas_sat
-        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
-                        xmol(air_comp_id,hid)*hyd_sat
-        air_mole_flux = q  * air_mole_flux
+          salt_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                           xmol(salt_comp_id,lid)*liq_sat
+          salt_mole_flux = q * salt_mole_flux
 
 
-        energy_flux = q * hyd_auxvar_dn%effective_porosity * &
-                      (hyd_auxvar_dn%den(lid) * hyd_auxvar_dn%H(lid) * &
-                      liq_sat + hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid)*&
-                      gas_sat + hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid)*&
-                      hyd_sat)
+          energy_flux = q * hyd_auxvar_up%effective_porosity* &
+            (hyd_auxvar_up%den(lid) * hyd_auxvar_up%H(lid) * &
+            liq_sat + hyd_auxvar_up%den(gid) * hyd_auxvar_up%H(gid) * &
+            gas_sat + hyd_auxvar_up%den(hid) * hyd_auxvar_up%H(hid) * hyd_sat)
+
+        else
+          dn_scale = 1.d0
+
+          hyd_sat = hyd_auxvar_dn%sat(hid)
+          gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+          liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+
+          wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                          xmol(wat_comp_id,lid)*liq_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)* &
+                          hyd_auxvar_dn%xmol(wat_comp_id,gid)*gas_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)* &
+                          hyd_auxvar_dn%xmol(wat_comp_id,hid)*hyd_sat
+          wat_mole_flux = q  * wat_mole_flux
+
+          air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                          xmol(air_comp_id,lid)*liq_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)* &
+                          hyd_auxvar_dn%xmol(air_comp_id,gid)*gas_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)* &
+                          hyd_auxvar_dn%xmol(air_comp_id,hid)*hyd_sat
+          air_mole_flux = q  * air_mole_flux
+
+          salt_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                           xmol(salt_comp_id,lid)*liq_sat
+          salt_mole_flux = q * salt_mole_flux
+
+
+          energy_flux = q * hyd_auxvar_dn%effective_porosity * &
+                        (hyd_auxvar_dn%den(lid) * hyd_auxvar_dn%H(lid) * &
+                        liq_sat + hyd_auxvar_dn%den(gid) * &
+                        hyd_auxvar_dn%H(gid)*gas_sat + &
+                        hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid)*&
+                        hyd_sat)
+
+        endif
+
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + energy_flux
+        Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
 
       endif
-
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-      Res(energy_id) = Res(energy_id) + energy_flux
-
     endif
-  endif
 #ifdef DIFFUSION
-  if (.not.hydrate_immiscible) then
-  ! add in gas component diffusion in gas and liquid phases
+    if (.not.hydrate_immiscible) then
+    ! add in gas component diffusion in gas and liquid phases
 !#if 0
 #ifdef LIQUID_DIFFUSION
-  iphase = LIQUID_PHASE
-  sat_up = hyd_auxvar_up%sat(iphase)
-  sat_dn = hyd_auxvar_dn%sat(iphase)
-  dsatup = 1.d0
-  dsatdn = 1.d0
-  ! by changing #if 1 -> 0, gas component is allowed to diffuse in liquid
-  ! phase even if the phase does not exist.
+    iphase = LIQUID_PHASE
+    sat_up = hyd_auxvar_up%sat(iphase)
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    dsatup = 1.d0
+    dsatdn = 1.d0
+    ! by changing #if 1 -> 0, gas component is allowed to diffuse in liquid
+    ! phase even if the phase does not exist.
 #if 1
-  if (sqrt(sat_up*sat_dn) > eps) then
+    if (sqrt(sat_up*sat_dn) > eps) then
 #else
-  if (sat_up > eps .or. sat_dn > eps) then
-    ! for now, if liquid state neighboring gas, we allow for minute
-    ! diffusion in liquid phase.
-    if (iphase == option%liquid_phase) then
-      if ((sat_up > eps .or. sat_dn > eps)) then
-        ! sat_up = max(sat_up,eps)
-        if (sat_up < eps) then
-          sat_up = eps
-          dsatup = 0.d0
-        endif
-        ! sat_dn = max(sat_dn,eps)
-        if (sat_dn < eps) then
-          sat_dn = eps
-          dsatdn = 0.d0
+    if (sat_up > eps .or. sat_dn > eps) then
+      ! for now, if liquid state neighboring gas, we allow for minute
+      ! diffusion in liquid phase.
+      if (iphase == option%liquid_phase) then
+        if ((sat_up > eps .or. sat_dn > eps)) then
+          ! sat_up = max(sat_up,eps)
+          if (sat_up < eps) then
+            sat_up = eps
+            dsatup = 0.d0
+          endif
+          ! sat_dn = max(sat_dn,eps)
+          if (sat_dn < eps) then
+            sat_dn = eps
+            dsatdn = 0.d0
+          endif
         endif
       endif
-    endif
 #endif
-    if (hydrate_harmonic_diff_density) then
-      ! density_ave in this case is not used.
-      density_ave = 1.d0
-      den_up = hyd_auxvar_up%den(iphase)
-      den_dn = hyd_auxvar_dn%den(iphase)
-      ddensity_ave_dden_up = 0.d0
-      ddensity_ave_dden_dn = 0.d0
-      tempreal = 1.d0
-    else
-      ! den_up and den_dn are not used in this case
-      den_up = 1.d0
-      den_dn = 1.d0
-      ! we use upstream weighting when iphase is not equal, otherwise
-      ! arithmetic with 50/50 weighting
-      density_ave = HydrateAverageDensity(iphase, &
-                                      global_auxvar_up%istate, &
-                                      global_auxvar_dn%istate, &
-                                      hyd_auxvar_up%den, &
-                                      hyd_auxvar_dn%den, &
-                                      ddensity_ave_dden_up, &
-                                      ddensity_ave_dden_dn)
-      ! used to zero out derivative below
-      tempreal = 0.d0
-    endif
-    stpd_up = sat_up*material_auxvar_up%tortuosity* &
-              hyd_auxvar_up%effective_porosity*den_up
-    stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
-              hyd_auxvar_dn%effective_porosity*den_dn
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_up = hyd_auxvar_up%den(iphase)
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_up = 1.d0
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
 
-    dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
-    dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
-    dstpd_up_dsatup = stpd_up / sat_up
-    dstpd_dn_dsatdn = stpd_dn / sat_dn
-    dstpd_up_ddenup = tempreal * stpd_up / den_up
-    dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
-    ! units = [mole/m^4 bulk]
-    tempreal = stpd_up*dist_dn+stpd_dn*dist_up
-    stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
-    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
-    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
+      ! Air
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+                hyd_auxvar_up%effective_porosity*den_up * &
+                hyd_auxvar_up%effective_diffusion_coeff(air_comp_id,iphase)
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(air_comp_id,iphase)
 
-    if (hydrate_diffuse_xmol) then ! delta of mole fraction
-      delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
-                   hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      delta_X_whatever = delta_xmol
-      delta_X_whatever_dxmolup = 1.d0
-      delta_X_whatever_dxmoldn = -1.d0
-    else ! delta of mass fraction
-      xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
-      xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)*hydrate_fmw_comp(1))
-      xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
-      dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
-      tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)*hydrate_fmw_comp(1))
-      xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
-      dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
-      delta_xmass = xmass_air_up - xmass_air_dn
+      dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_up_dsatup = stpd_up / sat_up
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_up_ddenup = tempreal * stpd_up / den_up
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      tempreal = stpd_up*dist_dn+stpd_dn*dist_up
+      stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                     tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                     tempreal
+
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmolup = 1.d0
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * &
+                                     (hydrate_fmw_comp(2) - &
+                                      hydrate_fmw_comp(1))) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                                     (hydrate_fmw_comp(2) - &
+                                      hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              area
+      air_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+
+      ! NaCl (mass-based)
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+              hyd_auxvar_up%effective_porosity*den_up * &
+              hyd_auxvar_up%effective_diffusion_coeff(sid,iphase)
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(sid,iphase)
+
+      dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_up_dsatup = stpd_up / sat_up
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_up_ddenup = tempreal * stpd_up / den_up
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [kg/m^4 bulk]
+      tempreal = stpd_up*dist_dn+stpd_dn*dist_up
+      stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                     tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                     tempreal
+      delta_xmass = hyd_auxvar_up%xmass(sid,iphase) - &
+                    hyd_auxvar_dn%xmass(sid,iphase)
       delta_X_whatever = delta_xmass
-      delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
-      delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      dtot_mass_flux_ddeltaX = density_kg_ave * stpd_ave_over_dist * &
+                                area
+      salt_mass_flux = dtot_mass_flux_ddeltaX * delta_X_whatever
+
+      tot_mole_flux = (air_mole_flux + salt_mass_flux / &
+                       hydrate_fmw_comp(THREE_INTEGER))
+
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(salt_dof_id) = Res(salt_dof_id) + salt_mass_flux / &
+                         hydrate_fmw_comp(THREE_INTEGER)
+
     endif
-
-    ! units = mole/sec
-    dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
-                             hydrate_parameter%diffusion_coefficient(iphase) * &
-                             area
-    tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
-    dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
-    dtot_mole_flux_ddenave = tot_mole_flux / density_ave
-    Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
-
-  endif
 #endif
 !#if 0
 #ifdef GAS_DIFFUSION
-  iphase = GAS_PHASE
-  sat_up = hyd_auxvar_up%sat(iphase)
-  sat_dn = hyd_auxvar_dn%sat(iphase)
-  !geh: i am not sure why both of these conditionals were included.  seems
-  !     like the latter would never be false.
-  if (sqrt(sat_up*sat_dn) > eps) then
-    dsatup = 1.d0
-    dsatdn = 1.d0
-    if (hydrate_harmonic_diff_density) then
-      ! density_ave in this case is not used.
-      density_ave = 1.d0
-      den_up = hyd_auxvar_up%den(iphase)
-      den_dn = hyd_auxvar_dn%den(iphase)
-      ddensity_ave_dden_up = 0.d0
-      ddensity_ave_dden_dn = 0.d0
-      tempreal = 1.d0
-    else
-      ! den_up and den_dn are not used in this case
-      den_up = 1.d0
-      den_dn = 1.d0
-      ! we use upstream weighting when iphase is not equal, otherwise
-      ! arithmetic with 50/50 weighting
-      density_ave = HydrateAverageDensity(iphase, &
-                                      global_auxvar_up%istate, &
-                                      global_auxvar_dn%istate, &
-                                      hyd_auxvar_up%den, &
-                                      hyd_auxvar_dn%den, &
-                                      ddensity_ave_dden_up, &
-                                      ddensity_ave_dden_dn)
-      ! used to zero out derivative below
-      tempreal = 0.d0
-    endif
-    stpd_up = sat_up*material_auxvar_up%tortuosity* &
-              hyd_auxvar_up%effective_porosity*den_up
-    stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
-              hyd_auxvar_dn%effective_porosity*den_dn
+    iphase = GAS_PHASE
+    sat_up = hyd_auxvar_up%sat(iphase)
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    !geh: i am not sure why both of these conditionals were included.  seems
+    !     like the latter would never be false.
+    if (sqrt(sat_up*sat_dn) > eps) then
+      dsatup = 1.d0
+      dsatdn = 1.d0
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_up = hyd_auxvar_up%den(iphase)
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_up = 1.d0
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+                hyd_auxvar_up%effective_porosity*den_up * &
+                hyd_auxvar_up%effective_diffusion_coeff(air_comp_id,iphase)
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(air_comp_id,iphase)
 
-    dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
-    dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
-    dstpd_up_dsatup = stpd_up / sat_up
-    dstpd_dn_dsatdn = stpd_dn / sat_dn
-    dstpd_up_ddenup = tempreal * stpd_up / den_up
-    dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
-    ! units = [mole/m^4 bulk]
-    tempreal = stpd_up*dist_dn+stpd_dn*dist_up
-    stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
-    dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/tempreal
-    dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/tempreal
+      dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_up_dsatup = stpd_up / sat_up
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_up_ddenup = tempreal * stpd_up / den_up
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      tempreal = stpd_up*dist_dn+stpd_dn*dist_up
+      stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                     tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                     tempreal
 
-    if (hydrate_diffuse_xmol) then ! delta of mole fraction
-      delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
-                   hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      delta_X_whatever = delta_xmol
-      delta_X_whatever_dxmolup = 1.d0
-      delta_X_whatever_dxmoldn = -1.d0
-    else ! delta of mass fraction
-      xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
-      xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)*hydrate_fmw_comp(1))
-      xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
-      dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
-      tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)*hydrate_fmw_comp(1))
-      xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
-      dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
-      delta_xmass = xmass_air_up - xmass_air_dn
-      delta_X_whatever = delta_xmass
-      delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
-      delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmolup = 1.d0
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * &
+                                     (hydrate_fmw_comp(2) - &
+                                      hydrate_fmw_comp(1))) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                                     (hydrate_fmw_comp(2) - &
+                                      hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+      ! need to account for multiple phases
+      ! Eq. 1.9b.  The gas density is added below
+      if (hydrate_temp_dep_gas_air_diff) then
+        temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
+        pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
+                              hyd_auxvar_dn%pres(iphase))
+        tempreal = (temp_ave+273.15d0)/273.15d0
+        diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
+                              ! 0.9d0 = 0.5 * 1.8
+        ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+        ddiffusion_coef_dTdn = ddiffusion_coef_dTup
+        ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
+        ddiffusion_coef_dpdn = ddiffusion_coef_dpup
+      else
+        diffusion_scale = 1.d0
+        ddiffusion_coef_dTup = 0.d0
+        ddiffusion_coef_dTdn = 0.d0
+        ddiffusion_coef_dpup = 0.d0
+        ddiffusion_coef_dpdn = 0.d0
+      endif
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              diffusion_scale * &
+                              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
     endif
-    ! need to account for multiple phases
-    ! Eq. 1.9b.  The gas density is added below
-    if (hydrate_temp_dep_gas_air_diff) then
-      temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
-      pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
-                            hyd_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
-      diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
-                             ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
-      ddiffusion_coef_dTdn = ddiffusion_coef_dTup
-      ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
-      ddiffusion_coef_dpdn = ddiffusion_coef_dpup
-    else
-      diffusion_scale = 1.d0
-      ddiffusion_coef_dTup = 0.d0
-      ddiffusion_coef_dTdn = 0.d0
-      ddiffusion_coef_dpup = 0.d0
-      ddiffusion_coef_dpdn = 0.d0
-    endif
-    ! units = mole/sec
-    dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
-                             diffusion_scale * &
-                             hydrate_parameter%diffusion_coefficient(iphase) * &
-                             area
-    tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
-    dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
-    dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
-    dtot_mole_flux_ddenave = tot_mole_flux / density_ave
-    Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
-  endif
 #endif
 ! DIFFUSION
-  endif ! if (.not.hydrate_immiscible)
+    endif ! if (.not.hydrate_immiscible)
 #endif
 
 #ifdef CONDUCTION
-  ! add heat conduction flux
-  ! based on Somerton et al., 1974:
-  ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
-  ! 1 = dry
-  ! 2 = wet
-  sat_up = hyd_auxvar_up%sat(option%liquid_phase)
-  sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
+    ! add heat conduction flux
+    ! based on Somerton et al., 1974:
+    ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
+    ! 1 = dry
+    ! 2 = wet
+    sat_up = hyd_auxvar_up%sat(option%liquid_phase)
+    sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
 
-  call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
-               hyd_auxvar_up%sat,thermal_conductivity_up(1), &
-               thermal_conductivity_dn(2),k_eff_up)
-  call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
-              hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
-              thermal_conductivity_dn(2), k_eff_dn)
+    call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
+                hyd_auxvar_up%sat,thermal_conductivity_up(1), &
+                thermal_conductivity_dn(2),k_eff_up)
+    call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
+                hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
+                thermal_conductivity_dn(2), k_eff_dn)
 
-  if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
-    tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
-    k_eff_ave = k_eff_up*k_eff_dn/tempreal
-    dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal
-    dkeff_ave_dkeffdn = (k_eff_up-k_eff_ave*dist_up)/tempreal
-  else
-    k_eff_ave = 0.d0
-    dkeff_ave_dkeffup = 0.d0
-    dkeff_ave_dkeffdn = 0.d0
-  endif
-  ! units:
-  ! k_eff = W/K-m = J/s/K-m
-  ! delta_temp = K
-  ! area = m^2
-  ! heat_flux = k_eff * delta_temp * area = J/s
-  delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
-  dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-  heat_flux = dheat_flux_ddelta_temp * delta_temp
-  dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
-  ! MJ/s or MW
-  Res(energy_id) = Res(energy_id) + heat_flux
+    if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
+      tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
+      k_eff_ave = k_eff_up*k_eff_dn/tempreal
+      dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal
+      dkeff_ave_dkeffdn = (k_eff_up-k_eff_ave*dist_up)/tempreal
+    else
+      k_eff_ave = 0.d0
+      dkeff_ave_dkeffup = 0.d0
+      dkeff_ave_dkeffdn = 0.d0
+    endif
+    ! units:
+    ! k_eff = W/K-m = J/s/K-m
+    ! delta_temp = K
+    ! area = m^2
+    ! heat_flux = k_eff * delta_temp * area = J/s
+    delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
+    dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+    heat_flux = dheat_flux_ddelta_temp * delta_temp
+    dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+    ! MJ/s or MW
+    Res(energy_id) = Res(energy_id) + heat_flux
 
 ! CONDUCTION
 #endif
+  else
+#ifdef CONVECTION
+#ifdef LIQUID_DARCY_FLUX
+    iphase = LIQUID_PHASE
+    if (hyd_auxvar_up%mobility(iphase) + &
+        hyd_auxvar_dn%mobility(iphase) > eps) then
+
+      ! Harmonic mean on viscosity
+      visc_mean = (hyd_auxvar_up%visc(iphase) * hyd_auxvar_dn%visc(iphase) * &
+              (dist_up + dist_dn)) / (hyd_auxvar_up%visc(iphase) * dist_up + &
+              hyd_auxvar_dn%visc(iphase) * dist_dn)
+
+      density_kg_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den_kg, &
+                                            hyd_auxvar_dn%den_kg, &
+                                            ddensity_kg_ave_dden_kg_up, &
+                                            ddensity_kg_ave_dden_kg_dn)
+
+      gravity_term = density_kg_ave * dist_gravity
+      delta_pressure = hyd_auxvar_up%pres(iphase) - &
+                      hyd_auxvar_dn%pres(iphase) + &
+                      gravity_term
+      up_scale = 0.d0
+      dn_scale = 0.d0
+      upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                              .not.analytical_derivatives, &
+                              count_upwind_direction_flip_, &
+                              liq_upwind_flip_count_by_res, &
+                              liq_upwind_flip_count_by_jac)
+      if (upwind) then
+        up_scale = 1.d0
+        mobility = hyd_auxvar_up%mobility(iphase)
+        kr = hyd_auxvar_up%kr(iphase)
+        xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+        xmass(:) = hyd_auxvar_up%xmass(:,iphase)
+        uH = hyd_auxvar_up%H(iphase)
+        density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+      else
+        dn_scale = 1.d0
+        mobility = hyd_auxvar_dn%mobility(iphase)
+        kr = hyd_auxvar_dn%kr(iphase)
+        xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+        xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
+        uH = hyd_auxvar_dn%H(iphase)
+        density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
+      endif
+
+      ! Harmonic on viscosity
+      mobility = kr / visc_mean
+
+      if (mobility > floweps ) then
+        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+        !                    dP[Pa]]
+        v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                          delta_pressure
+        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+        q = v_darcy(iphase) * area
+        ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
+        !                             density_kg_ave[kg phase/m^3 phase]
+        tot_mass_flux = q * density_kg_ave
+        ! comp_mole_flux[kmol comp/sec] = tot_mass_flux[kg phase/sec] *
+        !                           xmass[kg comp/kg phase] / [kg comp/kmol comp]
+        wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &
+                        hydrate_fmw_comp(ONE_INTEGER)
+        air_mole_flux = tot_mass_flux * xmass(air_comp_id) / &
+                        hydrate_fmw_comp(TWO_INTEGER)
+        tot_mole_flux = wat_mole_flux + air_mole_flux
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+      endif
+    endif
+#endif
+#ifdef GAS_DARCY_FLUX
+    iphase = GAS_PHASE
+    if (hyd_auxvar_up%mobility(iphase) + &
+        hyd_auxvar_dn%mobility(iphase) > eps) then
+
+      ! Harmonic mean on viscosity
+      visc_mean = (hyd_auxvar_up%visc(iphase) * hyd_auxvar_dn%visc(iphase) * &
+              (dist_up + dist_dn)) / (hyd_auxvar_up%visc(iphase) * dist_up + &
+              hyd_auxvar_dn%visc(iphase) * dist_dn)
+
+      density_kg_ave = HydrateAverageDensity(iphase, &
+                                            global_auxvar_up%istate, &
+                                            global_auxvar_dn%istate, &
+                                            hyd_auxvar_up%den_kg, &
+                                            hyd_auxvar_dn%den_kg, &
+                                            ddensity_kg_ave_dden_kg_up, &
+                                            ddensity_kg_ave_dden_kg_dn)
+
+      gravity_term = density_kg_ave * dist_gravity
+      delta_pressure = hyd_auxvar_up%pres(iphase) - &
+                      hyd_auxvar_dn%pres(iphase) + &
+                      gravity_term
+      ! if a gas phase does not exist on either side of the connection, the gas
+      ! phase properties from the opposite side are used.
+      up_scale = 0.d0
+      dn_scale = 0.d0
+      upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                              .not.analytical_derivatives, &
+                              count_upwind_direction_flip_, &
+                              gas_upwind_flip_count_by_res, &
+                              gas_upwind_flip_count_by_jac)
+      if (upwind) then
+        up_scale = 1.d0
+        mobility = hyd_auxvar_up%mobility(iphase)
+        kr = hyd_auxvar_up%kr(iphase)
+        xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+        xmass(:) = hyd_auxvar_up%xmass(:,iphase)
+        uH = hyd_auxvar_up%H(iphase)
+        density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+      else
+        dn_scale = 1.d0
+        mobility = hyd_auxvar_dn%mobility(iphase)
+        kr = hyd_auxvar_dn%kr(iphase)
+        xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+        xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
+        uH = hyd_auxvar_dn%H(iphase)
+        density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
+      endif
+
+      ! Harmonic on viscosity
+      mobility = kr / visc_mean
+
+      if (mobility > floweps) then
+        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+        !                    dP[Pa]]
+        v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * &
+                          delta_pressure
+        ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+        q = v_darcy(iphase) * area
+        ! mass_flux[kg phase/sec] = q[m^3 phase/sec] *
+        !                             density_kg_ave[kg phase/m^3 phase]
+        tot_mass_flux = q * density_kg_ave
+        ! comp_mass_flux[kmol comp/sec] = tot_mass_flux[kg phase/sec] *
+        !                           xmass[kg comp/kg phase] / [kg comp/kmol comp]
+        wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &
+                        hydrate_fmw_comp(ONE_INTEGER)
+        air_mole_flux = tot_mass_flux * xmass(air_comp_id) / &
+                        hydrate_fmw_comp(TWO_INTEGER)
+        tot_mole_flux = wat_mole_flux + air_mole_flux
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+      endif
+    endif
+#endif
+  ! CONVECTION
+#endif
+
+    ! Sedimentation flux: hydrate
+
+    ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
+    ! need to make sure this has a direction, so condition upon gravity?
+    ! sedimentation and methanogenesis are linked right now
+    if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
+      methanogenesis => hydrate_parameter%methanogenesis
+      v_sed = methanogenesis%omega
+      dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+
+      if (dabs(dist_gravity) > 0.d0) then
+        wat_mole_flux = 0.d0
+        air_mole_flux = 0.d0
+        salt_mole_flux = 0.d0
+
+        q = v_sed * area
+
+        upwind = dist_gravity > 0.d0
+
+        if (dist_gravity < 0.d0) q = -q
+
+        if (upwind) then
+
+          up_scale = 1.d0
+
+          hyd_sat = hyd_auxvar_up%sat(hid)
+          gas_sat = min(hyd_auxvar_up%sat(gid),hyd_auxvar_up%srg)
+          liq_sat = min(hyd_auxvar_up%sat(lid),hyd_auxvar_up%srl)
+
+          wat_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                          xmol(wat_comp_id,lid)*liq_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(gid)* &
+                          hyd_auxvar_up%xmol(wat_comp_id,gid)*gas_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(hid)* &
+                          hyd_auxvar_up%xmol(wat_comp_id,hid)*hyd_sat
+          wat_mole_flux = q  * wat_mole_flux
+
+          air_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                          xmol(air_comp_id,lid)*liq_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_up%den(gid)* &
+                          hyd_auxvar_up%xmol(air_comp_id,gid)*gas_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_up%den(hid)* &
+                          hyd_auxvar_up%xmol(air_comp_id,hid)*hyd_sat
+          air_mole_flux = q  * air_mole_flux
+
+          salt_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up% &
+                           xmol(salt_comp_id,lid)*liq_sat
+          salt_mole_flux = q * salt_mole_flux
+
+
+          energy_flux = q * hyd_auxvar_up%effective_porosity* &
+            (hyd_auxvar_up%den(lid) * hyd_auxvar_up%H(lid) * &
+            liq_sat + hyd_auxvar_up%den(gid) * hyd_auxvar_up%H(gid) * &
+            gas_sat + hyd_auxvar_up%den(hid) * hyd_auxvar_up%H(hid) * hyd_sat)
+
+        else
+          dn_scale = 1.d0
+
+          hyd_sat = hyd_auxvar_dn%sat(hid)
+          gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+          liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+
+          wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                          xmol(wat_comp_id,lid)*liq_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)* &
+                          hyd_auxvar_dn%xmol(wat_comp_id,gid)*gas_sat
+          wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)* &
+                          hyd_auxvar_dn%xmol(wat_comp_id,hid)*hyd_sat
+          wat_mole_flux = q  * wat_mole_flux
+
+          air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                          xmol(air_comp_id,lid)*liq_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)* &
+                          hyd_auxvar_dn%xmol(air_comp_id,gid)*gas_sat
+          air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)* &
+                          hyd_auxvar_dn%xmol(air_comp_id,hid)*hyd_sat
+          air_mole_flux = q  * air_mole_flux
+
+          salt_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                           xmol(salt_comp_id,lid)*liq_sat
+          salt_mole_flux = q * salt_mole_flux
+
+
+          energy_flux = q * hyd_auxvar_dn%effective_porosity * &
+                        (hyd_auxvar_dn%den(lid) * hyd_auxvar_dn%H(lid) * &
+                        liq_sat + hyd_auxvar_dn%den(gid) * &
+                        hyd_auxvar_dn%H(gid)*gas_sat + &
+                        hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid)*&
+                        hyd_sat)
+
+        endif
+
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + energy_flux
+        Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
+
+      endif
+    endif
+#ifdef DIFFUSION
+    if (.not.hydrate_immiscible) then
+  ! add in gas component diffusion in gas and liquid phases
+!#if 0
+#ifdef LIQUID_DIFFUSION
+    iphase = LIQUID_PHASE
+    sat_up = hyd_auxvar_up%sat(iphase)
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    dsatup = 1.d0
+    dsatdn = 1.d0
+    ! by changing #if 1 -> 0, gas component is allowed to diffuse in liquid
+    ! phase even if the phase does not exist.
+#if 1
+    if (sqrt(sat_up*sat_dn) > eps) then
+#else
+    if (sat_up > eps .or. sat_dn > eps) then
+      ! for now, if liquid state neighboring gas, we allow for minute
+      ! diffusion in liquid phase.
+      if (iphase == option%liquid_phase) then
+        if ((sat_up > eps .or. sat_dn > eps)) then
+          ! sat_up = max(sat_up,eps)
+          if (sat_up < eps) then
+            sat_up = eps
+            dsatup = 0.d0
+          endif
+          ! sat_dn = max(sat_dn,eps)
+          if (sat_dn < eps) then
+            sat_dn = eps
+            dsatdn = 0.d0
+          endif
+        endif
+      endif
+#endif
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_up = hyd_auxvar_up%den(iphase)
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_up = 1.d0
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+                hyd_auxvar_up%effective_porosity*den_up
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn
+
+      dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_up_dsatup = stpd_up / sat_up
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_up_ddenup = tempreal * stpd_up / den_up
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      tempreal = stpd_up*dist_dn+stpd_dn*dist_up
+      stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                      tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                      tempreal
+
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmolup = 1.d0
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                    hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * &
+                    (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                  hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                  (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+              hydrate_parameter%diffusion_coefficient(air_comp_id,iphase) * &
+              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+
+      ! Salt mass flux
+      ! Patankar salt transport
+      ! Include diffusion and longitudinal dispersion
+      stpd_up = (hyd_auxvar_up%effective_diffusion_coeff(sid,iphase) + &
+                hyd_auxvar_up%dispersivity(sid,iphase) * &
+                v_darcy(iphase))
+      stpd_dn = (hyd_auxvar_dn%effective_diffusion_coeff(sid,iphase) + &
+                hyd_auxvar_dn%dispersivity(sid,iphase) * &
+                v_darcy(iphase))
+
+      tempreal = stpd_up*dist_up+stpd_dn*dist_dn
+      if (tempreal > 0.d0) then
+        stpd_ave_over_dist = stpd_up*stpd_dn / &
+                            (stpd_up*dist_dn + stpd_dn*dist_up)
+      else
+        stpd_ave_over_dist = 0.d0
+      endif
+
+      al = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+          epsilon))) ** 5,0.d0)
+      alp = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+          (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+          epsilon))) ** 5,0.d0)
+
+      salt_mass_flux = (al * hyd_auxvar_up%xmass(sid,iphase) * &
+                            hyd_auxvar_up%den_kg(iphase) - &
+                            alp * hyd_auxvar_dn%xmass(sid,iphase) * &
+                            hyd_auxvar_dn%den_kg(iphase)) * area
+
+      ! Diffusive component of salt flux
+      ! units = kg/sec
+      dsalt_mass_flux_ddeltaX = stpd_ave_over_dist * area
+
+      delta_xmass =  hyd_auxvar_up%xmass(sid,iphase) * &
+                    hyd_auxvar_up%den_kg(iphase) - &
+                    hyd_auxvar_dn%xmass(sid,iphase) * &
+                    hyd_auxvar_dn%den_kg(iphase)
+
+      salt_diff_flux = dsalt_mass_flux_ddeltaX * delta_xmass
+
+      wat_mole_flux = -1.d0 * &
+                        (tot_mole_flux  + salt_diff_flux / hydrate_fmw_comp(3))
+
+
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+      Res(HYDRATE_SALT_EQUATION_INDEX) = Res(HYDRATE_SALT_EQUATION_INDEX) + &
+                                      salt_mass_flux / hydrate_fmw_comp(3)
+
+    endif
+#endif
+!#if 0
+#ifdef GAS_DIFFUSION
+    iphase = GAS_PHASE
+    sat_up = hyd_auxvar_up%sat(iphase)
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    !geh: i am not sure why both of these conditionals were included.  seems
+    !     like the latter would never be false.
+    if (sqrt(sat_up*sat_dn) > eps) then
+      dsatup = 1.d0
+      dsatdn = 1.d0
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_up = hyd_auxvar_up%den(iphase)
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_up = 1.d0
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+                hyd_auxvar_up%effective_porosity*den_up
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn
+
+      dstpd_up_dporup = stpd_up / hyd_auxvar_up%effective_porosity
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_up_dsatup = stpd_up / sat_up
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_up_ddenup = tempreal * stpd_up / den_up
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      tempreal = stpd_up*dist_dn+stpd_dn*dist_up
+      stpd_ave_over_dist = stpd_up*stpd_dn/tempreal
+      dstpd_ave_over_dist_dstpd_up = (stpd_dn-stpd_ave_over_dist*dist_dn)/ &
+                                     tempreal
+      dstpd_ave_over_dist_dstpd_dn = (stpd_up-stpd_ave_over_dist*dist_up)/ &
+                                     tempreal
+
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmolup = 1.d0
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                    hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_up_dxmol_air_up = (hydrate_fmw_comp(2) - xmass_air_up * &
+                  (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                  hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                  (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmolup = 1.d0 * dxmass_air_up_dxmol_air_up
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+      ! need to account for multiple phases
+      ! Eq. 1.9b.  The gas density is added below
+      if (hydrate_temp_dep_gas_air_diff) then
+        temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
+        pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
+                              hyd_auxvar_dn%pres(iphase))
+        tempreal = (temp_ave+T273K)/T273K
+        diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
+                              ! 0.9d0 = 0.5 * 1.8
+        ddiffusion_coef_dTup = 0.9d0 * diffusion_scale / (tempreal * T273K)
+        ddiffusion_coef_dTdn = ddiffusion_coef_dTup
+        ddiffusion_coef_dpup = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
+        ddiffusion_coef_dpdn = ddiffusion_coef_dpup
+      else
+        diffusion_scale = 1.d0
+        ddiffusion_coef_dTup = 0.d0
+        ddiffusion_coef_dTdn = 0.d0
+        ddiffusion_coef_dpup = 0.d0
+        ddiffusion_coef_dpdn = 0.d0
+      endif
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              diffusion_scale * hydrate_parameter% &
+                              diffusion_coefficient(air_comp_id,iphase) * &
+                              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+    endif
+#endif
+! DIFFUSION
+    endif ! if (.not.hydrate_immiscible)
+#endif
+
+#ifdef CONDUCTION
+    ! add heat conduction flux
+    ! based on Somerton et al., 1974:
+    ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
+    ! 1 = dry
+    ! 2 = wet
+    sat_up = hyd_auxvar_up%sat(option%liquid_phase)
+    sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
+
+    call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
+                hyd_auxvar_up%sat,thermal_conductivity_up(1), &
+                thermal_conductivity_dn(2),k_eff_up)
+    call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
+                hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
+                thermal_conductivity_dn(2), k_eff_dn)
+
+    if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
+      tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
+      k_eff_ave = k_eff_up*k_eff_dn/tempreal
+      dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal
+      dkeff_ave_dkeffdn = (k_eff_up-k_eff_ave*dist_up)/tempreal
+    else
+      k_eff_ave = 0.d0
+      dkeff_ave_dkeffup = 0.d0
+      dkeff_ave_dkeffdn = 0.d0
+    endif
+    ! units:
+    ! k_eff = W/K-m = J/s/K-m
+    ! delta_temp = K
+    ! area = m^2
+    ! heat_flux = k_eff * delta_temp * area = J/s
+    delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
+    dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+    heat_flux = dheat_flux_ddelta_temp * delta_temp
+    dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+    ! MJ/s or MW
+    Res(energy_id) = Res(energy_id) + heat_flux
+
+  ! CONDUCTION
+#endif
+
+  endif
 
 end subroutine HydrateFlux
 
@@ -819,24 +1475,30 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscInt :: bc_type
   PetscReal :: xmol(option%nflowspec)
   PetscReal :: density_ave, density_kg_ave
+  PetscReal :: den_dn
   PetscReal :: uH
   PetscReal :: perm_dn_adj(option%nphase)
   PetscReal :: perm_ave_over_dist
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
+  PetscReal :: al, alp, dsalt_mass_flux_ddeltaX
   PetscReal :: gravity_term
   PetscReal :: mobility, q
-  PetscReal :: tot_mole_flux
-  PetscReal :: sat_dn, perm_dn, den_dn
+  PetscReal :: tot_mole_flux, water_mole_flux, salt_mole_flux
+  PetscReal :: salt_mass_flux, salt_diff_flux
+  PetscReal :: sat_dn, perm_dn
   PetscReal :: temp_ave, stpd_ave_over_dist
   PetscReal :: k_eff_dn, k_eff_ave, heat_flux
   PetscReal :: boundary_pressure
+  PetscReal :: xmass(option%nflowspec)
   PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
   PetscReal :: xmol_air_up, xmol_air_dn
   PetscReal :: tempreal
   PetscReal :: delta_X_whatever
   PetscReal :: wat_mole_flux, air_mole_flux
+  PetscReal :: tot_mass_flux
   PetscBool :: upwind
+  PetscReal :: dist_dn, dist_up
 
   ! Darcy flux
   PetscReal :: ddelta_pressure_dpdn
@@ -848,11 +1510,11 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dn_scale
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
-  PetscReal :: tot_mole_flux_ddel_pressure, tot_mole_flux_dmobility
   PetscReal :: xmol_bool
+  PetscReal :: visc_mean
 
   ! Diffusion
-  PetscReal :: stpd_dn
+  PetscReal :: stpd_dn, stpd_up
   PetscReal :: dstpd_dn_dpordn
   PetscReal :: dstpd_dn_dsatdn
   PetscReal :: dstpd_dn_ddendn
@@ -867,7 +1529,9 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dtot_mole_flux_ddiffusion_coef
   PetscReal :: dstpd_ave_over_dist_dstpd_dn
   PetscReal :: pressure_ave
-  PetscReal :: perm3(3)
+  PetscReal :: kr
+  PetscReal :: dtot_mass_flux_ddeltax, tot_mole_flux_ddel_pressure, &
+               tot_mole_flux_dmobility
 
   ! Conduction
   PetscReal :: dkeff_dn_dsatldn
@@ -881,7 +1545,9 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: energy_flux
   PetscReal :: liq_sat, gas_sat, hyd_sat
   PetscReal :: v_sed
-  PetscInt  :: gid, lid, hid
+  PetscInt  :: gid, lid, hid, sid, salt_comp_id, salt_dof_id
+
+  PetscReal, parameter :: epsilon = 1.d-20
 
   lid = 1
   gid = 2
@@ -890,6 +1556,10 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  sid = option%salt_id
+  ! Salt is 3rd component, 4th dof
+  salt_comp_id = sid
+  salt_dof_id = sid + 1
 
   Res = 0.d0
   J = 0.d0
@@ -898,585 +1568,1270 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
   perm_dn = perm_dn * hyd_auxvar_dn%effective_permeability
 
-  if (associated(klinkenberg)) then
-    perm_dn_adj(1) = perm_dn
-    perm3(:) = perm_dn
-    perm3 = klinkenberg%Evaluate(perm3, &
-                                 hyd_auxvar_dn%pres(option%gas_phase))
-    perm_dn_adj(2) = perm3(1)
-  else
-    perm_dn_adj(:) = perm_dn
-  endif
+  perm_dn_adj(:) = perm_dn
 
+  if (hydrate_legacy_fluxes) then
 #ifdef CONVECTION
 #ifdef LIQUID_DARCY_FLUX
-  iphase = LIQUID_PHASE
-  mobility = 0.d0
-  xmol_bool = 1.d0
-  bc_type = ibndtype(iphase)
-  select case(bc_type)
-    ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
-      if (hyd_auxvar_up%mobility(iphase) + &
-          hyd_auxvar_dn%mobility(iphase) > eps) then
+    iphase = LIQUID_PHASE
+    mobility = 0.d0
+    xmol_bool = 1.d0
+    bc_type = ibndtype(iphase)
+    select case(bc_type)
+      ! figure out the direction of flow
+      case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC, &
+          HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        if (hyd_auxvar_up%mobility(iphase) + &
+            hyd_auxvar_dn%mobility(iphase) > eps) then
 
-        ! dist(0) = scalar - magnitude of distance
-        ! gravity = vector(3)
-        ! dist(1:3) = vector(3) - unit vector
-        dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+          ! dist(0) = scalar - magnitude of distance
+          ! gravity = vector(3)
+          ! dist(1:3) = vector(3) - unit vector
+          dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-          select case(iphase)
-            case(LIQUID_PHASE)
-              idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
-            case(GAS_PHASE)
-              idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
-          end select
-          perm_ave_over_dist = auxvars(idof)
-        else
-          perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+            select case(iphase)
+              case(LIQUID_PHASE)
+                idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
+              case(GAS_PHASE)
+                idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
+            end select
+            perm_ave_over_dist = auxvars(idof)
+          else
+            perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          endif
+
+          boundary_pressure = hyd_auxvar_up%pres(iphase)
+          if (iphase == LIQUID_PHASE .and. &
+              global_auxvar_up%istate == G_STATE) then
+            ! the idea here is to accommodate a free surface boundary
+            ! face.  this will not work for an interior grid cell as
+            ! there should be capillary pressure in force.
+            boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
+          endif
+          density_kg_ave = HydrateAverageDensity(iphase, &
+                                                  global_auxvar_up%istate, &
+                                                  global_auxvar_dn%istate, &
+                                                  hyd_auxvar_up%den_kg, &
+                                                  hyd_auxvar_dn%den_kg, &
+                                                  ddensity_kg_ave_dden_kg_up, &
+                                                  ddensity_kg_ave_dden_kg_dn)
+          ddensity_kg_ave_dden_kg_up = 0.d0 ! always
+          gravity_term = density_kg_ave * dist_gravity
+          delta_pressure = boundary_pressure - &
+                            hyd_auxvar_dn%pres(iphase) + &
+                            gravity_term
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+              bc_type == DIRICHLET_SEEPAGE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+                ! flow in         ! boundary cell is <= pref
+            if (delta_pressure > 0.d0 .and. &
+                hyd_auxvar_up%pres(iphase) - &
+                  hydrate_bc_reference_pressure < eps) then
+              delta_pressure = 0.d0
+            endif
+          endif
+          dn_scale = 0.d0
+          upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                  .not.analytical_derivatives, &
+                                  count_upwind_direction_flip_, &
+                                  liq_bc_upwind_flip_count_by_res, &
+                                  liq_bc_upwind_flip_count_by_jac)
+          if (upwind) then
+            mobility = hyd_auxvar_up%mobility(iphase)
+            xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            dn_scale = 1.d0
+            mobility = hyd_auxvar_dn%mobility(iphase)
+            xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+          endif
+          ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+          !                    dP[Pa]]
+          dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
+          v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+          ! only need average density if velocity > 0.
+          density_ave = HydrateAverageDensity(iphase, &
+                                              global_auxvar_up%istate, &
+                                              global_auxvar_dn%istate, &
+                                              hyd_auxvar_up%den, &
+                                              hyd_auxvar_dn%den, &
+                                              ddensity_ave_dden_up, &
+                                              ddensity_ave_dden_dn)
+          ddensity_ave_dden_up = 0.d0 ! always
+          dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         endif
-
-        boundary_pressure = hyd_auxvar_up%pres(iphase)
-        if (iphase == LIQUID_PHASE .and. &
-            global_auxvar_up%istate == G_STATE) then
-          ! the idea here is to accommodate a free surface boundary
-          ! face.  this will not work for an interior grid cell as
-          ! there should be capillary pressure in force.
-          boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
-        endif
-        density_kg_ave = HydrateAverageDensity(iphase, &
-                                                global_auxvar_up%istate, &
-                                                global_auxvar_dn%istate, &
-                                                hyd_auxvar_up%den_kg, &
-                                                hyd_auxvar_dn%den_kg, &
-                                                ddensity_kg_ave_dden_kg_up, &
-                                                ddensity_kg_ave_dden_kg_dn)
-        ddensity_kg_ave_dden_kg_up = 0.d0 ! always
-        gravity_term = density_kg_ave * dist_gravity
-        delta_pressure = boundary_pressure - &
-                          hyd_auxvar_dn%pres(iphase) + &
-                          gravity_term
-        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            bc_type == DIRICHLET_SEEPAGE_BC .or. &
-            bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              hyd_auxvar_up%pres(iphase) - &
-                hydrate_bc_reference_pressure < eps) then
-            delta_pressure = 0.d0
+      case(NEUMANN_BC)
+        xmol_bool = 0.d0
+        dv_darcy_ddelta_pressure = 0.d0
+        dv_darcy_dmobility = 0.d0
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        ddelta_pressure_dpdn = 0.d0
+        ddelta_pressure_dTdn = 0.d0
+        dn_scale = 0.d0
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
+        end select
+        xmol = 0.d0
+        !geh: we should read in the mole fraction for both phases as the
+        !     enthalpy, etc. applies to phase, not pure component.
+        xmol(iphase) = 1.d0
+        if (dabs(auxvars(idof)) > floweps) then
+          v_darcy(iphase) = auxvars(idof)
+          if (v_darcy(iphase) > 0.d0) then
+            density_ave = hyd_auxvar_up%den(iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            dn_scale = 1.d0
+            density_ave = hyd_auxvar_dn%den(iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            ddensity_ave_dden_dn = 1.d0
           endif
         endif
-        dn_scale = 0.d0
-        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
-                                 .not.analytical_derivatives, &
-                                 count_upwind_direction_flip_, &
-                                 liq_bc_upwind_flip_count_by_res, &
-                                 liq_bc_upwind_flip_count_by_jac)
-        if (upwind) then
-          mobility = hyd_auxvar_up%mobility(iphase)
-          xmol(:) = hyd_auxvar_up%xmol(:,iphase)
-          uH = hyd_auxvar_up%H(iphase)
-        else
-          dn_scale = 1.d0
-          mobility = hyd_auxvar_dn%mobility(iphase)
-          xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
-          uH = hyd_auxvar_dn%H(iphase)
-        endif
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
-        v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
-        ! only need average density if velocity > 0.
-        density_ave = HydrateAverageDensity(iphase, &
-                                            global_auxvar_up%istate, &
-                                            global_auxvar_dn%istate, &
-                                            hyd_auxvar_up%den, &
-                                            hyd_auxvar_dn%den, &
-                                            ddensity_ave_dden_up, &
-                                            ddensity_ave_dden_dn)
-        ddensity_ave_dden_up = 0.d0 ! always
-        dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
-      endif
-    case(NEUMANN_BC)
-      xmol_bool = 0.d0
-      dv_darcy_ddelta_pressure = 0.d0
-      dv_darcy_dmobility = 0.d0
-      ddensity_ave_dden_up = 0.d0
-      ddensity_ave_dden_dn = 0.d0
-      ddelta_pressure_dpdn = 0.d0
-      ddelta_pressure_dTdn = 0.d0
-      dn_scale = 0.d0
-      select case(iphase)
-        case(LIQUID_PHASE)
-          idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
-        case(GAS_PHASE)
-          idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
-      end select
-      xmol = 0.d0
-      !geh: we should read in the mole fraction for both phases as the
-      !     enthalpy, etc. applies to phase, not pure component.
-      xmol(iphase) = 1.d0
-      if (dabs(auxvars(idof)) > floweps) then
-        v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then
-          density_ave = hyd_auxvar_up%den(iphase)
-          uH = hyd_auxvar_up%H(iphase)
-        else
-          dn_scale = 1.d0
-          density_ave = hyd_auxvar_dn%den(iphase)
-          uH = hyd_auxvar_dn%H(iphase)
-          ddensity_ave_dden_dn = 1.d0
-        endif
-      endif
-    case default
-      option%io_buffer = &
-        'Boundary condition type not recognized in HydrateBCFlux phase loop.'
-      call PrintErrMsg(option)
-  end select
-  if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
-    ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-    !                             density_ave[kmol phase/m^3 phase]
-    tot_mole_flux = q*density_ave
-    tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
-                                  density_ave
-    tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-    !                                 xmol[kmol comp/kmol phase]
-    wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-    air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-    Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-    Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
-  endif
+      case default
+        option%io_buffer = &
+          'Boundary condition type not recognized in HydrateBCFlux phase loop.'
+        call PrintErrMsg(option)
+    end select
+    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
+      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
+      tot_mole_flux = q*density_ave
+      tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
+                                    density_ave
+      tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+      !                                 xmol[kmol comp/kmol phase]
+      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
+      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+      salt_mole_flux = tot_mole_flux * xmol(salt_comp_id)
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+      Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
+    endif
 #endif
 #ifdef GAS_DARCY_FLUX
-  iphase = GAS_PHASE
-  mobility = 0.d0
-  xmol_bool = 1.d0
-  bc_type = ibndtype(iphase)
-  select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC,HYDROSTATIC_SEEPAGE_BC, &
-         HYDROSTATIC_CONDUCTANCE_BC)
-      if (hyd_auxvar_up%mobility(iphase) + &
-          hyd_auxvar_dn%mobility(iphase) > eps) then
+    iphase = GAS_PHASE
+    mobility = 0.d0
+    xmol_bool = 1.d0
+    bc_type = ibndtype(iphase)
+    select case(bc_type)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC, &
+           HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        if (hyd_auxvar_up%mobility(iphase) + &
+            hyd_auxvar_dn%mobility(iphase) > eps) then
 
-        ! dist(0) = scalar - magnitude of distance
-        ! gravity = vector(3)
-        ! dist(1:3) = vector(3) - unit vector
-        dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+          ! dist(0) = scalar - magnitude of distance
+          ! gravity = vector(3)
+          ! dist(1:3) = vector(3) - unit vector
+          dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-          select case(iphase)
-            case(LIQUID_PHASE)
-              idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
-            case(GAS_PHASE)
-              idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
-          end select
-          perm_ave_over_dist = auxvars(idof)
-        else
-          perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+            select case(iphase)
+              case(LIQUID_PHASE)
+                idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
+              case(GAS_PHASE)
+                idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
+            end select
+            perm_ave_over_dist = auxvars(idof)
+          else
+            perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          endif
+
+          boundary_pressure = hyd_auxvar_up%pres(iphase)
+          if (iphase == LIQUID_PHASE .and. &
+              global_auxvar_up%istate == G_STATE) then
+            ! the idea here is to accommodate a free surface boundary
+            ! face.  this will not work for an interior grid cell as
+            ! there should be capillary pressure in force.
+            boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
+          endif
+          density_kg_ave = HydrateAverageDensity(iphase, &
+                                                  global_auxvar_up%istate, &
+                                                  global_auxvar_dn%istate, &
+                                                  hyd_auxvar_up%den_kg, &
+                                                  hyd_auxvar_dn%den_kg, &
+                                                  ddensity_kg_ave_dden_kg_up, &
+                                                  ddensity_kg_ave_dden_kg_dn)
+          ddensity_kg_ave_dden_kg_up = 0.d0 ! always
+          gravity_term = density_kg_ave * dist_gravity
+          delta_pressure = boundary_pressure - &
+                            hyd_auxvar_dn%pres(iphase) + &
+                            gravity_term
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+              bc_type == DIRICHLET_SEEPAGE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+                ! flow in         ! boundary cell is <= pref
+            if (delta_pressure > 0.d0 .and. &
+                hyd_auxvar_up%pres(iphase) - &
+                  hydrate_bc_reference_pressure < eps) then
+              delta_pressure = 0.d0
+            endif
+          endif
+          dn_scale = 0.d0
+          ! don't expect the derivative to match precisely at delta_pressure = 0
+          ! due to potential switch in direction for numerically perturbed
+          ! residual
+          upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                  .not.analytical_derivatives, &
+                                  count_upwind_direction_flip_, &
+                                  gas_bc_upwind_flip_count_by_res, &
+                                  gas_bc_upwind_flip_count_by_jac)
+          if (upwind) then
+            mobility = hyd_auxvar_up%mobility(iphase)
+            xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            dn_scale = 1.d0
+            mobility = hyd_auxvar_dn%mobility(iphase)
+            xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+          endif
+          ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+          !                    dP[Pa]]
+          dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
+          v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+          ! only need average density if velocity > 0.
+          density_ave = HydrateAverageDensity(iphase, &
+                                              global_auxvar_up%istate, &
+                                              global_auxvar_dn%istate, &
+                                              hyd_auxvar_up%den, &
+                                              hyd_auxvar_dn%den, &
+                                              ddensity_ave_dden_up, &
+                                              ddensity_ave_dden_dn)
+          ddensity_ave_dden_up = 0.d0 ! always
+          dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         endif
-
-        boundary_pressure = hyd_auxvar_up%pres(iphase)
-        if (iphase == LIQUID_PHASE .and. &
-            global_auxvar_up%istate == G_STATE) then
-          ! the idea here is to accommodate a free surface boundary
-          ! face.  this will not work for an interior grid cell as
-          ! there should be capillary pressure in force.
-          boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
-        endif
-        density_kg_ave = HydrateAverageDensity(iphase, &
-                                                global_auxvar_up%istate, &
-                                                global_auxvar_dn%istate, &
-                                                hyd_auxvar_up%den_kg, &
-                                                hyd_auxvar_dn%den_kg, &
-                                                ddensity_kg_ave_dden_kg_up, &
-                                                ddensity_kg_ave_dden_kg_dn)
-        ddensity_kg_ave_dden_kg_up = 0.d0 ! always
-        gravity_term = density_kg_ave * dist_gravity
-        delta_pressure = boundary_pressure - &
-                          hyd_auxvar_dn%pres(iphase) + &
-                          gravity_term
-        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            bc_type == DIRICHLET_SEEPAGE_BC .or. &
-            bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              hyd_auxvar_up%pres(iphase) - &
-                hydrate_bc_reference_pressure < eps) then
-            delta_pressure = 0.d0
+      case(NEUMANN_BC)
+        xmol_bool = 0.d0
+        dv_darcy_ddelta_pressure = 0.d0
+        dv_darcy_dmobility = 0.d0
+        ddensity_ave_dden_up = 0.d0 ! always
+        ddensity_ave_dden_dn = 0.d0
+        ddelta_pressure_dpdn = 0.d0
+        ddelta_pressure_dpadn = 0.d0
+        ddelta_pressure_dTdn = 0.d0
+        dn_scale = 0.d0
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
+        end select
+        xmol = 0.d0
+        !geh: we should read in the mole fraction for both phases as the
+        !     enthalpy, etc. applies to phase, not pure component.
+        xmol(iphase) = 1.d0
+        if (dabs(auxvars(idof)) > floweps) then
+          v_darcy(iphase) = auxvars(idof)
+          if (v_darcy(iphase) > 0.d0) then
+            density_ave = hyd_auxvar_up%den(iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            dn_scale = 1.d0
+            density_ave = hyd_auxvar_dn%den(iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            ddensity_ave_dden_dn = 1.d0
           endif
         endif
-        dn_scale = 0.d0
-        ! don't expect the derivative to match precisely at delta_pressure = 0
-        ! due to potential switch in direction for numerically perturbed
-        ! residual
-        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
-                                 .not.analytical_derivatives, &
-                                 count_upwind_direction_flip_, &
-                                 gas_bc_upwind_flip_count_by_res, &
-                                 gas_bc_upwind_flip_count_by_jac)
-        if (upwind) then
-          mobility = hyd_auxvar_up%mobility(iphase)
-          xmol(:) = hyd_auxvar_up%xmol(:,iphase)
-          uH = hyd_auxvar_up%H(iphase)
-        else
-          dn_scale = 1.d0
-          mobility = hyd_auxvar_dn%mobility(iphase)
-          xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
-          uH = hyd_auxvar_dn%H(iphase)
-        endif
-        ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
-        !                    dP[Pa]]
-        dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
-        v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
-        ! only need average density if velocity > 0.
-        density_ave = HydrateAverageDensity(iphase, &
-                                            global_auxvar_up%istate, &
-                                            global_auxvar_dn%istate, &
-                                            hyd_auxvar_up%den, &
-                                            hyd_auxvar_dn%den, &
-                                            ddensity_ave_dden_up, &
-                                            ddensity_ave_dden_dn)
-        ddensity_ave_dden_up = 0.d0 ! always
-        dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
-      endif
-    case(NEUMANN_BC)
-      xmol_bool = 0.d0
-      dv_darcy_ddelta_pressure = 0.d0
-      dv_darcy_dmobility = 0.d0
-      ddensity_ave_dden_up = 0.d0 ! always
-      ddensity_ave_dden_dn = 0.d0
-      ddelta_pressure_dpdn = 0.d0
-      ddelta_pressure_dpadn = 0.d0
-      ddelta_pressure_dTdn = 0.d0
-      dn_scale = 0.d0
-      select case(iphase)
-        case(LIQUID_PHASE)
-          idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
-        case(GAS_PHASE)
-          idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
-      end select
-      xmol = 0.d0
-      !geh: we should read in the mole fraction for both phases as the
-      !     enthalpy, etc. applies to phase, not pure component.
-      xmol(iphase) = 1.d0
-      if (dabs(auxvars(idof)) > floweps) then
-        v_darcy(iphase) = auxvars(idof)
-        if (v_darcy(iphase) > 0.d0) then
-          density_ave = hyd_auxvar_up%den(iphase)
-          uH = hyd_auxvar_up%H(iphase)
-        else
-          dn_scale = 1.d0
-          density_ave = hyd_auxvar_dn%den(iphase)
-          uH = hyd_auxvar_dn%H(iphase)
-          ddensity_ave_dden_dn = 1.d0
-        endif
-      endif
-    case default
-      option%io_buffer = &
-        'Boundary condition type not recognized in HydrateBCFlux phase loop.'
-      call PrintErrMsg(option)
-  end select
+      case default
+        option%io_buffer = &
+          'Boundary condition type not recognized in HydrateBCFlux phase loop.'
+        call PrintErrMsg(option)
+    end select
 
-  if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
-    ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(iphase) * area
-    ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
-    !                             density_ave[kmol phase/m^3 phase]
-    tot_mole_flux = q*density_ave
-    tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
-                                  density_ave
-    tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
-    ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
-    !                                 xmol[kmol comp/kmol phase]
-    wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
-    air_mole_flux = tot_mole_flux * xmol(air_comp_id)
-    Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-    Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
-  endif
+    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
+      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
+      tot_mole_flux = q*density_ave
+      tot_mole_flux_ddel_pressure = dv_darcy_ddelta_pressure * area * &
+                                    density_ave
+      tot_mole_flux_dmobility = dv_darcy_dmobility * area * density_ave
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+      !                                 xmol[kmol comp/kmol phase]
+      wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
+      air_mole_flux = tot_mole_flux * xmol(air_comp_id)
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+    endif
 #endif
 ! CONVECTION
 #endif
 
-  ! Sedimentation flux: hydrate
+    ! Sedimentation flux: hydrate
 
-  ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
-  ! need to make sure this has a direction, so condition upon gravity
-  ! sedimentation and methanogenesis are linked right now.
-  if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
-    methanogenesis => hydrate_parameter%methanogenesis
-    v_sed = methanogenesis%omega
-    dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+    ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
+    ! need to make sure this has a direction, so condition upon gravity
+    ! sedimentation and methanogenesis are linked right now.
+    if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
+      methanogenesis => hydrate_parameter%methanogenesis
+      v_sed = methanogenesis%omega
+      dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-    if (dabs(dist_gravity) > 0.d0) then
-      wat_mole_flux = 0.d0
-      air_mole_flux = 0.d0
+      if (dabs(dist_gravity) > 0.d0) then
+        wat_mole_flux = 0.d0
+        air_mole_flux = 0.d0
 
-      q = v_sed * area
+        q = v_sed * area
 
-      upwind = dist_gravity > 0.d0
+        upwind = dist_gravity > 0.d0
 
-      if (dist_gravity < 0.d0) q = -q
+        if (dist_gravity < 0.d0) q = -q
 
-      hyd_sat = hyd_auxvar_dn%sat(hid)
-      gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
-      liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+        hyd_sat = hyd_auxvar_dn%sat(hid)
+        gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+        liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
 
-      wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
+        wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id,&
+                          lid)*liq_sat
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
+                          xmol(wat_comp_id,gid)*gas_sat
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
+                          xmol(wat_comp_id,hid)*hyd_sat
+        wat_mole_flux = q  * wat_mole_flux
+
+        air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id,&
                         lid)*liq_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
-                        xmol(wat_comp_id,gid)*gas_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
-                        xmol(wat_comp_id,hid)*hyd_sat
-      wat_mole_flux = q  * wat_mole_flux
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,gid)*gas_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,hid)*hyd_sat
+        air_mole_flux = q  * air_mole_flux
 
-      air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
-                      lid)*liq_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
-                      xmol(air_comp_id,gid)*gas_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
-                      xmol(air_comp_id,hid)*hyd_sat
-      air_mole_flux = q  * air_mole_flux
+        salt_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                         xmol(salt_comp_id,lid)*liq_sat
+        salt_mole_flux = q * salt_mole_flux
 
 
-      energy_flux = q*hyd_auxvar_dn%effective_porosity*(hyd_auxvar_dn%den(lid) * &
-                     hyd_auxvar_dn%H(lid) * liq_sat + &
-                     hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid) * gas_sat + &
-                     hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid) * hyd_sat)
+        energy_flux = q*hyd_auxvar_dn%effective_porosity* &
+                      (hyd_auxvar_dn%den(lid) * &
+                      hyd_auxvar_dn%H(lid) * liq_sat + &
+                      hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid) * &
+                      gas_sat + hyd_auxvar_dn%den(hid) * &
+                      hyd_auxvar_dn%H(hid) * hyd_sat)
 
-      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-      Res(energy_id) = Res(energy_id) + energy_flux
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + energy_flux
+        Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
 
+      endif
     endif
-  endif
 
 
 #ifdef DIFFUSION
-  if (.not.hydrate_immiscible) then
+    if (.not.hydrate_immiscible) then
 #ifdef LIQUID_DIFFUSION
-  iphase = LIQUID_PHASE
-  dsatdn = 1.d0
-  ! diffusion all depends upon the downwind cell.  phase diffusion only
-  ! occurs if a phase exists in both auxvars (boundary and internal) or
-  ! a liquid phase exists in the internal cell. so, one could say that
-  ! liquid diffusion always exists as the internal cell has a liquid phase,
-  ! but gas phase diffusion only occurs if the internal cell has a gas
-  ! phase.
-  sat_dn = hyd_auxvar_dn%sat(iphase)
-  if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
-    if (hydrate_harmonic_diff_density) then
-      ! density_ave in this case is not used.
-      density_ave = 1.d0
-      den_dn = hyd_auxvar_dn%den(iphase)
-      ddensity_ave_dden_dn = 0.d0
-      tempreal = 1.d0
-    else
-      ! den_up and den_dn are not used in this case
-      den_dn = 1.d0
-      ! we use upstream weighting when iphase is not equal, otherwise
-      ! arithmetic with 50/50 weighting
-      density_ave = HydrateAverageDensity(iphase, &
-                                      global_auxvar_up%istate, &
-                                      global_auxvar_dn%istate, &
-                                      hyd_auxvar_up%den, &
-                                      hyd_auxvar_dn%den, &
-                                      ddensity_ave_dden_up, &
-                                      ddensity_ave_dden_dn)
-      ddensity_ave_dden_up = 0.d0
-      ! used to zero out derivative below
-      tempreal = 0.d0
-    endif
-    stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
-              hyd_auxvar_dn%effective_porosity*den_dn
+    iphase = LIQUID_PHASE
+    dsatdn = 1.d0
+    ! diffusion all depends upon the downwind cell.  phase diffusion only
+    ! occurs if a phase exists in both auxvars (boundary and internal) or
+    ! a liquid phase exists in the internal cell. so, one could say that
+    ! liquid diffusion always exists as the internal cell has a liquid phase,
+    ! but gas phase diffusion only occurs if the internal cell has a gas
+    ! phase.
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ddensity_ave_dden_up = 0.d0
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(air_comp_id,iphase)
 
-    dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
-    dstpd_dn_dsatdn = stpd_dn / sat_dn
-    dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
-    ! units = [mole/m^4 bulk]
-    dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
-    stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
+      stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
 
-    if (hydrate_diffuse_xmol) then ! delta of mole fraction
-      delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
-                   hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      delta_X_whatever = delta_xmol
-      delta_X_whatever_dxmoldn = -1.d0
-    else ! delta of mass fraction
-      xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
-      xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)*hydrate_fmw_comp(1))
-      xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
-      tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)*hydrate_fmw_comp(1))
-      xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
-      dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * (hydrate_fmw_comp(2) - hydrate_fmw_comp(1))) / tempreal
-      delta_xmass = xmass_air_up - xmass_air_dn
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                                     (hydrate_fmw_comp(2) - &
+                                     hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              area
+      air_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+
+      ! NaCl is mass-based
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(sid,iphase)
+
+      ! units = [kd/m^4 bulk]
+      dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
+      stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
+
+      delta_xmass = hyd_auxvar_up%xmass(sid,iphase) - &
+                    hyd_auxvar_dn%xmass(sid,iphase)
       delta_X_whatever = delta_xmass
-      delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
-    endif
 
-    ! units = mole/sec
-    dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
-                             hydrate_parameter%diffusion_coefficient(iphase) * &
-                             area
-    tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
-    dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
-    dtot_mole_flux_ddenave = tot_mole_flux / density_ave
-    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
-        tot_mole_flux > 0.d0) then
-      tot_mole_flux = 0.d0
-    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
-        tot_mole_flux < 0.d0) then
-      tot_mole_flux = 0.d0
+      ! units = kg/sec
+      dtot_mass_flux_ddeltaX = density_kg_ave * stpd_ave_over_dist * &
+                                area
+
+      salt_mass_flux = dtot_mass_flux_ddeltaX * delta_X_whatever
+
+      tot_mole_flux = (air_mole_flux + salt_mass_flux / &
+                      hydrate_fmw_comp(THREE_INTEGER))
+
+      if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux > 0.d0) then
+        tot_mole_flux = 0.d0
+        salt_mass_flux = 0.d0
+        air_mole_flux = 0.d0
+      elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux < 0.d0) then
+        tot_mole_flux = 0.d0
+        salt_mass_flux = 0.d0
+        air_mole_flux = 0.d0
+      endif
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(salt_dof_id) = Res(salt_dof_id) + salt_mass_flux / &
+                         hydrate_fmw_comp(THREE_INTEGER)
     endif
-    Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
-  endif
 #endif
 #ifdef GAS_DIFFUSION
-  iphase = GAS_PHASE
-  sat_dn = hyd_auxvar_dn%sat(iphase)
-  !geh: i am not sure why both of these conditionals were included.  seems
-  !     like the latter would never be false.
-  if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
-    dsatdn = 1.d0
-    if (hydrate_harmonic_diff_density) then
-      ! density_ave in this case is not used.
-      density_ave = 1.d0
-      den_dn = hyd_auxvar_dn%den(iphase)
-      ddensity_ave_dden_dn = 0.d0
-      tempreal = 1.d0
-    else
-      ! den_up and den_dn are not used in this case
-      den_dn = 1.d0
-      ! we use upstream weighting when iphase is not equal, otherwise
-      ! arithmetic with 50/50 weighting
-      !TODO(geh): why are we averaging density here?
-      density_ave = HydrateAverageDensity(iphase, &
-                                      global_auxvar_up%istate, &
-                                      global_auxvar_dn%istate, &
-                                      hyd_auxvar_up%den, &
-                                      hyd_auxvar_dn%den, &
-                                      ddensity_ave_dden_up, &
-                                      ddensity_ave_dden_dn)
-      ddensity_ave_dden_up = 0.d0
-      ! used to zero out derivative below
-      tempreal = 0.d0
-    endif
-    stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
-              hyd_auxvar_dn%effective_porosity*den_dn
+    iphase = GAS_PHASE
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    !geh: i am not sure why both of these conditionals were included.  seems
+    !     like the latter would never be false.
+    if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
+      dsatdn = 1.d0
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        !TODO(geh): why are we averaging density here?
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ddensity_ave_dden_up = 0.d0
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn * &
+                hyd_auxvar_dn%effective_diffusion_coeff(air_comp_id,iphase)
 
-    dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
-    dstpd_dn_dsatdn = stpd_dn / sat_dn
-    dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
-    ! units = [mole/m^4 bulk]
-    dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
-    stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
+      stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
 
-    if (hydrate_diffuse_xmol) then ! delta of mole fraction
-      delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
-                   hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      delta_X_whatever = delta_xmol
-      delta_X_whatever_dxmoldn = -1.d0
-    else ! delta of mass fraction
-      xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
-      xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
-      tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)*hydrate_fmw_comp(1))
-      xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
-      tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)*hydrate_fmw_comp(1))
-      xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
-      delta_xmass = xmass_air_up - xmass_air_dn
-      delta_X_whatever = delta_xmass
-      delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+      ! need to account for multiple phases
+      ! Eq. 1.9b.  The gas density is added below
+      if (hydrate_temp_dep_gas_air_diff) then
+        temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
+        pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
+                              hyd_auxvar_dn%pres(iphase))
+        tempreal = (temp_ave+273.15d0)/273.15d0
+        diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
+                              ! 0.9d0 = 0.5 * 1.8
+        ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
+        ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
+      else
+        diffusion_scale = 1.d0
+        ddiffusion_coef_dTdn = 0.d0
+        ddiffusion_coef_dpdn = 0.d0
+      endif
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              diffusion_scale * &
+                              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+      if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux > 0.d0) then
+        tot_mole_flux = 0.d0
+      elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux < 0.d0) then
+        tot_mole_flux = 0.d0
+      endif
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
     endif
-    ! need to account for multiple phases
-    ! Eq. 1.9b.  The gas density is added below
-    if (hydrate_temp_dep_gas_air_diff) then
-      temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
-      pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
-                            hyd_auxvar_dn%pres(iphase))
-      tempreal = (temp_ave+273.15d0)/273.15d0
-      diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
-                             ! 0.9d0 = 0.5 * 1.8
-      ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * 273.15d0)
-      ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
-    else
-      diffusion_scale = 1.d0
-      ddiffusion_coef_dTdn = 0.d0
-      ddiffusion_coef_dpdn = 0.d0
-    endif
-    ! units = mole/sec
-    dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
-                             diffusion_scale * &
-                             hydrate_parameter%diffusion_coefficient(iphase) * &
-                             area
-    tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
-    dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
-    dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
-    dtot_mole_flux_ddenave = tot_mole_flux / density_ave
-    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
-        tot_mole_flux > 0.d0) then
-      tot_mole_flux = 0.d0
-    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
-        tot_mole_flux < 0.d0) then
-      tot_mole_flux = 0.d0
-    endif
-    Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
-  endif
 #endif
 ! DIFFUSION
-  endif ! if (.not.hydrate_immiscible)
+    endif ! if (.not.hydrate_immiscible)
 #endif
 
 #ifdef CONDUCTION
-  ! add heat conduction flux
-  ! based on Somerton et al., 1974:
-  ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
-  ! 1 = dry
-  ! 2 = wet
-  heat_flux = 0.d0
-  select case (ibndtype(HYDRATE_ENERGY_EQUATION_INDEX))
-    case (DIRICHLET_BC)
-      sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
-      call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
-                  hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
-                  thermal_conductivity_dn(2),k_eff_dn)
+    ! add heat conduction flux
+    ! based on Somerton et al., 1974:
+    ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
+    ! 1 = dry
+    ! 2 = wet
+    heat_flux = 0.d0
+    select case (ibndtype(HYDRATE_ENERGY_EQUATION_INDEX))
+      case (DIRICHLET_BC)
+        sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
+        call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
+                    hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
+                    thermal_conductivity_dn(2),k_eff_dn)
 
-      dkeff_ave_dkeffdn = 1.d0 / dist(0)
-      k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
-      ! units:
-      ! k_eff = W/K-m = J/s/K-m
-      ! delta_temp = K
-      ! area = m^2
-      ! heat_flux = k_eff * delta_temp * area = J/s
-      delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
-      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = dheat_flux_ddelta_temp * delta_temp
-      dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
-    case(NEUMANN_BC)
-                  ! flux prescribed as MW/m^2
-      heat_flux = auxvars(auxvar_mapping(HYDRATE_ENERGY_FLUX_INDEX)) * area
-      dheat_flux_ddelta_temp = 0.d0
-      dkeff_dn_dsatldn = 0.d0
-      dkeff_ave_dkeffdn = 0.d0
-      dheat_flux_dkeff_ave = 0.d0
-    case default
-      option%io_buffer = 'Boundary condition type not recognized in ' // &
-        'HydrateBCFlux heat conduction loop.'
-      call PrintErrMsg(option)
-  end select
-  ! MJ/s
-  Res(energy_id) = Res(energy_id) + heat_flux
+        dkeff_ave_dkeffdn = 1.d0 / dist(0)
+        k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
+        ! units:
+        ! k_eff = W/K-m = J/s/K-m
+        ! delta_temp = K
+        ! area = m^2
+        ! heat_flux = k_eff * delta_temp * area = J/s
+        delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
+        dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+        heat_flux = dheat_flux_ddelta_temp * delta_temp
+        dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+      case(NEUMANN_BC)
+                    ! flux prescribed as MW/m^2
+        heat_flux = auxvars(auxvar_mapping(HYDRATE_ENERGY_FLUX_INDEX)) * area
+        dheat_flux_ddelta_temp = 0.d0
+        dkeff_dn_dsatldn = 0.d0
+        dkeff_ave_dkeffdn = 0.d0
+        dheat_flux_dkeff_ave = 0.d0
+      case default
+        option%io_buffer = 'Boundary condition type not recognized in ' // &
+          'HydrateBCFlux heat conduction loop.'
+        call PrintErrMsg(option)
+    end select
+    ! MJ/s
+    Res(energy_id) = Res(energy_id) + heat_flux
 
 ! CONDUCTION
 #endif
+  else
+#ifdef CONVECTION
+#ifdef LIQUID_DARCY_FLUX
+    iphase = LIQUID_PHASE
+    mobility = 0.d0
+    xmol_bool = 1.d0
+    bc_type = ibndtype(iphase)
+    select case(bc_type)
+      ! figure out the direction of flow
+      case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC, &
+           HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        if (hyd_auxvar_up%mobility(iphase) + &
+            hyd_auxvar_dn%mobility(iphase) > eps) then
+
+          ! Harmonic mean on viscosity
+          visc_mean = 2.d0 * (hyd_auxvar_up%visc(iphase) * &
+                            hyd_auxvar_dn%visc(iphase)) / &
+                            (hyd_auxvar_up%visc(iphase) + &
+                            hyd_auxvar_dn%visc(iphase))
+
+          ! dist(0) = scalar - magnitude of distance
+          ! gravity = vector(3)
+          ! dist(1:3) = vector(3) - unit vector
+          dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+
+          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+            select case(iphase)
+              case(LIQUID_PHASE)
+                idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
+              case(GAS_PHASE)
+                idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
+            end select
+            perm_ave_over_dist = auxvars(idof)
+          else
+            perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          endif
+
+          boundary_pressure = hyd_auxvar_up%pres(iphase)
+          if (iphase == LIQUID_PHASE .and. &
+              global_auxvar_up%istate == G_STATE) then
+            ! the idea here is to accommodate a free surface boundary
+            ! face.  this will not work for an interior grid cell as
+            ! there should be capillary pressure in force.
+            boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
+          endif
+          density_kg_ave = HydrateAverageDensity(iphase, &
+                                                  global_auxvar_up%istate, &
+                                                  global_auxvar_dn%istate, &
+                                                  hyd_auxvar_up%den_kg, &
+                                                  hyd_auxvar_dn%den_kg, &
+                                                  ddensity_kg_ave_dden_kg_up, &
+                                                  ddensity_kg_ave_dden_kg_dn)
+          gravity_term = density_kg_ave * dist_gravity
+          delta_pressure = boundary_pressure - &
+                            hyd_auxvar_dn%pres(iphase) + &
+                            gravity_term
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+              bc_type == DIRICHLET_SEEPAGE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+                ! flow in         ! boundary cell is <= pref
+            if (delta_pressure > 0.d0 .and. &
+                hyd_auxvar_up%pres(iphase) - &
+                  hydrate_bc_reference_pressure < eps) then
+              delta_pressure = 0.d0
+            endif
+          endif
+          dn_scale = 0.d0
+          upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                  .not.analytical_derivatives, &
+                                  count_upwind_direction_flip_, &
+                                  liq_bc_upwind_flip_count_by_res, &
+                                  liq_bc_upwind_flip_count_by_jac)
+          if (upwind) then
+            mobility = hyd_auxvar_up%mobility(iphase)
+            kr = hyd_auxvar_up%kr(iphase)
+            xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+            xmass(:) = hyd_auxvar_up%xmass(:,iphase)
+            uH = hyd_auxvar_up%H(iphase)
+            density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+          else
+            dn_scale = 1.d0
+            mobility = hyd_auxvar_dn%mobility(iphase)
+            kr = hyd_auxvar_dn%kr(iphase)
+            xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+            xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
+          endif
+
+          ! Harmonic on viscosity
+          mobility = kr / visc_mean
+
+          ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+          !                    dP[Pa]]
+          dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
+          v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+        endif
+      case(NEUMANN_BC)
+        xmol_bool = 0.d0
+        dv_darcy_ddelta_pressure = 0.d0
+        dv_darcy_dmobility = 0.d0
+        ddensity_ave_dden_up = 0.d0
+        ddensity_ave_dden_dn = 0.d0
+        ddelta_pressure_dpdn = 0.d0
+        ddelta_pressure_dTdn = 0.d0
+        dn_scale = 0.d0
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
+        end select
+        xmol = 0.d0
+        !geh: we should read in the mole fraction for both phases as the
+        !     enthalpy, etc. applies to phase, not pure component.
+        if (dabs(auxvars(idof)) > floweps) then
+          v_darcy(iphase) = auxvars(idof)
+          if (v_darcy(iphase) > 0.d0) then
+            xmass(:) = hyd_auxvar_up%xmass(:,iphase)
+            xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+            density_ave = hyd_auxvar_up%den(iphase)
+            density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
+            xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+            dn_scale = 1.d0
+            density_ave = hyd_auxvar_dn%den(iphase)
+            density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            ddensity_ave_dden_dn = 1.d0
+          endif
+        endif
+      case default
+        option%io_buffer = &
+          'Boundary condition type not recognized in HydrateBCFlux phase loop.'
+        call PrintErrMsg(option)
+    end select
+    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
+      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
+      tot_mass_flux = q * density_kg_ave
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+      !                                 xmol[kmol comp/kmol phase]
+      wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &
+                        hydrate_fmw_comp(ONE_INTEGER)
+      air_mole_flux = tot_mass_flux * xmass(air_comp_id) / &
+                        hydrate_fmw_comp(TWO_INTEGER)
+      tot_mole_flux = wat_mole_flux + air_mole_flux
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+    endif
+#endif
+#ifdef GAS_DARCY_FLUX
+    iphase = GAS_PHASE
+    mobility = 0.d0
+    xmol_bool = 1.d0
+    bc_type = ibndtype(iphase)
+    select case(bc_type)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC, &
+           HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        if (hyd_auxvar_up%mobility(iphase) + &
+            hyd_auxvar_dn%mobility(iphase) > eps) then
+
+          ! Harmonic mean on viscosity
+          visc_mean = 2.d0 * (hyd_auxvar_up%visc(iphase) * &
+                            hyd_auxvar_dn%visc(iphase)) / &
+                            (hyd_auxvar_up%visc(iphase) + &
+                            hyd_auxvar_dn%visc(iphase))
+          ! dist(0) = scalar - magnitude of distance
+          ! gravity = vector(3)
+          ! dist(1:3) = vector(3) - unit vector
+          dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+
+          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+            select case(iphase)
+              case(LIQUID_PHASE)
+                idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
+              case(GAS_PHASE)
+                idof = auxvar_mapping(HYDRATE_GAS_CONDUCTANCE_INDEX)
+            end select
+            perm_ave_over_dist = auxvars(idof)
+          else
+            perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
+          endif
+
+          boundary_pressure = hyd_auxvar_up%pres(iphase)
+          if (iphase == LIQUID_PHASE .and. &
+              global_auxvar_up%istate == G_STATE) then
+            ! the idea here is to accommodate a free surface boundary
+            ! face.  this will not work for an interior grid cell as
+            ! there should be capillary pressure in force.
+            boundary_pressure = hyd_auxvar_up%pres(option%gas_phase)
+          endif
+          density_kg_ave = HydrateAverageDensity(iphase, &
+                                                  global_auxvar_up%istate, &
+                                                  global_auxvar_dn%istate, &
+                                                  hyd_auxvar_up%den_kg, &
+                                                  hyd_auxvar_dn%den_kg, &
+                                                  ddensity_kg_ave_dden_kg_up, &
+                                                  ddensity_kg_ave_dden_kg_dn)
+          ddensity_kg_ave_dden_kg_up = 0.d0 ! always
+          gravity_term = density_kg_ave * dist_gravity
+          delta_pressure = boundary_pressure - &
+                            hyd_auxvar_dn%pres(iphase) + &
+                            gravity_term
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+              bc_type == DIRICHLET_SEEPAGE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+                ! flow in         ! boundary cell is <= pref
+            if (delta_pressure > 0.d0 .and. &
+                hyd_auxvar_up%pres(iphase) - &
+                  hydrate_bc_reference_pressure < eps) then
+              delta_pressure = 0.d0
+            endif
+          endif
+          dn_scale = 0.d0
+          ! don't expect the derivative to match precisely at delta_pressure = 0
+          ! due to potential switch in direction for numerically perturbed
+          ! residual
+          upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                  .not.analytical_derivatives, &
+                                  count_upwind_direction_flip_, &
+                                  gas_bc_upwind_flip_count_by_res, &
+                                  gas_bc_upwind_flip_count_by_jac)
+          if (upwind) then
+            mobility = hyd_auxvar_up%mobility(iphase)
+            kr = hyd_auxvar_up%kr(iphase)
+            xmol(:) = hyd_auxvar_up%xmol(:,iphase)
+            xmass(:) = hyd_auxvar_up%xmass(:,iphase)
+            uH = hyd_auxvar_up%H(iphase)
+            density_kg_ave = hyd_auxvar_up%den_kg(iphase)
+          else
+            dn_scale = 1.d0
+            mobility = hyd_auxvar_dn%mobility(iphase)
+            kr = hyd_auxvar_dn%kr(iphase)
+            xmol(:) = hyd_auxvar_dn%xmol(:,iphase)
+            xmass(:) = hyd_auxvar_dn%xmass(:,iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            density_kg_ave = hyd_auxvar_dn%den_kg(iphase)
+          endif
+
+          ! Harmonic on viscosity
+          mobility = kr / visc_mean
+
+          ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
+          !                    dP[Pa]]
+          dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
+          v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+        endif
+      case(NEUMANN_BC)
+        xmol_bool = 0.d0
+        dv_darcy_ddelta_pressure = 0.d0
+        dv_darcy_dmobility = 0.d0
+        ddensity_ave_dden_up = 0.d0 ! always
+        ddensity_ave_dden_dn = 0.d0
+        ddelta_pressure_dpdn = 0.d0
+        ddelta_pressure_dpadn = 0.d0
+        ddelta_pressure_dTdn = 0.d0
+        dn_scale = 0.d0
+        select case(iphase)
+          case(LIQUID_PHASE)
+            idof = auxvar_mapping(HYDRATE_LIQUID_FLUX_INDEX)
+          case(GAS_PHASE)
+            idof = auxvar_mapping(HYDRATE_GAS_FLUX_INDEX)
+        end select
+        xmol = 0.d0
+        !geh: we should read in the mole fraction for both phases as the
+        !     enthalpy, etc. applies to phase, not pure component.
+        xmol(iphase) = 1.d0
+        if (dabs(auxvars(idof)) > floweps) then
+          v_darcy(iphase) = auxvars(idof)
+          if (v_darcy(iphase) > 0.d0) then
+            density_ave = hyd_auxvar_up%den(iphase)
+            uH = hyd_auxvar_up%H(iphase)
+          else
+            dn_scale = 1.d0
+            density_ave = hyd_auxvar_dn%den(iphase)
+            uH = hyd_auxvar_dn%H(iphase)
+            ddensity_ave_dden_dn = 1.d0
+          endif
+        endif
+      case default
+        option%io_buffer = &
+          'Boundary condition type not recognized in HydrateBCFlux phase loop.'
+        call PrintErrMsg(option)
+    end select
+
+    if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
+      ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+      q = v_darcy(iphase) * area
+      ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] *
+      !                             density_ave[kmol phase/m^3 phase]
+      tot_mass_flux = q * density_kg_ave
+      ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] *
+      !                                 xmol[kmol comp/kmol phase]
+      wat_mole_flux = tot_mass_flux * xmass(wat_comp_id) / &
+                        hydrate_fmw_comp(ONE_INTEGER)
+      air_mole_flux = tot_mass_flux * xmass(air_comp_id) / &
+                        hydrate_fmw_comp(TWO_INTEGER)
+      tot_mole_flux = wat_mole_flux + air_mole_flux
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + tot_mole_flux * uH
+    endif
+#endif
+! CONVECTION
+#endif
+
+    ! Sedimentation flux: hydrate
+
+    ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
+    ! need to make sure this has a direction, so condition upon gravity
+    ! sedimentation and methanogenesis are linked right now.
+    if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
+      methanogenesis => hydrate_parameter%methanogenesis
+      v_sed = methanogenesis%omega
+      dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+
+      if (dabs(dist_gravity) > 0.d0) then
+        wat_mole_flux = 0.d0
+        air_mole_flux = 0.d0
+
+        q = v_sed * area
+
+        upwind = dist_gravity > 0.d0
+
+        if (dist_gravity < 0.d0) q = -q
+
+        hyd_sat = hyd_auxvar_dn%sat(hid)
+        gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+        liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+
+        wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id,&
+                          lid)*liq_sat
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
+                          xmol(wat_comp_id,gid)*gas_sat
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
+                          xmol(wat_comp_id,hid)*hyd_sat
+        wat_mole_flux = q  * wat_mole_flux
+
+        air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id,&
+                        lid)*liq_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,gid)*gas_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,hid)*hyd_sat
+        air_mole_flux = q  * air_mole_flux
+
+        salt_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn% &
+                         xmol(salt_comp_id,lid)*liq_sat
+        salt_mole_flux= q * salt_mole_flux
+
+
+        energy_flux = q*hyd_auxvar_dn%effective_porosity* &
+                      (hyd_auxvar_dn%den(lid) * &
+                      hyd_auxvar_dn%H(lid) * liq_sat + &
+                      hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid) * &
+                      gas_sat + hyd_auxvar_dn%den(hid) * &
+                      hyd_auxvar_dn%H(hid) * hyd_sat)
+
+        Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+        Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+        Res(energy_id) = Res(energy_id) + energy_flux
+        Res(salt_dof_id) = Res(salt_dof_id) + salt_mole_flux
+
+      endif
+    endif
+
+
+#ifdef DIFFUSION
+    if (.not.hydrate_immiscible) then
+#ifdef LIQUID_DIFFUSION
+    iphase = LIQUID_PHASE
+    dsatdn = 1.d0
+    ! diffusion all depends upon the downwind cell.  phase diffusion only
+    ! occurs if a phase exists in both auxvars (boundary and internal) or
+    ! a liquid phase exists in the internal cell. so, one could say that
+    ! liquid diffusion always exists as the internal cell has a liquid phase,
+    ! but gas phase diffusion only occurs if the internal cell has a gas
+    ! phase.
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ddensity_ave_dden_up = 0.d0
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn
+
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
+      stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
+
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + (1.d0-xmol_air_up)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + (1.d0-xmol_air_dn)* &
+                   hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        dxmass_air_dn_dxmol_air_dn = (hydrate_fmw_comp(2) - xmass_air_dn * &
+                                     (hydrate_fmw_comp(2) - &
+                                      hydrate_fmw_comp(1))) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              hydrate_parameter% &
+                              diffusion_coefficient(air_comp_id,iphase) * &
+                              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+      if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux > 0.d0) then
+        tot_mole_flux = 0.d0
+      elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux < 0.d0) then
+        tot_mole_flux = 0.d0
+      endif
+
+      ! Salt mass flux
+      ! Patankar salt transport
+      ! Include diffusion and longitudinal dispersion
+      stpd_up = (hyd_auxvar_up%effective_diffusion_coeff(sid,iphase) + &
+                hyd_auxvar_up%dispersivity(sid,iphase) * &
+                v_darcy(iphase))
+      stpd_dn = (hyd_auxvar_dn%effective_diffusion_coeff(sid,iphase) + &
+                hyd_auxvar_dn%dispersivity(sid,iphase) * &
+                v_darcy(iphase))
+
+      dist_up = dist(0)
+      dist_dn = dist(0)
+      tempreal = stpd_up*dist_up+stpd_dn*dist_dn
+      if (tempreal > 0.d0) then
+        stpd_ave_over_dist = stpd_up*stpd_dn / &
+                            (5.d-1 * (stpd_up*dist_dn + stpd_dn*dist_up))
+      else
+        stpd_ave_over_dist = 0.d0
+      endif
+
+      al = max(-v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+            (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+             epsilon))) ** 5,0.d0)
+      alp = max(v_darcy(iphase),0.d0) + stpd_ave_over_dist * max((1.d0 - &
+              (1.d-1 * dabs(v_darcy(iphase))/(stpd_ave_over_dist + &
+              epsilon))) ** 5,0.d0)
+
+      salt_mass_flux = (alp * hyd_auxvar_up%xmass(sid,iphase) * &
+                            hyd_auxvar_up%den_kg(iphase) - &
+                            al * hyd_auxvar_dn%xmass(sid,iphase) * &
+                            hyd_auxvar_dn%den_kg(iphase)) * area
+      ! Diffusive component of salt flux
+      ! units = kg/sec
+      dsalt_mass_flux_ddeltaX = stpd_ave_over_dist * area
+
+      delta_xmass =  hyd_auxvar_up%xmass(sid,iphase) * &
+                    hyd_auxvar_up%den_kg(iphase) - &
+                    hyd_auxvar_dn%xmass(sid,iphase) * &
+                    hyd_auxvar_dn%den_kg(iphase)
+
+      salt_diff_flux = dsalt_mass_flux_ddeltaX * delta_xmass
+      water_mole_flux = -1.d0 * &
+                    (tot_mole_flux + salt_diff_flux / hydrate_fmw_comp(3))
+
+
+      Res(wat_comp_id) = Res(wat_comp_id) + water_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+      Res(HYDRATE_SALT_EQUATION_INDEX) = Res(HYDRATE_SALT_EQUATION_INDEX) + &
+                        salt_mass_flux / hydrate_fmw_comp(3)
+    endif
+#endif
+#ifdef GAS_DIFFUSION
+    iphase = GAS_PHASE
+    sat_dn = hyd_auxvar_dn%sat(iphase)
+    !geh: i am not sure why both of these conditionals were included.  seems
+    !     like the latter would never be false.
+    if (sat_dn > eps .and. ibndtype(iphase) /= NEUMANN_BC) then
+      dsatdn = 1.d0
+      if (hydrate_harmonic_diff_density) then
+        ! density_ave in this case is not used.
+        density_ave = 1.d0
+        den_dn = hyd_auxvar_dn%den(iphase)
+        ddensity_ave_dden_dn = 0.d0
+        tempreal = 1.d0
+      else
+        ! den_up and den_dn are not used in this case
+        den_dn = 1.d0
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        !TODO(geh): why are we averaging density here?
+        density_ave = HydrateAverageDensity(iphase, &
+                                        global_auxvar_up%istate, &
+                                        global_auxvar_dn%istate, &
+                                        hyd_auxvar_up%den, &
+                                        hyd_auxvar_dn%den, &
+                                        ddensity_ave_dden_up, &
+                                        ddensity_ave_dden_dn)
+        ddensity_ave_dden_up = 0.d0
+        ! used to zero out derivative below
+        tempreal = 0.d0
+      endif
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                hyd_auxvar_dn%effective_porosity*den_dn
+
+      dstpd_dn_dpordn = stpd_dn / hyd_auxvar_dn%effective_porosity
+      dstpd_dn_dsatdn = stpd_dn / sat_dn
+      dstpd_dn_ddendn = tempreal * stpd_dn / den_dn
+      ! units = [mole/m^4 bulk]
+      dstpd_ave_over_dist_dstpd_dn = 1.d0 / dist(0)
+      stpd_ave_over_dist = stpd_dn * dstpd_ave_over_dist_dstpd_dn
+
+      if (hydrate_diffuse_xmol) then ! delta of mole fraction
+        delta_xmol = hyd_auxvar_up%xmol(air_comp_id,iphase) - &
+                    hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+        delta_X_whatever_dxmoldn = -1.d0
+      else ! delta of mass fraction
+        xmol_air_up = hyd_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = hyd_auxvar_dn%xmol(air_comp_id,iphase)
+        tempreal = (xmol_air_up*hydrate_fmw_comp(2) + &
+                   (1.d0-xmol_air_up)*hydrate_fmw_comp(1))
+        xmass_air_up = xmol_air_up*hydrate_fmw_comp(2) / tempreal
+        tempreal = (xmol_air_dn*hydrate_fmw_comp(2) + &
+                   (1.d0-xmol_air_dn)*hydrate_fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*hydrate_fmw_comp(2) / tempreal
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+        delta_X_whatever_dxmoldn = -1.d0 * dxmass_air_dn_dxmol_air_dn
+      endif
+      ! need to account for multiple phases
+      ! Eq. 1.9b.  The gas density is added below
+      if (hydrate_temp_dep_gas_air_diff) then
+        temp_ave = 0.5d0*(hyd_auxvar_up%temp+hyd_auxvar_dn%temp)
+        pressure_ave = 0.5d0*(hyd_auxvar_up%pres(iphase)+ &
+                              hyd_auxvar_dn%pres(iphase))
+        tempreal = (temp_ave+T273K)/T273K
+        diffusion_scale = tempreal**1.8d0 * 101325.d0 / pressure_ave
+                              ! 0.9d0 = 0.5 * 1.8
+        ddiffusion_coef_dTdn = 0.9d0 * diffusion_scale / (tempreal * T273K)
+        ddiffusion_coef_dpdn = -1.d0 * diffusion_scale / pressure_ave * 0.5d0
+      else
+        diffusion_scale = 1.d0
+        ddiffusion_coef_dTdn = 0.d0
+        ddiffusion_coef_dpdn = 0.d0
+      endif
+      ! units = mole/sec
+      dtot_mole_flux_ddeltaX = density_ave * stpd_ave_over_dist * &
+                              diffusion_scale * &
+                              hydrate_parameter% &
+                              diffusion_coefficient(air_comp_id,iphase) * &
+                              area
+      tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
+      dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
+      dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
+      dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+      if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux > 0.d0) then
+        tot_mole_flux = 0.d0
+      elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+          tot_mole_flux < 0.d0) then
+        tot_mole_flux = 0.d0
+      endif
+      Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
+    endif
+#endif
+! DIFFUSION
+    endif ! if (.not.hydrate_immiscible)
+#endif
+
+#ifdef CONDUCTION
+    ! add heat conduction flux
+    ! based on Somerton et al., 1974:
+    ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
+    ! 1 = dry
+    ! 2 = wet
+    heat_flux = 0.d0
+    ! Fluxes are read in as [mass mass mass energy], so we need to offset by 1
+    select case (ibndtype(HYDRATE_ENERGY_EQUATION_INDEX + 1))
+      case (DIRICHLET_BC)
+        sat_dn = hyd_auxvar_dn%sat(option%liquid_phase)
+        call HydrateCompositeThermalCond(hyd_auxvar_dn%effective_porosity, &
+                    hyd_auxvar_dn%sat,thermal_conductivity_dn(1), &
+                    thermal_conductivity_dn(2),k_eff_dn)
+
+        dkeff_ave_dkeffdn = 1.d0 / dist(0)
+        k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
+        ! units:
+        ! k_eff = W/K-m = J/s/K-m
+        ! delta_temp = K
+        ! area = m^2
+        ! heat_flux = k_eff * delta_temp * area = J/s
+        delta_temp = hyd_auxvar_up%temp - hyd_auxvar_dn%temp
+        dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+        heat_flux = dheat_flux_ddelta_temp * delta_temp
+        dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+      case(NEUMANN_BC)
+                    ! flux prescribed as MW/m^2
+        heat_flux = auxvars(auxvar_mapping(HYDRATE_ENERGY_FLUX_INDEX)) * area
+        dheat_flux_ddelta_temp = 0.d0
+        dkeff_dn_dsatldn = 0.d0
+        dkeff_ave_dkeffdn = 0.d0
+        dheat_flux_dkeff_ave = 0.d0
+      case default
+        option%io_buffer = 'Boundary condition type not recognized in ' // &
+          'HydrateBCFlux heat conduction loop.'
+        call PrintErrMsg(option)
+    end select
+    ! MJ/s
+    Res(energy_id) = Res(energy_id) + heat_flux
+
+! CONDUCTION
+#endif
+  endif
 
 end subroutine HydrateBCFlux
 
@@ -1508,21 +2863,22 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
   PetscBool :: analytical_derivatives
   PetscBool :: debug_cell
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
+  PetscInt :: wat_comp_id, air_comp_id, energy_id, salt_comp_id
   PetscReal :: Je(option%nflowdof,option%nflowdof)
   PetscReal :: dden_bool
-  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscReal :: mob_tot
-  PetscInt, parameter :: lid = 1
-  PetscInt, parameter :: gid = 2
+  PetscInt :: lid, gid
 
+  lid = option%liquid_phase
+  gid = option%gas_phase
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
+  salt_comp_id = option%salt_id
 
   Res = 0.d0
   J = 0.d0
@@ -1532,16 +2888,19 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
     !MAN: this has only been tested for an extraction well. Scales the mass of
     !water and gas extracted by the mobility ratio.
     mob_tot = hyd_auxvar%mobility(lid) + hyd_auxvar%mobility(gid)
+    if (mob_tot > 0.d0) then
       if (hyd_auxvar%sat(gid) <= 0.d0) then
         ! Water component, liquid phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / hyd_auxvar%den_kg(lid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
+                   hyd_auxvar%den_kg(lid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(lid,lid)
       elseif (hyd_auxvar%sat(lid) <= 0.d0) then
         ! Water component, gas phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / hyd_auxvar%den_kg(gid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / &
+                   hyd_auxvar%den_kg(gid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(lid,gid)
       else
@@ -1561,13 +2920,15 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
       if (hyd_auxvar%sat(gid) <= 0.d0) then
         ! Air component, liquid phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / hyd_auxvar%den_kg(lid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
+                   hyd_auxvar%den_kg(lid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(gid,lid)
       elseif (hyd_auxvar%sat(lid) <= 0.d0) then
         ! Air component, gas phase
         ! kg/s phase to kmol/sec phase
-        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / hyd_auxvar%den_kg(gid)
+        qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / &
+                   hyd_auxvar%den_kg(gid)
         ! kmol/sec phase to kmol/sec component
         qsrc_mol = qsrc_mol * hyd_auxvar%xmol(gid,gid)
       else
@@ -1584,20 +2945,26 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
       ss_flow_vol_flux(air_comp_id) = qsrc_mol/hyd_auxvar%den(air_comp_id)
       Res(air_comp_id) = qsrc_mol
 
+      qsrc_mol = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
+                   hyd_auxvar%den_kg(lid)*hyd_auxvar%mobility(lid)/mob_tot * &
+                   hyd_auxvar%xmol(salt_comp_id,lid)
+      Res(salt_comp_id) = qsrc_mol
+
       if (hyd_auxvar%sat(gid) <= 0.d0) then
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%den(lid) / &
-                         hyd_auxvar%den_kg(lid) * hyd_auxvar_ss%h(lid)
+                         hyd_auxvar%den_kg(lid) * hyd_auxvar%H(lid)
       elseif (hyd_auxvar%sat(lid) <= 0.d0) then
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%den(gid) / &
-                         hyd_auxvar%den_kg(gid) * hyd_auxvar_ss%h(gid)
+                         hyd_auxvar%den_kg(gid) * hyd_auxvar%H(gid)
       else
         Res(energy_id) = qsrc(wat_comp_id) * hyd_auxvar%mobility(lid)/mob_tot*&
                          hyd_auxvar%den(lid) / hyd_auxvar%den_kg(lid) * &
-                         hyd_auxvar_ss%h(lid)
+                         hyd_auxvar%H(lid)
         Res(energy_id) = Res(energy_id) + qsrc(wat_comp_id) * hyd_auxvar% &
                          mobility(gid)/mob_tot*hyd_auxvar%den(gid) / &
-                         hyd_auxvar%den_kg(gid) * hyd_auxvar_ss%h(gid)
+                         hyd_auxvar%den_kg(gid) * hyd_auxvar%H(gid)
       endif
+    endif
   else
 
 #ifdef WATER_SRCSINK
@@ -1641,10 +3008,37 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
   ss_flow_vol_flux(air_comp_id) = qsrc_mol/hyd_auxvar%den(air_comp_id)
   Res(air_comp_id) = qsrc_mol
 #endif
+
+  qsrc_mol = 0.d0
+  dden_bool = 0.d0
+  select case(flow_src_sink_type)
+    ! qsrc order is [mass mass mass energy], so the energy id for the source
+    ! term is offset by 1 from the equation index
+    case(MASS_RATE_SS)
+      ! kg/sec -> kmol/sec
+      qsrc_mol = qsrc(salt_comp_id)/hydrate_fmw_comp(salt_comp_id)
+    case(SCALED_MASS_RATE_SS)
+      ! kg/sec -> kmol/sec
+      qsrc_mol = qsrc(salt_comp_id)/hydrate_fmw_comp(salt_comp_id)*scale
+    case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+      ! qsrc1 = m^3/sec
+      ! den = kmol/m^3
+      qsrc_mol = qsrc(salt_comp_id)*hyd_auxvar%den(salt_comp_id)
+      dden_bool = 1.d0
+    case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+      ! qsrc1 = m^3/sec
+      ! den = kmol/m^3
+      qsrc_mol = qsrc(salt_comp_id)*hyd_auxvar%den(salt_comp_id)*scale
+      dden_bool = 1.d0
+  end select
+  ss_flow_vol_flux(salt_comp_id) = qsrc_mol/hyd_auxvar%den(salt_comp_id)
+  Res(salt_comp_id + 1) = qsrc_mol
+
   endif
 
   if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. flow_src_sink_type /= &
-          TOTAL_MASS_RATE_SS .and. qsrc(wat_comp_id) < 0.d0) then ! extraction only
+          TOTAL_MASS_RATE_SS .and. qsrc(wat_comp_id) < 0.d0) then
+    ! extraction only
     ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
     ! remove/add the equivalent mole fraction of air in the liquid phase.
     qsrc_mol = Res(wat_comp_id)*hyd_auxvar%xmol(air_comp_id,wat_comp_id)
@@ -1653,14 +3047,10 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
   endif
 
   ! energy units: MJ/sec
-  if (size(qsrc) == THREE_INTEGER) then
+  if (size(qsrc) == FOUR_INTEGER) then
     if (flow_src_sink_type /= TOTAL_MASS_RATE_SS) then
       if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
-        if (associated(hyd_auxvar%d)) then
-          hw_dp = hyd_auxvar_ss%d%Hl_pl
-          hw_dT = hyd_auxvar_ss%d%Hl_T
-        endif
-        enthalpy = hyd_auxvar_ss%h(wat_comp_id)
+        enthalpy = hyd_auxvar_ss%H(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
         Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         J = J + Je
@@ -1670,19 +3060,24 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
         ! air enthalpy is only a function of temperature
-        if (associated(hyd_auxvar%d)) then
-          ha_dp = hyd_auxvar_ss%d%Ha_pg
-          ha_dT = hyd_auxvar_ss%d%Ha_T
-        endif
 
         internal_energy = hyd_auxvar_ss%u(air_comp_id)
-        enthalpy = hyd_auxvar_ss%h(air_comp_id)
+        enthalpy = hyd_auxvar_ss%H(air_comp_id)
         ! enthalpy units: MJ/kmol                       ! air component mass
         Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
         J = J + Je
       endif
+
+      ! Salt component, if it is specified as a separate source term
+      if (dabs(qsrc(salt_comp_id)) > 0.d0) then
+        enthalpy = hyd_auxvar_ss%H(salt_comp_id)
+        Res(energy_id) = Res(energy_id) + Res(salt_comp_id + 1) * enthalpy
+      endif
+
+      ! qsrc order is [mass mass mass energy], so the energy id for the source
+      ! term is offset by 1 from the equation index (qsrc(4) --> Res(3))
+      Res(energy_id) = Res(energy_id) + qsrc(energy_id + 1)*scale ! MJ/s
     endif
-    Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
     ! no derivative
   endif
 
@@ -1692,7 +3087,7 @@ end subroutine HydrateSrcSink
 
 subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
                                   z,offset,hydrate_parameter, &
-                                  soil_heat_capacity,option,J)
+                                  soil_heat_capacity,option,well_ndof,J)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -1712,6 +3107,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: z,offset
   type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(option_type) :: option
+  PetscInt :: well_ndof
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
 
@@ -1720,6 +3116,11 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
+
+  res = 0.d0
+  res_pert_minus = 0.d0
+  jac = 0.d0
+  jac_pert = 0.d0
 
   if (.not. hydrate_central_diff_jacobian) then
     call HydrateAccumulation(hyd_auxvar(ZERO_INTEGER),global_auxvar, &
@@ -1732,7 +3133,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
     J = jac
   else
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
                                material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
@@ -1749,7 +3150,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
                                material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
@@ -1775,7 +3176,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                                  thermal_conductivity_dn, &
                                  area, dist, upwind_direction_, &
                                  hydrate_parameter, &
-                                 option,Jup,Jdn)
+                                 option,well_ndof,Jup,Jdn)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -1793,6 +3194,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
+  PetscInt :: well_ndof
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
@@ -1838,7 +3240,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   else
     ! upgradient derivatives
     if(hydrate_central_diff_jacobian) then
-       do idof = 1, option%nflowdof
+       do idof = 1, option%nflowdof - well_ndof
          call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -1872,7 +3274,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
          enddo !irow
        enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -1897,7 +3299,7 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
 
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -1927,13 +3329,13 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        PETSC_FALSE)
 
         do irow = 1, option%nflowdof
-          Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0*  &
+          Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0* &
                             hyd_auxvar_dn(idof)%pert)
   !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), hyd_auxvar_dn(idof)%pert
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
@@ -1968,7 +3370,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    thermal_conductivity_dn, &
                                    area,dist,upwind_direction_, &
                                    hydrate_parameter, &
-                                   option,Jdn)
+                                   option,well_ndof,Jdn)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
@@ -1994,6 +3396,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
+  PetscInt :: well_ndof
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -2029,7 +3432,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   else
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          hyd_auxvar_up,global_auxvar_up, &
                          hyd_auxvar_dn(idof),global_auxvar_dn, &
@@ -2063,7 +3466,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          hyd_auxvar_up,global_auxvar_up, &
                          hyd_auxvar_dn(idof),global_auxvar_dn, &
@@ -2090,7 +3493,8 @@ end subroutine HydrateBCFluxDerivative
 ! ************************************************************************** !
 
 subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
-                                    hyd_auxvars,global_auxvar,scale,Jac)
+                                    hyd_auxvars,global_auxvar,scale,well_ndof,&
+                                    Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -2108,9 +3512,10 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   type(hydrate_auxvar_type) :: hyd_auxvars(0:), hyd_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
+  PetscInt :: well_ndof
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(option%nflowdof)
   PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
   PetscReal :: res_pert_minus(option%nflowdof)
@@ -2135,7 +3540,7 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   else
     ! downgradient derivatives
     if (hydrate_central_diff_jacobian) then
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                           hyd_auxvars(idof),global_auxvar,dummy_real, &
                           scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
@@ -2150,7 +3555,7 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
         enddo !irow
       enddo ! idof
     else
-      do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof - well_ndof
         call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                           hyd_auxvars(idof),global_auxvar,dummy_real, &
                           scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
@@ -2335,184 +3740,6 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
   liquid_saturation = 0.d0
   gas_saturation = 0.d0
 
-  if (compare_analytical_derivative) then
-    select case(global_auxvar%istate)
-      case(L_STATE)
-        select case(idof)
-          case(1) ! liquid pressure pl
-            dpl = 1.d0
-            dpv = 0.d0
-            dpa = hydrate_auxvar%d%Hc_p*hydrate_auxvar%xmol(acid,lid)
-            dps = 0.d0
-            dpv = hydrate_auxvar%d%pv_p
-            ddenl = hydrate_auxvar%d%denl_pl
-            dUl = hydrate_auxvar%d%Ul_pl
-            dHl = hydrate_auxvar%d%Hl_pl
-            dmobilityl = hydrate_auxvar%d%mobilityl_pl
-          case(2) ! xmole air in liquid
-            dxmolwl = -1.d0
-            dxmolal = 1.d0
-          case(3) ! temperature
-            dpl = 0.d0 ! pl = pg - pc
-            dpg = 0.d0 ! pg = pg
-            dpa = hydrate_auxvar%d%Hc_T*hydrate_auxvar%xmol(acid,lid)
-            dps = hydrate_auxvar%d%psat_T
-            dHc = hydrate_auxvar%d%Hc_T
-            dsatl = 0.d0
-            dsatg = 0.d0
-            ddenl = hydrate_auxvar%d%denl_T
-            ddeng = hydrate_auxvar%d%deng_T
-            ddenlkg = ddenl*hydrate_fmw_comp(1)
-            ddengkg = hydrate_auxvar%d%dengkg_T
-            dUl = hydrate_auxvar%d%Ul_T
-            dHl = hydrate_auxvar%d%Hl_T
-
-            dpv = hydrate_auxvar%d%pv_T
-            dmobilityl = hydrate_auxvar%d%mobilityl_T
-            dxmolwl = hydrate_auxvar%d%xmol_T(wid,lid)
-            dxmolal = hydrate_auxvar%d%xmol_T(acid,lid)
-        end select
-      case(G_STATE)
-        select case(idof)
-          case(1)
-            dpg = 1.d0 ! pg = pg
-            dpv = hydrate_auxvar%d%pv_p
-            dps = 0.d0
-            dHc = hydrate_auxvar%d%Hc_p
-            ddeng = hydrate_auxvar%d%deng_pg
-            ddengkg = hydrate_auxvar%d%dengkg_pg
-            dUg = hydrate_auxvar%d%Ug_pg
-            dHg = hydrate_auxvar%d%Hg_pg
-
-            dHv = hydrate_auxvar%d%Hv_pg
-            dUv = hydrate_auxvar%d%Uv_pg
-            dHa = hydrate_auxvar%d%Ha_pg
-            dUa = hydrate_auxvar%d%Ua_pg
-
-            dmug = hydrate_auxvar%d%mug_pg
-            dmobilityg = hydrate_auxvar%d%mobilityg_pg
-            dxmolwg = hydrate_auxvar%d%xmol_p(wid,gid)
-            dxmolag = hydrate_auxvar%d%xmol_p(acid,gid)
-          case(2)
-            dpg = 0.d0
-            dpa = 1.d0
-            ddeng = hydrate_auxvar%d%deng_pa
-            dpv = hydrate_auxvar%d%pv_pa
-            dUg = hydrate_auxvar%d%Ug_pa
-            dHg = hydrate_auxvar%d%Hg_pa
-            dHv = hydrate_auxvar%d%Hv_pa
-            dUv = hydrate_auxvar%d%Uv_pa
-            dHa = hydrate_auxvar%d%Ha_pa
-            dUa = hydrate_auxvar%d%Ua_pa
-            ! for gas state, derivative wrt air pressure is under lid
-            dxmolwg = hydrate_auxvar%d%xmol_p(wid,lid)
-            dxmolag = hydrate_auxvar%d%xmol_p(acid,lid)
-            dmobilityg = hydrate_auxvar%d%mobilityg_pa
-          case(3)
-            dpg = 0.d0
-            dpa = 0.d0
-            dpv = 0.d0
-            dps = hydrate_auxvar%d%psat_T
-            dHc = hydrate_auxvar%d%Hc_T
-            ddeng = hydrate_auxvar%d%deng_T
-            ddengkg = hydrate_auxvar%d%dengkg_T
-            dUg = hydrate_auxvar%d%Ug_T
-            dHg = hydrate_auxvar%d%Hg_T
-
-            dHv = hydrate_auxvar%d%Hv_T
-            dUv = hydrate_auxvar%d%Uv_T
-            dHa = hydrate_auxvar%d%Ha_T
-            dUa = hydrate_auxvar%d%Ua_T
-            denv = hydrate_auxvar%d%denv_T
-            dena = hydrate_auxvar%d%dena_T
-
-            dmug = hydrate_auxvar%d%mug_T
-            dmobilityg = hydrate_auxvar%d%mobilityg_T
-            dxmolwg = hydrate_auxvar%d%xmol_T(wid,gid)
-            dxmolag = hydrate_auxvar%d%xmol_T(acid,gid)
-        end select
-      case(GA_STATE)
-        select case(idof)
-          case(1) ! gas pressure pg
-            dpl = 1.d0 ! pl = pg - pc
-            dpg = 1.d0 ! pg = pg
-            dpa = 1.d0 ! pa = pg - pv
-            dpv = 0.d0
-            dps = 0.d0
-            dsatl = 0.d0
-            dsatg = 0.d0
-            dHc = hydrate_auxvar%d%Hc_p
-            ddenl = hydrate_auxvar%d%denl_pl*dpl
-            ddeng = hydrate_auxvar%d%deng_pg
-            ddenlkg = ddenl*hydrate_fmw_comp(1)
-            ddengkg = hydrate_auxvar%d%dengkg_pg
-            dUl = hydrate_auxvar%d%Ul_pl
-            dHl = hydrate_auxvar%d%Hl_pl
-            dUg = hydrate_auxvar%d%Ug_pg
-            dHg = hydrate_auxvar%d%Hg_pg
-
-            denv = hydrate_auxvar%d%denv_pg
-            dena = hydrate_auxvar%d%dena_pg
-            dHv = hydrate_auxvar%d%Hv_pg
-            dUv = hydrate_auxvar%d%Uv_pg
-            dHa = hydrate_auxvar%d%Ha_pg
-            dUa = hydrate_auxvar%d%Ua_pg
-
-            dmug = hydrate_auxvar%d%mug_pg
-            dmobilityl = hydrate_auxvar%d%mobilityl_pl
-            dmobilityg = hydrate_auxvar%d%mobilityg_pg
-            dxmolwl = hydrate_auxvar%d%xmol_p(wid,lid)
-            dxmolal = hydrate_auxvar%d%xmol_p(acid,lid)
-            dxmolwg = hydrate_auxvar%d%xmol_p(wid,gid)
-            dxmolag = hydrate_auxvar%d%xmol_p(acid,gid)
-          case(2) ! gas saturation
-            dpl = -1.d0*hydrate_auxvar%d%pc_satg ! pl = pg - pc
-            dpg = 0.d0
-            dpa = 0.d0
-            dpc = hydrate_auxvar%d%pc_satg
-            dpv = 0.d0
-            dps = 0.d0
-            dsatl = -1.d0
-            dsatg = 1.d0
-            ddenl = 0.d0
-            dmobilityl = hydrate_auxvar%d%mobilityl_satg
-            dmobilityg = hydrate_auxvar%d%mobilityg_satg
-          case(3) ! temperature
-            dpl = 0.d0 ! pl = pg - pc
-            dpg = 0.d0 ! pg = pg
-            dpa = -1.d0*hydrate_auxvar%d%psat_T ! pa = pg - pv
-            dpv = hydrate_auxvar%d%psat_T
-            dps = hydrate_auxvar%d%psat_T
-            dHc = hydrate_auxvar%d%Hc_T
-            dsatl = 0.d0
-            dsatg = 0.d0
-            ddenl = hydrate_auxvar%d%denl_T
-            ddeng = hydrate_auxvar%d%deng_T
-            ddenlkg = ddenl*hydrate_fmw_comp(1)
-            ddengkg = hydrate_auxvar%d%dengkg_T
-            dUl = hydrate_auxvar%d%Ul_T
-            dHl = hydrate_auxvar%d%Hl_T
-            dUg = hydrate_auxvar%d%Ug_T
-            dHg = hydrate_auxvar%d%Hg_T
-
-            dHv = hydrate_auxvar%d%Hv_T
-            dUv = hydrate_auxvar%d%Uv_T
-            dHa = hydrate_auxvar%d%Ha_T
-            dUa = hydrate_auxvar%d%Ua_T
-            denv = hydrate_auxvar%d%denv_T
-            dena = hydrate_auxvar%d%dena_T
-
-            dmug = hydrate_auxvar%d%mug_T
-            dmobilityl = hydrate_auxvar%d%mobilityl_T
-            dmobilityg = hydrate_auxvar%d%mobilityg_T
-            dxmolwl = hydrate_auxvar%d%xmol_T(wid,lid)
-            dxmolal = hydrate_auxvar%d%xmol_T(acid,lid)
-            dxmolwg = hydrate_auxvar%d%xmol_T(wid,gid)
-            dxmolag = hydrate_auxvar%d%xmol_T(acid,gid)
-        end select
-      end select
-    endif
-
   print *, '--------------------------------------------------------'
   print *, 'Derivative with respect to ' // trim(string)
   select case(global_auxvar%istate)
@@ -2575,12 +3802,14 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
                  liquid_saturation_pert+ &
                  gas_density_pert*hydrate_auxvar_pert%xmol(lid,gid)* &
                  gas_saturation_pert)* &
-                 hydrate_auxvar_pert%effective_porosity*material_auxvar_pert%volume
+                 hydrate_auxvar_pert%effective_porosity*material_auxvar_pert% &
+                 volume
   gas_mass_pert = (liquid_density_pert*hydrate_auxvar_pert%xmol(gid,lid)* &
               liquid_saturation_pert+ &
               gas_density_pert*hydrate_auxvar_pert%xmol(gid,gid)* &
               gas_saturation_pert)* &
-              hydrate_auxvar_pert%effective_porosity*material_auxvar_pert%volume
+              hydrate_auxvar_pert%effective_porosity*material_auxvar_pert% &
+              volume
 
 
   call HydrateAuxVarPrintResult('tot liq comp mass [kmol]', &
@@ -2596,102 +3825,100 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
                                   gas_mass*gas_energy))/pert, &
                                 uninitialized_value,uninitialized_value,option)
   call HydrateAuxVarPrintResult('         liquid pressure', &
-                                (hydrate_auxvar_pert%pres(lid)-hydrate_auxvar%pres(lid))/pert, &
+                                (hydrate_auxvar_pert%pres(lid)- &
+                                hydrate_auxvar%pres(lid))/pert, &
                                 dpl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('            gas pressure', &
-                                (hydrate_auxvar_pert%pres(gid)-hydrate_auxvar%pres(gid))/pert, &
+                                (hydrate_auxvar_pert%pres(gid)- &
+                                hydrate_auxvar%pres(gid))/pert, &
                                 dpg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('            air pressure', &
-                                (hydrate_auxvar_pert%pres(apid)-hydrate_auxvar%pres(apid))/pert, &
+                                (hydrate_auxvar_pert%pres(apid)- &
+                                hydrate_auxvar%pres(apid))/pert, &
                                 dpa,uninitialized_value,option)
   call HydrateAuxVarPrintResult('      capillary pressure', &
-                                (hydrate_auxvar_pert%pres(cpid)-hydrate_auxvar%pres(cpid))/pert, &
+                                (hydrate_auxvar_pert%pres(cpid)- &
+                                hydrate_auxvar%pres(cpid))/pert, &
                                 dpc,uninitialized_value,option)
   call HydrateAuxVarPrintResult('          vapor pressure', &
-                                (hydrate_auxvar_pert%pres(vpid)-hydrate_auxvar%pres(vpid))/pert, &
+                                (hydrate_auxvar_pert%pres(vpid)- &
+                                hydrate_auxvar%pres(vpid))/pert, &
                                 dpv,uninitialized_value,option)
-  call HydrateAuxVarPrintResult("        Henry's constant", &
-                                (hydrate_auxvar_pert%d%Hc-hydrate_auxvar%d%Hc)/pert, &
-                                dHc,uninitialized_value,option)
   call HydrateAuxVarPrintResult('     saturation pressure', &
-                                (hydrate_auxvar_pert%pres(spid)-hydrate_auxvar%pres(spid))/pert, &
+                                (hydrate_auxvar_pert%pres(spid)- &
+                                hydrate_auxvar%pres(spid))/pert, &
                                 dps,uninitialized_value,option)
   call HydrateAuxVarPrintResult('       liquid saturation', &
-                                (hydrate_auxvar_pert%sat(lid)-hydrate_auxvar%sat(lid))/pert, &
+                                (hydrate_auxvar_pert%sat(lid)- &
+                                hydrate_auxvar%sat(lid))/pert, &
                                 dsatl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('          gas saturation', &
-                                (hydrate_auxvar_pert%sat(gid)-hydrate_auxvar%sat(gid))/pert, &
+                                (hydrate_auxvar_pert%sat(gid)- &
+                                hydrate_auxvar%sat(gid))/pert, &
                                 dsatg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('   liquid density [kmol]', &
-                                (hydrate_auxvar_pert%den(lid)-hydrate_auxvar%den(lid))/pert, &
+                                (hydrate_auxvar_pert%den(lid)- &
+                                hydrate_auxvar%den(lid))/pert, &
                                 ddenl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('      gas density [kmol]', &
-                                (hydrate_auxvar_pert%den(gid)-hydrate_auxvar%den(gid))/pert, &
+                                (hydrate_auxvar_pert%den(gid)- &
+                                hydrate_auxvar%den(gid))/pert, &
                                 ddeng,uninitialized_value,option)
   call HydrateAuxVarPrintResult('     liquid density [kg]', &
-                                (hydrate_auxvar_pert%den_kg(lid)-hydrate_auxvar%den_kg(lid))/pert, &
+                                (hydrate_auxvar_pert%den_kg(lid)- &
+                                hydrate_auxvar%den_kg(lid))/pert, &
                                 ddenlkg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('        gas density [kg]', &
-                                (hydrate_auxvar_pert%den_kg(gid)-hydrate_auxvar%den_kg(gid))/pert, &
+                                (hydrate_auxvar_pert%den_kg(gid)- &
+                                hydrate_auxvar%den_kg(gid))/pert, &
                                 ddengkg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('         temperature [C]', &
-                                (hydrate_auxvar_pert%temp-hydrate_auxvar%temp)/pert, &
+                                (hydrate_auxvar_pert%temp- &
+                                hydrate_auxvar%temp)/pert, &
                                 uninitialized_value,uninitialized_value,option)
   call HydrateAuxVarPrintResult('      liquid H [MJ/kmol]', &
-                                (hydrate_auxvar_pert%H(lid)-hydrate_auxvar%H(lid))/pert, &
+                                (hydrate_auxvar_pert%H(lid)- &
+                                hydrate_auxvar%H(lid))/pert, &
                                 dHl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('         gas H [MJ/kmol]', &
-                                (hydrate_auxvar_pert%H(gid)-hydrate_auxvar%H(gid))/pert, &
+                                (hydrate_auxvar_pert%H(gid)- &
+                                hydrate_auxvar%H(gid))/pert, &
                                 dHg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('      liquid U [MJ/kmol]', &
-                                (hydrate_auxvar_pert%U(lid)-hydrate_auxvar%U(lid))/pert, &
+                                (hydrate_auxvar_pert%U(lid)- &
+                                hydrate_auxvar%U(lid))/pert, &
                                 dUl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('         gas U [MJ/kmol]', &
-                                (hydrate_auxvar_pert%U(gid)-hydrate_auxvar%U(gid))/pert, &
+                                (hydrate_auxvar_pert%U(gid)- &
+                                hydrate_auxvar%U(gid))/pert, &
                                 dUg,uninitialized_value,option)
-  !------------------------------
-  call HydrateAuxVarPrintResult('       vapor H [MJ/kmol]', &
-                                (hydrate_auxvar_pert%d%Hv-hydrate_auxvar%d%Hv)/pert, &
-                                dHv,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('         air H [MJ/kmol]', &
-                                (hydrate_auxvar_pert%d%Ha-hydrate_auxvar%d%Ha)/pert, &
-                                dHa,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('       vapor U [MJ/kmol]', &
-                                (hydrate_auxvar_pert%d%Uv-hydrate_auxvar%d%Uv)/pert, &
-                                dUv,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('         air U [MJ/kmol]', &
-                                (hydrate_auxvar_pert%d%Ua-hydrate_auxvar%d%Ua)/pert, &
-                                dUa,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('    vapor density [kmol]', &
-                                (hydrate_auxvar_pert%d%denv-hydrate_auxvar%d%denv)/pert, &
-                                denv,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('      air density [kmol]', &
-                                (hydrate_auxvar_pert%d%dena-hydrate_auxvar%d%dena)/pert, &
-                                dena,uninitialized_value,option)
-  !------------------------------
   call HydrateAuxVarPrintResult('     X (water in liquid)', &
-                                (hydrate_auxvar_pert%xmol(wid,lid)-hydrate_auxvar%xmol(wid,lid))/pert, &
+                                (hydrate_auxvar_pert%xmol(wid,lid)- &
+                                hydrate_auxvar%xmol(wid,lid))/pert, &
                                 dxmolwl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('       X (air in liquid)', &
-                                (hydrate_auxvar_pert%xmol(acid,lid)-hydrate_auxvar%xmol(acid,lid))/pert, &
+                                (hydrate_auxvar_pert%xmol(acid,lid)- &
+                                hydrate_auxvar%xmol(acid,lid))/pert, &
                                 dxmolal,uninitialized_value,option)
   call HydrateAuxVarPrintResult('        X (water in gas)', &
-                                (hydrate_auxvar_pert%xmol(wid,gid)-hydrate_auxvar%xmol(wid,gid))/pert, &
+                                (hydrate_auxvar_pert%xmol(wid,gid)- &
+                                hydrate_auxvar%xmol(wid,gid))/pert, &
                                 dxmolwg,uninitialized_value,option)
   call HydrateAuxVarPrintResult('          X (air in gas)', &
-                                (hydrate_auxvar_pert%xmol(acid,gid)-hydrate_auxvar%xmol(acid,gid))/pert, &
+                                (hydrate_auxvar_pert%xmol(acid,gid)- &
+                                hydrate_auxvar%xmol(acid,gid))/pert, &
                                 dxmolag,uninitialized_value,option)
   call HydrateAuxVarPrintResult('         liquid mobility', &
-                                (hydrate_auxvar_pert%mobility(lid)-hydrate_auxvar%mobility(lid))/pert, &
+                                (hydrate_auxvar_pert%mobility(lid)- &
+                                hydrate_auxvar%mobility(lid))/pert, &
                                 dmobilityl,uninitialized_value,option)
   call HydrateAuxVarPrintResult('            gas mobility', &
-                                (hydrate_auxvar_pert%mobility(gid)-hydrate_auxvar%mobility(gid))/pert, &
+                                (hydrate_auxvar_pert%mobility(gid)- &
+                                hydrate_auxvar%mobility(gid))/pert, &
                                 dmobilityg,uninitialized_value,option)
-  call HydrateAuxVarPrintResult('           gas viscosity', &
-                                (hydrate_auxvar_pert%d%mug-hydrate_auxvar%d%mug)/pert, &
-                                dmug,uninitialized_value,option)
   call HydrateAuxVarPrintResult('      effective porosity', &
-                                (hydrate_auxvar_pert%effective_porosity-hydrate_auxvar%effective_porosity)/pert, &
+                                (hydrate_auxvar_pert%effective_porosity- &
+                                hydrate_auxvar%effective_porosity)/pert, &
                                 uninitialized_value,uninitialized_value,option)
 #if 0
 100 format(a,2(es13.5),es16.8)
@@ -2701,40 +3928,78 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
                                            gas_mass_pert*gas_energy_pert)- &
                                           (liquid_mass*liquid_energy + &
                                            gas_mass*gas_energy))/pert
-  write(*,100) '         liquid pressure: ', (hydrate_auxvar_pert%pres(lid)-hydrate_auxvar%pres(lid))/pert,dpl
-  write(*,100) '            gas pressure: ', (hydrate_auxvar_pert%pres(gid)-hydrate_auxvar%pres(gid))/pert,dpg
-  write(*,100) '            air pressure: ', (hydrate_auxvar_pert%pres(apid)-hydrate_auxvar%pres(apid))/pert,dpa !,hydrate_auxvar_pert%pres(apid)-hydrate_auxvar%pres(apid)
-  write(*,100) '      capillary pressure: ', (hydrate_auxvar_pert%pres(cpid)-hydrate_auxvar%pres(cpid))/pert,dpc
-  write(*,100) '          vapor pressure: ', (hydrate_auxvar_pert%pres(vpid)-hydrate_auxvar%pres(vpid))/pert,dpv !,hydrate_auxvar_pert%pres(vpid)-hydrate_auxvar%pres(vpid)
-  write(*,100) "        Henry's constant: ", (hydrate_auxvar_pert%d%Hc-hydrate_auxvar%d%Hc)/pert,dHc
-  write(*,100) '     saturation pressure: ', (hydrate_auxvar_pert%pres(spid)-hydrate_auxvar%pres(spid))/pert,dps
-  write(*,100) '       liquid saturation: ', (hydrate_auxvar_pert%sat(lid)-hydrate_auxvar%sat(lid))/pert,dsatl
-  write(*,100) '          gas saturation: ', (hydrate_auxvar_pert%sat(gid)-hydrate_auxvar%sat(gid))/pert,dsatg
-  write(*,100) '   liquid density [kmol]: ', (hydrate_auxvar_pert%den(lid)-hydrate_auxvar%den(lid))/pert,ddenl
-  write(*,100) '      gas density [kmol]: ', (hydrate_auxvar_pert%den(gid)-hydrate_auxvar%den(gid))/pert,ddeng
-  write(*,100) '     liquid density [kg]: ', (hydrate_auxvar_pert%den_kg(lid)-hydrate_auxvar%den_kg(lid))/pert,ddenl*hydrate_fmw_comp(1)
-  write(*,100) '        gas density [kg]: ', (hydrate_auxvar_pert%den_kg(gid)-hydrate_auxvar%den_kg(gid))/pert,ddengkg
-  write(*,100) '         temperature [C]: ', (hydrate_auxvar_pert%temp-hydrate_auxvar%temp)/pert
-  write(*,100) '      liquid H [MJ/kmol]: ', (hydrate_auxvar_pert%H(lid)-hydrate_auxvar%H(lid))/pert,dHl
-  write(*,100) '         gas H [MJ/kmol]: ', (hydrate_auxvar_pert%H(gid)-hydrate_auxvar%H(gid))/pert,dHg
-  write(*,100) '      liquid U [MJ/kmol]: ', (hydrate_auxvar_pert%U(lid)-hydrate_auxvar%U(lid))/pert,dUl
-  write(*,100) '         gas U [MJ/kmol]: ', (hydrate_auxvar_pert%U(gid)-hydrate_auxvar%U(gid))/pert,dUg
-
-  write(*,100) '       vapor H [MJ/kmol]: ', (hydrate_auxvar_pert%d%Hv-hydrate_auxvar%d%Hv)/pert,dHv
-  write(*,100) '         air H [MJ/kmol]: ', (hydrate_auxvar_pert%d%Ha-hydrate_auxvar%d%Ha)/pert,dHa
-  write(*,100) '       vapor U [MJ/kmol]: ', (hydrate_auxvar_pert%d%Uv-hydrate_auxvar%d%Uv)/pert,dUv
-
-  write(*,100) '         air U [MJ/kmol]: ', (hydrate_auxvar_pert%d%Ua-hydrate_auxvar%d%Ua)/pert,dUa
-  write(*,100) '    vapor density [kmol]: ', (hydrate_auxvar_pert%d%denv-hydrate_auxvar%d%denv)/pert,denv
-  write(*,100) '      air density [kmol]: ', (hydrate_auxvar_pert%d%dena-hydrate_auxvar%d%dena)/pert,dena
-
-  write(*,100) '     X (water in liquid): ', (hydrate_auxvar_pert%xmol(wid,lid)-hydrate_auxvar%xmol(wid,lid))/pert,dxmolwl
-  write(*,100) '       X (air in liquid): ', (hydrate_auxvar_pert%xmol(acid,lid)-hydrate_auxvar%xmol(acid,lid))/pert,dxmolal
-  write(*,100) '        X (water in gas): ', (hydrate_auxvar_pert%xmol(wid,gid)-hydrate_auxvar%xmol(wid,gid))/pert,dxmolwg
-  write(*,100) '          X (air in gas): ', (hydrate_auxvar_pert%xmol(acid,gid)-hydrate_auxvar%xmol(acid,gid))/pert,dxmolag
-  write(*,100) '         liquid mobility: ', (hydrate_auxvar_pert%mobility(lid)-hydrate_auxvar%mobility(lid))/pert,dmobilityl
-  write(*,100) '            gas mobility: ', (hydrate_auxvar_pert%mobility(gid)-hydrate_auxvar%mobility(gid))/pert,dmobilityg
-  write(*,100) '      effective porosity: ', (hydrate_auxvar_pert%effective_porosity-hydrate_auxvar%effective_porosity)/pert
+  write(*,100) '         liquid pressure: ', (hydrate_auxvar_pert%pres(lid)- &
+                                             hydrate_auxvar%pres(lid))/pert,dpl
+  write(*,100) '            gas pressure: ', (hydrate_auxvar_pert%pres(gid)- &
+                                             hydrate_auxvar%pres(gid))/pert,dpg
+  write(*,100) '            air pressure: ', (hydrate_auxvar_pert%pres(apid)- &
+                                             hydrate_auxvar%pres(apid))/pert, &
+                                             dpa !,hydrate_auxvar_pert%pres(apid)-hydrate_auxvar%pres(apid)
+  write(*,100) '      capillary pressure: ', (hydrate_auxvar_pert%pres(cpid)- &
+                                             hydrate_auxvar%pres(cpid))/pert, &
+                                             dpc
+  write(*,100) '          vapor pressure: ', (hydrate_auxvar_pert%pres(vpid)- &
+                                             hydrate_auxvar%pres(vpid))/pert, &
+                                             dpv !,hydrate_auxvar_pert%pres(vpid)-hydrate_auxvar%pres(vpid)
+  write(*,100) '     saturation pressure: ', (hydrate_auxvar_pert%pres(spid)- &
+                                             hydrate_auxvar%pres(spid))/pert, &
+                                             dps
+  write(*,100) '       liquid saturation: ', (hydrate_auxvar_pert%sat(lid)- &
+                                             hydrate_auxvar%sat(lid))/pert, &
+                                             dsatl
+  write(*,100) '          gas saturation: ', (hydrate_auxvar_pert%sat(gid)- &
+                                             hydrate_auxvar%sat(gid))/pert, &
+                                             dsatg
+  write(*,100) '   liquid density [kmol]: ', (hydrate_auxvar_pert%den(lid)- &
+                                             hydrate_auxvar%den(lid))/pert, &
+                                             ddenl
+  write(*,100) '      gas density [kmol]: ', (hydrate_auxvar_pert%den(gid)- &
+                                             hydrate_auxvar%den(gid))/pert, &
+                                             ddeng
+  write(*,100) '     liquid density [kg]: ', (hydrate_auxvar_pert%den_kg(lid)-&
+                                             hydrate_auxvar%den_kg(lid))/ &
+                                             pert,ddenl*hydrate_fmw_comp(1)
+  write(*,100) '        gas density [kg]: ', (hydrate_auxvar_pert%den_kg(gid)-&
+                                             hydrate_auxvar%den_kg(gid))/ &
+                                             pert,ddengkg
+  write(*,100) '         temperature [C]: ', (hydrate_auxvar_pert%temp- &
+                                             hydrate_auxvar%temp)/pert
+  write(*,100) '      liquid H [MJ/kmol]: ', (hydrate_auxvar_pert%H(lid)- &
+                                             hydrate_auxvar%H(lid))/pert,dHl
+  write(*,100) '         gas H [MJ/kmol]: ', (hydrate_auxvar_pert%H(gid)- &
+                                             hydrate_auxvar%H(gid))/pert,dHg
+  write(*,100) '      liquid U [MJ/kmol]: ', (hydrate_auxvar_pert%U(lid)- &
+                                             hydrate_auxvar%U(lid))/pert,dUl
+  write(*,100) '         gas U [MJ/kmol]: ', (hydrate_auxvar_pert%U(gid)- &
+                                             hydrate_auxvar%U(gid))/pert,dUg
+  write(*,100) '     X (water in liquid): ', (hydrate_auxvar_pert% &
+                                             xmol(wid,lid)- &
+                                             hydrate_auxvar%xmol(wid,lid))/ &
+                                             pert,dxmolwl
+  write(*,100) '       X (air in liquid): ', (hydrate_auxvar_pert% &
+                                             xmol(acid,lid)- &
+                                             hydrate_auxvar%xmol(acid,lid))/ &
+                                             pert,dxmolal
+  write(*,100) '        X (water in gas): ', (hydrate_auxvar_pert% &
+                                             xmol(wid,gid)- &
+                                             hydrate_auxvar%xmol(wid,gid))/ &
+                                             pert,dxmolwg
+  write(*,100) '          X (air in gas): ', (hydrate_auxvar_pert% &
+                                             xmol(acid,gid)- &
+                                             hydrate_auxvar%xmol(acid,gid))/ &
+                                             pert,dxmolag
+  write(*,100) '         liquid mobility: ', (hydrate_auxvar_pert% &
+                                             mobility(lid)- &
+                                             hydrate_auxvar%mobility(lid))/ &
+                                             pert,dmobilityl
+  write(*,100) '            gas mobility: ', (hydrate_auxvar_pert% &
+                                             mobility(gid)- &
+                                             hydrate_auxvar%mobility(gid))/ &
+                                             pert,dmobilityg
+  write(*,100) '      effective porosity: ', (hydrate_auxvar_pert% &
+                                             effective_porosity- &
+                                             hydrate_auxvar% &
+                                             effective_porosity)/pert
 #endif
   write(*,*) '--------------------------------------------------------'
 

@@ -161,7 +161,7 @@ function RTAuxCreate(naqcomp,nphase)
   allocate(aux%rt_parameter%diffusion_coefficient(naqcomp,nphase))
   allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
-  aux%rt_parameter%diffusion_activation_energy = 0.d0
+  aux%rt_parameter%diffusion_activation_energy = UNINITIALIZED_DOUBLE
   nullify(aux%rt_parameter%pri_spec_diff_coef)
   nullify(aux%rt_parameter%sec_spec_diff_coef)
   aux%rt_parameter%ncomp = 0

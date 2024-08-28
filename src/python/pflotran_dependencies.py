@@ -44,8 +44,8 @@ source_file_roots.append('pflotran_derivative')
 source_file_roots.sort()
 #print(source_file_roots)
 f = open('pflotran_source_files.txt','w')
-f.write('Filename                                source  blank   comment\n')
-f.write('-------------------------------------------------------------------\n')
+f.write('Filename                                          source   blank comment\n')
+f.write('------------------------------------------------------------------------\n')
 file_count = 0 
 line_count = 0
 blank_line_count = 0
@@ -68,11 +68,11 @@ for root in source_file_roots:
     else:
       line_count += 1
       line_count_in_file += 1
-  for i in range(40-len(filename)):
+  for i in range(50-len(filename)):
     f.write(' ')
-  f.write('%d\t%d\t%d\n' % (line_count_in_file,blank_line_count_in_file,
+  f.write('%6d  %6d  %6d\n' % (line_count_in_file,blank_line_count_in_file,
                             comment_line_count_in_file))
-f.write('-------------------------------------------------------------------\n')
+f.write('------------------------------------------------------------------------\n')
 f.write('Number of files: %d\n' % file_count)
 f.write('Total Line count: %d\n' % 
         (line_count+comment_line_count+blank_line_count))
@@ -133,7 +133,7 @@ for root in source_file_roots:
         if not module.startswith(module_skip_list):
           print('ERROR: Module "%s" not found in dictionary.\n' % module)
           print(root, module)
-          sys.exit()
+          sys.exit(1)
 #      print(key)
       file_list.append(key)
     # remove duplicates first as it will destroy an sorting

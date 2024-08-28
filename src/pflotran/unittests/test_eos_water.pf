@@ -140,7 +140,6 @@ contains
     class (Test_EOS_Water), intent(inout) :: this
 
     PetscErrorCode :: ierr
-    character(len=MAXSTRINGLENGTH) :: error_string
 
     PetscReal, parameter :: temperature = 20.0d0
     PetscReal, parameter :: pressure = 101325.0d0
@@ -188,7 +187,7 @@ contains
     PetscReal :: pressure
     PetscReal :: saturation_pressure
     PetscReal :: dsaturation_pressure
-    PetscReal :: dw, dwmol, dwp, dwt, vw, dvw_dt, dvw_dp, dvw_dps
+    PetscReal :: dw, dwmol, dwp, dwt, vw
     PetscReal :: value
 
     call EOSWaterInit()
@@ -245,7 +244,7 @@ contains
     PetscReal :: saturation_pressure
     PetscReal :: dsaturation_pressure
     PetscReal :: aux(1)
-    PetscReal :: dw, dwmol, dwp, dwt, vw, dvw_dt, dvw_dp, dvw_dps
+    PetscReal :: dw, dwmol, dwp, dwt, vw
     PetscReal :: value
 
     call EOSWaterInit()
@@ -294,7 +293,6 @@ contains
     class (Test_EOS_Water), intent(inout) :: this
 
     PetscErrorCode :: ierr
-    character(len=MAXSTRINGLENGTH) :: error_string
 
     PetscReal :: temperature
     PetscReal :: saturation_pressure

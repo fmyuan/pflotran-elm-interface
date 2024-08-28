@@ -116,8 +116,10 @@ module Grid_module
             GridMapCellsInPolVol, &
             GridRestrictRegionalConnect, &
             GridPrintExtents, &
+            GridPrintSize, &
             GridSetupCellNeighbors, &
-            GridMapCellsToConnections
+            GridMapCellsToConnections, &
+            GridExpandGhostCells
 
 contains
 
@@ -401,7 +403,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   use petscdm
 
   use Option_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 
@@ -2384,50 +2386,204 @@ subroutine GridPrintExtents(grid,option)
   ! Prints the extents of the gridded domain.
   !
   ! Author: Glenn Hammond
-  ! Date: 02/20/18
-  !
+  ! Date: 02/29/24
+
   use Option_module
+  use String_module
 
   implicit none
 
   type(grid_type) :: grid
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word1, word2
-
-  write(word1,*) grid%x_min_global
-  write(word2,*) grid%x_max_global
-  write(string,*) 'X: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 'Extent of Gridded Domain'
-    write(*,*) trim(string)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) 'Extent of Gridded Domain'
-    write(option%fid_out,*) trim(string)
-  endif
-  write(word1,*) grid%y_min_global
-  write(word2,*) grid%y_max_global
-  write(string,*) 'Y: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) trim(string)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) trim(string)
-  endif
-  write(word1,*) grid%z_min_global
-  write(word2,*) grid%z_max_global
-  write(string,*) 'Z: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
-  if (OptionPrintToScreen(option)) then
-    write(*,*) trim(string)
-    write(*,*)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) trim(string)
-    write(option%fid_out,*)
-  endif
+  call PrintMsg(option,NL//'Extent of Gridded Domain')
+  option%io_buffer = ' X: ' // StringWrite(grid%x_min_global) // ' - ' // &
+                               StringWrite(grid%x_max_global)
+  call PrintMsg(option)
+  option%io_buffer = ' Y: ' // StringWrite(grid%y_min_global) // ' - ' // &
+                               StringWrite(grid%y_max_global)
+  call PrintMsg(option)
+  option%io_buffer = ' Z: ' // StringWrite(grid%z_min_global) // ' - ' // &
+                               StringWrite(grid%z_max_global)
+  call PrintMsg(option)
 
 end subroutine GridPrintExtents
+
+! ************************************************************************** !
+
+subroutine GridPrintSize(grid,option)
+  !
+  ! Prints the size of the gridded domain.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/29/24
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  PetscInt :: int_array(2)
+  PetscErrorCode :: ierr
+
+  call PrintMsg(option,NL//'Size of Gridded Domain')
+  option%io_buffer = ' Number of grid cells: ' // StringWrite(grid%nmax)
+  call PrintMsg(option)
+  if (option%comm%size > 1) then
+    int_array(1) = grid%nlmax
+    int_array(2) = -grid%nlmax
+    call MPI_Allreduce(MPI_IN_PLACE,int_array,TWO_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    option%io_buffer = ' Maximum number of grid cells per process: ' // &
+                       StringWrite(int_array(1))
+    call PrintMsg(option)
+    option%io_buffer = ' Minimum number of grid cells per process: ' // &
+                       StringWrite(-int_array(2))
+    call PrintMsg(option)
+  endif
+
+end subroutine GridPrintSize
+
+! ************************************************************************** !
+
+subroutine GridExpandGhostCells(grid,option)
+  !
+  ! Expands arrays assocated with ghost cells due to a change in ghosting
+  ! as prescribed by scatter_gtol
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/03/24
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  VecScatter :: scatter_gtol ! global (non-ghosted) to local (ghosted
+  Vec :: global_vec
+  Vec :: local_vec
+  IS :: is_local
+  IS :: is_petsc
+  PetscInt :: icell, local_id, ghosted_id
+  PetscInt :: i
+  PetscInt :: num_ghost_cells
+  PetscInt, allocatable :: int_array(:)
+  PetscInt, allocatable :: int_array2(:)
+  PetscInt, pointer :: int_array_ptr(:)
+
+  PetscErrorCode :: ierr
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      grid%nmax = grid%structured_grid%nmax
+      grid%nlmax = grid%structured_grid%nlmax
+      grid%ngmax = grid%structured_grid%ngmax
+      grid%global_offset = grid%structured_grid%global_offset
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
+         POLYHEDRA_UNSTRUCTURED_GRID)
+      grid%nmax = grid%unstructured_grid%nmax
+      grid%nlmax = grid%unstructured_grid%nlmax
+      grid%ngmax = grid%unstructured_grid%ngmax
+      grid%global_offset = grid%unstructured_grid%global_offset
+  end select
+  num_ghost_cells = grid%ngmax - grid%nlmax
+
+  call VecCreateMPI(option%mycomm,grid%nlmax,PETSC_DETERMINE,global_vec, &
+                    ierr);CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF,grid%ngmax,local_vec,ierr);CHKERRQ(ierr)
+  allocate(int_array(grid%ngmax))
+  int_array = [(i,i=1,grid%ngmax)]
+  allocate(int_array2(grid%ngmax))
+  int_array2 = UNINITIALIZED_INTEGER
+  do local_id = 1, grid%nlmax
+    int_array2(local_id) = grid%global_offset+local_id
+  enddo
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+    case default
+      do icell = 1, num_ghost_cells
+        ghosted_id = icell + grid%nlmax
+        int_array2(ghosted_id) = &
+          grid%unstructured_grid%ghost_cell_ids_petsc(icell)
+      enddo
+  end select
+  int_array = int_array - 1
+  int_array2 = int_array2 - 1
+  call ISCreateGeneral(option%mycomm,grid%ngmax,int_array, &
+                       PETSC_COPY_VALUES,is_local,ierr);CHKERRQ(ierr)
+  call ISCreateGeneral(option%mycomm,grid%ngmax,int_array2, &
+                       PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+  deallocate(int_array)
+  deallocate(int_array2)
+
+!#define UGRID_DEBUG
+#if UGRID_DEBUG
+  if (option%myrank == 0) print *, 'is_local'
+  call ISView(is_local,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+  if (option%myrank == 0) print *, 'is_petsc'
+  call ISView(is_petsc,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+#endif
+
+  call VecScatterCreate(global_vec,is_petsc,local_vec,is_local, &
+                        scatter_gtol,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_local,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_petsc,ierr);CHKERRQ(ierr)
+
+#if UGRID_DEBUG
+  if (option%myrank == 0) print *, 'scatter_gtol'
+  call VecScatterView(scatter_gtol,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+#endif
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
+      ! calculate natural ids for modified arrays
+      allocate(int_array_ptr(grid%ngmax))
+      do local_id = 1, grid%nlmax
+        int_array_ptr(local_id) = grid%global_offset+local_id
+      enddo
+      do icell = 1, num_ghost_cells
+        ghosted_id = icell + grid%nlmax
+        int_array_ptr(ghosted_id) = &
+          grid%unstructured_grid%ghost_cell_ids_petsc(icell)
+      enddo
+      int_array_ptr = int_array_ptr-1
+      call AOPetscToApplication(grid%unstructured_grid%ao_natural_to_petsc, &
+                                grid%ngmax,int_array_ptr,ierr);CHKERRQ(ierr)
+      int_array_ptr = int_array_ptr+1
+      ! ensure that natural ids of original ghost cells are not altered
+      do i = 1, size(grid%unstructured_grid%cell_ids_natural)
+        if (int_array_ptr(i) /= &
+            grid%unstructured_grid%cell_ids_natural(i)) then
+          option%io_buffer = 'Mismatch in cell id natural numbering due to &
+            &introduction of well cells (GridExpandGhostCells)'
+          call PrintErrMsgByRank(option)
+        endif
+      enddo
+      call DeallocateArray(grid%unstructured_grid%cell_ids_natural)
+      grid%unstructured_grid%cell_ids_natural => int_array_ptr
+      call UGridExpandGhostCells(grid%unstructured_grid,scatter_gtol, &
+                                 global_vec,local_vec,option)
+    case(EXPLICIT_UNSTRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+    case(POLYHEDRA_UNSTRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+  end select
+
+  call VecDestroy(global_vec,ierr)
+  call VecDestroy(local_vec,ierr)
+  call VecScatterDestroy(scatter_gtol,ierr);CHKERRQ(ierr)
+
+end subroutine GridExpandGhostCells
 
 end module Grid_module

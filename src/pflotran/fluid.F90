@@ -59,7 +59,7 @@ function FluidPropertyCreate()
   fluid_property%gas_diffusion_coefficient = 2.13D-5
   fluid_property%salt_diffusion_coefficient = 1.d-9
   ! for liquid, one can use 12.6 kJ/mol as an activation energy
-  fluid_property%diffusion_activation_energy = 0.d0
+  fluid_property%diffusion_activation_energy = UNINITIALIZED_DOUBLE
   fluid_property%nacl_concentration = 0.d0
   nullify(fluid_property%next)
   FluidPropertyCreate => fluid_property

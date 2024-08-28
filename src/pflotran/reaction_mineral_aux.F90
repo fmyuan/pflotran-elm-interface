@@ -137,32 +137,32 @@ module Reaction_Mineral_Aux_module
 
   end type mineral_type
 
-  interface GetMineralIDFromName
-    module procedure GetMineralIDFromName1
-    module procedure GetMineralIDFromName2
+  interface ReactionMnrlGetMnrlIDFromName
+    module procedure ReactionMnrlGetMnrlIDFromName1
+    module procedure ReactionMnrlGetMnrlIDFromName2
   end interface
 
-  public :: MineralCreate, &
-            GetMineralCount, &
-            GetMineralNames, &
-            GetMineralIDFromName, &
-            GetKineticMineralIDFromName, &
-            GetMineralFromName, &
-            TransitionStateTheoryRxnCreate, &
-            TransitionStatePrefactorCreate, &
-            TSPrefactorSpeciesCreate, &
-            TransitionStateTheoryRxnDestroy, &
-            MineralRxnCreate, &
-            MineralRxnDestroy, &
-            MineralConstraintCreate, &
-            MineralConstraintDestroy, &
-            MineralDestroy
+  public :: ReactionMnrlCreateAux, &
+            ReactionMnrlGetMineralCount, &
+            ReactionMnrlGetMineralNames, &
+            ReactionMnrlGetMnrlIDFromName, &
+            ReactionMnrlGetKinMnrlIDFromName, &
+            ReactionMnrlGetMnrlPtrFromName, &
+            ReactionMnrlCreateTSTRxn, &
+            ReactionMnrlCreateTSTPrefactor, &
+            ReactionMnrlCreateTSTPrefSpec, &
+            ReactionMnrlDestroyTSTRxn, &
+            ReactionMnrlCreateMineralRxn, &
+            ReactionMnrlDestroyMineralRxn, &
+            ReactionMnrlCreateMnrlConstraint, &
+            ReactionMnrlDestMnrlConstraint, &
+            ReactionMnrlDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function MineralCreate()
+function ReactionMnrlCreateAux()
   !
   ! Allocate and initialize mineral reaction object
   !
@@ -171,7 +171,7 @@ function MineralCreate()
   !
   implicit none
 
-  type(mineral_type), pointer :: MineralCreate
+  type(mineral_type), pointer :: ReactionMnrlCreateAux
 
   type(mineral_type), pointer :: mineral
 
@@ -234,13 +234,13 @@ function MineralCreate()
   nullify(mineral%kinmnrl_surf_area_epsilon)
   nullify(mineral%kinmnrl_vol_frac_epsilon)
 
-  MineralCreate => mineral
+  ReactionMnrlCreateAux => mineral
 
-end function MineralCreate
+end function ReactionMnrlCreateAux
 
 ! ************************************************************************** !
 
-function MineralRxnCreate()
+function ReactionMnrlCreateMineralRxn()
   !
   ! Allocate and initialize a mineral object
   !
@@ -249,7 +249,7 @@ function MineralRxnCreate()
   !
   implicit none
 
-  type(mineral_rxn_type), pointer :: MineralRxnCreate
+  type(mineral_rxn_type), pointer :: ReactionMnrlCreateMineralRxn
 
   type(mineral_rxn_type), pointer :: mineral
 
@@ -263,13 +263,13 @@ function MineralRxnCreate()
   nullify(mineral%tstrxn)
   nullify(mineral%next)
 
-  MineralRxnCreate => mineral
+  ReactionMnrlCreateMineralRxn => mineral
 
-end function MineralRxnCreate
+end function ReactionMnrlCreateMineralRxn
 
 ! ************************************************************************** !
 
-function TransitionStateTheoryRxnCreate()
+function ReactionMnrlCreateTSTRxn()
   !
   ! Allocate and initialize a transition state
   ! theory reaction
@@ -280,7 +280,7 @@ function TransitionStateTheoryRxnCreate()
 
   implicit none
 
-  type(transition_state_rxn_type), pointer :: TransitionStateTheoryRxnCreate
+  type(transition_state_rxn_type), pointer :: ReactionMnrlCreateTSTRxn
 
   type(transition_state_rxn_type), pointer :: tstrxn
 
@@ -303,13 +303,13 @@ function TransitionStateTheoryRxnCreate()
   nullify(tstrxn%prefactor)
   nullify(tstrxn%next)
 
-  TransitionStateTheoryRxnCreate => tstrxn
+  ReactionMnrlCreateTSTRxn => tstrxn
 
-end function TransitionStateTheoryRxnCreate
+end function ReactionMnrlCreateTSTRxn
 
 ! ************************************************************************** !
 
-function TransitionStatePrefactorCreate()
+function ReactionMnrlCreateTSTPrefactor()
   !
   ! Allocate and initialize a transition state
   ! theory prefactor
@@ -320,7 +320,8 @@ function TransitionStatePrefactorCreate()
 
   implicit none
 
-  type(transition_state_prefactor_type), pointer :: TransitionStatePrefactorCreate
+  type(transition_state_prefactor_type), pointer :: &
+    ReactionMnrlCreateTSTPrefactor
 
   type(transition_state_prefactor_type), pointer :: prefactor
 
@@ -330,13 +331,13 @@ function TransitionStatePrefactorCreate()
   nullify(prefactor%species)
   nullify(prefactor%next)
 
-  TransitionStatePrefactorCreate => prefactor
+  ReactionMnrlCreateTSTPrefactor => prefactor
 
-end function TransitionStatePrefactorCreate
+end function ReactionMnrlCreateTSTPrefactor
 
 ! ************************************************************************** !
 
-function TSPrefactorSpeciesCreate()
+function ReactionMnrlCreateTSTPrefSpec()
   !
   ! Allocate and initialize a transition state
   ! theory prefactor species
@@ -347,7 +348,7 @@ function TSPrefactorSpeciesCreate()
 
   implicit none
 
-  type(ts_prefactor_species_type), pointer :: TSPrefactorSpeciesCreate
+  type(ts_prefactor_species_type), pointer :: ReactionMnrlCreateTSTPrefSpec
 
   type(ts_prefactor_species_type), pointer :: species
 
@@ -359,13 +360,13 @@ function TSPrefactorSpeciesCreate()
   species%attenuation_coef = 0.d0
   nullify(species%next)
 
-  TSPrefactorSpeciesCreate => species
+  ReactionMnrlCreateTSTPrefSpec => species
 
-end function TSPrefactorSpeciesCreate
+end function ReactionMnrlCreateTSTPrefSpec
 
 ! ************************************************************************** !
 
-function MineralConstraintCreate(mineral,option)
+function ReactionMnrlCreateMnrlConstraint(mineral,option)
   !
   ! Creates a mineral constraint object
   !
@@ -378,7 +379,7 @@ function MineralConstraintCreate(mineral,option)
 
   type(mineral_type) :: mineral
   type(option_type) :: option
-  type(mineral_constraint_type), pointer :: MineralConstraintCreate
+  type(mineral_constraint_type), pointer :: ReactionMnrlCreateMnrlConstraint
 
   type(mineral_constraint_type), pointer :: constraint
 
@@ -404,13 +405,13 @@ function MineralConstraintCreate(mineral,option)
   allocate(constraint%external_area_dataset(mineral%nkinmnrl))
   constraint%external_area_dataset = PETSC_FALSE
 
-  MineralConstraintCreate => constraint
+  ReactionMnrlCreateMnrlConstraint => constraint
 
-end function MineralConstraintCreate
+end function ReactionMnrlCreateMnrlConstraint
 
 ! ************************************************************************** !
 
-function GetMineralFromName(name,mineral)
+function ReactionMnrlGetMnrlPtrFromName(name,mineral)
   !
   ! Returns the mineral corresponding to the name
   !
@@ -424,20 +425,21 @@ function GetMineralFromName(name,mineral)
   character(len=MAXWORDLENGTH) :: name
   type(mineral_type) :: mineral
 
-  type(mineral_rxn_type), pointer :: GetMineralFromName
+  type(mineral_rxn_type), pointer :: ReactionMnrlGetMnrlPtrFromName
 
-  GetMineralFromName => mineral%mineral_list
+  ReactionMnrlGetMnrlPtrFromName => mineral%mineral_list
   do
-    if (.not.associated(GetMineralFromName)) exit
-    if (StringCompare(name,GetMineralFromName%name,MAXWORDLENGTH)) return
-    GetMineralFromName => GetMineralFromName%next
+    if (.not.associated(ReactionMnrlGetMnrlPtrFromName)) exit
+    if (StringCompare(name,ReactionMnrlGetMnrlPtrFromName%name, &
+                      MAXWORDLENGTH)) return
+    ReactionMnrlGetMnrlPtrFromName => ReactionMnrlGetMnrlPtrFromName%next
   enddo
 
-end function GetMineralFromName
+end function ReactionMnrlGetMnrlPtrFromName
 
 ! ************************************************************************** !
 
-function GetMineralNames(mineral)
+function ReactionMnrlGetMineralNames(mineral)
   !
   ! Returns the names of minerals in an array
   !
@@ -447,14 +449,14 @@ function GetMineralNames(mineral)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetMineralNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionMnrlGetMineralNames(:)
   type(mineral_type) :: mineral
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(mineral_rxn_type), pointer :: cur_mineral
 
-  count = GetMineralCount(mineral)
+  count = ReactionMnrlGetMineralCount(mineral)
   allocate(names(count))
 
   count = 1
@@ -466,13 +468,13 @@ function GetMineralNames(mineral)
     cur_mineral => cur_mineral%next
   enddo
 
-  GetMineralNames => names
+  ReactionMnrlGetMineralNames => names
 
-end function GetMineralNames
+end function ReactionMnrlGetMineralNames
 
 ! ************************************************************************** !
 
-function GetMineralCount(mineral)
+function ReactionMnrlGetMineralCount(mineral)
   !
   ! Returns the number of minerals
   !
@@ -482,24 +484,24 @@ function GetMineralCount(mineral)
 
   implicit none
 
-  PetscInt :: GetMineralCount
+  PetscInt :: ReactionMnrlGetMineralCount
   type(mineral_type) :: mineral
 
   type(mineral_rxn_type), pointer :: cur_mineral
 
-  GetMineralCount = 0
+  ReactionMnrlGetMineralCount = 0
   cur_mineral => mineral%mineral_list
   do
     if (.not.associated(cur_mineral)) exit
-    GetMineralCount = GetMineralCount + 1
+    ReactionMnrlGetMineralCount = ReactionMnrlGetMineralCount + 1
     cur_mineral => cur_mineral%next
   enddo
 
-end function GetMineralCount
+end function ReactionMnrlGetMineralCount
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName1(name,mineral,option)
+function ReactionMnrlGetMnrlIDFromName1(name,mineral,option)
   !
   ! Returns the id of mineral with the corresponding name
   !
@@ -515,17 +517,17 @@ function GetMineralIDFromName1(name,mineral,option)
   character(len=MAXWORDLENGTH) :: name
   type(option_type) :: option
 
-  PetscInt :: GetMineralIDFromName1
+  PetscInt :: ReactionMnrlGetMnrlIDFromName1
 
-  GetMineralIDFromName1 = &
-    GetMineralIDFromName(name,mineral,PETSC_FALSE,PETSC_TRUE,option)
+  ReactionMnrlGetMnrlIDFromName1 = &
+    ReactionMnrlGetMnrlIDFromName(name,mineral,PETSC_FALSE,PETSC_TRUE,option)
 
-end function GetMineralIDFromName1
+end function ReactionMnrlGetMnrlIDFromName1
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
-                               option)
+function ReactionMnrlGetMnrlIDFromName2(name,mineral,must_be_kinetic, &
+                                        throw_error,option)
   !
   ! Returns the id of mineral with the corresponding name
   !
@@ -543,11 +545,11 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
   PetscBool :: throw_error
   type(option_type) :: option
 
-  PetscInt :: GetMineralIDFromName2
+  PetscInt :: ReactionMnrlGetMnrlIDFromName2
   type(mineral_rxn_type), pointer :: cur_mineral
   PetscInt :: ikinmnrl
 
-  GetMineralIDFromName2 = -1
+  ReactionMnrlGetMnrlIDFromName2 = -1
 
   cur_mineral => mineral%mineral_list
   ikinmnrl = 0
@@ -559,26 +561,26 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
     if (StringCompare(name,cur_mineral%name,MAXWORDLENGTH)) then
       if (must_be_kinetic .and. cur_mineral%itype /= MINERAL_KINETIC) exit
       if (must_be_kinetic) then
-        GetMineralIDFromName2 = ikinmnrl
+        ReactionMnrlGetMnrlIDFromName2 = ikinmnrl
         exit
       endif
-      GetMineralIDFromName2 = cur_mineral%id
+      ReactionMnrlGetMnrlIDFromName2 = cur_mineral%id
       exit
     endif
     cur_mineral => cur_mineral%next
   enddo
 
-  if (throw_error .and. GetMineralIDFromName2 <= 0) then
+  if (throw_error .and. ReactionMnrlGetMnrlIDFromName2 <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
-      '" not found among minerals in GetMineralIDFromName().'
+      '" not found among minerals in ReactionMnrlGetMnrlIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetMineralIDFromName2
+end function ReactionMnrlGetMnrlIDFromName2
 
 ! ************************************************************************** !
 
-function GetKineticMineralIDFromName(name,mineral,option)
+function ReactionMnrlGetKinMnrlIDFromName(name,mineral,option)
   !
   ! Returns the id of kinetic mineral with the
   ! corresponding name
@@ -595,24 +597,25 @@ function GetKineticMineralIDFromName(name,mineral,option)
   type(mineral_type) :: mineral
   type(option_type) :: option
 
-  PetscInt :: GetKineticMineralIDFromName
+  PetscInt :: ReactionMnrlGetKinMnrlIDFromName
 
-  GetKineticMineralIDFromName = &
-    GetMineralIDFromName(name,mineral,PETSC_TRUE,PETSC_FALSE,option)
+  ReactionMnrlGetKinMnrlIDFromName = &
+    ReactionMnrlGetMnrlIDFromName(name,mineral,PETSC_TRUE,PETSC_FALSE,option)
 
-  if (GetKineticMineralIDFromName <= 0) then
+  if (ReactionMnrlGetKinMnrlIDFromName <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
-      '" not found among kinetic minerals in GetKineticMineralIDFromName().'
+      '" not found among kinetic minerals in &
+      &ReactionMnrlGetKinMnrlIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetKineticMineralIDFromName
+end function ReactionMnrlGetKinMnrlIDFromName
 
 ! ************************************************************************** !
 
-subroutine MineralRxnDestroy(mineral)
+subroutine ReactionMnrlDestroyMineralRxn(mineral)
   !
-  ! MineralDestroy: Deallocates a mineral rxn object
+  ! ReactionMnrlDestroyAux: Deallocates a mineral rxn object
   !
   ! Author: Glenn Hammond
   ! Date: 05/29/08
@@ -623,18 +626,18 @@ subroutine MineralRxnDestroy(mineral)
   type(mineral_rxn_type), pointer :: mineral
 
   if (associated(mineral%dbaserxn)) &
-    call DatabaseRxnDestroy(mineral%dbaserxn)
+    call ReactionDBDestroyRxn(mineral%dbaserxn)
   if (associated(mineral%tstrxn)) &
-    call TransitionStateTheoryRxnDestroy(mineral%tstrxn)
+    call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
 
   deallocate(mineral)
   nullify(mineral)
 
-end subroutine MineralRxnDestroy
+end subroutine ReactionMnrlDestroyMineralRxn
 
 ! ************************************************************************** !
 
-recursive subroutine TransitionStateTheoryRxnDestroy(tstrxn)
+recursive subroutine ReactionMnrlDestroyTSTRxn(tstrxn)
   !
   ! Deallocates a transition state reaction
   !
@@ -648,17 +651,17 @@ recursive subroutine TransitionStateTheoryRxnDestroy(tstrxn)
 
   if (.not.associated(tstrxn)) return
 
-  call TransitionStateTheoryRxnDestroy(tstrxn%next)
-  call TransitionStatePrefactorDestroy(tstrxn%prefactor)
+  call ReactionMnrlDestroyTSTRxn(tstrxn%next)
+  call ReactionMnrlDestroyTSTPrefactor(tstrxn%prefactor)
 
   deallocate(tstrxn)
   nullify(tstrxn)
 
-end subroutine TransitionStateTheoryRxnDestroy
+end subroutine ReactionMnrlDestroyTSTRxn
 
 ! ************************************************************************** !
 
-recursive subroutine TransitionStatePrefactorDestroy(prefactor)
+recursive subroutine ReactionMnrlDestroyTSTPrefactor(prefactor)
   !
   ! Deallocates a transition state prefactor
   !
@@ -672,17 +675,17 @@ recursive subroutine TransitionStatePrefactorDestroy(prefactor)
 
   if (.not.associated(prefactor)) return
 
-  call TransitionStatePrefactorDestroy(prefactor%next)
-  call TSPrefactorSpeciesDestroy(prefactor%species)
+  call ReactionMnrlDestroyTSTPrefactor(prefactor%next)
+  call ReactionMnrlDestroyTSTPrefSpec(prefactor%species)
 
   deallocate(prefactor)
   nullify(prefactor)
 
-end subroutine TransitionStatePrefactorDestroy
+end subroutine ReactionMnrlDestroyTSTPrefactor
 
 ! ************************************************************************** !
 
-recursive subroutine TSPrefactorSpeciesDestroy(species)
+recursive subroutine ReactionMnrlDestroyTSTPrefSpec(species)
   !
   ! Deallocates a transition state prefactor
   !
@@ -696,16 +699,16 @@ recursive subroutine TSPrefactorSpeciesDestroy(species)
 
   if (.not.associated(species)) return
 
-  call TSPrefactorSpeciesDestroy(species%next)
+  call ReactionMnrlDestroyTSTPrefSpec(species%next)
 
   deallocate(species)
   nullify(species)
 
-end subroutine TSPrefactorSpeciesDestroy
+end subroutine ReactionMnrlDestroyTSTPrefSpec
 
 ! ************************************************************************** !
 
-subroutine MineralConstraintDestroy(constraint)
+subroutine ReactionMnrlDestMnrlConstraint(constraint)
   !
   ! Destroys a mineral constraint object
   !
@@ -735,11 +738,11 @@ subroutine MineralConstraintDestroy(constraint)
   deallocate(constraint)
   nullify(constraint)
 
-end subroutine MineralConstraintDestroy
+end subroutine ReactionMnrlDestMnrlConstraint
 
 ! ************************************************************************** !
 
-subroutine MineralDestroy(mineral)
+subroutine ReactionMnrlDestroyAux(mineral)
   !
   ! Deallocates a mineral object
   !
@@ -763,7 +766,7 @@ subroutine MineralDestroy(mineral)
     if (.not.associated(cur_mineral)) exit
     prev_mineral => cur_mineral
     cur_mineral => cur_mineral%next
-    call MineralRxnDestroy(prev_mineral)
+    call ReactionMnrlDestroyMineralRxn(prev_mineral)
   enddo
   nullify(mineral%mineral_list)
 
@@ -815,6 +818,6 @@ subroutine MineralDestroy(mineral)
   deallocate(mineral)
   nullify(mineral)
 
-end subroutine MineralDestroy
+end subroutine ReactionMnrlDestroyAux
 
 end module Reaction_Mineral_Aux_module

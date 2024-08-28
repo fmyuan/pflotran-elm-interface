@@ -749,11 +749,12 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
   use Inversion_Measurement_Aux_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : PERMEABILITY,POROSITY,ELECTRICAL_CONDUCTIVITY, &
+  use Variables_module, only : PERMEABILITY,POROSITY, &
                                VG_ALPHA,VG_SR,VG_M, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
                                ARCHIE_TORTUOSITY_CONSTANT, &
+                               MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                SURFACE_ELECTRICAL_CONDUCTIVITY, &
                                WAXMAN_SMITS_CLAY_CONDUCTIVITY, &
                                VERTICAL_PERM_ANISOTROPY_RATIO
@@ -778,7 +779,7 @@ subroutine InvZFlowSetupForwardRunLinkage(this)
          VERTICAL_PERM_ANISOTROPY_RATIO)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = InversionParamGetNameFromItype(iqoi(1),this%driver)
-    case(ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
+    case(MATERIAL_ELECTRICAL_CONDUCTIVITY,ARCHIE_CEMENTATION_EXPONENT, &
          ARCHIE_SATURATION_EXPONENT,ARCHIE_TORTUOSITY_CONSTANT, &
          SURFACE_ELECTRICAL_CONDUCTIVITY,WAXMAN_SMITS_CLAY_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
@@ -1828,9 +1829,6 @@ subroutine InversionZFlowAllocateWm(this)
   use Grid_module
   use Inversion_Parameter_module
   use Option_module
-  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY, &
-                               VG_SR, VG_ALPHA, VG_M
 
   implicit none
 
@@ -2503,51 +2501,49 @@ subroutine InvZFlowWriteIterationInfo2(this)
   class(inversion_zflow_type) :: this
 
   character(len=:), allocatable :: string
-  character(len=:), allocatable :: nl
   character(len=80) :: divider
 
-  allocate(nl,source = new_line('a'))
   write(divider,'(40("=+"))')
-  allocate(string,source = nl // trim(divider))
+  allocate(string,source = NL // trim(divider))
   call this%driver%PrintMsg(string)
-  string = nl // ' Iteration ' // &
-           StringWrite(this%iteration) // nl
+  string = NL // ' Iteration ' // &
+           StringWrite(this%iteration) // NL
 
   call InvSubsurfWriteIterationInfo(this)
-  string = nl // ' Convergence statistics' // nl
+  string = NL // ' Convergence statistics' // NL
   call this%driver%PrintMsg(string)
   string = Helper1('Phi_Data') // &
-             Helper2(StringWriteF(this%phi_data)) // nl // &
+             Helper2(StringWriteF(this%phi_data)) // NL // &
            Helper1('Phi_Model') // &
-             Helper2(StringWriteF(this%phi_model)) // nl // &
+             Helper2(StringWriteF(this%phi_model)) // NL // &
            Helper1('Phi_Model/Beta') // &
-             Helper2(StringWriteF(this%phi_model/this%beta)) // nl // &
+             Helper2(StringWriteF(this%phi_model/this%beta)) // NL // &
            Helper1('Phi_Total') // &
-             Helper2(StringWriteF(this%phi_total)) // nl
+             Helper2(StringWriteF(this%phi_total)) // NL
   call this%driver%PrintMsg(string)
   string = Helper1('Number of Constraint Eqs') // &
-             Helper2(StringWrite(this%num_constraints_total)) // nl // &
+             Helper2(StringWrite(this%num_constraints_total)) // NL // &
            Helper1('Current Chi2') // &
-             Helper2(StringWriteF(this%current_chi2)) // nl // &
+             Helper2(StringWriteF(this%current_chi2)) // NL // &
            Helper1('Target Chi2') // &
-             Helper2(StringWriteF(this%target_chi2)) // nl // &
+             Helper2(StringWriteF(this%target_chi2)) // NL // &
            Helper1('RMS error') // &
-             Helper2(StringWriteF(sqrt(this%current_chi2))) // nl // &
+             Helper2(StringWriteF(sqrt(this%current_chi2))) // NL // &
            Helper1('Beta') // &
-             Helper2(StringWriteF(this%beta)) // nl // &
+             Helper2(StringWriteF(this%beta)) // NL // &
            Helper1('Beta reduction factor') // &
-             Helper2(StringWriteF(this%beta_red_factor)) // nl // &
+             Helper2(StringWriteF(this%beta_red_factor)) // NL // &
            Helper1('Reduction in Phi_Total') // &
              Helper2(StringWriteF(100.d0*(this%phi_total_0 - &
                                  this%phi_total)/this%phi_total_0)) // &
-             ' %' // nl // &
-           '  Minimum reduction in Phi_Total' // nl // &
+             ' %' // NL // &
+           '  Minimum reduction in Phi_Total' // NL // &
            Helper1('before Beta reduction') // &
              Helper2(StringWriteF(100.d0*this%min_phi_red)) // ' %'
 
   call this%driver%PrintMsg(string)
 
-  string = nl // divider // nl
+  string = NL // divider // NL
   call this%driver%PrintMsg(string)
 
 contains

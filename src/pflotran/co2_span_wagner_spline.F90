@@ -147,7 +147,7 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
       PetscReal :: utab(nptab+1) !,utab2(nptab+1)
       PetscReal :: fgtab(nptab+1) !,fgtab2(nptab+1)
 
-      tkx = tx + 273.15d0
+      tkx = tx + T273K
       pcx = 7.3773d0
       ptx = 0.51795d0
       tcx = 304.1282d0

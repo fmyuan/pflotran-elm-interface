@@ -5,6 +5,7 @@ module Grid_Unstructured_Aux_module
   use petscvec
   use Grid_Unstructured_Cell_module
   use Geometry_module
+  use Well_Grid_module
 
   use PFLOTRAN_Constants_module
 
@@ -27,8 +28,6 @@ module Grid_Unstructured_Aux_module
     PetscInt :: nmax   ! Total number of nodes in global domain
     PetscInt :: nlmax  ! Total number of non-ghosted nodes in local domain.
     PetscInt :: ngmax  ! Number of ghosted & non-ghosted nodes in local domain.
-    PetscInt, pointer :: hash(:,:,:)
-    PetscInt :: num_hash
     PetscInt, pointer :: cell_ids_natural(:) ! natural 1d right-hand i,j,k ordering
     PetscInt, pointer :: cell_ids_petsc(:) ! petsc ordering of cell ids
     PetscInt, pointer :: ghost_cell_ids_petsc(:) ! petsc ordering of ghost cells ids
@@ -39,7 +38,6 @@ module Grid_Unstructured_Aux_module
     PetscInt :: grid_type         ! 3D subsurface (default) or 2D surface grid
     PetscInt :: num_vertices_global ! number of vertices in entire problem domain
     PetscInt :: num_vertices_local  ! number of vertices in local grid cells
-    PetscInt :: num_vertices_natural ! number of vertices read initially
     PetscInt :: max_ndual_per_cell
     PetscInt :: max_nvert_per_cell
     PetscInt :: max_cells_sharing_a_vertex
@@ -68,7 +66,6 @@ module Grid_Unstructured_Aux_module
     type(point3d_type), pointer :: vertices(:)
     type(point3d_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
-    PetscInt, pointer :: nat_ids_of_other_grid(:)
     PetscBool :: project_face_area_along_normal
     PetscBool :: check_all_points_rh_rule ! checks all point combinations for right hand rule
   end type grid_unstructured_type
@@ -182,7 +179,8 @@ module Grid_Unstructured_Aux_module
             UGridNaturalToPetsc, &
             UGridCreateOldVec, &
             UGridCalculateDist, &
-            UGridExplicitDestroy
+            UGridExplicitDestroy, &
+            UGridAddWellCells
 
 contains
 
@@ -249,8 +247,6 @@ function UGridCreate()
   unstructured_grid%nmax = 0
   unstructured_grid%nlmax = 0
   unstructured_grid%ngmax = 0
-  nullify(unstructured_grid%hash)
-  unstructured_grid%num_hash = 100
   nullify(unstructured_grid%cell_ids_natural)
   nullify(unstructured_grid%cell_ids_petsc)
   nullify(unstructured_grid%ghost_cell_ids_petsc)
@@ -277,12 +273,12 @@ function UGridCreate()
   nullify(unstructured_grid%connection_to_face)
   nullify(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_area)
-  nullify(unstructured_grid%nat_ids_of_other_grid)
 
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
   unstructured_grid%project_face_area_along_normal = PETSC_TRUE
   unstructured_grid%check_all_points_rh_rule = PETSC_FALSE
-  
+
+
   UGridCreate => unstructured_grid
 
 end function UGridCreate
@@ -2027,7 +2023,6 @@ subroutine UGridDestroy(unstructured_grid)
   if (.not.associated(unstructured_grid)) return
 
   ! variables for all unstructured grids
-  call DeallocateArray(unstructured_grid%hash)
   call DeallocateArray(unstructured_grid%cell_ids_natural)
   call DeallocateArray(unstructured_grid%cell_ids_petsc)
   call DeallocateArray(unstructured_grid%ghost_cell_ids_petsc)
@@ -2054,7 +2049,6 @@ subroutine UGridDestroy(unstructured_grid)
     deallocate(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_centroid)
   call DeallocateArray(unstructured_grid%face_area)
-  call DeallocateArray(unstructured_grid%nat_ids_of_other_grid)
 
   deallocate(unstructured_grid)
   nullify(unstructured_grid)
@@ -2343,5 +2337,116 @@ subroutine UGridCalculateDist(pt_up, pt_dn, pt_center, vol_up, vol_dn, &
   dist(1:3) = unit_vector
 
 end subroutine UGridCalculateDist
+
+! ************************************************************************** !
+
+subroutine UGridAddWellCells(ugrid,well_cells,option)
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(grid_unstructured_type) :: ugrid
+  PetscInt :: well_cells(:)
+  type(option_type) :: option
+
+  PetscInt, pointer :: int_array(:)
+  PetscInt, pointer :: int_array2(:)
+  PetscInt :: i, ii
+  PetscInt :: num_well_cells
+  PetscInt :: num_non_local_well_cells
+  PetscInt :: num_local_well_cells
+  PetscInt :: petsc_id
+
+  PetscInt, pointer :: new_ghost_cells(:)
+
+  PetscErrorCode :: ierr
+
+  num_well_cells = size(well_cells)
+  allocate(int_array(num_well_cells))
+
+  ! convert well cell ids from natural to petsc
+  int_array = well_cells
+  call PetscSortInt(num_well_cells,int_array,ierr);CHKERRQ(ierr)
+  int_array = int_array - 1
+  call AOApplicationToPetsc(ugrid%ao_natural_to_petsc,num_well_cells, &
+                            int_array,ierr);CHKERRQ(ierr)
+  int_array = int_array + 1
+
+  ! remove cells that are local (on process)
+  num_local_well_cells = 0
+  num_non_local_well_cells = 0
+  allocate(int_array2(num_well_cells))
+  do i = 1, num_well_cells
+    petsc_id = int_array(i)
+    if (petsc_id > ugrid%global_offset .and. &
+        petsc_id <= ugrid%global_offset + ugrid%nlmax) then
+      num_local_well_cells = num_local_well_cells + 1
+    else
+      num_non_local_well_cells = num_non_local_well_cells + 1
+      int_array2(num_non_local_well_cells) = int_array(i)
+    endif
+  enddo
+  call DeallocateArray(int_array)
+
+  if (num_local_well_cells == 0 .or. & ! no well cell on process
+      ! all well cells are on process
+      num_local_well_cells > 0 .and. num_non_local_well_cells == 0) then
+    return
+  endif
+
+  ! resize
+  new_ghost_cells => TruncateArray(int_array2,num_non_local_well_cells)
+
+  ! remove cells that are already ghosted
+  call PetscSortInt(num_non_local_well_cells,new_ghost_cells, &
+                    ierr);CHKERRQ(ierr)
+  ! remove potential duplicates
+  ii = 1
+  do i = 2, num_non_local_well_cells
+    if (new_ghost_cells(ii) /= new_ghost_cells(i)) then
+      ii = ii + 1
+      new_ghost_cells(ii) = new_ghost_cells(i)
+    endif
+  enddo
+  num_non_local_well_cells = ii
+  new_ghost_cells => TruncateArray(new_ghost_cells,num_non_local_well_cells)
+
+  ! find duplicates among existing ghost cells (both arrays should be sorted)
+  ! neither list should contain duplicates at this point
+  i = 1
+  ii = 1
+  do
+    if (ugrid%ghost_cell_ids_petsc(i) < new_ghost_cells(ii)) then
+      i = i + 1
+    else if (ugrid%ghost_cell_ids_petsc(i) > new_ghost_cells(ii)) then
+      ii = ii + 1
+    else ! they match
+      new_ghost_cells(ii) = -new_ghost_cells(ii)
+      ii = ii + 1
+    endif
+    if (i > ugrid%num_ghost_cells .or. ii > num_non_local_well_cells) exit
+  enddo
+  ii = 0
+  do i = 1, num_non_local_well_cells
+    if (new_ghost_cells(i) > 0) then
+      ii = ii + 1
+      new_ghost_cells(ii) = new_ghost_cells(i)
+    endif
+  enddo
+  new_ghost_cells => TruncateArray(new_ghost_cells,ii)
+
+  ! append well ghost cells to ghost cell array
+  int_array => ugrid%ghost_cell_ids_petsc
+  allocate(ugrid%ghost_cell_ids_petsc(ugrid%num_ghost_cells+ii))
+  ugrid%ghost_cell_ids_petsc(1:ugrid%num_ghost_cells) = int_array(:)
+  ugrid%ghost_cell_ids_petsc(ugrid%num_ghost_cells+1: &
+                             ugrid%num_ghost_cells+ii) = new_ghost_cells(:)
+  call DeallocateArray(new_ghost_cells)
+  ugrid%num_ghost_cells = size(ugrid%ghost_cell_ids_petsc)
+  ugrid%ngmax = ugrid%nlmax + ugrid%num_ghost_cells
+
+end subroutine UGridAddWellCells
 
 end module Grid_Unstructured_Aux_module

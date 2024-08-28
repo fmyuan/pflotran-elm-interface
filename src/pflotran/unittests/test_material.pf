@@ -54,7 +54,6 @@ contains
     implicit none
 
     class(Test_Material), intent(inout) :: this
-    character(len=MAXSTRINGLENGTH) :: error_string
 
     this%option => OptionCreate()
     this%option%iflowmode = RICHARDS_MODE

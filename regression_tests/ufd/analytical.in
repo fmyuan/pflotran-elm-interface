@@ -1,0 +1,164 @@
+#Description: Regression test for the analytical mechanism
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+    WASTE_FORM general
+      TYPE GENERAL
+    /
+  /
+END
+
+SUBSURFACE
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    tracer
+  /
+  OUTPUT
+    TOTAL
+    tracer
+  /
+  LOG_FORMULATION
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0  0.d0  0.d0
+    1.d0 1.d0 1.d0
+  END
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY domain
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 4000.d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d-6 day
+  MAXIMUM_TIMESTEP_SIZE 1000.d0 yr
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0  0.d0  0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION WFa
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 201325 Pa
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION groundwater
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT groundwater
+  CONCENTRATIONS
+    tracer  1.e-20        F
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION groundwater
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL domain
+  REGION all
+END
+
+
+END_SUBSURFACE
+
+#=========================== waste forms ======================================
+WASTE_FORM_GENERAL
+  MECHANISM analytical
+    NAME dsnf01
+    FRACTIONAL_DISSOLUTION_RATE 1.d-1 1/yr
+    MATRIX_DENSITY 10970.
+    SPECIES
+     #name,   MW[g/mol],dcy[1/s], initMF, inst_rel_frac, daughter               
+      tracer 128.9d0 0.d0  1.96d-4   0.0d0
+    / 
+    CANISTER_DEGRADATION_MODEL
+      CANISTER_MATERIAL_CONSTANT 1500
+    /
+  /
+  
+  WASTE_FORM
+    VOLUME 1.0 m^3
+    MECHANISM_NAME dsnf01
+    REGION WFa
+    CANISTER_BREACH_TIME 100 yr
+  /
+  
+END_WASTE_FORM_GENERAL
+

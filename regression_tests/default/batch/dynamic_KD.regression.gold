@@ -1,39 +1,19 @@
 -- CONCENTRATION: Total UO2++ --
-      Max:   2.3484500000000E-07
-      Min:   2.3484500000000E-07
-     Mean:   2.3484500000000E-07
         1:   2.3484500000000E-07
 -- CONCENTRATION: Total Tracer --
-      Max:   2.5000000000000E-04
-      Min:   2.5000000000000E-04
-     Mean:   2.5000000000000E-04
         1:   2.5000000000000E-04
 -- CONCENTRATION: UO2++ KD --
-      Max:   6.1790264662919E+00
-      Min:   6.1790264662919E+00
-     Mean:   6.1790264662919E+00
         1:   6.1790264662919E+00
 -- CONCENTRATION: Tracer KD --
-      Max:   0.0000000000000E+00
-      Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
         1:   0.0000000000000E+00
 -- CONCENTRATION: Total Sorbed UO2++ --
-      Max:   3.6277836761908E-04
-      Min:   3.6277836761908E-04
-     Mean:   3.6277836761908E-04
         1:   3.6277836761908E-04
 -- CONCENTRATION: Total Sorbed Tracer --
-      Max:   0.0000000000000E+00
-      Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
         1:   0.0000000000000E+00
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
+   Time (seconds):   2.4675799977558E-04
    Time Steps:            1
    Linear Solver Iterations:            2
    Time Step Cuts:            0

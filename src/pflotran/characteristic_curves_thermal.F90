@@ -25,14 +25,14 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: TCondTensorToScalar
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
-  type, public, extends(thermal_conductivity_base_type) :: kT_constant_type
+  type, public, extends(thermal_conductivity_base_type) :: kt_constant_type
     PetscReal :: constant_thermal_conductivity
   contains
     procedure, public :: Verify => TCFConstantVerify
     procedure, public :: CalculateTCond => TCFConstantConductivity
-  end type kT_constant_type
+  end type kt_constant_type
   !---------------------------------------------------------------------------
-  type, public, extends(thermal_conductivity_base_type) :: kT_default_type
+  type, public, extends(thermal_conductivity_base_type) :: kt_default_type
     PetscReal :: kT_wet, kT_dry
     PetscReal :: kT_x, kT_y, kT_z, kT_xy, kT_xz, kT_yz
     PetscReal :: kT(3,3,3)   ! thermal conductivity tensor
@@ -42,31 +42,31 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Verify => TCFDefaultVerify
     procedure, public :: CalculateTCond => TCFDefaultConductivity
-  end type kT_default_type
+  end type kt_default_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_linear_type
+  type, public, extends(kt_default_type) :: kt_linear_type
   contains
     procedure, public :: Verify => TCFLinearVerify
     procedure, public :: CalculateTCond => TCFLinearConductivity
-  end type kT_linear_type
+  end type kt_linear_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_power_type
+  type, public, extends(kt_default_type) :: kt_power_type
     PetscReal :: ref_temp
     PetscReal :: gamma  ! T^gamma
   contains
     procedure, public :: Verify => TCFPowerVerify
     procedure, public :: CalculateTCond => TCFPowerConductivity
-  end type kT_power_type
+  end type kt_power_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_cubic_polynomial_type
+  type, public, extends(kt_default_type) :: kt_cubic_polynomial_type
     PetscReal :: ref_temp
     PetscReal :: beta(3) ! (T,T^2,T^3)
   contains
     procedure, public :: Verify => TCFCubicPolyVerify
     procedure, public :: CalculateTCond => TCFCubicPolyConductivity
-  end type kT_cubic_polynomial_type
+  end type kt_cubic_polynomial_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_linear_resistivity_type
+  type, public, extends(kt_default_type) :: kt_linear_resistivity_type
     PetscReal :: ref_temp, ref_por, por_exp
     PetscReal :: a(2)  ! 1/(a(1) + a(2)*T)
     PetscReal :: b(2)  ! b(1) + b(2)*T
@@ -74,9 +74,9 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Verify => TCFLinearResistivityVerify
     procedure, public :: CalculateTCond => TCFLinearResistivityConductivity
-  end type kT_linear_resistivity_type
+  end type kt_linear_resistivity_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_frozen_type
+  type, public, extends(kt_default_type) :: kt_frozen_type
     PetscReal :: kT_frozen  ! frozen thermal conductivity
     PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
     PetscInt  :: ice_model  ! indicator of ice model
@@ -85,26 +85,26 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Test => TCFFrozenTest  ! test with ice saturation
     procedure, public :: CalculateTCond => TCFFrozenConductivity1   ! freezing inactive
     procedure, public :: CalculateFTCond => TCFFrozenConductivity2  ! freezing active
-  end type kT_frozen_type
+  end type kt_frozen_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_ASM_dry_type
+  type, public, extends(kt_default_type) :: kt_asm_dry_type
     PetscReal :: dry_T_coeff ! coefficient of T-dependent term
     PetscReal :: dry_T_power ! exponent of temperature in T-dependent term
   contains
     procedure, public :: Verify => TCFASMDryVerify
     procedure, public :: CalculateTCond => TCFASMDryConductivity
-  end type kT_ASM_dry_type
+  end type kt_asm_dry_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_ASM_water_filled_type
+  type, public, extends(kt_default_type) :: kt_asm_water_filled_type
     PetscReal :: kT_water     ! thermal conductivity of water
     PetscReal :: kT_solid     ! thermal conductivity of solid components
     PetscReal :: porosity_asm ! porosity of the assembly
   contains
     procedure, public :: Verify => TCFASMWaterFilledVerify
     procedure, public :: CalculateTCond => TCFASMWaterFilledConductivity
-  end type kT_ASM_water_filled_type
+  end type kt_asm_water_filled_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_ASM_radial_type
+  type, public, extends(kt_default_type) :: kt_asm_radial_type
     PetscReal :: dry_T_coeff  ! coefficient of T-dependent term
     PetscReal :: dry_T_power  ! exponent of temperature in T-dependent term
     PetscReal :: kT_water     ! thermal conductivity of water
@@ -113,16 +113,16 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Verify => TCFASMRadialVerify
     procedure, public :: CalculateTCond => TCFASMRadialConductivity
-  end type kT_ASM_radial_type
+  end type kt_asm_radial_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_ASM_axial_type
+  type, public, extends(kt_default_type) :: kt_asm_axial_type
     PetscReal :: kT_water     ! thermal conductivity of water
     PetscReal :: kT_solid     ! thermal conductivity of solid components
     PetscReal :: porosity_asm ! porosity of the assembly
   contains
     procedure, public :: Verify => TCFASMAxialVerify
     procedure, public :: CalculateTCond => TCFASMAxialConductivity
-  end type kT_ASM_axial_type
+  end type kt_asm_axial_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
@@ -137,7 +137,7 @@ module Characteristic_Curves_Thermal_module
     class(cc_thermal_type), pointer :: ptr
   end type cc_thermal_ptr_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_composite_type
+  type, public, extends(kt_default_type) :: kt_composite_type
     PetscReal :: dist(-1:3)
     ! -1 = fraction upwind
     ! 0 = magnitude
@@ -150,7 +150,7 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Test => TCFCompositeTest
     procedure, public :: Verify => TCFCompositeVerify
     procedure, public :: CalculateTCond => TCFCompositeConductivity
-  end type kT_composite_type
+  end type kt_composite_type
   !---------------------------------------------------------------------------
 
   public :: CharCurvesThermalCreate, &
@@ -274,7 +274,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   sat_max = 1.0d0
 
   select type(this)
-  class is(kT_linear_resistivity_type)
+  class is(kt_linear_resistivity_type)
      ! this is the only tcc hwere porosity-variation is implemented
      por_max = this%ref_por
      por_min = min(por_max / 10.0, 1.0D-4)
@@ -358,7 +358,7 @@ subroutine TCFFrozenTest(this,tcc_name,option)
 
   implicit none
 
-  class(kT_frozen_type) :: this
+  class(kt_frozen_type) :: this
   character(len=MAXWORDLENGTH) :: tcc_name
   type(option_type), intent(inout) :: option
 
@@ -479,7 +479,7 @@ function TCFDefaultCreate()
 
   implicit none
 
-  class(kT_default_type), pointer :: TCFDefaultCreate
+  class(kt_default_type), pointer :: TCFDefaultCreate
 
   allocate(TCFDefaultCreate)
   TCFDefaultCreate%isotropic   = PETSC_TRUE
@@ -506,7 +506,7 @@ subroutine TCFDefaultVerify(this,name,option)
 
   implicit none
 
-  class(kT_default_type) :: this
+  class(kt_default_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -538,7 +538,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature,porosity, &
 
   implicit none
 
-  class(kT_default_type) :: this
+  class(kt_default_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -569,7 +569,7 @@ function TCFLinearCreate()
 
   implicit none
 
-  class(kT_linear_type), pointer :: TCFLinearCreate
+  class(kt_linear_type), pointer :: TCFLinearCreate
 
   allocate(TCFLinearCreate)
   TCFLinearCreate%isotropic   = PETSC_TRUE
@@ -596,7 +596,7 @@ subroutine TCFLinearVerify(this,name,option)
 
   implicit none
 
-  class(kT_linear_type) :: this
+  class(kt_linear_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -629,7 +629,7 @@ subroutine TCFLinearConductivity(this,liquid_saturation,temperature,porosity, &
 
   implicit none
 
-  class(kT_linear_type) :: this
+  class(kt_linear_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -657,7 +657,7 @@ function TCFASMDryCreate()
 
   implicit none
 
-  class(kT_ASM_dry_type), pointer :: TCFASMDryCreate
+  class(kt_asm_dry_type), pointer :: TCFASMDryCreate
 
   allocate(TCFASMDryCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
@@ -687,7 +687,7 @@ subroutine TCFASMDryVerify(this,name,option)
 
   implicit none
 
-  class(kT_ASM_dry_type) :: this
+  class(kt_asm_dry_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -723,7 +723,7 @@ subroutine TCFASMDryConductivity(this,liquid_saturation,temperature,porosity, &
 
   implicit none
 
-  class(kT_ASM_dry_type) :: this
+  class(kt_asm_dry_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -771,7 +771,7 @@ function TCFASMWaterFilledCreate()
 
   implicit none
 
-  class(kT_ASM_water_filled_type), pointer :: &
+  class(kt_asm_water_filled_type), pointer :: &
     TCFASMWaterFilledCreate
 
   allocate(TCFASMWaterFilledCreate)
@@ -803,7 +803,7 @@ subroutine TCFASMWaterFilledVerify(this,name,option)
 
   implicit none
 
-  class(kT_ASM_water_filled_type) :: this
+  class(kt_asm_water_filled_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -840,7 +840,7 @@ subroutine TCFASMWaterFilledConductivity(this,liquid_saturation, &
 
   implicit none
 
-  class(kT_ASM_water_filled_type) :: this
+  class(kt_asm_water_filled_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -885,7 +885,7 @@ function TCFASMRadialCreate()
 
   implicit none
 
-  class(kT_ASM_radial_type), pointer :: TCFASMRadialCreate
+  class(kt_asm_radial_type), pointer :: TCFASMRadialCreate
 
   allocate(TCFASMRadialCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
@@ -918,7 +918,7 @@ subroutine TCFASMRadialVerify(this,name,option)
 
   implicit none
 
-  class(kT_ASM_radial_type) :: this
+  class(kt_asm_radial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -967,7 +967,7 @@ subroutine TCFASMRadialConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_ASM_radial_type) :: this
+  class(kt_asm_radial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1031,7 +1031,7 @@ function TCFASMAxialCreate()
 
   implicit none
 
-  class(kT_ASM_axial_type), pointer :: TCFASMAxialCreate
+  class(kt_asm_axial_type), pointer :: TCFASMAxialCreate
 
   allocate(TCFASMAxialCreate)
   ! User doesn't need to initialize dry or wet thermal conditivity for this case
@@ -1062,7 +1062,7 @@ subroutine TCFASMAxialVerify(this,name,option)
 
   implicit none
 
-  class(kT_ASM_axial_type) :: this
+  class(kt_asm_axial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1098,7 +1098,7 @@ subroutine TCFASMAxialConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_ASM_axial_type) :: this
+  class(kt_asm_axial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1126,7 +1126,7 @@ function TCFConstantCreate()
 
   implicit none
 
-  class(kT_constant_type), pointer :: TCFConstantCreate
+  class(kt_constant_type), pointer :: TCFConstantCreate
 
   allocate(TCFConstantCreate)
   TCFConstantCreate%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
@@ -1142,7 +1142,7 @@ subroutine TCFConstantVerify(this,name,option)
 
   implicit none
 
-  class(kT_constant_type) :: this
+  class(kt_constant_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1171,7 +1171,7 @@ subroutine TCFConstantConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_constant_type) :: this
+  class(kt_constant_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1189,12 +1189,12 @@ function TCFPowerCreate()
 
   implicit none
 
-  class(kT_power_type), pointer :: TCFPowerCreate
+  class(kt_power_type), pointer :: TCFPowerCreate
 
   allocate(TCFPowerCreate)
   TCFPowerCreate%kT_wet = UNINITIALIZED_DOUBLE
   TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
-  TCFPowerCreate%ref_temp = -273.15d0
+  TCFPowerCreate%ref_temp = -T273K
   TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
   TCFPowerCreate%alpha = 1.0d0
   TCFPowerCreate%isotropic   = PETSC_TRUE
@@ -1218,7 +1218,7 @@ subroutine TCFPowerVerify(this,name,option)
 
   implicit none
 
-  class(kT_power_type) :: this
+  class(kt_power_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1254,7 +1254,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_power_type) :: this
+  class(kt_power_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1263,7 +1263,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   PetscReal :: tempreal, kT_base, shifted_temp, unused
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
+  call this%kt_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1282,7 +1282,7 @@ function TCFCubicPolynomialCreate()
 
   implicit none
 
-  class(kT_cubic_polynomial_type), pointer :: TCFCubicPolynomialCreate
+  class(kt_cubic_polynomial_type), pointer :: TCFCubicPolynomialCreate
 
   allocate(TCFCubicPolynomialCreate)
   TCFCubicPolynomialCreate%kT_wet = UNINITIALIZED_DOUBLE
@@ -1313,7 +1313,7 @@ subroutine TCFCubicPolyVerify(this,name,option)
 
   implicit none
 
-  class(kT_cubic_polynomial_type) :: this
+  class(kt_cubic_polynomial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1352,7 +1352,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_cubic_polynomial_type) :: this
+  class(kt_cubic_polynomial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1361,7 +1361,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
   PetscReal :: kT_base, shifted_temp, unused, tempreal
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
+  call this%kt_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1386,7 +1386,7 @@ function TCFLinearResistivityCreate()
 
   implicit none
 
-  class(kT_linear_resistivity_type), pointer :: TCFLinearResistivityCreate
+  class(kt_linear_resistivity_type), pointer :: TCFLinearResistivityCreate
 
   allocate(TCFLinearResistivityCreate)
   TCFLinearResistivityCreate%kT_wet = UNINITIALIZED_DOUBLE
@@ -1421,7 +1421,7 @@ subroutine TCFLinearResistivityVerify(this,name,option)
 
   implicit none
 
-  class(kT_linear_resistivity_type) :: this
+  class(kt_linear_resistivity_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1484,7 +1484,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
 
   implicit none
 
-  class(kT_linear_resistivity_type) :: this
+  class(kt_linear_resistivity_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1494,7 +1494,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
   PetscReal :: relkT, shifted_temp, tempreal, unused, scaled_por, solid_term
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
+  call this%kt_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        relkT,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1536,7 +1536,7 @@ function TCFFrozenCreate()
 
   implicit none
 
-  class(kT_frozen_type), pointer :: TCFFrozenCreate
+  class(kt_frozen_type), pointer :: TCFFrozenCreate
 
   allocate(TCFFrozenCreate)
   TCFFrozenCreate%kT_wet    = UNINITIALIZED_DOUBLE
@@ -1566,7 +1566,7 @@ subroutine TCFFrozenVerify(this,name,option)
 
   implicit none
 
-  class(kT_frozen_type) :: this
+  class(kt_frozen_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1626,7 +1626,7 @@ subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_frozen_type) :: this
+  class(kt_frozen_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1656,7 +1656,7 @@ subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   &
 
   implicit none
 
-  class(kT_frozen_type) :: this
+  class(kt_frozen_type) :: this
   PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
   PetscReal, intent(in) :: porosity
   PetscReal, intent(out) :: thermal_conductivity
@@ -1687,7 +1687,7 @@ function TCFCompositeCreate()
 
   implicit none
 
-  class(kT_composite_type), pointer :: TCFCompositeCreate
+  class(kt_composite_type), pointer :: TCFCompositeCreate
 
   allocate(TCFCompositeCreate)
   TCFCompositeCreate%isotropic   = PETSC_TRUE
@@ -1719,7 +1719,7 @@ subroutine TCFCompositeVerify(this,name,option)
 
   implicit none
 
-  class(kT_composite_type) :: this
+  class(kt_composite_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1757,7 +1757,7 @@ subroutine TCFCompositeTest(this,tcc_name,option)
 
   implicit none
 
-  class(kT_composite_type) :: this
+  class(kt_composite_type) :: this
   character(len=MAXWORDLENGTH) :: tcc_name
   type(option_type), intent(inout) :: option
 
@@ -1774,7 +1774,7 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
 
   implicit none
 
-  class(kT_composite_type) :: this
+  class(kt_composite_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -1948,7 +1948,7 @@ subroutine TCFAssignDefault(thermal_conductivity_function,&
 
   select type(tcf => thermal_conductivity_function)
       !------------------------------------------
-    class is(kT_default_type)
+    class is(kt_default_type)
       tcf%kT_dry = kdry
       tcf%kT_wet = kwet
       tcf%alpha  = alpha
@@ -1972,7 +1972,7 @@ subroutine TCFAssignFrozen(thermal_conductivity_function,&
 
   select type(tcf => thermal_conductivity_function)
       !------------------------------------------
-    class is(kT_frozen_type)
+    class is(kt_frozen_type)
       tcf%kT_dry    = kdry
       tcf%kT_wet    = kwet
       tcf%kT_frozen = kfrozen
@@ -2006,29 +2006,29 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
        & THERMAL_CONDUCTIVITY_FUNCTION,'
   select type(tcf => thermal_conductivity_function)
-  class is(kT_constant_type)
+  class is(kt_constant_type)
     error_string = trim(error_string) // 'CONSTANT'
-  class is(kT_default_type)
+  class is(kt_default_type)
     error_string = trim(error_string) // 'DEFAULT'
-  class is(kT_linear_type)
+  class is(kt_linear_type)
     error_string = trim(error_string) // 'LINEAR'
-  class is(kT_power_type)
+  class is(kt_power_type)
     error_string = trim(error_string) // 'POWER'
-  class is(kT_cubic_polynomial_type)
+  class is(kt_cubic_polynomial_type)
     error_string = trim(error_string) // 'CUBIC_POLYNOMIAL'
-  class is(kT_linear_resistivity_type)
+  class is(kt_linear_resistivity_type)
     error_string = trim(error_string) // 'LINEAR_RESISTIVITY'
-  class is(kT_frozen_type)
+  class is(kt_frozen_type)
     error_string = trim(error_string) // 'FROZEN'
-  class is(kT_ASM_dry_type)
+  class is(kt_asm_dry_type)
     error_string = trim(error_string) // 'ASM_DRY'
-  class is(kT_ASM_water_filled_type)
+  class is(kt_asm_water_filled_type)
     error_string = trim(error_string) // 'ASM_WATER_FILLED'
-  class is(kT_ASM_radial_type)
+  class is(kt_asm_radial_type)
     error_string = trim(error_string) // 'ASM_RADIAL'
-  class is(kT_ASM_axial_type)
+  class is(kt_asm_axial_type)
     error_string = trim(error_string) // 'ASM_AXIAL'
-  class is(kT_composite_type)
+  class is(kt_composite_type)
     error_string = trim(error_string) // 'COMPOSITE'
   end select
 
@@ -2043,7 +2043,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
 
     select type(tcf => thermal_conductivity_function)
       !------------------------------------------
-    class is(kT_constant_type)
+    class is(kt_constant_type)
       select case(keyword)
       case('CONSTANT_THERMAL_CONDUCTIVITY')
         call InputReadDouble(input,option,tcf%constant_thermal_conductivity)
@@ -2062,13 +2062,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'constant thermal conductivity',option)
       end select
       !------------------------------------------
-    class is(kT_default_type)
+    class is(kt_default_type)
       call TCFDefaultRead(tcf,input,keyword,error_string,'default',option)
       !------------------------------------------
-    class is(kT_linear_type)
+    class is(kt_linear_type)
       call TCFDefaultRead(tcf,input,keyword,error_string,'linear',option)
       !------------------------------------------
-    class is(kT_power_type)
+    class is(kt_power_type)
       select case(keyword)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
@@ -2084,7 +2084,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
-    class is(kT_cubic_polynomial_type)
+    class is(kt_cubic_polynomial_type)
       select case(keyword)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
@@ -2101,7 +2101,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
           'cubic polynomial',option)
       end select
       !------------------------------------------
-    class is(kT_ASM_dry_type)
+    class is(kt_asm_dry_type)
       select case(keyword)
       case('ASM_DRY_COEFFICIENT')
         call InputReadDouble(input,option,tcf%dry_T_coeff)
@@ -2118,7 +2118,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly dry conditions',option)
       end select
       !------------------------------------------
-    class is(kT_ASM_water_filled_type)
+    class is(kt_asm_water_filled_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
@@ -2142,7 +2142,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly water-filled conditions',option)
       end select
       !------------------------------------------
-    class is(kT_ASM_radial_type)
+    class is(kt_asm_radial_type)
       select case(keyword)
       case('ASM_DRY_COEFFICIENT')
         call InputReadDouble(input,option,tcf%dry_T_coeff)
@@ -2176,7 +2176,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly radial',option)
       end select
       !------------------------------------------
-    class is(kT_ASM_axial_type)
+    class is(kt_asm_axial_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
@@ -2200,7 +2200,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly axial',option)
       end select
       !------------------------------------------
-    class is(kT_linear_resistivity_type)
+    class is(kt_linear_resistivity_type)
       select case(keyword)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
@@ -2229,7 +2229,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
           'linear resistivity',option)
       end select
       !------------------------------------------
-    class is(kT_frozen_type)
+    class is(kt_frozen_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_FROZEN')
         call InputReadDouble(input,option,tcf%kT_frozen)
@@ -2268,7 +2268,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
           'frozen',option)
       end select
       !------------------------------------------
-    class is(kT_composite_type)
+    class is(kt_composite_type)
       select case(keyword)
       case('COMPOSITE_X')
         call InputReadWord(input,option,tcf%lkT(1),PETSC_TRUE)
@@ -2305,7 +2305,7 @@ subroutine TCFDefaultRead(tcf,input,keyword,error_string,kind,option)
   use Input_Aux_module
   use String_module
 
-  class(kT_default_type) :: tcf
+  class(kt_default_type) :: tcf
   type(input_type) :: input
   character(len=MAXWORDLENGTH)   :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
@@ -2379,7 +2379,7 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
 
   select type(tcf => thermal_conductivity_function)
   !------------------------------------------
-  class is(kT_default_type)
+  class is(kt_default_type)
     error_string = trim(error_string) // ' ANISOTROPIC DEFAULT TYPE'
 
     ! check if wet and dry thermal conductivities are initialized
@@ -2584,7 +2584,7 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
       call FullTensorCheckEigenvalues(tcf%kTf,option)
     endif
   !------------------------------------------
-  class is(kT_frozen_type)
+  class is(kt_frozen_type)
     error_string = trim(error_string) // ' ANISOTROPIC FROZEN TYPE'
 
     ! check if wet and dry thermal conductivities are initialized
@@ -2846,7 +2846,7 @@ subroutine TCondTensorToScalar(this,dist,option)
 
   select type(tcf => this)
   ! -------------------------
-  class is(kT_default_type)
+  class is(kt_default_type)
     if (tcf%isotropic) then
       return
     endif
@@ -2867,7 +2867,7 @@ subroutine TCondTensorToScalar(this,dist,option)
       tcf%kT_wet = tcf%kT_wet * option%scale
     endif
   ! -------------------------
-  class is(kT_frozen_type)
+  class is(kt_frozen_type)
     if (tcf%isotropic) then
       return
     endif
@@ -2900,13 +2900,13 @@ subroutine TCondTensorToScalar(this,dist,option)
         endif
     endif
   ! -------------------------
-  type is(kT_composite_type)
+  type is(kt_composite_type)
 
     tcf%dist = dist
 
     do i = 1, size(tcf%ckT)
       select type(stcf => tcf%ckT(i)%ptr%thermal_conductivity_function)
-      class is(kT_default_type)
+      class is(kt_default_type)
 
         if (stcf%isotropic) then
           cycle
@@ -3218,7 +3218,7 @@ subroutine CompositeTCCList(list,tcf,option)
   implicit none
 
   class(cc_thermal_type), pointer :: list
-  class(kT_composite_type) :: tcf
+  class(kt_composite_type) :: tcf
   type(option_type) :: option
 
   class(cc_thermal_type), pointer :: cur_thermal_cc
@@ -3321,7 +3321,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
       write(id,'(a29)',advance='no') 'thermal conductivity func.: '
       select type (tcf => cur_thermal_ccurve%thermal_conductivity_function)
         !---------------------------------
-      class is (kT_default_type)
+      class is (kt_default_type)
         write(id,'(a)') 'only saturation-dependent (default)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3330,7 +3330,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_linear_type)
+      class is (kt_linear_type)
         write(id,'(a)') 'only saturation-dependent (linear)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3339,13 +3339,13 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_constant_type)
+      class is (kt_constant_type)
         write(id,'(a)') 'constant'
         write(id,'(a29)',advance='no') 'kT: '
         write(word1,*) tcf%constant_thermal_conductivity
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_power_type)
+      class is (kt_power_type)
         write(id,'(a)') 'sat.- and temp.-dependent (power)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3360,7 +3360,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%gamma
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_ASM_dry_type)
+      class is (kt_asm_dry_type)
         write(id,'(a)') 'temp.-dependent/optional sat. (asm. dry)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3375,7 +3375,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%dry_T_power
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_ASM_water_filled_type)
+      class is (kt_asm_water_filled_type)
         write(id,'(a)') 'not sat.- or temp.-dependent (asm. water-filled)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
@@ -3390,7 +3390,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_ASM_radial_type)
+      class is (kt_asm_radial_type)
         write(id,'(a)') 'temp.- and sat.-dependent. (asm. radial)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
@@ -3411,7 +3411,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_ASM_axial_type)
+      class is (kt_asm_axial_type)
         write(id,'(a)') 'sat.-dependent. (asm. axial)'
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
@@ -3423,7 +3423,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_cubic_polynomial_type)
+      class is (kt_cubic_polynomial_type)
         write(id,'(a)') 'sat.- and temp.-dependent (cubic polynomial)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3444,7 +3444,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%beta(3)
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_linear_resistivity_type)
+      class is (kt_linear_resistivity_type)
         write(id,'(a)') 'sat.- and temp.-dependent (lin. resistivity)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3479,7 +3479,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
            write(id,'(a)') adjustl(trim(word1))
         end if
         !---------------------------------
-      class is (kT_frozen_type)
+      class is (kt_frozen_type)
         write(id,'(a)') 'liquid and ice sat.-dependent (frozen)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
@@ -3502,7 +3502,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
           write(id,'(a)') adjustl(trim(word1))
         endif
         !---------------------------------
-      class is (kT_composite_type)
+      class is (kt_composite_type)
         write(id,'(a)') 'composite thermal characteristic curve'
         write(id,'(a29)',advance='no') 'sub-function X: '
         write(word1,*) trim(tcf%lkT(1))

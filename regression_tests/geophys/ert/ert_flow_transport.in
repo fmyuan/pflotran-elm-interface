@@ -87,7 +87,7 @@ CHEMISTRY
     Ca++
     Cl-
   /
-  USE_FULL_GEOCHEMISTRY
+  FORCE_READ_OF_REACTION_DATABASE
   DATABASE ../../../database/hanford.dat
   OUTPUT
     TOTAL

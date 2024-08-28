@@ -702,10 +702,10 @@ function StringsMerge(strings,chars)
 
   string = ''
   do i = 1, size(strings)
-    string = trim(string) // trim(strings(i))
-    if (len_trim(chars) > 0 .and. i < size(strings)) then
+    if (len_trim(chars) > 0 .and. i > 1) then
       string = trim(string) // trim(chars)
     endif
+    string = trim(string) // trim(strings(i))
   enddo
 
   StringsMerge = trim(string)
@@ -973,7 +973,7 @@ function StringWriteESArray2(format_string,es_array)
 
   character(len=:), allocatable :: StringWriteESArray2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: es_array(:)
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1023,7 +1023,7 @@ function StringWriteI2(format_string,i)
 
   character(len=:), allocatable :: StringWriteI2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscInt :: i
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1087,7 +1087,7 @@ function StringWriteES2(format_string,es)
 
   character(len=:), allocatable :: StringWriteES2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: es
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1131,7 +1131,7 @@ function StringWriteF2(format_string,f)
 
   character(len=:), allocatable :: StringWriteF2
 
-  character(len=*) format_string
+  character(len=*) :: format_string
   PetscReal :: f
 
   character(len=MAXSTRINGLENGTH) :: string

@@ -8,6 +8,9 @@ SIMULATION
     /
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
+      OPTIONS
+        TEMPERATURE_DEPENDENT_DIFFUSION
+      /
     /
   /
 END
@@ -110,6 +113,7 @@ END
 #============================ fluid properties ================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_ACTIVATION_ENERGY 12.6 kJ/mol
 END
 
 #=========================== material properties ==============================

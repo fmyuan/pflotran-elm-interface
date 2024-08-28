@@ -274,7 +274,6 @@ CHEMISTRY
   
   LOG_FORMULATION
   TRUNCATE_CONCENTRATION 1.0E-15
-  DATABASE ../../../database/simple_rxn_database.dat
   OUTPUT
     TOTAL
     ALL

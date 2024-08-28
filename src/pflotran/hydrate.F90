@@ -63,13 +63,13 @@ subroutine HydrateSetup(realization)
   PetscInt :: idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -144,9 +144,7 @@ subroutine HydrateSetup(realization)
   allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, 2 * ndof
-      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id), &
-                         (hydrate_analytical_derivatives .and. idof==0), &
-                          option)
+      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id),option)
     enddo
   enddo
   patch%aux%Hydrate%auxvars => hyd_auxvars
@@ -158,7 +156,7 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_bc => hyd_auxvars_bc
   endif
@@ -170,46 +168,42 @@ subroutine HydrateSetup(realization)
   if (sum_connection > 0) then
     allocate(hyd_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),PETSC_FALSE,option)
+      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),option)
     enddo
     patch%aux%Hydrate%auxvars_ss => hyd_auxvars_ss
   endif
   patch%aux%Hydrate%num_aux_ss = sum_connection
 
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do
-    if (.not.associated(cur_fluid_property)) exit
-    patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
-        cur_fluid_property%diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
-  enddo
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
+  ! ! initialize parameters
+  ! cur_fluid_property => realization%fluid_properties
+  ! do
+  !   if (.not.associated(cur_fluid_property)) exit
+  !   patch%aux%Hydrate%hydrate_parameter% &
+  !     diffusion_coefficient(:,cur_fluid_property%phase_id) = &
+  !       cur_fluid_property%diffusion_coefficient
+  !   cur_fluid_property => cur_fluid_property%next
+  ! enddo
 
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
   call HydrateSetPlotVariables(realization,list)
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  if (option%coupled_well) then
+    dof_is_active(option%nflowdof) = PETSC_FALSE
+  endif
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%Hydrate%matrix_zeroing, &
+                            patch%aux%Hydrate%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   hydrate_ts_count = 0
   hydrate_ts_cut_count = 0
   hydrate_ni_count = 0
-
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine HydrateSetup
 
@@ -341,7 +335,7 @@ end subroutine HydrateTimeCut
 
 ! ************************************************************************** !
 
-subroutine HydrateNumericalJacobianTest(xx,realization,B)
+subroutine HydrateNumericalJacobianTest(xx,realization,pm_well,B)
   !
   ! Computes the a test numerical jacobian
   !
@@ -354,11 +348,13 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
   use Option_module
   use Grid_module
   use Field_module
+  use PM_Well_class
 
   implicit none
 
   Vec :: xx
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   Mat :: B
 
   Vec :: xx_pert
@@ -401,7 +397,7 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
                     ierr);CHKERRQ(ierr)
 
   call VecZeroEntries(res,ierr);CHKERRQ(ierr)
-  call HydrateResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
+  call HydrateResidual(PETSC_NULL_SNES,xx,res,realization,pm_well,ierr)
 #if 0
   word  = 'num_0.dat'
   call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
@@ -418,7 +414,8 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
       vec_p(idof) = vec_p(idof)+perturbation
       call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
       call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
-      call HydrateResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
+      call HydrateResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization, &
+                           pm_well,ierr)
 #if 0
       write(word,*) idof
       word  = 'num_' // trim(adjustl(word)) // '.dat'
@@ -622,7 +619,7 @@ end subroutine HydrateUpdateMassBalance
 
 ! ************************************************************************** !
 
-subroutine HydrateUpdateAuxVars(realization,update_state)
+subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
   !
   ! Updates the auxiliary variables associated with Hydrate mode
   !
@@ -631,6 +628,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   !
 
   use Realization_Subsurface_class
+  use PM_Well_class
   use Patch_module
   use Option_module
   use Field_module
@@ -641,11 +639,12 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   use Material_Aux_module
   use EOS_Water_module
   use Saturation_Function_module
-  use Hydrate_Aux_module
+  use Condition_module
 
   implicit none
 
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   PetscBool :: update_state
 
   type(option_type), pointer :: option
@@ -660,17 +659,19 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:),&
                                        global_auxvars_ss(:)
-
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(flow_condition_type), pointer :: well_flow_condition
+  class(pm_well_type), pointer :: cur_well
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
   PetscInt :: offset
   PetscInt :: istate
-  PetscInt :: wat_comp_id, air_comp_id
+  PetscInt :: wat_comp_id, air_comp_id, lid, salt_id
   PetscReal :: gas_pressure
   PetscReal :: saturation_pressure, temperature
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
   PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof), &
@@ -689,7 +690,13 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
   material_auxvars => patch%aux%Material%auxvars
+
+  wat_comp_id = option%water_id
+  air_comp_id = option%air_id
+  lid = option%liquid_phase
+  salt_id = option%salt_id
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
@@ -710,7 +717,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
                          patch%cc_id(ghosted_id))%ptr, &
-                       natural_id, &
+                       hydrate_parameter, natural_id, &
                        option)
     if (update_state) then
       call HydrateAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
@@ -718,8 +725,18 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
-                                      patch%cc_id(ghosted_id))%ptr, &
-                                    natural_id, option)
+                                    patch%cc_id(ghosted_id))%ptr, &
+                                    hydrate_parameter, natural_id, option)
+    endif
+    if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+      ! MAN: this is a hack to get well to initialize properly
+      if (xx_loc_p(ghosted_end) /= &
+          hyd_auxvars(ZERO_INTEGER,ghosted_id)%pres(lid)) then
+        hyd_auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p = xx_loc_p(ghosted_end)
+      else
+        hyd_auxvars(ZERO_INTEGER,ghosted_id)%well%pressure_bump = &
+                                                   UNINITIALIZED_DOUBLE
+      endif
     endif
   enddo
 
@@ -852,8 +869,10 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          real_index = boundary_condition%flow_aux_mapping(&
-                    dof_to_primary_variable(idof,istate))
+          if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL .and. &
+              idof == option%nflowdof) cycle
+          real_index = boundary_condition% &
+                       flow_aux_mapping(dof_to_primary_variable(idof,istate))
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
@@ -873,7 +892,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%cc_id(ghosted_id))%ptr, &
-                                natural_id, &
+                                hydrate_parameter, natural_id, &
                                 option)
       ! update state and update aux var; this could result in two update to
       ! the aux var as update state updates if the state changes
@@ -882,18 +901,20 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
                                       patch%cc_id(ghosted_id))%ptr, &
-                                    natural_id,option)
+                                    hydrate_parameter, natural_id,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
 
-  wat_comp_id = option%water_id
-  air_comp_id = option%air_id
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
 
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     qsrc = source_sink%flow_condition%hydrate%rate%dataset%rarray(:)
     cur_connection_set => source_sink%connection_set
@@ -973,6 +994,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                 + qsrc_vol(air_comp_id))
       endif
       xxss(3) = hyd_auxvar_ss%temp
+      xxss(4) = hyd_auxvar_ss%xmass(salt_id,lid)
 
       cell_pressure = maxval(hyd_auxvar%pres(option% &
                            liquid_phase:option%gas_phase))
@@ -982,6 +1004,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         xxss(1) = cell_pressure
         xxss(2) = hyd_auxvar%sat(air_comp_id)
         xxss(3) = hyd_auxvar%temp
+        xxss(4) = hyd_auxvar%xmass(salt_id,lid)
       endif
 
       if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
@@ -1007,12 +1030,39 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                 patch%cc_id(source_sink%region% &
-                                cell_ids(1)))%ptr, &
+                                cell_ids(1)))%ptr, hydrate_parameter, &
                                 source_sink%region%cell_ids(1), &
                                 option)
     enddo
     source_sink => source_sink%next
   enddo
+  if (option%coupled_well .and. associated(pm_well)) then
+    cur_well => pm_well
+    do
+      if (.not. associated(cur_well)) exit
+      if (associated(cur_well%flow_condition)) then
+        well_flow_condition => cur_well%flow_condition
+        if (associated(well_flow_condition%hydrate%temperature) .and. &
+            associated(cur_well%well%temp)) then
+          cur_well%well%temp = well_flow_condition%hydrate%temperature% &
+                               dataset%rarray(1)
+        endif
+        if (associated(well_flow_condition%hydrate%rate)) then
+          cur_well%well%th_ql = well_flow_condition%hydrate%rate%dataset% &
+                                rarray(1)
+          cur_well%well%th_qg = well_flow_condition%hydrate%rate%dataset% &
+                                rarray(2)
+        endif
+        if (Initialized(cur_well%well%bh_p)) then
+          do idof = 1,option%nflowdof
+            call PMWellCopyWell(cur_well%well,cur_well%well_pert(idof), &
+                                cur_well%transport)
+          enddo
+        endif
+      endif
+      cur_well => cur_well%next_well
+    enddo
+  endif
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%Hydrate%auxvars_up_to_date = PETSC_TRUE
@@ -1093,7 +1143,7 @@ subroutine HydrateUpdateFixedAccum(realization)
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
-                              natural_id, &
+                              hydrate_parameter, natural_id, &
                               option)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
@@ -1114,7 +1164,7 @@ end subroutine HydrateUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine HydrateResidual(snes,xx,r,realization,ierr)
+subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   !
   ! Computes the residual equation
   !
@@ -1135,6 +1185,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   use Material_Aux_module
   use Upwind_Direction_module
   use Hydrate_Common_module
+  use PM_Well_class
 
   implicit none
 
@@ -1142,6 +1193,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: cur_well
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
@@ -1169,7 +1222,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
   PetscInt :: local_start, local_end
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
@@ -1177,7 +1230,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
 
-  PetscReal :: qsrc(3)
+  PetscReal :: qsrc(realization%option%nflowdof)
 
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -1232,7 +1285,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   endif
 
   ! do update state
-  call HydrateUpdateAuxVars(realization,hydrate_allow_state_change)
+  call HydrateUpdateAuxVars(realization,pm_well,hydrate_allow_state_change)
 
   ! override flags since they will soon be out of date
   patch%aux%Hydrate%auxvars_up_to_date = PETSC_FALSE
@@ -1278,6 +1331,28 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
+  ! This is for the convergence check.
+  if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+          ghosted_id = cur_well%well_grid%h_ghosted_id(1)
+          ghosted_end = ghosted_id * option%nflowdof
+          if (dabs(cur_well%well%th_qg) > 0.d0) then
+            accum_p2(ghosted_end) = cur_well%well%th_qg
+          elseif (dabs(cur_well%well%th_ql) > 0.d0) then
+            accum_p2(ghosted_end) = cur_well%well%th_ql
+          else
+            accum_p2(ghosted_end) = 0.d0
+          endif
+          r_p(ghosted_end) = 0.d0
+        endif
+        cur_well => cur_well%next_well
+      enddo
+    endif
+  endif
   call VecRestoreArrayF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
@@ -1403,11 +1478,30 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
+  ! Update well source/sink terms
+  if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
+          call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+          call cur_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+        endif
+        cur_well => cur_well%next_well
+      enddo
+    endif
+  endif
+
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
     cur_connection_set => source_sink%connection_set
 
     do iconn = 1, cur_connection_set%num_connections
@@ -1418,6 +1512,11 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
 
       local_end = local_id * option%nflowdof
       local_start = local_end - option%nflowdof + 1
+
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        ! nflowdof is padded with an extra dof for potential wells
+        local_end = local_end - 1
+      endif
 
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
@@ -1513,7 +1612,7 @@ end subroutine HydrateResidual
 
 ! ************************************************************************** !
 
-subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
+subroutine HydrateJacobian(snes,xx,A,B,realization,pm_well,ierr)
   !
   ! Computes the Jacobian
   !
@@ -1532,6 +1631,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   use Material_Aux_module
   use Upwind_Direction_module
   use Hydrate_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -1539,8 +1639,10 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   class(realization_subsurface_type) :: realization
+  class(pm_well_type), pointer :: pm_well
   PetscErrorCode :: ierr
 
+  class(pm_well_type), pointer :: cur_well
   Mat :: J
   MatType :: mat_type
   PetscReal :: norm
@@ -1574,6 +1676,16 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: well_ndof
+  PetscInt :: deactivate_row
+  PetscReal, parameter :: epsilon = 1.d-30
+
+  Jup = 0.d0
+  Jdn = 0.d0
+
+  well_ndof = ZERO_INTEGER
+  deactivate_row = UNINITIALIZED_INTEGER
+  if (associated(pm_well)) well_ndof = ONE_INTEGER
 
   patch => realization%patch
   grid => patch%grid
@@ -1616,7 +1728,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%cc_id(ghosted_id))%ptr, &
-                                natural_id,option)
+                                hydrate_parameter, natural_id,option)
     enddo
   endif
 
@@ -1632,7 +1744,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                               grid%z(ghosted_id),grid%z_max_global, &
                               hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
-                              option,Jup)
+                              option,well_ndof,Jup)
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -1682,7 +1794,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
-                     hydrate_parameter,option,&
+                     hydrate_parameter,option,well_ndof,&
                      Jup,Jdn)
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
@@ -1749,7 +1861,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
-                      hydrate_parameter,option, &
+                      hydrate_parameter,option,well_ndof, &
                       Jdn)
 
       Jdn = -Jdn
@@ -1775,6 +1887,10 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
+    if (associated(source_sink%flow_condition%well)) then
+      source_sink => source_sink%next
+      cycle
+    endif
 
     cur_connection_set => source_sink%connection_set
 
@@ -1784,7 +1900,8 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) <= 0 .or. &
+          associated(source_sink%flow_condition%well)) cycle
 
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
@@ -1797,7 +1914,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                         sum_connection), &
                         hyd_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
-                        scale,Jup)
+                        scale,well_ndof,Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1805,6 +1922,28 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+
+  ! Well Terms
+  ! Need to update all well source/sink terms wrt
+
+  ! perturbation in bottom pressure
+
+  if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
+          ! Perturb the well and well's reservoir variables.
+          call cur_well%Perturb()
+          ! Go through and update the well contributions to the Jacobian:
+          ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
+          call cur_well%ModifyFlowJacobian(A,ierr)
+        endif
+        cur_well => cur_well%next_well
+      enddo
+    endif
+  endif
 
 !  call HydrateSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
 !                        hyd_auxvars,option)
@@ -1831,6 +1970,31 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                             inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
+    if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+      if (associated(pm_well)) then
+        cur_well => pm_well
+        do
+          if (.not. associated(cur_well)) exit
+          if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
+               dabs(cur_well%well%th_ql) < epsilon) then
+            ! Don't solve for BHP if there is no flow in the well.
+            deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
+                             option%nflowdof
+            deactivate_row = deactivate_row - 1
+            if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+              call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+            else
+              call MatZeroRowsLocal(A,ZERO_INTEGER, deactivate_row, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+            endif
+          endif
+          cur_well => cur_well%next_well
+        enddo
+      endif
+    endif
   endif
 
   if (realization%debug%matview_Matrix) then
@@ -1859,7 +2023,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
 #if 0
   imat = 1
   if (imat == 1) then
-    call HydrateNumericalJacobianTest(xx,realization,J)
+    call HydrateNumericalJacobianTest(xx,realization,pm_well,J)
   endif
 #endif
 

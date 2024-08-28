@@ -55,14 +55,18 @@ module Material_module
     PetscReal :: tensorial_rel_perm_exponent(3)
 
     ! Geophysics properties
-    PetscReal :: electrical_conductivity
-    class(dataset_base_type), pointer :: electrical_conductivity_dataset
+    PetscReal :: material_electrical_conductivity
+    class(dataset_base_type), pointer :: material_elec_cond_dataset
     PetscReal :: archie_cementation_exponent
     PetscReal :: archie_saturation_exponent
     PetscReal :: archie_tortuosity_constant
     PetscReal :: surface_electrical_conductivity
-    class(dataset_base_type), pointer :: surf_elec_cond_dataset
     PetscReal :: waxman_smits_clay_conductivity
+    class(dataset_base_type), pointer :: archie_cem_exp_dataset
+    class(dataset_base_type), pointer :: archie_sat_exp_dataset
+    class(dataset_base_type), pointer :: archie_tor_con_dataset
+    class(dataset_base_type), pointer :: surf_elec_cond_dataset
+    class(dataset_base_type), pointer :: waxman_smits_clay_cond_dataset
 
     class(fracture_type), pointer :: fracture
 
@@ -143,7 +147,7 @@ module Material_module
             MaterialPropertyRead, &
             MaterialInitAuxIndices, &
             MaterialAssignPropertyToAux, &
-            MaterialSetup, &
+            MaterialSetupThermal, &
             MaterialUpdateAuxVars, &
             MaterialStoreAuxVars, &
             MaterialWeightAuxVars, &
@@ -218,13 +222,17 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
   material_property%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
-  material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
-  nullify(material_property%electrical_conductivity_dataset)
+  material_property%material_electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%material_elec_cond_dataset)
   material_property%archie_cementation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_saturation_exponent = UNINITIALIZED_DOUBLE
   material_property%archie_tortuosity_constant = UNINITIALIZED_DOUBLE
   material_property%surface_electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%archie_cem_exp_dataset)
+  nullify(material_property%archie_sat_exp_dataset)
+  nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
+  nullify(material_property%waxman_smits_clay_cond_dataset)
   material_property%waxman_smits_clay_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(material_property%fracture)
@@ -967,31 +975,47 @@ subroutine MaterialPropertyRead(material_property,input,option)
         enddo
         call InputPopBlock(input,option)
       case('ELECTRICAL_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 GEOPHYSICS_CLASS)
         call DatasetReadDoubleOrDataset(input, &
-                      material_property%electrical_conductivity, &
-                      material_property%electrical_conductivity_dataset, &
+                      material_property%material_electrical_conductivity, &
+                      material_property%material_elec_cond_dataset, &
                       keyword,error_str,option)
       case('ARCHIE_CEMENTATION_EXPONENT')
-        call InputReadDouble(input,option, &
-                             material_property%archie_cementation_exponent)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_cementation_exponent, &
+                      material_property%archie_cem_exp_dataset, &
+                      keyword,error_str,option)
       case('ARCHIE_SATURATION_EXPONENT')
-        call InputReadDouble(input,option, &
-                             material_property%archie_saturation_exponent)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_saturation_exponent, &
+                      material_property%archie_sat_exp_dataset, &
+                      keyword,error_str,option)
       case('ARCHIE_TORTUOSITY_CONSTANT')
-        call InputReadDouble(input,option, &
-                             material_property%archie_tortuosity_constant)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%archie_tortuosity_constant, &
+                      material_property%archie_tor_con_dataset, &
+                      keyword,error_str,option)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
         call DatasetReadDoubleOrDataset(input, &
                       material_property%surface_electrical_conductivity, &
                       material_property%surf_elec_cond_dataset, &
                       keyword,error_str,option)
       case('WAXMAN_SMITS_CLAY_CONDUCTIVITY')
-        call InputReadDouble(input,option, &
-                             material_property%waxman_smits_clay_conductivity)
-        call InputErrorMsg(input,option,keyword,error_str)
+        call InputCheckSupported(input,option,keyword,error_str, &
+                                 [GEOPHYSICS_CLASS,FLOW_CLASS])
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%waxman_smits_clay_conductivity, &
+                      material_property%waxman_smits_clay_cond_dataset, &
+                      keyword,error_str,option)
       case default
         call InputKeywordUnrecognized(input,keyword,error_str,option)
     end select
@@ -1431,8 +1455,8 @@ end subroutine MaterialApplyMapping
 
 ! ************************************************************************** !
 
-subroutine MaterialSetup(material_parameter, material_property_array, &
-                         characteristic_curves_array, option)
+subroutine MaterialSetupThermal(material_parameter, material_property_array, &
+                                option)
   !
   ! Creates arrays for material parameter object
   !
@@ -1446,20 +1470,17 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
 
   type(material_parameter_type) :: material_parameter
   type(material_property_ptr_type) :: material_property_array(:)
-  type(characteristic_curves_ptr_type) :: characteristic_curves_array(:)
   type(option_type), pointer :: option
 
-  PetscInt :: num_characteristic_curves
   PetscInt :: num_mat_prop
   PetscInt :: i
 
   num_mat_prop = size(material_property_array)
-  num_characteristic_curves = size(characteristic_curves_array)
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE)
-    case(PNF_MODE)
-      option%io_buffer = 'MaterialSetup() should not be used in PNF mode'
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE,PNF_MODE)
+      option%io_buffer = 'MaterialSetupThermal should not be used in &
+        &Flow mode: ' // option%flowmode
       call PrintErrMsg(option)
     case default
       allocate(material_parameter%soil_heat_capacity(num_mat_prop))
@@ -1479,7 +1500,7 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
       enddo
   end select
 
-end subroutine MaterialSetup
+end subroutine MaterialSetupThermal
 
 ! ************************************************************************** !
 
@@ -1643,7 +1664,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
 
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
-  electrical_conductivity_index = 0
+  material_elec_conduct_index = 0
   archie_cementation_exp_index = 0
   archie_saturation_exp_index = 0
   archie_tortuosity_index = 0
@@ -1714,17 +1735,18 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_soil_ref_press = num_soil_ref_press + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%electrical_conductivity) .or. &
+                      ptr%material_electrical_conductivity) .or. &
         associated(material_property_ptrs(i)%ptr%&
-                     electrical_conductivity_dataset)) then
-      if (electrical_conductivity_index == 0) then
+                     material_elec_cond_dataset)) then
+      if (material_elec_conduct_index == 0) then
         icount = icount + 1
-        electrical_conductivity_index = icount
+        material_elec_conduct_index = icount
       endif
       num_elec_cond = num_elec_cond + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_cementation_exponent)) then
+                      ptr%archie_cementation_exponent) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_cem_exp_dataset)) then
       if (archie_cementation_exp_index == 0) then
         icount = icount + 1
         archie_cementation_exp_index = icount
@@ -1732,7 +1754,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_archie_cement_exp = num_archie_cement_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_saturation_exponent)) then
+                      ptr%archie_saturation_exponent) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_sat_exp_dataset)) then
       if (archie_saturation_exp_index == 0) then
         icount = icount + 1
         archie_saturation_exp_index = icount
@@ -1740,7 +1763,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_archie_sat_exp = num_archie_sat_exp + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%archie_tortuosity_constant)) then
+                      ptr%archie_tortuosity_constant) .or. &
+        associated(material_property_ptrs(i)%ptr%archie_tor_con_dataset)) then
       if (archie_tortuosity_index == 0) then
         icount = icount + 1
         archie_tortuosity_index = icount
@@ -1757,7 +1781,9 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_surf_elec_conduct = num_surf_elec_conduct + 1
     endif
     if (Initialized(material_property_ptrs(i)% &
-                      ptr%waxman_smits_clay_conductivity)) then
+                      ptr%waxman_smits_clay_conductivity) .or. &
+        associated(material_property_ptrs(i)%ptr% &
+                     waxman_smits_clay_cond_dataset)) then
       if (ws_clay_conduct_index == 0) then
         icount = icount + 1
         ws_clay_conduct_index = icount
@@ -1933,9 +1959,9 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
           material_property%soil_reference_pressure
       endif
     endif
-    if (electrical_conductivity_index > 0) then
-      material_auxvar%soil_properties(electrical_conductivity_index) = &
-        material_property%electrical_conductivity
+    if (material_elec_conduct_index > 0) then
+      material_auxvar%soil_properties(material_elec_conduct_index) = &
+        material_property%material_electrical_conductivity
     endif
     if (archie_cementation_exp_index > 0) then
       material_auxvar%soil_properties(archie_cementation_exp_index) = &
@@ -2668,8 +2694,12 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%permeability_dataset_yz)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
-  nullify(material_property%electrical_conductivity_dataset)
+  nullify(material_property%material_elec_cond_dataset)
+  nullify(material_property%archie_cem_exp_dataset)
+  nullify(material_property%archie_sat_exp_dataset)
+  nullify(material_property%archie_tor_con_dataset)
   nullify(material_property%surf_elec_cond_dataset)
+  nullify(material_property%waxman_smits_clay_cond_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
 

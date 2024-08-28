@@ -1275,7 +1275,6 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   deallocate(int_array)
 
   ! resize vertex array to new size
-  ugrid%num_vertices_natural = ugrid%num_vertices_local
   ugrid%num_vertices_local = vertex_count
   allocate(ugrid%vertices(vertex_count))
   do ivertex = 1, vertex_count

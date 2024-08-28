@@ -313,7 +313,10 @@ subroutine PMRTSetup(this)
   use Communicator_Structured_class
   use Communicator_Unstructured_class
 #endif
+  use Condition_Control_module
   use Grid_module
+  use Init_Subsurface_Tran_module
+  use Reactive_Transport_module
   use Reactive_Transport_Aux_module, only : reactive_transport_param_type
   use Material_module
   use Variables_module, only : TORTUOSITY
@@ -324,8 +327,23 @@ subroutine PMRTSetup(this)
 
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: i
+  PetscInt :: iphase
+  PetscBool :: lflag
   PetscReal :: val
   PetscErrorCode :: ierr
+
+  call this%SetRealization()
+  if (.not.associated(this%realization%reaction)) then
+    this%option%io_buffer = 'SUBSURFACE_TRANSPORT MODE GIRT/OSRT is &
+      &specified in the SIMULATION block without the corresponding &
+      &process model without a corresponding CHEMISTRY block within &
+      &the SUBSURFACE block.'
+    call PrintErrMsg(this%option)
+  endif
+
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(this%realization,this%realization%option)
+  call RTSetup(this%realization)
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
 
@@ -339,6 +357,23 @@ subroutine PMRTSetup(this)
     this%temperature_dependent_diffusion
   rt_parameter%millington_quirk_tortuosity = &
     this%millington_quirk_tortuosity
+
+  if (rt_parameter%temperature_dependent_diffusion) then
+    lflag = PETSC_FALSE
+    do iphase = 1, rt_parameter%nphase
+      do i = 1, rt_parameter%naqcomp
+        if (Uninitialized(rt_parameter% &
+                            diffusion_activation_energy(i,iphase))) then
+          lflag = PETSC_TRUE
+        endif
+      enddo
+    enddo
+    if (lflag) then
+      this%option%io_buffer = 'A DIFFUSION_ACTIVATION_ENERGY must be &
+        &assigned to each fluid phase for TEMPERATURE_DEPENDENT_DIFFUSION.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
 
 #ifndef SIMPLIFY
   ! set up communicator
@@ -388,11 +423,13 @@ subroutine PMRTSetup(this)
   allocate(this%max_volfrac_change( &
            this%realization%reaction%mineral%nkinmnrl))
 
+  call CondControlAssignRTTranInitCond(this%realization)
+
 end subroutine PMRTSetup
 
 ! ************************************************************************** !
 
-subroutine PMRTSetRealization(this,realization)
+subroutine PMRTSetRealization(this)
   !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -403,17 +440,14 @@ subroutine PMRTSetRealization(this,realization)
   implicit none
 
   class(pm_rt_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
-
-  if (realization%reaction%use_log_formulation) then
-    this%solution_vec = realization%field%tran_log_xx
+  this%realization => RealizationCast(this%realization_base)
+  if (this%realization%reaction%use_log_formulation) then
+    this%solution_vec = this%realization%field%tran_log_xx
   else
-    this%solution_vec = realization%field%tran_xx
+    this%solution_vec = this%realization%field%tran_xx
   endif
-  this%residual_vec = realization%field%tran_r
+  this%residual_vec = this%realization%field%tran_r
 
 end subroutine PMRTSetRealization
 
@@ -1680,10 +1714,7 @@ subroutine PMRTRestartBinary(this,viewer)
 
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-  if (realization%reaction%use_full_geochemistry) then
-                                     ! cells     bcs        act coefs.
-    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
-  endif
+  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
 
@@ -2206,11 +2237,8 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
   endif
-
-  if (realization%reaction%use_full_geochemistry) then
-                                     ! cells     bcs        act coefs.
-    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
-  endif
+                                   ! cells     bcs        act coefs.
+  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
 

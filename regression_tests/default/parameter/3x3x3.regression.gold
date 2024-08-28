@@ -1,0 +1,43 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.2577251642352E+05
+      Min:   1.0621448172580E+05
+     Mean:   1.1599349188844E+05
+       14:   1.1599347751600E+05
+        1:   1.2577251642352E+05
+       14:   1.1599347751600E+05
+-- GENERIC: Parameter scalar --
+      Max:   8.6000000000000E+01
+      Min:   8.6000000000000E+01
+     Mean:   8.6000000000000E+01
+       14:   8.6000000000000E+01
+        1:   8.6000000000000E+01
+       14:   8.6000000000000E+01
+-- GENERIC: Parameter cell_indexed --
+      Max:   4.3301270189222E+00
+      Min:   8.6602540378444E-01
+     Mean:   2.8488889359012E+00
+       14:   2.5980762113533E+00
+        1:   8.6602540378444E-01
+       14:   2.5980762113533E+00
+-- GENERIC: Parameter gridded --
+      Max:   4.3876022742710E+00
+      Min:   1.1218364368360E+00
+     Mean:   2.9465034496295E+00
+       14:   2.6930777063820E+00
+        1:   1.1218364368360E+00
+       14:   2.6930777063820E+00
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+       14:         1
+        1:         1
+       14:         1
+-- SOLUTION: Flow --
+   Time (seconds):   7.6727800023946E-04
+   Time Steps:            1
+   Newton Iterations:            1
+   Linear Solver Iterations:            5
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.0414614091159E+05
+   Residual 2-Norm:   5.3290705182008E-15

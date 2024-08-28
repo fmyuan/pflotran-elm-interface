@@ -9,15 +9,15 @@
      Mean:   1.0000000000000E+00
       100:   1.0000000000000E+00
 -- CONCENTRATION: Total Vaq --
-      Max:   9.9187447217400E-01
-      Min:   6.7237068720734E-01
-     Mean:   8.2357910150494E-01
-      100:   6.7237068720734E-01
+      Max:   9.9187447206324E-01
+      Min:   6.7237068343643E-01
+     Mean:   8.2357909932439E-01
+      100:   6.7237068343643E-01
 -- CONCENTRATION: Vim --
-      Max:   2.7261930173254E+02
-      Min:   9.3026677496917E+01
-     Mean:   1.7345378568324E+02
-      100:   9.3026677496917E+01
+      Max:   2.7261930561174E+02
+      Min:   9.3026678309298E+01
+     Mean:   1.7345378775707E+02
+      100:   9.3026678309298E+01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -26,6 +26,7 @@
 -- GENERIC: LIQUID VELOCITY [m/h] --
       100:   0.0000000000000E+00  0.0000000000000E+00  1.2600084919521E+00
 -- SOLUTION: Flow --
+   Time (seconds):   9.9277456999062E-02
    Time Steps:          202
    Newton Iterations:          212
    Linear Solver Iterations:          212
@@ -33,9 +34,10 @@
    Solution 2-Norm:   1.0858062308397E+06
    Residual 2-Norm:   9.2025200143852E-17
 -- SOLUTION: Transport --
+   Time (seconds):   4.9713246400052E-01
    Time Steps:          209
    Newton Iterations:          823
    Linear Solver Iterations:          823
    Time Step Cuts:            0
-   Solution 2-Norm:   1.8115669191292E+03
-   Residual 2-Norm:   1.5455407304733E-15
+   Solution 2-Norm:   1.8115669415510E+03
+   Residual 2-Norm:   1.5467534178622E-15

@@ -20,6 +20,9 @@ module Richards_Aux_module
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
 
+  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
+
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_FIXED_ACCUM = 0
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_ACCUM = 1
 
@@ -256,26 +259,26 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
-        class is(sat_func_VG_type)
+        class is(sat_func_vg_type)
           sf%m     = auxvar%bc_lambda
           sf%alpha = auxvar%bc_alpha
-        class is(sat_func_BC_type)
+        class is(sat_func_bc_type)
             sf%lambda = auxvar%bc_lambda
             sf%alpha  = auxvar%bc_alpha
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
-            'sat_func_VG_type and sat_func_BC_type'
+            'sat_func_vg_type and sat_func_bc_type'
           call PrintErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
-        class is(rpf_Mualem_VG_liq_type)
+        class is(rpf_mualem_vg_liq_type)
           rpf%m = auxvar%bc_lambda
-        class is(rpf_Burdine_BC_liq_type)
+        class is(rpf_burdine_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Mualem_BC_liq_type)
+        class is(rpf_mualem_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Burdine_VG_liq_type)
+        class is(rpf_burdine_vg_liq_type)
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'

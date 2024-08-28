@@ -220,7 +220,8 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   !
   ! Author: Jenn Frederick
   ! Date: 07/15/2019
-  !
+  ! Modified by: David Fukuyama
+  ! Date: 04/23/2024
 
   use Material_Aux_module
   use Global_Aux_module
@@ -237,7 +238,6 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   PetscReal :: ppt_mass_conc     ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc    ! [mol/m^3-bulk]
 
-  PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
   PetscReal :: aqueous_mass_conc ! [mol/m^3-bulk]
   PetscReal :: por, sat
   PetscBool :: super_saturated
@@ -246,31 +246,16 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   super_saturated = PETSC_FALSE
 
-  !if (.not.dry_out) then
-  !---- Cell is wet ----!
-    aqueous_eq_conc = total_bulk_conc/(por*sat)             ! [mol/m^3-liq]
-    if (aqueous_eq_conc > solubility) then
-      extra_mass_conc = aqueous_eq_conc - solubility        ! [mol/m^3-liq]
-      aqueous_eq_conc = solubility                          ! [mol/m^3-liq]
-      ppt_mass_conc = extra_mass_conc*sat*por               ! [mol/m^3-bulk]
-      super_saturated = PETSC_TRUE
-    else
-      ppt_mass_conc = 0.d0                                  ! [mol/m^3-bulk]
-      super_saturated = PETSC_FALSE
-    endif
-    sorb_mass_conc = aqueous_eq_conc*ele_kd                 ! [mol/m^3-bulk]
-    aqueous_mass_conc = (aqueous_eq_conc*sat*por) - &       ! [mol/m^3-bulk]
-                        sorb_mass_conc                      ! [mol/m^3-bulk]
-    aqueous_eq_conc = aqueous_mass_conc/(por*sat)           ! [mol/m^3-liq]
-    total_bulk_conc = aqueous_mass_conc + &                 ! [mol/m^3-bulk]
-                      sorb_mass_conc + ppt_mass_conc        ! [mol/m^3-bulk]
-  !else
-  !!---- Cell is dry ---!
-  !  ppt_mass_conc = total_bulk_conc  ! [mol/m^3-bulk]
-  !  aqueous_eq_conc = 0.d0           ! [mol/m^3-liq]
-  !  sorb_mass_conc = 0.d0            ! [mol/m^3-bulk]
-  !  aqueous_eq_conc = 0.d0           ! [mol/m^3-liq]
-  !endif
+  ! Aqueous concentration is held in equilibrium with the sorbed mass.
+  ! If the aqueous concentration exceeds solubility, its concentration will be
+  ! held at solubility, the sorbed concentration is calculated at solubility,
+  ! and the additional mass will form a precipitated phase.
+  ! total_bulk_conc [mol/m^3-bulk] = aqueous_eq_conc [mol/m^3-liq] * por [m^3 void/m^3 bulk] * sat [m^3 liq/m^3 void] +
+  !                                  aqueous_eq_conc [mol/m^3-liq] * ele_kd [m^3-water / m^3 bulk]
+  aqueous_eq_conc = min(solubility,total_bulk_conc/(por*sat+ele_kd))              ! [mol/m^3-liq]
+  aqueous_mass_conc = aqueous_eq_conc * (sat*por)                                 ! [mol/m^3-bulk]
+  sorb_mass_conc = aqueous_eq_conc * ele_kd                                       ! [mol/m^3-bulk]
+  ppt_mass_conc = max(0.d0,total_bulk_conc - aqueous_mass_conc - sorb_mass_conc)  ! [mol/m^3-bulk]
 
 end subroutine NWTEqDissPrecipSorb
 

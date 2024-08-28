@@ -1,0 +1,211 @@
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+  /
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== flow mode ========================================
+
+#=========================== time stepper options =============================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d3 1.d2 1.d2
+  /
+/
+
+#=========================== solver options ===================================
+
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  VISCOSITY CONSTANT 9.0829d-6
+  HENRYS_CONSTANT CONSTANT 1.d12
+END
+#=========================== material properties ==============================
+MATERIAL_PROPERTY  Hanford
+  ID 5
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.d-3 kg/L
+  THERMAL_CONDUCTIVITY_DRY 0.5d-6 MW/m-C
+  THERMAL_CONDUCTIVITY_WET 2.d-6 MW/m-C
+  HEAT_CAPACITY 830.d-6 MJ/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    GAS_RESIDUAL_SATURATION 1.d-40
+    M 0.5d0
+  /
+/
+
+#=========================== output options ===================================
+OUTPUT
+  #PERIODIC TIME 1.d1 y
+  #FORMAT HDF5
+  VARIABLES
+    GAS_DENSITY
+  /
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 5.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-10 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+/
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    2.d3 1.d2 1.d2
+  /
+/
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d2 1.d2
+  /
+/
+
+REGION east
+  FACE EAST
+  COORDINATES
+    2.d3 0.d0 0.d0
+    2.d3 1.d2 1.d2
+  /
+/
+
+REGION liquid_side
+  COORDINATE 0.5d0 0.5d0 0.5d0
+/
+
+REGION gas_side
+  COORDINATE 1.5d0 0.5d0 0.5d0
+/
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION liquid_side
+  VELOCITY
+/
+
+OBSERVATION
+  REGION gas_side
+  VELOCITY
+/
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION gas_phase
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    RELATIVE_HUMIDITY DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 43.d6
+  RELATIVE_HUMIDITY 95
+  TEMPERATURE 356.85d0
+/
+
+! example for an source/sink injection well
+FLOW_CONDITION well
+  TYPE
+    RATE mass_rate
+  /
+     ! liquid gas   energy
+  RATE 0.d0   -1.d-5 -1.d0 kg/s kg/s MW
+/
+ 
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION all
+/
+SOURCE_SINK well
+  FLOW_CONDITION well
+  REGION all
+/
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL Hanford
+  REGION all
+/
+
+
+END_SUBSURFACE

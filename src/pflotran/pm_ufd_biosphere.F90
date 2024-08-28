@@ -254,21 +254,18 @@ end function PMUFDBUnsuppRadCreate
 
 ! *************************************************************************** !
 
-subroutine PMUFDBSetRealization(this,realization)
+subroutine PMUFDBSetRealization(this)
   !
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
   !
-
   use Realization_Subsurface_class
 
   implicit none
 
   class(pm_ufd_biosphere_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMUFDBSetRealization
 
@@ -910,6 +907,7 @@ subroutine PMUFDBSetup(this)
   class(ERB_base_type), pointer :: prev_ERB
   class(ERB_base_type), pointer :: next_ERB
 
+  call this%SetRealization()
   call PMUFDBAssociateRegion(this,this%realization%patch%region_list)
   call PMUFDBSupportedRadCheckRT(this)
   call PMUFDBAscUnsuppRadWithSuppRad(this)
@@ -992,10 +990,12 @@ subroutine PMUFDBSupportedRadCheckRT(this)
   option => this%option
 
   if (associated(this%realization%reaction)) then
-    allocate(pri_names(GetPrimarySpeciesCount(this%realization%reaction)))
-    pri_names => GetPrimarySpeciesNames(this%realization%reaction)
-    allocate(sec_names(GetSecondarySpeciesCount(this%realization%reaction)))
-    sec_names => GetSecondarySpeciesNames(this%realization%reaction)
+    allocate(pri_names(ReactionAuxGetPriSpeciesCount( &
+                         this%realization%reaction)))
+    pri_names => ReactionAuxGetPriSpeciesNames(this%realization%reaction)
+    allocate(sec_names(ReactionAuxGetSecSpeciesCount( &
+                         this%realization%reaction)))
+    sec_names => ReactionAuxGetSecSpeciesNames(this%realization%reaction)
   else
     option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
                        &transport.'
@@ -1010,8 +1010,9 @@ subroutine PMUFDBSupportedRadCheckRT(this)
     do i = 1,len(pri_names)
       if (adjustl(trim(rad_name)) == adjustl(trim(pri_names(i)))) then
         found = PETSC_TRUE
-        cur_supp_rad%species_id = GetPrimarySpeciesIDFromName(rad_name, &
-                                              this%realization%reaction,option)
+        cur_supp_rad%species_id = &
+          ReactionAuxGetPriSpecIDFromName(rad_name,this%realization%reaction, &
+                                          option)
       endif
       if (found) exit
     enddo
@@ -1019,8 +1020,9 @@ subroutine PMUFDBSupportedRadCheckRT(this)
       do i = 1,len(sec_names)
         if (adjustl(trim(rad_name)) == adjustl(trim(sec_names(i)))) then
           found = PETSC_TRUE
-          cur_supp_rad%species_id = GetSecondarySpeciesIDFromName(rad_name, &
-                                              this%realization%reaction,option)
+          cur_supp_rad%species_id = &
+             ReactionAuxGetSecSpecIDFromName(rad_name, &
+                                             this%realization%reaction,option)
         endif
         if (found) exit
       enddo

@@ -64,6 +64,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use PM_Well_class
   use PM_Fracture_class
   use PM_Material_Transform_class
+  use PM_Parameter_class
   use Factory_Subsurface_Linkage_module
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
@@ -81,9 +82,10 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
-  class(pm_well_type), pointer :: pm_well
+  class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_fracture_type), pointer :: pm_fracture
+  class(pm_parameter_type), pointer :: pm_parameter_list
   class(realization_subsurface_type), pointer :: realization
 
   option => simulation%option
@@ -95,20 +97,18 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_ufd_biosphere)
   nullify(pm_geop)
   nullify(pm_auxiliary)
-  nullify(pm_well)
   nullify(pm_fracture)
-
-  ! process command line arguments specific to subsurface
-  call FactSubInitCommandLineSettings(option)
+  nullify(pm_well_list)
+  nullify(pm_parameter_list)
 
   call FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
                                        pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
+                                       pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
-                                       pm_fracture)
+                                       pm_parameter_list,pm_fracture)
 
-  call FactorySubsurfaceSetFlowMode(pm_flow,option)
+  call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
 
   realization => RealizationCreate(option)
@@ -117,13 +117,16 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
 
   ! Setup linkages between PMCs
   call FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
-                                       pm_waste_form,pm_ufd_decay, &
-                                       pm_ufd_biosphere,pm_geop, &
-                                       pm_auxiliary,pm_well, &
-                                       pm_material_transform, &
-                                       pm_fracture)
+                                   pm_waste_form,pm_ufd_decay, &
+                                   pm_ufd_biosphere,pm_geop,pm_auxiliary, &
+                                   pm_well_list,pm_material_transform, &
+                                   pm_parameter_list,pm_fracture)
 
-  ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
+  call FactSubLinkAddPMCEvolvingStrata(simulation)
+  call FactSubLinkAddPMCInversion(simulation)
+
+  ! FactorySubsurfaceInitSimulation() must be called after pmc linkages
+  ! are set above.
   call FactorySubsurfaceInitSimulation(simulation)
 
   ! set first process model coupler as the master
@@ -133,27 +136,7 @@ end subroutine FactorySubsurfaceInitPostPetsc
 
 ! ************************************************************************** !
 
-subroutine FactSubInitCommandLineSettings(option)
-  !
-  ! Initializes PFLTORAN subsurface output
-  ! filenames, etc.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  use Option_module
-  use Input_Aux_module
-
-  implicit none
-
-  type(option_type) :: option
-
-end subroutine FactSubInitCommandLineSettings
-
-! ************************************************************************** !
-
-subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
+subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
   !
   ! Sets the flow mode (richards, vadose, mph, etc.)
   !
@@ -168,19 +151,22 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Mphase_class
+  use co2_span_wagner_module, only : co2_sw_itable
   use PM_Richards_class
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use PM_ZFlow_class
+  use PM_SCO2_class
   use ZFlow_Aux_module
   use PM_PNF_class
-  use General_Aux_module
+  use PM_Well_class
 
   implicit none
 
   type(option_type) :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
+  class(pm_well_type), pointer :: pm_well
 
   option%liquid_phase = 1
   option%gas_phase = 2 ! always set gas phase to 2 for transport
@@ -205,14 +191,14 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
     class is (pm_general_type)
       call PMGeneralSetFlowMode(pm_flow,option)
     class is (pm_hydrate_type)
-      call PMHydrateSetFlowMode(option)
+      call PMHydrateSetFlowMode(pm_well,option)
     class is (pm_mphase_type)
       option%iflowmode = MPH_MODE
       option%nphase = 2
       option%nflowdof = 3
       option%nflowspec = 2
-      option%itable = 2 ! read CO2DATA0.dat
-!     option%itable = 1 ! create CO2 database: co2data.dat
+      co2_sw_itable = 2 ! read CO2DATA0.dat
+!     co2_sw_itable = 1 ! create CO2 database: co2data.dat
       option%use_isothermal = PETSC_FALSE
       option%water_id = 1
       option%air_id = 2
@@ -271,6 +257,8 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
+    class is (pm_sco2_type)
+      call PMSCO2SetFlowMode(pm_flow,pm_well,option)
     class default
       option%io_buffer = ''
       call PrintErrMsg(option)
@@ -305,7 +293,6 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
   use Option_module
   use PM_Base_class
   use PM_ERT_class
-  !use General_Aux_module
 
   implicit none
 
@@ -364,15 +351,18 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_base_type), pointer :: cur_process_model_coupler_top
-
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
   realization => simulation%realization
   option => realization%option
 
-! begin from old Init()
+  ! for coupling between geomechanics and ert
+  select case(option%geomech_subsurf_coupling)
+    case(GEOMECH_ERT_COUPLING)
+      call RealizationRegisterParameter(realization,'geomechanics_stress')
+      call RealizationRegisterParameter(realization,'geomechanics_strain')
+  end select
   call FactorySubsurfSetupRealization(simulation)
 
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
@@ -381,47 +371,24 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   ! initialize global auxiliary variable object
   call GlobalSetup(realization)
 
-  ! always call the flow side since a velocity field still has to be
-  ! set if no flow exists
-  call InitSubsurfFlowSetupRealization(simulation)
-  if (option%ntrandof > 0) then
-    call InitSubsurfTranSetupRealization(realization)
+  if (option%iflowmode == NULL_MODE .and. &
+      len_trim(realization%nonuniform_velocity_filename) > 0) then
+    call InitCommonReadVelocityField(realization)
   endif
-  if (option%ngeopdof > 0) then
-    call InitSubsurfGeopSetupRealization(realization)
-  endif
-
-  ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
-  call InitSubsurfaceSetupZeroArrays(realization)
-  call OutputVariableAppendDefaults(realization%output_option% &
-                                      output_snap_variable_list,option)
-
-  call RegressionSetup(simulation%regression,realization)
-! end from old Init()
-
-  call DiscretizationPrintInfo(realization%discretization, &
-                               realization%patch%grid,option)
-
-  !----------------------------------------------------------------------------!
-  ! This section for setting up new process model approach
-  !----------------------------------------------------------------------------!
-  call FactSubLinkAddPMCEvolvingStrata(simulation)
-  call FactSubLinkAddPMCInversion(simulation)
-
-  ! For each ProcessModel, set:
-  ! - realization (subsurface or surface),
-  ! - stepper (flow/trans/surf_flow),
-  ! For each ProcessModelCoupler, set:
-  ! - SNES functions (Residual/Jacobian), or TS function (RHSFunction)
-
-  cur_process_model_coupler_top => simulation%process_model_coupler_list
 
   ! the following recursive subroutine will also call each pmc child
   ! and each pms's peers
-  if (associated(cur_process_model_coupler_top)) then
-    call FactSubLinkSetupPMApproach(cur_process_model_coupler_top, &
-                                    simulation)
+  if (associated(simulation%process_model_coupler_list)) then
+    call FactSubLinkSetupPMCs(simulation%process_model_coupler_list, &
+                              simulation)
   endif
+
+  ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
+  call OutputVariableAppendDefaults(realization%output_option% &
+                                      output_snap_variable_list,option)
+  call RegressionSetup(simulation%regression,realization)
+  call DiscretizationPrintInfo(realization%discretization, &
+                               realization%patch%grid,option)
 
   ! point the top process model coupler to Output
   simulation%process_model_coupler_list%Output => Output
@@ -457,10 +424,13 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Init_Common_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Reaction_Database_module
+  use Reaction_Setup_module
   use EOS_module
   use Dataset_module
   use Patch_module
+  use Parameter_module
   use EOS_module !to be removed as already present above
+  use Discretization_module
 
   implicit none
 
@@ -481,19 +451,27 @@ subroutine FactorySubsurfSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
+  call ParameterSetup(realization%parameter_list,option)
   select case(option%itranmode)
     case(RT_MODE)
+      if (.not.associated(realization%reaction)) then
+        option%io_buffer = 'A CHEMISTRY block must be included in the input &
+          &deck when the SUBSURFACE_TRANSPORT process model is specified &
+          &with MODE GIRT or OSRT.'
+        call PrintErrMsg(option)
+      endif
       ! read reaction database
-      if (realization%reaction%use_full_geochemistry) then
-        call DatabaseRead(realization%reaction,option)
-        call BasisInit(realization%reaction,option)
+      if (realization%reaction%read_reaction_database) then
+        call ReactionDBReadDatabase(realization%reaction,option)
+        call ReactionDBInitBasis(realization%reaction,option)
       else
         ! turn off activity coefficients since the database has not been read
         realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-        !TODO(jenn) Should I turn on print here too?
-        allocate(realization%reaction%primary_species_print(option%ntrandof))
-        realization%reaction%primary_species_print = PETSC_TRUE
+        call ReactionSetupPrimaryPrint(realization%reaction,option)
       endif
+      call ReactionSetupKinetics(realization%reaction,option)
+      call ReactionSetupSpecificSpecies(realization%reaction,option)
+      call ReactionSetupSpeciesSummary(realization%reaction,option)
 
       ! SK 09/30/13, Added to check if Mphase is called with OS
       if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
@@ -504,15 +482,27 @@ subroutine FactorySubsurfSetupRealization(simulation)
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       endif
     case(NWT_MODE)
+      if (.not.associated(realization%reaction_nw)) then
+        option%io_buffer = 'A NUCLEAR_WASTE_CHEMISTRY block must be included &
+          &in the input deck when the SUBSURFACE_TRANSPORT process model &
+          &with MODE NWT is specified.'
+        call PrintErrMsg(option)
+      endif
   end select
 
   ! create grid and allocate vectors
+  call DiscretizationDecomposeDomain(realization%discretization,option)
+  if (option%coupled_well) then
+    call FactorySubsurfaceInsertWellCells(simulation)
+  endif
   call RealizationCreateDiscretization(realization)
 
   ! read any regions provided in external files
-  call InitCommonReadRegionFiles(realization%patch,realization%region_list,realization%option)
+  call InitCommonReadRegionFiles(realization%patch,realization%region_list, &
+                                 realization%option)
   ! clip regions and set up boundary connectivity, distance
-  call RealizationLocalizeRegions(realization%patch,realization%region_list,realization%option)
+  call RealizationLocalizeRegions(realization%patch,realization%region_list, &
+                                  realization%option)
   call RealizationPassPtrsToPatches(realization)
   call RealizationProcessDatasets(realization)
   if (realization%output_option%mass_balance_region_flag) then
@@ -662,5 +652,203 @@ subroutine FactorySubsurfaceJumpStart(simulation)
   endif
 
 end subroutine FactorySubsurfaceJumpStart
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfaceInsertWellCells(simulation)
+  !
+  ! Inserts off-process well cells that are beyond the ghosted halo into the
+  ! ghosting of the local Vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_module, only : UGridEnsureRightHandRule
+  use Grid_Structured_module, only : StructGridCreateTVDGhosts
+  use Discretization_module
+  use PMC_Base_class
+  use PM_Base_class
+  use PM_Well_class
+  use PM_SCO2_class
+  use PM_Hydrate_class
+  use Option_module
+  use Field_module
+  use DM_Custom_module
+  use Utility_module
+
+  implicit none
+
+  type(simulation_subsurface_type) :: simulation
+
+  class(realization_subsurface_type), pointer :: realization
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  class(pm_well_type), pointer :: pm_well
+  class(pmc_base_type), pointer :: cur_pmc
+  class(pm_base_type), pointer :: cur_pm, cur_pm2
+  type(option_type), pointer :: option
+  type(dm_ptr_type), pointer :: dm_ptr
+  PetscInt, pointer :: well_cells(:)
+  PetscInt, pointer :: h_all_global_id(:)
+  PetscInt :: num_well_cells
+  PetscErrorCode :: ierr
+
+  realization => simulation%realization
+  discretization => realization%discretization
+  grid => discretization%grid
+  field => realization%field
+  option => simulation%option
+
+  ! skip everything but the unstructured implicit format
+  select case(realization%discretization%itype)
+    case(STRUCTURED_GRID)
+      if (realization%option%comm%size > 1) then
+        option%io_buffer=  'Currently, the well model can only be run in &
+          &parallel using an implicit unstructured grid. Please convert your &
+          &STRUCTURED_GRID to UNSTRUCTURED_IMPLICIT using the provided Python &
+          &utilities.'
+        call PrintErrMsg(option)
+      else
+        return
+      endif
+    case(UNSTRUCTURED_GRID)
+      select case(realization%discretization%grid%itype)
+        case(IMPLICIT_UNSTRUCTURED_GRID)
+        case default
+          if (realization%option%comm%size > 1) then
+            option%io_buffer=  'Currently, the well model can only be run in &
+              &parallel using an implicit unstructured grid.'
+            call PrintErrMsg(option)
+          else
+            return
+          endif
+      end select
+  end select
+
+  nullify (dm_ptr)
+  if (realization%option%comm%size > 1) then
+
+#if PETSC_VERSION_LT(3,21,4)
+  option%io_buffer=  'Running the well model in parallel requires a newer &
+    &version of PETSc. Please update your PETSc version to 3.21.4 or later.'
+  call PrintErrMsg(option)
+#endif
+
+    allocate(dm_ptr)
+    call DiscretizationCreateDM(discretization, dm_ptr, &
+                                 ONE_INTEGER, discretization%stencil_width, &
+                                 discretization%stencil_type, option)
+
+    grid => discretization%grid
+    select case(discretization%itype)
+      case(STRUCTURED_GRID)
+        ! set up nG2L, nL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeSpacing(grid,discretization%origin_global,option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option)
+      case(UNSTRUCTURED_GRID)
+        ! set up nG2L, NL2G, etc.
+        call GridMapIndices(grid, &
+                            dm_ptr, &
+                            discretization%stencil_type,&
+                            option)
+        call GridComputeCoordinates(grid,discretization%origin_global,option, &
+                                      dm_ptr%ugdm)
+    end select
+
+    ! Create a list of cells needed for ghosting wells and pass in.
+    ! This list can include local cells (the algorithm ignores them).
+    cur_pmc => simulation%process_model_coupler_list
+    cur_pm => cur_pmc%pm_list
+    nullify(pm_well)
+    do
+      if (.not. associated(cur_pm)) exit
+      if (associated(pm_well)) exit
+      select type (pm => cur_pm)
+        class is (pm_sco2_type)
+          if (.not. associated(cur_pmc%child)) exit
+          cur_pm2 => cur_pmc%child%pm_list
+          do
+            select type (pm2 => cur_pm2)
+              class is (pm_well_type)
+                pm_well => pm2
+                exit
+            end select
+          enddo
+        class is (pm_hydrate_type)
+          if (.not. associated(cur_pmc%child)) exit
+          cur_pm2 => cur_pmc%child%pm_list
+          do
+            select type (pm2 => cur_pm2)
+              class is (pm_well_type)
+                pm_well => pm2
+                exit
+            end select
+          enddo
+        class default
+          option%io_buffer = 'The fully implicit well model can only be run &
+                               & in SCO2 or HYDRATE mode right now.'
+          call PrintErrMsg(option)
+      end select
+    enddo
+    nullify(well_cells)
+    do
+      if (.not. associated(pm_well)) exit
+      num_well_cells = pm_well%well_grid%nsegments
+      call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
+      pm_well%well_comm%petsc_rank = option%myrank
+      allocate(h_all_global_id(pm_well%well_grid%nsegments))
+      call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id, &
+                         pm_well%well_grid%nsegments, &
+                         MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+      pm_well%well_grid%h_global_id = h_all_global_id
+      allocate(well_cells(num_well_cells))
+      well_cells(:) = pm_well%well_grid%h_global_id(:)
+
+      call UGridAddWellCells(realization%discretization%grid% &
+                              unstructured_grid,well_cells,realization%option)
+
+      ! Destroy first-pass well grid
+      call DeallocateArray(pm_well%well_grid%dh)
+      call DeallocateArray(pm_well%well_grid%res_dz)
+      deallocate(pm_well%well_grid%h)
+      call DeallocateArray(pm_well%well_grid%h_local_id)
+      call DeallocateArray(pm_well%well_grid%h_ghosted_id)
+      call DeallocateArray(pm_well%well_grid%h_global_id)
+      call DeallocateArray(pm_well%well_grid%h_rank_id)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(pm_well%well_grid%res_z)
+      call DeallocateArray(pm_well%well_grid%strata_id)
+      call DeallocateArray(h_all_global_id)
+      call DeallocateArray(well_cells)
+
+      pm_well => pm_well%next_well
+
+    enddo
+
+    call GridExpandGhostCells(realization%discretization%grid, &
+                                realization%option)
+  endif
+
+  ! Destroy the dummy DM's
+  ! Eventually put this in a seperate subroutine (down in dm_custom?)
+  if (associated(dm_ptr)) call UGridDMDestroy(dm_ptr%ugdm)
+  nullify(dm_ptr)
+  call DeallocateArray(grid%nG2L)
+  call DeallocateArray(grid%nL2G)
+  call DeallocateArray(grid%nG2A)
+  call DeallocateArray(grid%x)
+  call DeallocateArray(grid%y)
+  call DeallocateArray(grid%z)
+
+end subroutine FactorySubsurfaceInsertWellCells
 
 end module Factory_Subsurface_module

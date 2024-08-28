@@ -239,6 +239,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Base_class
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
+  use PM_Parameter_class
 
   use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
@@ -314,6 +315,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
       case('GEOMECHANICS_SUBSURFACE')
         option%geomech_on = PETSC_TRUE
         new_pm => PMGeomechForceCreate()
+        new_pm%option => option
+        call FactoryGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOPHYSICS')
         call FactorySubsurfReadGeophysicsPM(input,option,new_pm)
       case('AUXILIARY')
@@ -328,6 +331,9 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         call FactorySubsurfReadWellPM(input,option,new_pm)
       case('FRACTURE_MODEL')
         call FactorySubsurfReadFracturePM(input,option,new_pm)
+      case('PARAMETER')
+        new_pm => PMParameterCreate()
+        call PMParameterRead(input,option,PMParameterCast(new_pm))
       case default
         call InputKeywordUnrecognized(input,word, &
                'SIMULATION,PROCESS_MODELS',option)
@@ -642,7 +648,7 @@ recursive subroutine FactoryForwardPrerequisite(outer_simulation)
     endif
   endif
 
-  call driver%PrintMsg(new_line('a') // &
+  call driver%PrintMsg(NL // &
     'Beginning prerequisite forward simulation: ' // &
     trim(outer_simulation%prerequisite))
 
@@ -694,10 +700,10 @@ recursive subroutine FactoryForwardPrerequisite(outer_simulation)
       outer_simulation%realization%patch%characteristic_curves_array
   endif
 
-  call driver%PrintMsg(new_line('a') // &
+  call driver%PrintMsg(NL // &
     'End of prerequisite forward simulation. The prerequisite solution &
     &may be found in "' // trim(outer_option%restart_filename) // &
-    '".' // new_line('a'))
+    '".' // NL)
 
 end subroutine FactoryForwardPrerequisite
 

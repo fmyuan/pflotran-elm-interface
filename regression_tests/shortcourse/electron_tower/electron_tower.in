@@ -70,7 +70,6 @@ CHEMISTRY
     /
   /
   
-  DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT

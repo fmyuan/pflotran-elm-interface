@@ -446,10 +446,10 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
   if (.not.wippflo_use_bragflo_cc) then
     select type(sf => characteristic_curves%saturation_function)
-      class is(sat_func_WIPP_type)
+      class is(sat_func_wipp_type)
         sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
         option%flow%pct_updated = PETSC_TRUE
-      class is (sf_WIPP_type)
+      class is (sf_wipp_type)
         call sf%setK(perm_for_cc)
       class default
         option%flow%pct_updated = PETSC_FALSE

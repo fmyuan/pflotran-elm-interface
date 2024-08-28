@@ -927,7 +927,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   if (option%ntrandof > 0) then
     select case(option%itranmode)
       case(RT_MODE)
-        reaction => ReactionCast(realization_base%reaction_base)
+        reaction => ReactionAuxCast(realization_base%reaction_base)
         if (print_secondary_data(2)) then
           do j = 1, reaction%naqcomp
             do i = 1, option%nsec_cells
@@ -1023,7 +1023,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   class(reaction_nw_type), pointer :: reaction_nw
 
   option => realization_base%option
-  reaction => ReactionCast(realization_base%reaction_base)
+  reaction => ReactionAuxCast(realization_base%reaction_base)
   reaction_nw => NWTReactionCast(realization_base%reaction_base)
 
   select case(option%iflowmode)
@@ -1354,7 +1354,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   PetscErrorCode :: ierr
 
   option => realization_base%option
-  reaction => ReactionCast(realization_base%reaction_base)
+  reaction => ReactionAuxCast(realization_base%reaction_base)
 
 110 format(es14.6)
 
@@ -1364,7 +1364,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,G_MODE,H_MODE,WF_MODE)
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,G_MODE,H_MODE,WF_MODE,SCO2_MODE)
         option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
           & for multiphase flow modes.'
         call PrintErrMsg(option)
@@ -1844,7 +1844,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
     if (option%ntrandof > 0) then
       select case(option%itranmode)
         case(RT_MODE)
-          reaction => ReactionCast(realization_base%reaction_base)
+          reaction => ReactionAuxCast(realization_base%reaction_base)
           if (ivar == PRINT_SEC_CONC) then
             do naqcomp = 1, reaction%naqcomp
               do i = 1, option%nsec_cells
@@ -1930,7 +1930,8 @@ subroutine ObservationAggregateLinkToVar(aggregate_var,output_var_list, &
       option%io_buffer = 'Variable requested for aggregate metric ' //&
                          'does not match any output variables.'
       call PrintErrMsg(option)
-    elseif (StringCompareIgnoreCase(cur_variable%name,var_name)) then
+    elseif (StringCompareIgnoreCase(OutputVariableGetName(cur_variable), &
+                                    var_name)) then
       aggregate_var => cur_variable
       exit
     endif
@@ -2028,6 +2029,7 @@ subroutine OutputIntegralFlux(realization_base)
   use Utility_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
+  use SCO2_Aux_module, only : sco2_fmw => fmw_comp
 
   implicit none
 
@@ -2060,7 +2062,7 @@ subroutine OutputIntegralFlux(realization_base)
   grid => patch%grid
   option => realization_base%option
   output_option => realization_base%output_option
-  reaction => ReactionCast(realization_base%reaction_base)
+  reaction => ReactionAuxCast(realization_base%reaction_base)
   reaction_nw => NWTReactionCast(realization_base%reaction_base)
 
   if (.not.associated(patch%integral_flux_list%first)) return
@@ -2080,6 +2082,11 @@ subroutine OutputIntegralFlux(realization_base)
     case(MPH_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWCO2
+    case(SCO2_MODE)
+      !MAN: double check if this is mass or molar
+      flow_dof_scale(1) = sco2_fmw(1)
+      flow_dof_scale(2) = sco2_fmw(2)
+      flow_dof_scale(3) = sco2_fmw(3)
   end select
 
   if (len_trim(output_option%plot_name) > 2) then
@@ -2118,7 +2125,7 @@ subroutine OutputIntegralFlux(realization_base)
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE, &
-               TH_MODE,TH_TS_MODE,G_MODE,H_MODE,MPH_MODE,WF_MODE)
+               TH_MODE,TH_TS_MODE,G_MODE,H_MODE,MPH_MODE,WF_MODE,SCO2_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -2144,7 +2151,7 @@ subroutine OutputIntegralFlux(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(integral_flux%name) // ' Gas Component'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(MPH_MODE)
+          case(MPH_MODE,SCO2_MODE)
             string = trim(integral_flux%name) // ' CO2'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -2152,7 +2159,7 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
         select case(option%iflowmode)
-          case(TH_MODE,TH_TS_MODE,G_MODE,H_MODE,MPH_MODE)
+          case(TH_MODE,TH_TS_MODE,G_MODE,H_MODE,MPH_MODE,SCO2_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -2341,6 +2348,8 @@ subroutine OutputMassBalance(realization_base)
   use Hydrate_module, only : HydrateComputeMassBalance
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
   use ZFlow_module, only : ZFlowComputeMassBalance
+  use SCO2_module, only : SCO2ComputeMassBalance, &
+                          SCO2ComputeComponentMassBalance
 
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -2373,19 +2382,20 @@ subroutine OutputMassBalance(realization_base)
   character(len=MAXWORDLENGTH) :: units
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: fid = 86
-  PetscInt :: i,icol
+  PetscInt :: i,icol,j
   PetscInt :: iconn
   PetscInt :: offset
   PetscInt :: iphase, ispec
   PetscInt :: icomp, nmobilecomp, nspecies
   PetscInt :: max_tran_size
+  PetscInt :: cell_ids(realization_base%patch%grid%nlmax)
   PetscReal :: sum_kg(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
   PetscReal, allocatable :: global_total_mass(:,:), total_mass(:,:)
-  PetscReal :: global_water_mass, global_total_mass_sum
+  PetscReal :: global_total_mass_sum
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
@@ -2397,7 +2407,7 @@ subroutine OutputMassBalance(realization_base)
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
-  reaction => ReactionCast(realization_base%reaction_base)
+  reaction => ReactionAuxCast(realization_base%reaction_base)
   reaction_nw => NWTReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
 
@@ -2449,7 +2459,7 @@ subroutine OutputMassBalance(realization_base)
         case(TH_MODE,TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-        case(G_MODE,H_MODE)
+        case(H_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
@@ -2458,6 +2468,26 @@ subroutine OutputMassBalance(realization_base)
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
                                     'kg','',icol)
+        case(G_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
+                                    'kg','',icol)
+          if (option%nphase > 2) then
+            call OutputWriteToHeader(fid,'Global Salt Mass in Liquid Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Salt Mass in Precipitate', &
+                                      'kg','',icol)
+          else
+            call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
+                                      'kg','',icol)
+            call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
+                                      'kg','',icol)
+          endif
         case(WF_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
@@ -2476,6 +2506,19 @@ subroutine OutputMassBalance(realization_base)
                                     'kmol','',icol)
           call OutputWriteToHeader(fid,'Trapped CO2 Mass in Gas Phase', &
                                     'kmol','',icol)
+        case(SCO2_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global CO2 Mass in Water Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Salt Mass in Water Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global CO2 Mass in Gas Phase', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Trapped CO2 Mass', &
+                                    'kg','',icol)
       end select
 
       if (option%ntrandof > 0) then
@@ -2528,8 +2571,22 @@ subroutine OutputMassBalance(realization_base)
             endif
           case(NWT_MODE)
             do i=1,reaction_nw%params%nspecies
-              string = 'Global ' // trim(reaction_nw%species_names(i))
-              call OutputWriteToHeader(fid,string,'mol','',icol)
+              if (reaction_nw%print_what%total_bulk_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Total Bulk '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%aqueous_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Aqueous '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%sorb_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Sorbed '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+              if (reaction_nw%print_what%mnrl_eq_conc) then
+                string = 'Global ' // trim(reaction_nw%species_names(i)) // ' Mineral '
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
             enddo
         end select
       endif
@@ -2571,17 +2628,37 @@ subroutine OutputMassBalance(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE,H_MODE)
+          case(H_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
-
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
+          case(G_MODE)
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Air Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            if (option%nphase > 2) then
+              string = trim(coupler%name) // ' Salt Mass'
+              call OutputWriteToHeader(fid,string,'kg','',icol)
+              string = trim(coupler%name) // ' Water Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Air Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Salt Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            else
+              string = trim(coupler%name) // ' Water Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+              string = trim(coupler%name) // ' Air Mass'
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            endif
           case(WF_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -2600,6 +2677,17 @@ subroutine OutputMassBalance(realization_base)
             call OutputWriteToHeader(fid,string,'kmol','',icol)
 
             units = 'kmol/' // trim(output_option%tunit) // ''
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            string = trim(coupler%name) // ' CO2 Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+          case(SCO2_MODE)
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' CO2 Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+
+            units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' CO2 Mass'
@@ -2675,7 +2763,57 @@ subroutine OutputMassBalance(realization_base)
         do
           if (.not.associated(cur_mbr)) exit
           string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'
-          call OutputWriteToHeader(fid,string,'kg','',icol)
+          if (option%nflowdof > 0) then
+            select case(option%iflowmode)
+              case(SCO2_MODE)
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase Water Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Gas Phase Water Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. Water Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas Water Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Gas Phase CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas CO2 Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Aqueous Phase Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Gas Phase Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Salt Precip. Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = trim(cur_mbr%region_name) // &
+                         ' Trapped Gas Salt Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+              case(G_MODE)
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' Air Mass'
+                call OutputWriteToHeader(fid,string // ' Air Mass','kg','',icol)
+                if (option%nphase > 2) then
+                  string = 'Region ' // trim(cur_mbr%region_name) // ' Salt Mass'
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                 endif
+              case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE,PNF_MODE)
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+            end select
+          endif
           if (option%ntrandof > 0) then
             select case(option%itranmode)
               case(RT_MODE)
@@ -2704,7 +2842,7 @@ subroutine OutputMassBalance(realization_base)
                       call OutputWriteToHeader(fid,string,'kg','',icol)
                     else
                       call OutputWriteToHeader(fid,string,'mol','',icol)
-                    endif
+                   endif
                   endif
                 enddo
 
@@ -2733,7 +2871,32 @@ subroutine OutputMassBalance(realization_base)
                 enddo
 
               case(NWT_MODE)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
                 call OutputWriteToHeader(fid,string,'mol','',icol)
+                do i=1, reaction_nw%params%nspecies
+                  if (reaction_nw%species_print(i)) then
+                    if (reaction_nw%print_what%total_bulk_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Total Bulk Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%aqueous_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Aqueous Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%sorb_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Sorbed Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                    if (reaction_nw%print_what%mnrl_eq_conc) then
+                      string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction_nw%species_names(i)) // ' Mineral Mass'
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                  endif
+                enddo
             end select
 
           endif
@@ -2781,12 +2944,18 @@ subroutine OutputMassBalance(realization_base)
           case(MPH_MODE)
             call MphaseComputeMassBalance(realization_base,sum_kg(:,:), &
                                           sum_trapped(:))
-          case(G_MODE)
-            call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+         case(G_MODE)
+            cell_ids = (/ (i, i=1, realization_base%patch%grid%nlmax) /)
+            call GeneralComputeMassBalance(realization_base, &
+                                           cell_ids, &
+                                           sum_kg(:,:))
           case(H_MODE)
             call HydrateComputeMassBalance(realization_base,sum_kg(:,:))
           case(WF_MODE)
             call WIPPFloComputeMassBalance(realization_base,sum_kg(:,1))
+          case(SCO2_MODE)
+            call SCO2ComputeMassBalance(realization_base,sum_kg(:,:), &
+                                          sum_trapped(:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -2807,11 +2976,21 @@ subroutine OutputMassBalance(realization_base)
 
     if (OptionIsIORank(option)) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,H_MODE,TH_MODE, &
+        case(RICHARDS_MODE,RICHARDS_TS_MODE,H_MODE,TH_MODE, &
              TH_TS_MODE,ZFLOW_MODE,PNF_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+            enddo
+          enddo
+        case(G_MODE)
+          do iphase = 1, option%nphase
+            do ispec = 1, option%nflowspec
+              if ((iphase == 1) .or. &
+                  (iphase == 2 .and. ispec <= 2) .or. &
+                  (iphase == 3 .and. ispec ==3)) then
+                write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+              endif
             enddo
           enddo
         case(WF_MODE)
@@ -2825,6 +3004,17 @@ subroutine OutputMassBalance(realization_base)
             enddo
             write(fid,110,advance="no") sum_trapped_global(iphase)
           enddo
+        case(SCO2_MODE)
+          do iphase = 1, option%nphase
+            do ispec = 1, option%nflowspec
+              if (iphase == 1) then
+                write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+              elseif (iphase == 2 .and. ispec < 3) then
+                write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+              endif
+            enddo
+          enddo
+          write(fid,110,advance="no") sum_trapped_global(TWO_INTEGER)
       end select
     endif
   endif
@@ -2903,7 +3093,9 @@ subroutine OutputMassBalance(realization_base)
         select type(realization_base)
           class is(realization_subsurface_type)
             ! computes the global mass balance
-            call NWTComputeMassBalance(realization_base,max_tran_size,sum_mol)
+            call NWTComputeMassBalance(realization_base, &
+                                       realization_base%patch%grid%nlmax, &
+                                       max_tran_size,sum_mol)
           class default
             option%io_buffer = 'Unrecognized realization class in MassBalance().'
             call PrintErrMsg(option)
@@ -2914,7 +3106,18 @@ subroutine OutputMassBalance(realization_base)
                         ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
           do icomp = 1, reaction_nw%params%nspecies
-            write(fid,110,advance="no") sum_mol_global(icomp,1)
+            if (reaction_nw%print_what%total_bulk_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,1)
+            endif
+            if (reaction_nw%print_what%aqueous_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,2)
+            endif
+            if (reaction_nw%print_what%sorb_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,3)
+            endif
+            if (reaction_nw%print_what%mnrl_eq_conc) then
+              write(fid,110,advance="no") sum_mol_global(icomp,4)
+            endif
           enddo
         endif
         deallocate(sum_mol,sum_mol_global)
@@ -3123,7 +3326,44 @@ subroutine OutputMassBalance(realization_base)
               write(fid,110,advance="no") -sum_kg_global(icomp,1)*output_option%tconv
             endif
           enddo
+        case(SCO2_MODE)
+          ! print out cumulative H2O & CO2 fluxes in kg and kg/time
+          sum_kg = 0.d0
+          do icomp = 1, option%nflowspec-1
+            do iconn = 1, coupler%connection_set%num_connections
+              sum_kg(icomp,1) = sum_kg(icomp,1) + &
+                global_auxvars_bc_or_ss(offset+iconn)%mass_balance(icomp,1)
+            enddo
+            int_mpi = 1
+            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1),int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%comm%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
 
+            if (OptionIsIORank(option)) then
+            ! change sign for positive in / negative out
+              write(fid,110,advance="no") -sum_kg_global(icomp,1)
+            endif
+          enddo
+
+        ! print out H2O & CO2 fluxes in kg and kg/time
+          sum_kg = 0.d0
+          do icomp = 1, option%nflowspec-1
+            do iconn = 1, coupler%connection_set%num_connections
+              sum_kg(icomp,1) = sum_kg(icomp,1) + &
+                global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(icomp,1)
+            enddo
+            int_mpi = 1
+            call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1),int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%comm%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
+
+            if (OptionIsIORank(option)) then
+            ! change sign for positive in / negative out
+              write(fid,110,advance="no") -sum_kg_global(icomp,1)*output_option%tconv
+            endif
+          enddo
         case(G_MODE,H_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
@@ -3321,63 +3561,169 @@ subroutine OutputMassBalance(realization_base)
     cur_mbr => output_option%mass_balance_region_list
     do
       if (.not.associated(cur_mbr)) exit
-      call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
-                                     cur_mbr%num_cells,patch,option, &
-                                     global_water_mass)
-      if (OptionIsIORank(option)) then
-        write(fid,110,advance="no") global_water_mass
-      endif
-      if (option%ntrandof > 0) then
-        max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
-                          reaction%immobile%nimmobile,reaction%gas%nactive_gas)
-        ! see RTComputeMassBalance for indexing used below
-        allocate(total_mass(max_tran_size,8))
-        allocate(global_total_mass(max_tran_size,8))
-        total_mass = 0.d0
+      if (option%nflowdof > 0) then
         select type(realization_base)
           class is(realization_subsurface_type)
-            call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
-                 max_tran_size,total_mass,cur_mbr%region_cell_ids)
+            allocate(total_mass(option%nflowspec,option%nphase))
+            allocate(global_total_mass(option%nflowspec,option%nphase))
+            total_mass = 0.d0
+
+            select case(option%iflowmode)
+              case(G_MODE)
+                call GeneralComputeMassBalance(realization_base,cur_mbr%region_cell_ids, &
+                                               total_mass(:,:))
+
+              case(SCO2_MODE)
+                deallocate(total_mass,global_total_mass)
+                allocate(total_mass(option%nflowspec,option%trapped_gas_phase))
+                total_mass = 0.d0
+                allocate(global_total_mass(option%nflowspec,option%trapped_gas_phase))
+                call SCO2ComputeComponentMassBalance(realization_base, &
+                                                     cur_mbr%num_cells,option%nflowspec, &
+                                                     option%trapped_gas_phase,total_mass, &
+                                                     cur_mbr%region_cell_ids)
+
+              case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE)
+                call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
+                                               cur_mbr%num_cells,patch,option, &
+                                               total_mass(1,1))
+              case default
+                option%io_buffer = 'Calculation of water mass in TOTAL_MASS_REGIONS &
+                                   &not supported for specified flow mode.'
+                call PrintErrMsg(option)
+            end select
+
           class default
-            option%io_buffer = 'Unrecognized realization class in MassBalance().'
+            option%io_buffer = 'Unrecognized realization class &
+                                    &in MassBalance().'
             call PrintErrMsg(option)
         end select
-        int_mpi = max_tran_size*8
-        call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                        MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
-                        option%mycomm,ierr);CHKERRQ(ierr)
-        global_total_mass_sum = 0.d0
-        do i =1, size(global_total_mass(:,1))
-            global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
-        enddo
-        if (OptionIsIORank(option)) then
-          write(fid,110,advance="no") global_total_mass_sum
-          do icomp = 1, reaction%naqcomp
-            if (reaction%primary_species_print(icomp)) then
-              write(fid,110,advance="no") global_total_mass(icomp,1)
+
+        select case(option%iflowmode)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE)
+            int_mpi = option%nflowspec * option%nphase
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            if (OptionIsIORank(option)) then
+              do i =1,option%nflowspec
+                global_total_mass_sum = sum(global_total_mass(i,:))
+                write(fid,110,advance="no") global_total_mass_sum
+              enddo
             endif
-          enddo
-          ! immobile species
-          do i = 1, reaction%immobile%nimmobile
-            if (reaction%immobile%print_me(i)) then
-              write(fid,110,advance="no") &
-                global_total_mass(i,7)
+          case(SCO2_MODE)
+            ! Split up by phase, include trapped gas
+            int_mpi = option%nflowspec * option%trapped_gas_phase
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            if (OptionIsIORank(option)) then
+              do i =1,option%nflowspec
+                do j = 1,option%trapped_gas_phase
+                  write(fid,110,advance="no") global_total_mass(i,j)
+                enddo
+              enddo
             endif
-          enddo
-          ! gas species
-          do i = 1, reaction%gas%nactive_gas
-            if (reaction%gas%active_print_me(i)) then
-              write(fid,110,advance="no") &
-                global_total_mass(i,8)
-            endif
-          enddo
-          do i = 1, reaction%mineral%nkinmnrl
-            if (reaction%mineral%kinmnrl_print(i)) then
-              write(fid,110,advance="no") global_total_mass(i,6)
-            endif
-          enddo
-        endif
+        end select
+
         deallocate(total_mass,global_total_mass)
+      endif
+      if (option%ntrandof > 0) then
+        select case(option%itranmode)
+          case(RT_MODE)
+            max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
+                              reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+            ! see RTComputeMassBalance for indexing used below
+            allocate(total_mass(max_tran_size,8))
+            allocate(global_total_mass(max_tran_size,8))
+            total_mass = 0.d0
+            select type(realization_base)
+              class is(realization_subsurface_type)
+                call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
+                     max_tran_size,total_mass,cur_mbr%region_cell_ids)
+              class default
+                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                call PrintErrMsg(option)
+            end select
+            int_mpi = max_tran_size*8
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+            global_total_mass_sum = 0.d0
+            do i =1, size(global_total_mass(:,1))
+                global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+            enddo
+            if (OptionIsIORank(option)) then
+              write(fid,110,advance="no") global_total_mass_sum
+              do icomp = 1, reaction%naqcomp
+                if (reaction%primary_species_print(icomp)) then
+                  write(fid,110,advance="no") global_total_mass(icomp,1)
+                endif
+              enddo
+              ! immobile species
+              do i = 1, reaction%immobile%nimmobile
+                if (reaction%immobile%print_me(i)) then
+                  write(fid,110,advance="no") &
+                    global_total_mass(i,7)
+                endif
+              enddo
+              ! gas species
+              do i = 1, reaction%gas%nactive_gas
+                if (reaction%gas%active_print_me(i)) then
+                  write(fid,110,advance="no") &
+                    global_total_mass(i,8)
+                endif
+              enddo
+              do i = 1, reaction%mineral%nkinmnrl
+                if (reaction%mineral%kinmnrl_print(i)) then
+                  write(fid,110,advance="no") global_total_mass(i,6)
+                endif
+              enddo
+            endif
+            deallocate(total_mass,global_total_mass)
+          case(NWT_MODE)
+            max_tran_size = reaction_nw%params%nspecies
+            ! see NWTComputeMassBalance for indexing used below
+            allocate(total_mass(max_tran_size,4))
+            allocate(global_total_mass(max_tran_size,4))
+            total_mass = 0.d0
+            select type(realization_base)
+              class is(realization_subsurface_type)
+                ! computes the global mass balance
+                call NWTComputeMassBalance(realization_base,cur_mbr%num_cells, &
+                                           max_tran_size,total_mass,cur_mbr%region_cell_ids)
+              class default
+                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                call PrintErrMsg(option)
+            end select
+            int_mpi = max_tran_size*4
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
+                            MPI_SUM,option%comm%io_rank,option%mycomm, &
+                            ierr);CHKERRQ(ierr)
+            global_total_mass_sum = 0.d0
+            do i = 1, size(global_total_mass(:,1))
+              global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+            enddo
+            if (OptionIsIORank(option)) then
+              write(fid,110,advance="no") global_total_mass_sum
+              do icomp = 1, reaction_nw%params%nspecies
+                if (reaction_nw%print_what%total_bulk_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,1)
+                endif
+                if (reaction_nw%print_what%aqueous_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,2)
+                endif
+                if (reaction_nw%print_what%sorb_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,3)
+                endif
+                if (reaction_nw%print_what%mnrl_eq_conc) then
+                  write(fid,110,advance="no") global_total_mass(icomp,4)
+                endif
+
+              enddo
+            endif
+            deallocate(total_mass,global_total_mass)
+        end select
       endif
       cur_mbr => cur_mbr%next
     enddo

@@ -22,6 +22,9 @@ SIMULATION
     #END
 
     WELL_MODEL well01
+      OPTIONS
+        TYPE WIPP_DARCY
+      /
     END
     
   END
@@ -131,10 +134,11 @@ END
 WELLBORE_MODEL
   #SINGLE_PHASE
   TWO_PHASE
-  LIQUID_MOBILITY 1.0d-8     # mobility is kr/visc
-  GAS_MOBILITY 1.0d-3        # mobility is kr/visc
-  GRID
+  #LIQUID_MOBILITY 1.0d-8     # mobility is kr/visc
+  #GAS_MOBILITY 1.0d-3        # mobility is kr/visc
+  WELL_GRID
     NUMBER_OF_SEGMENTS 3
+    CASING 0.0d0 0.0d0 0.0d0
     TOP_OF_HOLE    150.0d0 500.0d0 50.0d0  # [x,y,z] in meters
     BOTTOM_OF_HOLE 150.0d0 200.0d0 50.0d0  # [x,y,z] in meters
   /
@@ -143,8 +147,9 @@ WELLBORE_MODEL
   # provide a single value and it will be applied to all segments.
   WELL
     DIAMETER 1.2d0 1.3d0 1.4d0
-    FRICTION_COEFFICIENT 1.0d-5
-    WELL_INDEX 1.0d0 1.0d0 1.0d0
+    FRICTION_COEFFICIENT 1.00001
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_ISO
   /
   # Either BOTTOM_OF_HOLE or TOP_OF_HOLE sub-blocks need to be specified.
   # You can only specify a PRESSURE [Pa] or a FLUX.

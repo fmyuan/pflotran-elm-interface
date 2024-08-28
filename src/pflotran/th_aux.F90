@@ -16,6 +16,10 @@ module TH_Aux_module
 
   PetscInt, public :: th_ice_model
 
+  PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
+
   PetscInt, parameter, public :: TH_UPDATE_FOR_FIXED_ACCUM = 0
 
   type, public :: TH_auxvar_type
@@ -100,8 +104,6 @@ module TH_Aux_module
     PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
     PetscReal, pointer :: alpha_fr(:) ! exponent frozen
     PetscReal, pointer :: sir(:,:)
-    PetscReal, pointer :: diffusion_coefficient(:)
-    PetscReal, pointer :: diffusion_activation_energy(:)
   end type th_parameter_type
 
   type, public :: TH_type
@@ -168,13 +170,6 @@ function THAuxCreate(option)
   nullify(aux%th_parameter%ckfrozen)
   nullify(aux%th_parameter%alpha_fr)
   nullify(aux%th_parameter%sir)
-  nullify(aux%th_parameter%diffusion_coefficient)
-  nullify(aux%th_parameter%diffusion_activation_energy)
-
-  allocate(aux%th_parameter%diffusion_coefficient(option%nphase))
-  allocate(aux%th_parameter%diffusion_activation_energy(option%nphase))
-  aux%th_parameter%diffusion_coefficient = 1.d-9
-  aux%th_parameter%diffusion_activation_energy = 0.d0
 
   THAuxCreate => aux
 
@@ -435,26 +430,26 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
-        class is(sat_func_VG_type)
+        class is(sat_func_vg_type)
           sf%m     = auxvar%bc_lambda
           sf%alpha = auxvar%bc_alpha
-        class is(sat_func_BC_type)
+        class is(sat_func_bc_type)
             sf%lambda = auxvar%bc_lambda
             sf%alpha  = auxvar%bc_alpha
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
-            'sat_func_VG_type and sat_func_BC_type'
+            'sat_func_vg_type and sat_func_bc_type'
           call printErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
-        class is(rpf_Mualem_VG_liq_type)
+        class is(rpf_mualem_vg_liq_type)
           rpf%m = auxvar%bc_lambda
-        class is(rpf_Burdine_BC_liq_type)
+        class is(rpf_burdine_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Mualem_BC_liq_type)
+        class is(rpf_mualem_bc_liq_type)
           rpf%lambda = auxvar%bc_lambda
-        class is(rpf_Burdine_VG_liq_type)
+        class is(rpf_burdine_vg_liq_type)
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
@@ -723,7 +718,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   ! Check if user specified ice model via thermal characteristic curves
   select type(tcf => thermal_cc%thermal_conductivity_function)
-  class is (kT_frozen_type)
+  class is (kt_frozen_type)
     if (Initialized(tcf%ice_model)) then
       th_ice_model = tcf%ice_model
     endif
@@ -855,17 +850,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   p_g            = option%flow%reference_pressure
   auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT* &
-                         (global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
+                         (global_auxvar%temp + T273K))*1.d-3 !in kmol/m3
   mol_g          = p_sat/p_g
   C_g            = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR ! in MJ/kmol/K
-  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + 273.15d0)       ! in MJ/kmol
+  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + T273K)       ! in MJ/kmol
   auxvar%ice%mol_gas = mol_g
 
   auxvar%ice%dden_gas_dT = -p_g/(IDEAL_GAS_CONSTANT* &
-                            (global_auxvar%temp + 273.15d0)**2)*1.d-3
+                            (global_auxvar%temp + T273K)**2)*1.d-3
   dmolg_dT           = dpsat_dT/p_g
   auxvar%ice%du_gas_dT = C_g + (C_wv*dmolg_dT*FMWH2O - C_a*dmolg_dT*FMWAIR)* &
-                       (global_auxvar%temp + 273.15d0)
+                       (global_auxvar%temp + T273K)
   auxvar%ice%dmol_gas_dT = dmolg_dT
 
   ! Parameters for computation of effective thermal conductivity
@@ -1149,12 +1144,6 @@ subroutine THAuxDestroy(aux)
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%th_parameter)) then
-    if (associated(aux%th_parameter%diffusion_coefficient)) &
-      deallocate(aux%th_parameter%diffusion_coefficient)
-    nullify(aux%th_parameter%diffusion_coefficient)
-    if (associated(aux%th_parameter%diffusion_activation_energy)) &
-      deallocate(aux%th_parameter%diffusion_activation_energy)
-    nullify(aux%th_parameter%diffusion_activation_energy)
     if (associated(aux%th_parameter%dencpr)) deallocate(aux%th_parameter%dencpr)
     nullify(aux%th_parameter%dencpr)
     if (associated(aux%th_parameter%ckwet)) deallocate(aux%th_parameter%ckwet)

@@ -26,7 +26,13 @@ module Realization_Subsurface_class
 
   implicit none
 
-private
+  private
+
+  ! ids of arrays for local to local updates in this module
+  PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
+  PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
+  PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
+  PetscInt, parameter, public :: MTF_ID_ARRAY = 4 ! material transform
 
   type, public, extends(realization_base_type) :: realization_subsurface_type
 
@@ -61,6 +67,7 @@ private
   end interface
 
   public :: RealizationCreate, &
+            RealizationCast, &
             RealizationStrip, &
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
@@ -88,7 +95,8 @@ private
             RealizationLimitDTByCFL, &
             RealizationReadGeopSurveyFile, &
             RealizationCheckConsistency, &
-            RealizationPrintStateAtCells
+            RealizationPrintStateAtCells, &
+            RealizationProcessOutputVarList
 
 contains
 
@@ -166,6 +174,30 @@ end function RealizationCreate2
 
 ! ************************************************************************** !
 
+function RealizationCast(realization_base)
+  !
+  ! Casts a realization base to subsurface if in fact it is subsurface
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/12/24
+
+
+  implicit none
+
+  class(realization_base_type), pointer :: realization_base
+
+  class(realization_subsurface_type), pointer :: RealizationCast
+
+  nullify(RealizationCast)
+  select type(r=>realization_base)
+    class is(realization_subsurface_type)
+      RealizationCast => r
+  end select
+
+end function RealizationCast
+
+! ************************************************************************** !
+
 subroutine RealizationCreateDiscretization(realization)
   !
   ! Creates grid
@@ -184,7 +216,7 @@ subroutine RealizationCreateDiscretization(realization)
   use Coupler_module
   use Discretization_module
   use Grid_Unstructured_Cell_module
-  use DM_Kludge_module
+  use DM_Custom_module
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
 
@@ -393,6 +425,8 @@ subroutine RealizationCreateDiscretization(realization)
       call GridComputeVolumes(grid,field%volume0,option)
   end select
   call GridPrintExtents(grid,option)
+  call GridPrintSize(grid,option)
+
 
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
@@ -473,7 +507,6 @@ subroutine RealizationCreateDiscretization(realization)
 end subroutine RealizationCreateDiscretization
 
 ! ************************************************************************** !
-
 subroutine RealizationPassPtrsToPatches(realization)
   !
   ! Sets patch%field => realization%field
@@ -628,8 +661,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   type(material_property_type), pointer :: cur_material_property
   PetscReal, allocatable :: check_thermal_conductivity(:,:)
   type(patch_type), pointer :: patch
-  character(len=MAXSTRINGLENGTH) :: string, verify_string, mat_string
-  class(dataset_base_type), pointer :: dataset
+  character(len=MAXSTRINGLENGTH) :: verify_string, mat_string
   class(cc_thermal_type), pointer :: thermal_cc
 
   option => realization%option
@@ -680,7 +712,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     do i = 1, size(patch%char_curves_thermal_array)
       select type(tcf => patch%char_curves_thermal_array(i)%ptr% &
                   thermal_conductivity_function)
-      class is(kT_composite_type)
+      class is(kt_composite_type)
         call CompositeTCCList(patch%characteristic_curves_thermal, &
                               tcf,option)
       end select
@@ -688,7 +720,8 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
     ! use default tcc curve for legacy thermal conductivity input by material
     do i = 1, num_mat_prop
-      if (.not. option%iflowmode == G_MODE) then
+      if (.not. option%iflowmode == G_MODE .and. &
+          .not. option%iflowmode == SCO2_MODE) then
         ! some modes outside of general will only use one thermal conductivity
         ! if that is the case, use default values as fallback options
         if (patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
@@ -749,7 +782,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       do i = 1, size(patch%char_curves_thermal_array)
          select type(tcf => patch%char_curves_thermal_array(i)%ptr% &
                      thermal_conductivity_function)
-         class is(kT_composite_type)
+         class is(kt_composite_type)
            call CompositeTCCList(patch%characteristic_curves_thermal, &
                                  tcf,option)
          end select
@@ -812,259 +845,67 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
 
     ! if named, link dataset to property
-    if (associated(cur_material_property%porosity_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),POROSITY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%porosity_dataset%name, &
-                              string,option)
-      call DatasetDestroy(cur_material_property%porosity_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%porosity_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for porosity.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%tortuosity_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),TORTUOSITY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%tortuosity_dataset%name, &
-                              string,option)
-      call DatasetDestroy(cur_material_property%tortuosity_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%tortuosity_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for tortuosity.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%electrical_conductivity_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),ELECTRICAL_CONDUCTIVITY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property% &
-                                electrical_conductivity_dataset%name, &
-                              string,option)
-      call DatasetDestroy(cur_material_property%electrical_conductivity_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%electrical_conductivity_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for electrical &
-                             &conductivity.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%surf_elec_cond_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),SURFACE_ELECTRICAL_CONDUCTIVITY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property% &
-                                surf_elec_cond_dataset%name, &
-                              string,option)
-      call DatasetDestroy(cur_material_property%surf_elec_cond_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%surf_elec_cond_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for surface electrical &
-                             &conductivity.'
-          call PrintErrMsg(option)
-      end select
-    endif
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                                  cur_material_property%porosity_dataset, &
+                                  'POROSITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                                  cur_material_property%tortuosity_dataset, &
+                                  'TORTUOSITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%material_elec_cond_dataset, &
+                          'ELECTRICAL_CONDUCTIVITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%archie_cem_exp_dataset, &
+                          'ARCHIE_CEMENTATION_EXPONENT')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%archie_sat_exp_dataset, &
+                          'ARCHIE_SATURATION_EXPONENT')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%archie_tor_con_dataset, &
+                          'ARCHIE_TORTUOSITY_CONSTANT')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%surf_elec_cond_dataset, &
+                          'SURFACE_ELECTRICAL_CONDUCTIVITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%waxman_smits_clay_cond_dataset,&
+                          'WAXMAN_SMITS_CLAY_CONDUCTIVITY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset, &
+                          'PERMEABILITY or PERMEABILITY X')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset_y, &
+                          'PERMEABILITY Y')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset_z, &
+                          'PERMEABILITY Z')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset_xy, &
+                          'PERMEABILITY XY')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset_xz, &
+                          'PERMEABILITY XZ')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                          cur_material_property%permeability_dataset_yz, &
+                          'PERMEABILITY YZ')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                    cur_material_property%soil_reference_pressure_dataset, &
+                    'SOIL_REFERENCE_PRESSURE')
+    call RealLinkMatPropToDataset(realization,cur_material_property, &
+                    cur_material_property%compressibility_dataset, &
+                    'SOIL_COMPRESSIBILITY')
     if (associated(cur_material_property%multicontinuum)) then
-      if (associated(cur_material_property%multicontinuum%epsilon_dataset)) then
-        string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-                 '),EPSILON'
-        dataset => &
-          DatasetBaseGetPointer(realization%datasets, &
-                                cur_material_property% &
-                                  multicontinuum%epsilon_dataset%name, &
-                                string,option)
-        call DatasetDestroy(cur_material_property% &
-                              multicontinuum%epsilon_dataset)
-        select type(dataset)
-          class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%epsilon_dataset => dataset
-          class default
-            option%io_buffer = 'Incorrect dataset type for epsilon.'
-            call PrintErrMsg(option)
-        end select
-      endif
-      if (associated(cur_material_property%multicontinuum%half_matrix_width_dataset)) then
-        string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-                 '),LENGTH'
-        dataset => &
-          DatasetBaseGetPointer(realization%datasets, &
-                                cur_material_property% &
-                                  multicontinuum%half_matrix_width_dataset%name, &
-                                string,option)
-        call DatasetDestroy(cur_material_property% &
-                              multicontinuum%half_matrix_width_dataset)
-        select type(dataset)
-          class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%half_matrix_width_dataset => dataset
-          class default
-            option%io_buffer = 'Incorrect dataset type for length.'
-            call PrintErrMsg(option)
-        end select
-      endif
-      if (associated(cur_material_property%multicontinuum%ncells_dataset)) then
-        string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-                 '),NUM_CELLS'
-        dataset => &
-          DatasetBaseGetPointer(realization%datasets, &
-                                cur_material_property% &
-                                  multicontinuum%ncells_dataset%name, &
-                                string,option)
-        call DatasetDestroy(cur_material_property% &
-                              multicontinuum%ncells_dataset)
-        select type(dataset)
-          class is (dataset_common_hdf5_type)
-            cur_material_property%multicontinuum%ncells_dataset => dataset
-          class default
-            option%io_buffer = 'Incorrect dataset type for number of secondary cells.'
-            call PrintErrMsg(option)
-        end select
-      endif
-    endif
-    if (associated(cur_material_property%permeability_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY or PERMEABILITY X'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                            cur_material_property%permeability_dataset%name, &
-                            string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability or &
-                             &permeability X.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%permeability_dataset_y)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY Y'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                            cur_material_property%permeability_dataset_y%name, &
-                            string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset_y)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset_y => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability Y.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%permeability_dataset_z)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY Z'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                            cur_material_property%permeability_dataset_z%name, &
-                            string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset_z)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset_z => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability Z.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%permeability_dataset_xy)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY XY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                          cur_material_property%permeability_dataset_xy%name, &
-                          string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset_xy)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset_xy => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability XY.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%permeability_dataset_xz)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY XZ'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                          cur_material_property%permeability_dataset_xz%name, &
-                          string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset_xz)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset_xz => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability XZ.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%permeability_dataset_yz)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),PERMEABILITY YZ'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                          cur_material_property%permeability_dataset_yz%name, &
-                          string,option)
-      call DatasetDestroy(cur_material_property%permeability_dataset_yz)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%permeability_dataset_yz => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for permeability YZ.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%soil_reference_pressure_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),SOIL_REFERENCE_PRESSURE'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                 cur_material_property%soil_reference_pressure_dataset%name, &
-                 string,option)
-      call DatasetDestroy(cur_material_property%soil_reference_pressure_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%soil_reference_pressure_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for soil reference &
-                              &pressure.'
-          call PrintErrMsg(option)
-      end select
-    endif
-    if (associated(cur_material_property%compressibility_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),SOIL_COMPRESSIBILITY'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                         cur_material_property%compressibility_dataset%name, &
-                         string,option)
-      call DatasetDestroy(cur_material_property%compressibility_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%compressibility_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for soil_compressibility.'
-          call PrintErrMsg(option)
-      end select
+      call RealLinkMatPropToDataset(realization,cur_material_property, &
+                                    cur_material_property%multicontinuum% &
+                                      epsilon_dataset, &
+                                   'EPSILON')
+      call RealLinkMatPropToDataset(realization,cur_material_property, &
+                                    cur_material_property%multicontinuum% &
+                                      half_matrix_width_dataset, &
+                                    'LENGTH')
+      call RealLinkMatPropToDataset(realization,cur_material_property, &
+                                    cur_material_property%multicontinuum% &
+                                      ncells_dataset, &
+                                    'NUM_CELLS')
     endif
 
     cur_material_property => cur_material_property%next
@@ -1072,6 +913,50 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
 
 end subroutine RealProcessMatPropAndSatFunc
+
+! ************************************************************************** !
+
+subroutine RealLinkMatPropToDataset(realization,material_property, &
+                                     dataset,parameter_name)
+  !
+  ! Link a dataset to a material properity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/21/09
+
+  use Material_module
+  use Dataset_module
+  use Dataset_Base_class
+  use Dataset_Common_HDF5_class
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+  type(material_property_type) :: material_property
+  class(dataset_base_type), pointer :: dataset
+  character(len=*) :: parameter_name
+
+  character(len=MAXSTRINGLENGTH) :: string
+  class(dataset_base_type), pointer :: temp_dataset
+
+    if (associated(dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(material_property%name) // &
+               '),' // parameter_name
+      temp_dataset => &
+        DatasetBaseGetPointer(realization%datasets,dataset%name,string, &
+                              realization%option)
+      call DatasetDestroy(dataset)
+      select type(temp_dataset)
+        class is (dataset_common_hdf5_type)
+          dataset => temp_dataset
+        class default
+          realization%option%io_buffer = 'Incorrect dataset type for ' // &
+            parameter_name
+          call PrintErrMsg(realization%option)
+      end select
+    endif
+
+end subroutine RealLinkMatPropToDataset
 
 ! ************************************************************************** !
 
@@ -1426,6 +1311,8 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
       string = 'Boundary Condition'
     case(SRC_SINK_COUPLER_TYPE)
       string = 'Source Sink'
+    case(WELL_COUPLER_TYPE)
+      string = 'Well Coupler'
   end select
   write(option%fid_out,'(/,2x,a,/)') trim(string)
 
@@ -2054,9 +1941,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
         if (associated(porosity0_p)) then
           temp_porosity = porosity0_p(local_id)
         endif
-        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
-                                          material_auxvars(ghosted_id), &
-                                          temp_porosity,option)
+        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                            material_auxvars(ghosted_id), &
+                                            temp_porosity,option)
       enddo
     enddo
 
@@ -2890,9 +2777,9 @@ subroutine RealizationCheckConsistency(r1,r2)
   o1 => r1%option
   o2 => r2%option
 
-  s = new_line('a') // &
+  s = NL // &
       'Checking consistency of outer and prerequisite realizations:' // &
-      new_line('a')
+      NL
   call PrintMsg(o1,s)
 
   error_found = PETSC_FALSE
@@ -2958,6 +2845,131 @@ contains
   end function IntegersDiffer
 
 end subroutine RealizationCheckConsistency
+
+! ************************************************************************** !
+
+subroutine RealizationProcessOutputVarList(output_variable_list,realization)
+  !
+  ! Checks to ensure that output variables exist, maps PARAMETER output
+  ! variables with named parameters to the actual parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/26/24
+
+  use Material_Aux_module, only : soil_compressibility_index, &
+                                  soil_reference_pressure_index, &
+                                  material_elec_conduct_index, &
+                                  archie_cementation_exp_index, &
+                                  archie_saturation_exp_index, &
+                                  archie_tortuosity_index, &
+                                  surf_elec_conduct_index, &
+                                  ws_clay_conduct_index
+  use Option_module
+  use Output_Aux_module
+  use Parameter_module
+  use String_module
+  use Variables_module
+
+  implicit none
+
+  type(output_variable_list_type), pointer :: output_variable_list
+  class(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(parameter_type), pointer :: cur_parameter
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(output_variable_type), pointer :: cur_variable
+  PetscBool :: error_flag
+  PetscInt :: error_count
+
+  if (.not.associated(output_variable_list)) return
+
+  option => realization%option
+
+  cur_variable => output_variable_list%first
+  error_count =  0
+  do
+    if (.not.associated(cur_variable)) exit
+    error_flag = PETSC_FALSE
+    error_string = ''
+    select case(cur_variable%ivar)
+      case(SOIL_COMPRESSIBILITY)
+        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
+      case(SOIL_REFERENCE_PRESSURE)
+        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
+      case(MATERIAL_ELECTRICAL_CONDUCTIVITY)
+        if (material_elec_conduct_index == 0 .and. &
+            (option%iflowmode == NULL_MODE .and. &
+             option%itranmode == NULL_MODE)) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY &
+            &(for ERT alone)'
+        endif
+      case(ARCHIE_CEMENTATION_EXPONENT)
+        if (archie_cementation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_SATURATION_EXPONENT)
+        if (archie_saturation_exp_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(ARCHIE_TORTUOSITY_CONSTANT)
+        if (archie_tortuosity_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
+        if (surf_elec_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
+        if (ws_clay_conduct_index == 0) then
+          error_flag = PETSC_TRUE
+          error_string = ' - must be defined under MATERIAL_PROPERTY'
+        endif
+      ! ADD_SOIL_PROPERTY_INDEX_HERE
+      case(NAMED_PARAMETER)
+        cur_parameter => realization%parameter_list
+        do
+          if (.not.associated(cur_parameter)) exit
+          if (Stringcompare(cur_parameter%name,cur_variable%subname)) then
+            cur_variable%isubvar = cur_parameter%id
+            exit
+          endif
+          cur_parameter => cur_parameter%next
+        enddo
+        if (Uninitialized(cur_variable%isubvar)) then
+          error_flag = PETSC_TRUE
+          error_string = '- does not match a PARAMETER name'
+        endif
+    end select
+    if (error_flag) then
+      error_count = error_count + 1
+      if (error_count == 1) then
+        if (OptionPrintToScreen(option)) then
+          print *
+          print *, 'The following OUTPUT VARIABLES are undefined in this &
+            &simulation:'
+          print *
+        endif
+      endif
+      if (OptionPrintToScreen(option)) then
+        print *, '  ' // OutputVariableGetName(cur_variable) // &
+                 trim(error_string)
+      endif
+    endif
+    cur_variable => cur_variable%next
+  enddo
+  if (error_count > 0) then
+    option%io_buffer = 'Simulation was stopped due to undefined output &
+                       &variables.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RealizationProcessOutputVarList
 
 ! ************************************************************************** !
 

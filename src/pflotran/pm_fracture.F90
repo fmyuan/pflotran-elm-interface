@@ -326,6 +326,8 @@ subroutine PMFracSetup(this)
   PetscBool :: within_x,within_y,within_z
   PetscBool :: added
 
+  call this%SetRealization()
+
   option => this%option
   res_grid => this%realization%patch%grid
   nf = 0
@@ -562,18 +564,18 @@ end subroutine PMFracSetup
 
 ! ************************************************************************** !
 
-subroutine PMFracSetRealization(this,realization)
+subroutine PMFracSetRealization(this)
   !
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 12/13/2023
+  !
+  use Realization_Subsurface_class
 
   implicit none
 
   class(pm_fracture_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 
-  this%realization => realization
-  this%realization_base => realization
+  this%realization => RealizationCast(this%realization_base)
 
 end subroutine PMFracSetRealization
 

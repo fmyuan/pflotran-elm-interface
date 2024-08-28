@@ -1,0 +1,306 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+      OPTIONS
+        NO_STATE_TRANSITION_OUTPUT
+      /
+    END
+    WELL_MODEL well
+      OPTIONS
+        FLOW_COUPLING FULLY_IMPLICIT
+        TYPE HYDROSTATIC
+      END
+    END
+  END
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    2
+    4
+  /
+END
+
+# All ordering begins at the bottom of the hole and goes towards 
+# the top of the hole.
+WELLBORE_MODEL well1
+
+
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 4
+    TOP_OF_HOLE    15.d0 5.d0   200.0d0   # [x,y,z] in meters
+    BOTTOM_OF_HOLE 15.d0 5.d0  0.0d0   # [x,y,z] in meters
+    CASING 0.d0 0.d0 0.d0 0.d0
+  /
+
+
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+WELLBORE_MODEL well2
+
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 4
+    TOP_OF_HOLE    35.d0 5.d0   200.0d0   # [x,y,z] in meters
+    BOTTOM_OF_HOLE 35.d0 5.d0  0.0d0   # [x,y,z] in meters
+    CASING 1.d0 0.d0 0.d0 1.d0
+  /
+
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+# This will create output in snapshot and observation files.
+# Outside of the well region, the values will read -999
+WELL_MODEL_OUTPUT
+  WELL_LIQ_PRESSURE
+  WELL_GAS_PRESSURE
+  WELL_LIQ_Q
+  WELL_GAS_Q
+/
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+    MINIMUM_NEWTON_ITERATIONS 2
+    CENTRAL_DIFFERENCE_JACOBIAN
+    CONVERGE_ON_WELL_RESIDUAL
+  END
+
+  TIMESTEPPER FLOW
+    #PRESSURE_CHANGE_GOVERNOR 1.d9
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.75
+  END
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED mesh.ugi
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE co2_sw.dat
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.12
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
+  THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION BROOKS_COREY
+    MAX_TRAPPED_GAS_SAT 0.2
+    UNSATURATED_EXTENSION
+    ALPHA 0.00020408163
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    PHASE LIQUID
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    PHASE GAS
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    GAS_RESIDUAL_SATURATION 0.0597
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+   THERMODYNAMIC_STATE
+   TEMPERATURE
+   LIQUID_PRESSURE
+   GAS_PRESSURE
+   LIQUID_SATURATION
+   GAS_SATURATION
+   PRECIPITATE_SATURATION
+   TRAPPED_GAS_SATURATION
+   LIQUID_MASS_FRACTIONS
+   LIQUID_MOLE_FRACTIONS
+   GAS_MASS_FRACTIONS
+   LIQUID_DENSITY
+   GAS_DENSITY
+   PERMEABILITY
+   LIQUID_RELATIVE_PERMEABILITY
+   GAS_RELATIVE_PERMEABILITY
+   POROSITY
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d-2 y
+  INITIAL_TIMESTEP_SIZE 1.d-4 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d5 1.d5 1.d5
+  /
+END
+
+REGION top
+  FACE TOP
+  FILE mesh_ugi_top.ss
+END
+
+REGION bottom
+  FACE BOTTOM
+  FILE mesh_ugi_bottom.ss
+END
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 1.d-3
+  SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
+END
+
+FLOW_CONDITION boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0
+  SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
+END
+
+FLOW_CONDITION injection_well_1
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+  /
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 5.d7 0.d0 0.d0
+    5.d-3 0.d0 0.d0 0.d0 0.d0
+  /
+END
+
+FLOW_CONDITION injection_well_2
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+  /
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 5.d6 0.d0 0.d0
+    7.d-3 0.d0 0.d0 0.d0 0.d0
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION boundary
+  REGION top
+END
+
+WELL_COUPLER well1
+  FLOW_CONDITION injection_well_1
+  WELL well1
+END
+
+WELL_COUPLER well2
+  FLOW_CONDITION injection_well_2
+  WELL well2
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE

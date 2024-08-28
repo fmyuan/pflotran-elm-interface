@@ -46,8 +46,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
   use PM_TH_TS_class
   use PM_ZFlow_class
   use PM_PNF_class
+  use PM_SCO2_class
   use Init_Common_module
-  use General_module
 
   implicit none
 
@@ -107,6 +107,8 @@ subroutine FactorySubsurfReadFlowPM(input,option,pm)
             pm => PMZFlowCreate()
           case ('PORE_FLOW')
             pm => PMPNFCreate()
+          case ('STOMP-CO2','SCO2')
+            pm => PMSCO2Create()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -531,6 +533,8 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
+      case('OPTIONS')
+        call pm%ReadSimulationOptionsBlock(input)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'
@@ -653,6 +657,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use Option_module
   use Discretization_module
   use Grid_module
+  use Grid_Unstructured_Aux_module
   use Input_Aux_module
   use String_module
   use Patch_module
@@ -660,11 +665,12 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  use General_module
   use Reaction_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Init_Common_module
+  use Well_Grid_module
+  use PM_Well_class
 
   implicit none
 
@@ -679,6 +685,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+
   PetscBool :: found
   PetscBool :: qerr
 
@@ -709,6 +716,7 @@ subroutine FactorySubsurfReadRequiredCards(simulation,input)
       patch%grid => discretization%grid
       realization%patch => patch
   end select
+
   call InputPopBlock(input,option)
 
   ! optional required cards - yes, an oxymoron, but we need to know if
@@ -886,6 +894,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Utility_module
   use Checkpoint_module
   use Simulation_Subsurface_class
+  use Parameter_module
   use PMC_Base_class
   use PMC_Subsurface_class
   use PMC_Geophysics_class
@@ -896,6 +905,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use PM_Well_class
   use PM_Hydrate_class
   use PM_Fracture_class
+  use PM_SCO2_class
   use PM_Base_class
   use Print_module
   use Timestepper_Base_class
@@ -908,7 +918,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Survey_module
 
 #ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
+  use Reaction_Solid_Solution_module, only : ReactionSolidSolnReadSolidSoln
 #endif
 
   implicit none
@@ -972,6 +982,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input
   type(survey_type), pointer :: survey
+  class(pm_well_type), pointer :: well, cur_well
+  type(parameter_type), pointer :: parameter
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -986,6 +998,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   internal_units = 'not_assigned'
   nullify(default_time_storage)
   nullify(waypoint_list_time_card)
+  nullify(cur_well)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -1163,6 +1176,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
             call FlowConditionGeneralRead(flow_condition,input,option)
           case(H_MODE)
             call FlowConditionHydrateRead(flow_condition,input,option)
+          case(SCO2_MODE)
+            call FlowConditionSCO2Read(flow_condition,input,option)
           case default
             call FlowConditionRead(flow_condition,input,option)
         end select
@@ -1251,6 +1266,15 @@ subroutine FactorySubsurfReadInput(simulation,input)
         coupler => CouplerCreate(SRC_SINK_COUPLER_TYPE)
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Source Sink name')
+        call CouplerRead(coupler,input,option)
+        call RealizationAddCoupler(realization%patch,coupler)
+        nullify(coupler)
+
+!....................
+      case ('WELL_COUPLER')
+        coupler => CouplerCreate(WELL_COUPLER_TYPE)
+        call InputReadWord(input,option,coupler%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Well name')
         call CouplerRead(coupler,input,option)
         call RealizationAddCoupler(realization%patch,coupler)
         nullify(coupler)
@@ -1476,7 +1500,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
 !....................
 
       case ('CO2_DATABASE')
-        call InputReadFilename(input,option,option%co2_database_filename)
+        call InputReadFilename(input,option,option%flow%co2_database_filename)
         call InputErrorMsg(input,option,'CO2_DATABASE','filename')
 
 !....................
@@ -1577,6 +1601,10 @@ subroutine FactorySubsurfReadInput(simulation,input)
           case(PNF_MODE)
             option%io_buffer = 'Variably-saturated flow not supported &
               &in PORE mode.'
+            call PrintErrMsg(option)
+          case(NULL_MODE)
+            option%io_buffer = 'CHARACTERISTIC_CURVES may not be used &
+              &without a SUBSURFACE_FLOW mode.'
             call PrintErrMsg(option)
         end select
         characteristic_curves => CharacteristicCurvesCreate()
@@ -2450,7 +2478,37 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('WELLBORE_MODEL')
-        call PMWellReadPass2(input,option)
+        well => PMWellCreate()
+        call InputReadWord(input,option,well%name,PETSC_TRUE)
+        call PrintMsg(option,well%name)
+        well%option => option
+        call well%ReadPMBlock(input)
+        if (associated(cur_well)) then
+          cur_well%next_well => well
+          cur_well => cur_well%next_well
+        else
+          simulation%temp_well_process_model_list => well
+          cur_well => simulation%temp_well_process_model_list
+        endif
+        nullify(well)
+
+!....................
+      case ('WELL_MODEL_OUTPUT')
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+        enddo
+        call InputPopBlock(input,option)
+
+!....................
+      case ('PARAMETER')
+        parameter => ParameterCreate()
+        call InputReadWord(input,option,parameter%name,PETSC_FALSE)
+        call ParameterRead(parameter,input,option)
+        call ParameterAddToList(parameter,realization%parameter_list)
+        nullify(parameter)
 
 !....................
       case ('GEOTHERMAL_FRACTURE_MODEL')
@@ -2473,7 +2531,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
       case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE, &
-           H_MODE)
+           H_MODE,SCO2_MODE)
         if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'
@@ -2511,6 +2569,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
     call WaypointListMerge(simulation%waypoint_list_subsurface, &
                            master_pmc%timestepper%local_waypoint_list,option)
   endif
+
+  nullify(cur_well)
 
 end subroutine FactorySubsurfReadInput
 

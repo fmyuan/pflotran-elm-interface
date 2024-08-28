@@ -11,15 +11,14 @@ module co2_sw_module
 
       implicit none
 
-
-
       private
+
       save
-      PetscReal,  public :: co2_sw_c_t0_tab = -5.d0+273.15D0, co2_sw_c_p0_tab = 0.5d0
-      PetscReal,  public :: co2_sw_c_t1_tab = 5.d2+273.15D0, co2_sw_c_p1_tab = 250.d0
-      PetscReal,  public :: co2_sw_f_t0_tab = -5.d0+273.15D0, co2_sw_f_p0_tab = 0.5d0
-  !   PetscReal,  public :: co2_sw_f_t1_tab = 1.d2+273.15D0, co2_sw_f_p1_tab = 15.d0
-      PetscReal,  public :: co2_sw_f_t1_tab = 1.d2+273.15D0, co2_sw_f_p1_tab = 30.d0
+      PetscReal,  public :: co2_sw_c_t0_tab = -5.d0+T273K, co2_sw_c_p0_tab = 0.5d0
+      PetscReal,  public :: co2_sw_c_t1_tab = 5.d2+T273K, co2_sw_c_p1_tab = 250.d0
+      PetscReal,  public :: co2_sw_f_t0_tab = -5.d0+T273K, co2_sw_f_p0_tab = 0.5d0
+  !   PetscReal,  public :: co2_sw_f_t1_tab = 1.d2+T273K, co2_sw_f_p1_tab = 15.d0
+      PetscReal,  public :: co2_sw_f_t1_tab = 1.d2+T273K, co2_sw_f_p1_tab = 30.d0
 
       PetscInt :: ntab_t_c = 50, ntab_p_c = 100
      ! PetscInt :: ntab_t_f = 105, ntab_p_f = 145
@@ -57,24 +56,23 @@ subroutine init_span_wagner(option)
   type(option_type) :: option
   PetscMPIInt :: myrank
 
-  if (option%co2eos == EOS_SPAN_WAGNER) then
-    select case(option%itable)
-       case(0,1,2)
-         call initialize_span_wagner(option%itable, &
-                                     option%myrank, &
-                                     option)
-       case(4,5)
-         myrank = option%myrank
-         call initialize_span_wagner(ZERO_INTEGER,myrank, &
-                                     option)
-         call initialize_sw_interp(option%itable,myrank)
-       case(3)
-         call sw_spline_read
-       case default
-         print *, 'Wrong table option : STOP'
-         stop
-    end select
-  endif
+  select case(co2_sw_itable)
+    case(0,1,2)
+      call initialize_span_wagner(co2_sw_itable, &
+                                  option%myrank, &
+                                  option)
+    case(4,5)
+      myrank = option%myrank
+      call initialize_span_wagner(ZERO_INTEGER,myrank, &
+                                  option)
+      call initialize_sw_interp(co2_sw_itable,myrank)
+    case(3)
+      call sw_spline_read
+    case default
+      print *, 'Wrong table option : STOP'
+      stop
+  end select
+
 end subroutine init_span_wagner
 
 ! ************************************************************************** !
@@ -526,7 +524,7 @@ subroutine co2_sw_interp(p,tc,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       PetscReal :: t, prop(15)
 
 
-      t=tc+273.15D0
+      t=tc+T273K
       prop(1)=p
       prop(2)=t
 

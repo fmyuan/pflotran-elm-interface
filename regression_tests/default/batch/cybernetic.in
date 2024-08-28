@@ -53,7 +53,6 @@ CHEMISTRY
       CARBON_CONSUMPTION_SPECIES C_consumption
     /
   /
-  DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

@@ -1827,7 +1827,7 @@ subroutine OutputCollectVelocityOrFlux(realization_base, iphase, direction, &
   use Field_module
   use Connection_module
   use Coupler_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 

@@ -56,7 +56,7 @@ CHEMISTRY
   PRIMARY_SPECIES
     Tracer
   /
-  USE_FULL_GEOCHEMISTRY
+  FORCE_READ_OF_REACTION_DATABASE
   DATABASE ../../../database/hanford.dat
   OUTPUT
     TOTAL
@@ -90,7 +90,7 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-#  TIMES y 5. 10. 15. 20.
+#  TIMES y 5. 10.
   FORMAT TECPLOT POINT
 END
 

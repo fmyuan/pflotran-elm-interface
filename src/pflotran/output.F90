@@ -31,12 +31,9 @@ module Output_module
             OutputPrintCouplers, &
             OutputPrintCouplersH5, &
             OutputPrintRegions, &
-            OutputPrintRegionsH5, &
             OutputVariableRead, &
             OutputFileRead, &
             OutputInputRecord, &
-            OutputEnsureVariablesExist, &
-            OutputListEnsureVariablesExist, &
             OutputFindNaNOrInfInVec
 
 contains
@@ -837,7 +834,8 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                 option)
         call OutputVariableAddToList(output_variable_list,name, &
                                      category,units,id,subvar)
-        if (option%iflowmode == G_MODE .and. option%nflowdof == 4) then
+        if ((option%iflowmode == G_MODE .and. option%nflowdof == 4) .or. &
+             option%iflowmode == SCO2_MODE .or. option%iflowmode == H_MODE) then
           word = 'WSL'
           call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                   option)
@@ -875,14 +873,9 @@ subroutine OutputVariableRead(input,option,output_variable_list)
           call OutputVariableAddToList(output_variable_list,name, &
                                        category,units,id,temp_int)
         enddo
-      case ('NATURAL_ID')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('PROCESS_ID')
+      case ('NATURAL_ID','PETSC_ID','LOCAL_ID','GHOSTED_ID', &
+            'PROCESS_ID','MATERIAL_ID', &
+            'MATERIAL_ID_KLUDGE_FOR_VISIT')
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
         output_variable => OutputVariableCreate(name,category,units,id)
@@ -895,24 +888,10 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('MATERIAL_ID')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
       case ('FRACTURE')
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
         output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%iformat = 1 ! integer
-        call OutputVariableAddToList(output_variable_list,output_variable)
-      case ('MATERIAL_ID_KLUDGE_FOR_VISIT')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                                option)
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case('NO_FLOW_VARIABLES')
@@ -999,7 +978,15 @@ subroutine OutputVariableRead(input,option,output_variable_list)
             exit
           endif
         enddo
-! IMPORANT
+      case('PARAMETER')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
+        call InputReadWord(input,option,output_variable%subname,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PARAMETER NAME','VARIABLES,PARAMETER')
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+! IMPORTANT
 ! Developers: Before you add a new case statement, does the new
 ! have non-default values (see OutputVariableInit). If no, do
 ! not add a new case statement as "case default" will work.
@@ -1361,13 +1348,13 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (associated(output_option%output_snap_variable_list%first)) then
     write(id,'(a29)',advance='no') 'variable list: '
     cur_variable => output_option%output_snap_variable_list%first
-    write(id,'(a)') trim(cur_variable%name) // ' [' // &
+    write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
                     trim(cur_variable%units) // ']'
     cur_variable => cur_variable%next
     do
       if (.not.associated(cur_variable)) exit
       write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') trim(cur_variable%name) // ' [' // &
+      write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
            trim(cur_variable%units) // ']'
       cur_variable => cur_variable%next
     enddo
@@ -1421,12 +1408,12 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (associated(output_option%output_obs_variable_list%first)) then
     write(id,'(a29)',advance='no') 'variable list: '
     cur_variable => output_option%output_obs_variable_list%first
-    write(id,'(a)') trim(cur_variable%name)
+    write(id,'(a)') OutputVariableGetName(cur_variable)
     cur_variable => cur_variable%next
     do
       if (.not.associated(cur_variable)) exit
       write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') trim(cur_variable%name) // ' [' // &
+      write(id,'(a)') OutputVariableGetName(cur_variable) // ' [' // &
            trim(cur_variable%units) // ']'
       cur_variable => cur_variable%next
     enddo
@@ -1807,6 +1794,10 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
+  use SCO2_Aux_module
+  use ZFlow_Aux_module
+  use PNF_Aux_module
+  use Richards_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -1838,29 +1829,39 @@ subroutine OutputPrintCouplers(realization_base,istep)
     call PrintErrMsg(option)
   endif
 
+  allocate(iauxvars(option%nphase),auxvar_names(option%nphase))
+  iauxvars = -999
+  auxvar_names = 'Unnamed'
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
+    case(ZFLOW_MODE)
+      iauxvars(1) = zflow_liq_flow_eq
+      auxvar_names(1) = 'pressure'
+    case(PNF_MODE)
+      iauxvars(1) = PNF_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'pressure'
     case(G_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(H_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
+    case(SCO2_MODE)
+      iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      ! iauxvars(2) = SCO2_TEMPERATURE_DOF
+      ! auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -1933,9 +1934,13 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
+  use Richards_Aux_module
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
+  use SCO2_Aux_module
+  use PNF_Aux_module
+  use ZFlow_Aux_module
   use String_module
   use Discretization_module
   use Output_Common_module
@@ -1989,29 +1994,39 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
     call PrintErrMsg(option)
   endif
 
+  allocate(iauxvars(option%nphase),auxvar_names(option%nphase))
+  iauxvars = -999
+  auxvar_names = 'Unnamed'
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
+    case(ZFLOW_MODE)
+      iauxvars(1) = zflow_liq_flow_eq
+      auxvar_names(1) = 'pressure'
+    case(PNF_MODE)
+      iauxvars(1) = PNF_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'pressure'
     case(G_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(H_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
       auxvar_names(2) = 'gas_saturation'
+    case(SCO2_MODE)
+      iauxvars(1) = SCO2_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      ! iauxvars(2) = SCO2_TEMPERATURE_DOF
+      ! auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -2141,196 +2156,23 @@ subroutine OutputPrintRegions(realization_base)
 
   class(realization_base_type) :: realization_base
 
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(debug_type), pointer :: flow_debug
-  type(region_type), pointer :: cur_region
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: i
-  PetscErrorCode :: ierr
+  if (realization_base%debug%print_regions_tec) then
+    call OutputTecplotPrintRegions(realization_base)
+  endif
 
-
-  option => realization_base%option
-  flow_debug => realization_base%debug
-  field => realization_base%field
-
-  cur_region => realization_base%patch%region_list%first
-  do
-    if (.not.associated(cur_region)) exit
-    call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    do i = 1, cur_region%num_cells
-      vec_ptr(cur_region%cell_ids(i)) = vec_ptr(cur_region%cell_ids(i)) + 1.d0
-    enddo
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    string = 'region_' // trim(cur_region%name) // '.tec'
-    word = 'region'
-    call OutputVectorTecplot(string,word,realization_base,field%work)
-    cur_region => cur_region%next
-  enddo
+  if (realization_base%debug%print_regions_hdf5) then
+    select case (realization_base%discretization%itype)
+      case(STRUCTURED_GRID)
+        call OutputHDF5PrintRegionsStructured(realization_base)
+      case(UNSTRUCTURED_GRID)
+        if (realization_base%discretization%grid%itype == &
+            IMPLICIT_UNSTRUCTURED_GRID) then
+          call OutputHDF5PrintRegionsXMF(realization_base)
+        endif
+    end select
+  endif
 
 end subroutine OutputPrintRegions
-
-! ************************************************************************** !
-
-subroutine OutputPrintRegionsH5(realization_base)
-  !
-  ! Prints out the number of connections to each cell in a region in HDF5.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/19/19
-  !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module
-  use Realization_Base_class, only : realization_base_type
-  use Discretization_module
-  use Option_module
-  use Field_module
-  use Patch_module
-  use Grid_module
-  use Region_module
-  use Output_Aux_module
-  use String_module
-  use Output_Common_module
-
-  implicit none
-
-  class(realization_base_type) :: realization_base
-
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(grid_type), pointer :: grid
-  type(region_type), pointer :: cur_region
-  type(output_option_type), pointer :: output_option
-  type(discretization_type), pointer :: discretization
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
-  character(len=MAXSTRINGLENGTH) :: h5_filename
-  character(len=MAXSTRINGLENGTH) :: xmf_filename
-  character(len=MAXSTRINGLENGTH) :: h5_filename_without_path
-
-  Vec :: natural_vec
-  Vec :: one_vec
-  Vec :: all_vec
-
-  type(output_h5_type), pointer :: h5obj
-  integer(HID_T) :: h5file_id
-  integer(HID_T) :: grp_id
-
-  PetscReal, pointer :: one_ptr(:)
-  PetscInt :: i
-  PetscErrorCode :: ierr
-
-  option => realization_base%option
-  field => realization_base%field
-  grid => realization_base%patch%grid
-  discretization => realization_base%discretization
-  output_option => realization_base%output_option
-
-  h5obj => OutputH5Create()
-
-  string = trim(option%global_prefix) // '_regions'
-  h5_filename = trim(string) // '.h5'
-  xmf_filename = trim(string) // '.xmf'
-  strings => StringSplit(h5_filename,'/')
-  h5_filename_without_path = strings(size(strings))
-  deallocate(strings)
-
-  call OutputH5OpenFile(option,h5obj,h5_filename,h5file_id)
-  call OutputXMFOpenFile(option,xmf_filename,OUTPUT_UNIT)
-
-  if (Uninitialized(output_option%xmf_vert_len)) then
-    call DetermineNumVertices(realization_base,option)
-  endif
-
-  !TODO(geh): move conditional inside of OutputXMFHeader
-  if (OptionIsIORank(option)) then
-    call OutputXMFHeader(OUTPUT_UNIT, &
-                         option%time/output_option%tconv, &
-                         grid%nmax, &
-                         output_option%xmf_vert_len, &
-                         grid%unstructured_grid%num_vertices_global,&
-                         h5_filename_without_path,PETSC_TRUE)
-  endif
-
-  ! create a group for the coordinates data set
-  group_name = "Domain"
-  call OutputH5OpenGroup(option,group_name,h5file_id,grp_id)
-  call WriteHDF5CoordinatesUGridXDMF(realization_base,option,grp_id)
-  call OutputH5CloseGroup(option,grp_id)
-
-  group_name = '0 Time 0.'
-  call OutputH5OpenGroup(option,group_name,h5file_id,grp_id)
-
-  call DiscretizationCreateVector(discretization,ONEDOF,natural_vec,NATURAL, &
-                                  option)
-  call DiscretizationCreateVector(discretization,ONEDOF,one_vec,GLOBAL, &
-                                  option)
-  call DiscretizationCreateVector(discretization,ONEDOF,all_vec,GLOBAL, &
-                                  option)
-
-  cur_region => realization_base%patch%region_list%first
-  call VecZeroEntries(all_vec,ierr);CHKERRQ(ierr)
-  do
-    if (.not.associated(cur_region)) exit
-    call VecZeroEntries(one_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
-    do i = 1, cur_region%num_cells
-      one_ptr(cur_region%cell_ids(i)) = one_ptr(cur_region%cell_ids(i)) + 1.d0
-    enddo
-    call VecRestoreArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
-    call VecAXPY(all_vec,1.d0,one_vec,ierr);CHKERRQ(ierr)
-
-    string = cur_region%name
-
-    call DiscretizationGlobalToNatural(discretization,one_vec, &
-                                       natural_vec,ONEDOF)
-    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                                 H5T_NATIVE_DOUBLE)
-    string2 = trim(h5_filename_without_path) // &
-                   ":/" // trim(group_name) // "/" // trim(string)
-    !TODO(geh): move conditional inside of OutputXMFAttribute
-    if (OptionIsIORank(option)) then
-      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
-                              CELL_CENTERED_OUTPUT_MESH)
-    endif
-    cur_region => cur_region%next
-  enddo
-  call VecGetArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
-  call DiscretizationGlobalToNatural(discretization,all_vec, &
-                                     natural_vec,ONEDOF)
-  string = 'All Regions'
-  call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
-                               H5T_NATIVE_DOUBLE)
-  string2 = trim(h5_filename_without_path) // &
-                 ":/" // trim(group_name) // "/" // trim(string)
-  !TODO(geh): move conditional inside of OutputXMFAttribute
-  if (OptionIsIORank(option)) then
-    call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
-                            CELL_CENTERED_OUTPUT_MESH)
-  endif
-
-  !TODO(geh): move conditional inside of OutputXMFFooter
-  if (OptionIsIORank(option)) then
-    call OutputXMFFooter(OUTPUT_UNIT)
-    close(OUTPUT_UNIT)
-  endif
-
-  call OutputH5CloseGroup(option,grp_id)
-  call OutputH5CloseFile(option,h5obj,h5file_id)
-
-  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(one_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(all_vec,ierr);CHKERRQ(ierr)
-  call OutputH5Destroy(h5obj)
-
-end subroutine OutputPrintRegionsH5
 
 ! ************************************************************************** !
 
@@ -2453,136 +2295,6 @@ subroutine OutputAvegVars(realization_base)
   endif
 
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-
-subroutine OutputEnsureVariablesExist(output_option,option)
-  !
-  ! Loop over output variables to ensure that they exist in the simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/02/17
-  !
-  use Option_module
-
-  implicit none
-
-  type(output_option_type) :: output_option
-  type(option_type) :: option
-
-  call OutputListEnsureVariablesExist(output_option%output_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%output_snap_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%output_obs_variable_list, &
-                                      option)
-  call OutputListEnsureVariablesExist(output_option%aveg_output_variable_list, &
-                                      option)
-
-end subroutine OutputEnsureVariablesExist
-
-! ************************************************************************** !
-
-subroutine OutputListEnsureVariablesExist(output_variable_list,option)
-  !
-  ! Loop over output variables to ensure that they exist in the simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/02/17
-  !
-  use Option_module
-  use Material_Aux_module, only : soil_compressibility_index, &
-                                  soil_reference_pressure_index, &
-                                  electrical_conductivity_index, &
-                                  archie_cementation_exp_index, &
-                                  archie_saturation_exp_index, &
-                                  archie_tortuosity_index, &
-                                  surf_elec_conduct_index, &
-                                  ws_clay_conduct_index
-
-  use Variables_module
-
-  implicit none
-
-  type(output_variable_list_type), pointer :: output_variable_list
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  type(output_variable_type), pointer :: cur_variable
-  PetscBool :: error_flag
-  PetscInt :: error_count
-
-  if (.not.associated(output_variable_list)) return
-
-  cur_variable => output_variable_list%first
-  error_count =  0
-  do
-    if (.not.associated(cur_variable)) exit
-    error_flag = PETSC_FALSE
-    error_string = ''
-    select case(cur_variable%ivar)
-      case(SOIL_COMPRESSIBILITY)
-        if (soil_compressibility_index == 0) error_flag = PETSC_TRUE
-      case(SOIL_REFERENCE_PRESSURE)
-        if (soil_reference_pressure_index == 0) error_flag = PETSC_TRUE
-      case(ELECTRICAL_CONDUCTIVITY)
-        if (electrical_conductivity_index == 0 .and. &
-            (option%iflowmode == NULL_MODE .and. &
-             option%itranmode == NULL_MODE)) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY &
-            &(for ERT alone)'
-        endif
-      case(ARCHIE_CEMENTATION_EXPONENT)
-        if (archie_cementation_exp_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(ARCHIE_SATURATION_EXPONENT)
-        if (archie_saturation_exp_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(ARCHIE_TORTUOSITY_CONSTANT)
-        if (archie_tortuosity_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(SURFACE_ELECTRICAL_CONDUCTIVITY)
-        if (surf_elec_conduct_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      case(WAXMAN_SMITS_CLAY_CONDUCTIVITY)
-        if (ws_clay_conduct_index == 0) then
-          error_flag = PETSC_TRUE
-          error_string = ' - must be defined under MATERIAL_PROPERTY'
-        endif
-      ! ADD_SOIL_PROPERTY_INDEX_HERE
-    end select
-    if (error_flag) then
-      error_count = error_count + 1
-      if (error_count == 1) then
-        if (OptionPrintToScreen(option)) then
-          print *
-          print *, 'The following OUTPUT VARIABLES are undefined in this &
-            &simulation:'
-          print *
-        endif
-      endif
-      if (OptionPrintToScreen(option)) then
-        print *, '  ' // trim(cur_variable%name) // trim(error_string)
-      endif
-    endif
-    cur_variable => cur_variable%next
-  enddo
-  if (error_count > 0) then
-    option%io_buffer = 'Simulation was stopped due to undefined output &
-                       &variables.'
-    call PrintErrMsg(option)
-  endif
-
-end subroutine OutputListEnsureVariablesExist
 
 ! ************************************************************************** !
 

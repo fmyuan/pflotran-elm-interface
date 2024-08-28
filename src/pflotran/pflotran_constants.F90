@@ -12,19 +12,19 @@ module PFLOTRAN_Constants_module
   private
 
   PetscBool, parameter :: PFLOTRAN_RELEASE = PETSC_FALSE
-  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 4
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 6
   PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
   PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
 
 #define VMAJOR 3
-#define VMINOR 20
-#define VSUBMINOR 0
+#define VMINOR 21
+#define VSUBMINOR 4
 #if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
      (PETSC_VERSION_MAJOR == VMAJOR &&                  \
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-#error "Please use PETSc version 3.20.0 or later: 'git checkout v3.20.0' in $PETSC_DIR"
+#error "Please use PETSc version 3.21.4 or later: 'git checkout v3.21.4' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
@@ -45,7 +45,7 @@ module PFLOTRAN_Constants_module
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_OUT_UNIT = 17
   PetscInt, parameter, public :: OUTPUT_UNIT = 18 ! for output data files
-  PetscInt, parameter, public :: IN_UNIT = 19 
+  PetscInt, parameter, public :: IN_UNIT = 19
   ! Before you add file UNITS between IN_UNIT and MAX_IN_UNIT, read
   ! comment on file units above.
   PetscInt, parameter, public :: MAX_IN_UNIT = 27
@@ -80,6 +80,8 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.064d6 ! Pa
 #endif
 
+  PetscReal, parameter, public :: CO2_CRITICAL_TEMPERATURE = 304.1282d0 !K
+
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
   PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0
@@ -88,6 +90,8 @@ module PFLOTRAN_Constants_module
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
 !to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
+  PetscReal, parameter, public :: T273K = 273.15d0 ! 0C in K
+  PetscReal, parameter, public :: T298K = 298.15d0 ! 25C in K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
@@ -143,6 +147,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: FLOW_CLASS = 1
   PetscInt, parameter, public :: TRANSPORT_CLASS = 2
   PetscInt, parameter, public :: GEOPHYSICS_CLASS = 3
+  PetscInt, parameter, public :: GEOMECHANICS_CLASS = 4
 
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
@@ -169,6 +174,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: H_MODE = 8
   PetscInt, parameter, public :: ZFLOW_MODE = 9
   PetscInt, parameter, public :: PNF_MODE = 10
+  PetscInt, parameter, public :: SCO2_MODE = 11
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1
@@ -178,6 +184,9 @@ module PFLOTRAN_Constants_module
   ! geophysics modes
   PetscInt, parameter, public :: ERT_MODE = 1
   PetscInt, parameter, public :: SIP_MODE = 2
+
+  ! geomechanics modes
+  PetscInt, parameter, public :: LINEAR_ELASTICITY_MODE = 1
 
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
@@ -213,44 +222,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 30
   PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 31
   PetscInt, parameter, public :: MEMBRANE_BC = 32
+  PetscInt, parameter, public :: AT_SOLUBILITY_BC = 33
 
   PetscInt, parameter, public :: WELL_SS = 100
-
-  ! source/sink scaling options
-  PetscInt, parameter, public :: SCALE_BY_PERM = 1
-  PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
-  PetscInt, parameter, public :: SCALE_BY_VOLUME = 3
-
-  ! connection types
-  PetscInt, parameter, public :: INTERNAL_CONNECTION_TYPE = 1
-  PetscInt, parameter, public :: BOUNDARY_CONNECTION_TYPE = 2
-  PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
-  PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
-
-  ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-
-  PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
-
-  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
-
-  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-
-  PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-
-  ! mphase equation of state
-  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
-  PetscInt, parameter, public :: EOS_MRK = 2
 
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
@@ -262,12 +236,6 @@ module PFLOTRAN_Constants_module
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
-
-  ! ids of non-petsc arrays
-  PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
-  PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
-  PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
-  PetscInt, parameter, public :: MTF_ID_ARRAY = 4 ! material transform
 
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0
@@ -305,6 +273,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
   PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
   PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
+  PetscInt, parameter, public :: GEOMECH_ERT_COUPLING = 6
 
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
@@ -338,6 +307,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: CONVERGENCE_BREAKOUT_INNER_ITER = 3
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
+
+  ! characters
+  character(len=1), parameter, public :: NL = new_line('a')
 
   interface Uninitialized
     module procedure UninitializedInteger

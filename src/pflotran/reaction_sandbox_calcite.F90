@@ -22,7 +22,8 @@ module Reaction_Sandbox_Calcite_class
   contains
     procedure, public :: ReadInput => CalciteReadInput
     procedure, public :: Setup => CalciteSetup
-    procedure, public :: AuxiliaryPlotVariables => CalciteAuxiliaryPlotVariables
+    procedure, public :: AuxiliaryPlotVariables => &
+                           CalciteAuxiliaryPlotVariables
     procedure, public :: Evaluate => CalciteEvaluate
     procedure, public :: UpdateKineticState => CalciteUpdateKineticState
   end type reaction_sandbox_calcite_type
@@ -112,8 +113,8 @@ subroutine CalciteSetup(this,reaction,option)
   !
   ! Sets up the calcite reaction with hardwired parameters
   !
-  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
-  use Reaction_Mineral_Aux_module, only : GetMineralIDFromName
+  use Reaction_Aux_module
+  use Reaction_Mineral_Aux_module
   use Option_module
 
   implicit none
@@ -132,16 +133,16 @@ subroutine CalciteSetup(this,reaction,option)
   ! Aqueous species
   word = 'H+'
   this%h_ion_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Ca++'
   this%calcium_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'HCO3-'
   this%bicarbonate_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
+    ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
-    GetMineralIDFromName(word,reaction%mineral,option)
+    ReactionMnrlGetMnrlIDFromName(word,reaction%mineral,option)
 
 end subroutine CalciteSetup
 
@@ -229,9 +230,9 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   ! Reaction path #1
   ! the code in this block is very similar to the default mineral
-  ! precipitation-dissolution capability in RKineticMineral(). this block
-  ! illustrates how one can leverage the stoichiometries and logKs from the
-  ! database and solely override the rate expression
+  ! precipitation-dissolution capability in ReactionMnrlKineticRate(). this
+  ! block illustrates how one can leverage the stoichiometries and logKs from
+  ! the database and solely override the rate expression
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
 

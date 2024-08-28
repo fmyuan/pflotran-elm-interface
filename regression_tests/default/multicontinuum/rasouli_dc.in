@@ -117,7 +117,6 @@ MATERIAL_PROPERTY diffusiveMaterial
     POROSITY 50000.d0 #5000.d0
     TORTUOSITY 1.d0
     LONGITUDINAL_DISPERSIVITY 0d0
-    CHARACTERISTIC_CURVES default
     SECONDARY_CONTINUUM 
       TYPE SLAB
       LENGTH 1.d-2 #9.8e-2
@@ -139,11 +138,6 @@ MATERIAL_PROPERTY diffusiveMaterial
     #LONGITUDINAL_DISPERSIVITY 0d0
     #SATURATION_FUNCTION default
 #/
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  DEFAULT
-END
 
 #=========================== output options ===================================
 OUTPUT

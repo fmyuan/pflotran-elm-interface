@@ -52,12 +52,11 @@ contains
 
   subroutine setUp(This)
 
-    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
+    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH, T273K
 
     implicit none
 
     class(Test_Characteristic_Curves_thermal), intent(inout) :: this
-    character(len=MAXSTRINGLENGTH) :: error_string
 
     this%option => OptionCreate()
 
@@ -89,7 +88,7 @@ contains
       class is (kT_power_type)
         tcf%kT_dry = 6.d-1
         tcf%kT_wet = 1.9d0
-        tcf%ref_temp = -273.15d0
+        tcf%ref_temp = -T273K
         tcf%gamma = -1.18d0
       class default
         print *, 'not Power type'
@@ -351,7 +350,7 @@ contains
     value =  1.34929509795d0
     @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
     string = 'Linear Resistivity thermal characteristic curve derivative &
-             of tcond with respect to saturation'
+             &of tcond with respect to saturation'
     value = 0.81641175499d0
     @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string)
     string = 'Linear Resistivity thermal characteristic curve derivative &

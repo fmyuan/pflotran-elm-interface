@@ -25,8 +25,8 @@ module Output_Obs_H5_module
 
   character(len=MAXSTRINGLENGTH) :: h5_filename
 
-  ! attribute information 
-  character(len=MAXWORDLENGTH) :: sim_time 
+  ! attribute information
+  character(len=MAXWORDLENGTH) :: sim_time
   character(len=MAXWORDLENGTH) :: version
 
   ! information used to describe data
@@ -74,7 +74,7 @@ contains
 
     if (num_steps == 0) then
       observation_hdf5_first = PETSC_TRUE
-      
+
       call date_and_time(date_word,time_word,zone_word)
       write(sim_time,'(a)') date_word(5:6) // '/'         &
                             // date_word(7:8) // '/'      &
@@ -86,7 +86,7 @@ contains
 
     ! retrieve version
     version = GetVersion()
-      
+
     else
       observation_hdf5_first = PETSC_FALSE
     endif
@@ -210,11 +210,11 @@ contains
     integer(HID_T) :: attr_space  ! Attribute space
     integer(HSIZE_T) :: attrlen   ! Length of attribute string
     integer(HSIZE_T), dimension(1) :: adims = (/1/)   ! Attribute dimension
-    integer(HSIZE_T), dimension(1) :: data_dims 
-  
+    integer(HSIZE_T), dimension(1) :: data_dims
+
 
     attrlen = MAXWORDLENGTH
-  
+
     ! create scalar data space for the version attribute
     call h5screate_simple_f(arank, adims, attr_space, h5_err)
 
@@ -233,7 +233,7 @@ contains
     call h5aclose_f(attr_id, h5_err)
     call h5tclose_f(atype_id, h5_err)
     call h5sclose_f(attr_space, h5_err)
-  
+
     ! create scalar data space for the simulation time attribute
     call h5screate_simple_f(arank, adims, attr_space, h5_err)
 
@@ -705,7 +705,7 @@ contains
         enddo
 
         ! get variable name
-        v_name = trim(cur_variable%name)
+        v_name = OutputVariableGetName(cur_variable)
 
         if (cur_variable%iformat == 0) then
           call WriteH5RegionDataset(tgroup_id, rdata,    &
@@ -801,7 +801,7 @@ contains
             data_type = H5T_NATIVE_INTEGER
           endif
 
-          dset_name = trim(cur_variable%name)
+          dset_name = OutputVariableGetName(cur_variable)
           call CreateH5RegionDataset(tgroup_id, dset_name,   &
                                        data_type, region_id)
 

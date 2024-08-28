@@ -112,6 +112,12 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized2
   end interface
 
+  interface InputCheckSupported
+    module procedure InputCheckSupported1
+    module procedure InputCheckSupported2
+    module procedure InputCheckSupported3
+  end interface
+
   interface InputPushBlock
     module procedure InputPushBlock1
     module procedure InputPushBlock2
@@ -134,6 +140,7 @@ module Input_Aux_module
             InputReadToBuffer, &
             InputReadASCIIDbase, &
             InputKeywordUnrecognized, &
+            InputCheckSupported, &
             InputCheckMandatoryUnits, &
             InputDbaseDestroy, &
             InputPushExternalFile, &
@@ -464,7 +471,7 @@ subroutine InputReadInt1(input, option, int)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForInt(input%buf,int,found,input%ierr)
+    call InputParseDbaseForInt(input%buf,int,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -501,7 +508,7 @@ subroutine InputReadInt2(string, option, int, ierr)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForInt(string,int,found,ierr)
+    call InputParseDbaseForInt(string,int,found,option,ierr)
   endif
 
   if (.not.found) then
@@ -598,7 +605,7 @@ subroutine InputReadDouble1(input, option, double)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForDouble(input%buf,double,found,input%ierr)
+    call InputParseDbaseForDouble(input%buf,double,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -637,7 +644,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForDouble(string,double,found,ierr)
+    call InputParseDbaseForDouble(string,double,found,option,ierr)
   endif
 
   if (.not.found) then
@@ -899,13 +906,13 @@ subroutine InputPrintKeywordLog(input,option,print_error)
   if (option%keyword_logging) then
     if (present(print_error)) then
       if (print_error) then
-        option%io_buffer = new_line('a') // &
+        option%io_buffer = NL // &
                            ' ---------------------------------------&
                            &---------------------------------------' // &
-                           new_line('a')
+                           NL
         call PrintMsg(option)
         option%io_buffer = &
-           ' Helpful information for debugging the input deck:' // new_line('a')
+           ' Helpful information for debugging the input deck:' // NL
         call PrintMsg(option)
         option%io_buffer = '     Filename : ' // trim(input%path) // &
                                                 trim(input%filename)
@@ -929,7 +936,7 @@ subroutine InputPrintKeywordLog(input,option,print_error)
 
   if (option%keyword_logging .and. present(print_error)) then
     if (print_error) then
-      option%io_buffer = new_line('a') // &
+      option%io_buffer = NL // &
                          ' ---------------------------------------&
                          &---------------------------------------'
       call PrintMsg(option)
@@ -1202,7 +1209,7 @@ subroutine InputReadCardDbaseCompatible(input, option, word)
 
   found = PETSC_FALSE
   if (associated(dbase)) then
-    call InputParseDbaseForWord(input%buf,word,found,input%ierr)
+    call InputParseDbaseForWord(input%buf,word,found,option,input%ierr)
   endif
 
   if (.not.found) then
@@ -2023,7 +2030,7 @@ function getCommandLineArgumentCount()
   ! initialize to zero
   getCommandLineArgumentCount = 0
 
-#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT)
+#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT) || PETSC_VERSION_GE(3,21,0)
   getCommandLineArgumentCount = command_argument_count()
 #elif defined(PETSC_HAVE_GETARG)
   getCommandLineArgumentCount = iargc()
@@ -2049,7 +2056,7 @@ subroutine getCommandLineArgument(i,arg)
   integer*4 :: fortran_int
 
   fortran_int = i
-#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT)
+#if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT) || PETSC_VERSION_GE(3,21,0)
   call get_command_argument(fortran_int,arg)
 #elif defined(PETSC_HAVE_GETARG)
   call getarg(fortran_int,arg)
@@ -2409,7 +2416,7 @@ end subroutine InputReadASCIIDbase
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForInt(buffer,value,found,ierr)
+subroutine InputParseDbaseForInt(buffer,value,found,option,ierr)
   !
   ! Parses database for an integer value
   !
@@ -2423,6 +2430,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscInt :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2434,7 +2442,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupInt(word,value,ierr)
+    call DbaseLookupInt(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2446,7 +2454,7 @@ end subroutine InputParseDbaseForInt
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
+subroutine InputParseDbaseForDouble(buffer,value,found,option,ierr)
   !
   ! Parses database for an double precision value
   !
@@ -2460,6 +2468,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscReal :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2471,7 +2480,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupDouble(word,value,ierr)
+    call DbaseLookupDouble(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2483,7 +2492,7 @@ end subroutine InputParseDbaseForDouble
 
 ! ************************************************************************** !
 
-subroutine InputParseDbaseForWord(buffer,value,found,ierr)
+subroutine InputParseDbaseForWord(buffer,value,found,option,ierr)
   !
   ! Parses database for a word
   !
@@ -2497,6 +2506,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   character(len=MAXWORDLENGTH) :: value
   PetscBool :: found
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
@@ -2508,7 +2518,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
-    call DbaseLookupWord(word,value,ierr)
+    call DbaseLookupWord(word,value,option,ierr)
     if (ierr == 0) then
       found = PETSC_TRUE
     endif
@@ -2520,7 +2530,7 @@ end subroutine InputParseDbaseForWord
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupInt(keyword,value,ierr)
+subroutine DbaseLookupInt(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2533,6 +2543,7 @@ subroutine DbaseLookupInt(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2554,6 +2565,10 @@ subroutine DbaseLookupInt(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading an "integer value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
@@ -2561,7 +2576,7 @@ end subroutine DbaseLookupInt
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupDouble(keyword,value,ierr)
+subroutine DbaseLookupDouble(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2574,6 +2589,7 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   PetscReal :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2595,6 +2611,10 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading a "floating point value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
@@ -2602,7 +2622,7 @@ end subroutine DbaseLookupDouble
 
 ! ************************************************************************** !
 
-subroutine DbaseLookupWord(keyword,value,ierr)
+subroutine DbaseLookupWord(keyword,value,option,ierr)
   !
   ! Looks up double precision value in database
   !
@@ -2615,6 +2635,7 @@ subroutine DbaseLookupWord(keyword,value,ierr)
 
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: value
+  type(option_type) :: option
   PetscErrorCode :: ierr
 
   PetscInt :: i
@@ -2636,6 +2657,10 @@ subroutine DbaseLookupWord(keyword,value,ierr)
   endif
 
   if (.not.found) then
+    option%io_buffer = NL // 'ERROR: DBASE keyword "' // &
+      trim(keyword) // &
+      '" (for reading a "string value") is not found in the database.'
+    call PrintMsg(option)
     ierr = 1
   endif
 
@@ -2645,7 +2670,7 @@ end subroutine DbaseLookupWord
 
 subroutine InputKeywordUnrecognized1(input,keyword,string,option)
   !
-  ! Looks up double precision value in database
+  ! Reports an unrecognized keyword in input deck
   !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
@@ -2670,7 +2695,7 @@ end subroutine InputKeywordUnrecognized1
 
 subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   !
-  ! Looks up double precision value in database
+  ! Reports an unrecognized keyword in input deck
   !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
@@ -2698,6 +2723,93 @@ subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   call PrintErrMsg(option)
 
 end subroutine InputKeywordUnrecognized2
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported1(input,option,keyword,error_string,pm_class)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  character(len=*) :: error_string
+  PetscInt :: pm_class
+
+  call InputCheckSupported(input,option,keyword,error_string, &
+                           pm_class,[pm_class])
+
+end subroutine InputCheckSupported1
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported2(input,option,keyword,error_string,pm_classes)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  character(len=*) :: error_string
+  PetscInt :: pm_classes(:)
+
+  PetscInt :: i
+
+  do i = 1, size(pm_classes)
+    call InputCheckSupported(input,option,keyword,error_string, &
+                             pm_classes(i),pm_classes)
+  enddo
+
+end subroutine InputCheckSupported2
+
+! ************************************************************************** !
+
+subroutine InputCheckSupported3(input,option,keyword,error_string, &
+                                pm_class,required_classes)
+  !
+  ! Reports an unsupported keyword for set of process models in input deck
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use Option_module
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: keyword
+  character(len=*) :: error_string
+  PetscInt :: pm_class
+  PetscInt :: required_classes(:)
+
+  if (OptionCheckSupportedClass(pm_class,option)) return
+
+  call InputPrintKeywordLog(input,option,PETSC_TRUE)
+  option%io_buffer = 'Keyword "' // trim(keyword) // '" in ' // &
+    trim(error_string) // &
+    ' not supported for the current combination of process models.' // &
+    NL // '  Process models in simulation: ' // &
+    OptionGetEmployedClassesString(option) // &
+    NL // '  Required process model(s): ' // &
+    OptionListClassesString(required_classes,option)
+  call PrintErrMsg(option)
+
+end subroutine InputCheckSupported3
 
 ! ************************************************************************** !
 
@@ -2994,7 +3106,7 @@ function InputCountWordsInBuffer(input,option)
 
   InputCountWordsInBuffer = 0
   do
-    call InputReadWord(input,option,word,PETSC_TRUE) 
+    call InputReadWord(input,option,word,PETSC_TRUE)
     if (InputError(input)) exit
     InputCountWordsInBuffer = InputCountWordsInBuffer + 1
   enddo

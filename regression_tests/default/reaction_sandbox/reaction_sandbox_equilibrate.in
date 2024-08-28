@@ -49,7 +49,6 @@ CHEMISTRY
       HALF_LIFE 0.01 h
     /
   /
-  DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

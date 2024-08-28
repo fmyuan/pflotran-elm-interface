@@ -331,7 +331,7 @@ subroutine CPRSetupT1(ctx,  ierr)
   if (b == 1) then
     ctx%option%io_buffer = 'CPR cannot apply to RICHARDS mode'
     call PrintErrMsg(ctx%option)
-  end if 
+  end if
 
   select case(ctx%extract_type)
     case('ABF')

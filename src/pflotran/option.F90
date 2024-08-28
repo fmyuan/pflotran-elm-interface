@@ -10,6 +10,7 @@ module Option_module
   use Option_Transport_module
   use Option_Geophysics_module
   use Option_Inversion_module
+  use Option_Parameter_module
   use Print_module
 
   implicit none
@@ -24,6 +25,7 @@ module Option_module
     type(geophysics_option_type), pointer :: geophysics
     type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
+    type(parameter_option_type), pointer :: parameter
     type(comm_type), pointer :: comm
     class(driver_type), pointer :: driver
 
@@ -50,6 +52,8 @@ module Option_module
     PetscInt :: itranmode
     character(len=MAXWORDLENGTH) :: geopmode
     PetscInt :: igeopmode
+    character(len=MAXWORDLENGTH) :: geommode
+    PetscInt :: igeommode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
@@ -57,7 +61,9 @@ module Option_module
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
     PetscInt :: precipitate_phase
-    PetscInt :: phase_map(MAX_PHASE)
+    PetscInt :: pure_water_phase ! for storing pure water properties
+    PetscInt :: pure_brine_phase ! for storing pure brine properties
+    PetscInt :: trapped_gas_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -74,17 +80,22 @@ module Option_module
     PetscBool :: sec_vars_update
 
     PetscInt :: air_pressure_id
+    PetscInt :: co2_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
+    PetscInt :: reduced_vapor_pressure_id
     PetscInt :: saturation_pressure_id
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
+    PetscInt :: co2_id ! index of co2 component dof
     PetscInt :: energy_id  ! index of energy dof
     PetscInt :: salt_id ! index of salt dof
 
     PetscInt :: ntrandof
 
     PetscInt :: ngeopdof ! geophysics # of dof
+
+    PetscBool :: coupled_well
 
     PetscInt :: iflag
     PetscInt :: ierror
@@ -122,11 +133,6 @@ module Option_module
     PetscInt :: convergence
 
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
-
-!   table lookup
-    PetscInt :: itable
-    PetscInt :: co2eos
-    character(len=MAXSTRINGLENGTH) :: co2_database_filename
 
     PetscBool :: restart_flag
     PetscReal :: restart_time
@@ -244,6 +250,9 @@ module Option_module
             OptionCheckNonBlockingError, &
             OptionIsIORank, &
             OptionCreatePrintHandler, &
+            OptionCheckSupportedClass, &
+            OptionListClassesString, &
+            OptionGetEmployedClassesString, &
             OptionDestroy
 
 contains
@@ -268,6 +277,7 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
   nullify(option%driver)
@@ -480,6 +490,8 @@ subroutine OptionInitRealization(option)
   option%geomech_subsurf_coupling = 0
   option%geomech_gravity(:) = 0.d0
   option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
+  option%geommode = ""
+  option%igeommode = NULL_MODE
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
@@ -489,8 +501,6 @@ subroutine OptionInitRealization(option)
   option%igeopmode = NULL_MODE
   option%ngeopdof = 0
 
-  option%phase_map = UNINITIALIZED_INTEGER
-
   option%nphase = 0
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
@@ -498,14 +508,19 @@ subroutine OptionInitRealization(option)
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
   option%precipitate_phase = UNINITIALIZED_INTEGER
+  option%pure_water_phase = UNINITIALIZED_INTEGER
+  option%pure_brine_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
+  option%co2_pressure_id = 0
   option%capillary_pressure_id = 0
   option%vapor_pressure_id = 0
+  option%reduced_vapor_pressure_id = 0
   option%saturation_pressure_id = 0
 
   option%water_id = 0
   option%air_id = 0
+  option%co2_id = 0
   option%energy_id = 0
   option%salt_id = 0
 
@@ -566,13 +581,6 @@ subroutine OptionInitRealization(option)
   option%initialize_flow_filename = ''
   option%initialize_transport_filename = ''
 
-  option%itable = 0
-  option%co2eos = EOS_SPAN_WAGNER
-  option%co2_database_filename = ''
-
-! option%idt_switch = 1
-  option%idt_switch = -1
-
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
@@ -582,6 +590,8 @@ subroutine OptionInitRealization(option)
   option%min_allowable_scale = 1.0d-10
 
   option%print_ekg = PETSC_FALSE
+
+  option%coupled_well = PETSC_FALSE
 
 end subroutine OptionInitRealization
 
@@ -1396,6 +1406,124 @@ end function OptionCreatePrintHandler
 
 ! ************************************************************************** !
 
+function OptionCheckSupportedClass(pm_class,option)
+  !
+  ! Returns true if the process model class is being used
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  implicit none
+
+  PetscInt :: pm_class
+  type(option_type) :: option
+
+  PetscBool :: OptionCheckSupportedClass
+
+  OptionCheckSupportedClass = PETSC_FALSE
+  select case(pm_class)
+    case(FLOW_CLASS)
+      OptionCheckSupportedClass = (option%iflowmode /= NULL_MODE)
+    case(TRANSPORT_CLASS)
+      OptionCheckSupportedClass = (option%itranmode /= NULL_MODE)
+    case(GEOPHYSICS_CLASS)
+      OptionCheckSupportedClass = (option%igeopmode /= NULL_MODE)
+    case(GEOMECHANICS_CLASS)
+      OptionCheckSupportedClass = (option%igeommode /= NULL_MODE)
+  end select
+
+end function OptionCheckSupportedClass
+
+! ************************************************************************** !
+
+function OptionListClassesString(pm_classes,option)
+  !
+  ! Returns a string version of a list of process models defined by a list
+  ! of class integers
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use String_module
+
+  implicit none
+
+  PetscInt :: pm_classes(:)
+  type(option_type) :: option
+
+  character(len=:), allocatable :: OptionListClassesString
+
+  character(len=MAXWORDLENGTH) :: strings(4)
+  PetscInt :: i
+
+  strings(:) = ''
+  i = 0
+  do i = 1, size(pm_classes)
+    select case(pm_classes(i))
+      case(FLOW_CLASS)
+        strings(i) = 'FLOW'
+      case(TRANSPORT_CLASS)
+        strings(i) = 'TRANSPORT'
+      case(GEOPHYSICS_CLASS)
+        strings(i) = 'GEOPHYSICS'
+      case(GEOMECHANICS_CLASS)
+        strings(i) = 'GEOMECHANICS'
+      case default
+        option%io_buffer = 'Process model class (' // &
+          StringWrite(pm_classes(i)) // ') not recoginzed in &
+          &OptionGetRequestedClassesString().'
+        call PrintErrMsg(option)
+    end select
+  enddo
+  OptionListClassesString = StringsMerge(strings,',')
+
+end function OptionListClassesString
+
+! ************************************************************************** !
+
+function OptionGetEmployedClassesString(option)
+  !
+  ! Returns a string version of a list of process models defined by the
+  ! process models invoked by option flags
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/04/24
+
+  use String_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  character(len=:), allocatable :: OptionGetEmployedClassesString
+
+  character(len=MAXWORDLENGTH) :: strings(8)
+  PetscInt :: i
+
+  strings(:) = ''
+  i = 0
+  if (option%iflowmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'FLOW'
+  endif
+  if (option%itranmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'TRANSPORT'
+  endif
+  if (option%igeopmode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'GEOPHYSICS'
+  endif
+  if (option%igeommode /= NULL_MODE) then
+    i = i + 1
+    strings(i) = 'GEOMECHANICS'
+  endif
+  OptionGetEmployedClassesString = StringsMerge(strings,',')
+
+end function OptionGetEmployedClassesString
+
+! ************************************************************************** !
+
 subroutine OptionDestroy(option)
   !
   ! Deallocates an option
@@ -1415,6 +1543,7 @@ subroutine OptionDestroy(option)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
   call OptionCheckpointDestroy(option%checkpoint)
+  call OptionParameterDestroy(option%parameter)
   nullify(option%comm)
   nullify(option%inversion)
   ! never destroy the driver as it was created elsewhere

@@ -131,8 +131,9 @@ subroutine RTSetup(realization)
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase, local_id, i
+  PetscInt :: iphase, local_id, i, ndof
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
 
   option => realization%option
   patch => realization%patch
@@ -350,8 +351,8 @@ subroutine RTSetup(realization)
     do
       if (.not.associated(cur_generic_parameter)) exit
       rt_parameter%species_dependent_diffusion = PETSC_TRUE
-      i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
-                                      reaction,PETSC_FALSE,option)
+      i = ReactionAuxGetPriSpecIDFromName(cur_generic_parameter%name, &
+                                          reaction,PETSC_FALSE,option)
       if (option%transport%use_np) then
         ! Store diffusion coefficients for each species in correspondent
         ! structures.  Notice that diffusion_coefficient(:,iphase) is not
@@ -359,8 +360,8 @@ subroutine RTSetup(realization)
         ! If reused for primary will apply to TDispersion function which
         ! is not ready for electromigration.
         if (Uninitialized(i)) then
-            i = GetSecondarySpeciesIDFromName(cur_generic_parameter%name, &
-                                            reaction,PETSC_FALSE,option)
+            i =  ReactionAuxGetSecSpecIDFromName(cur_generic_parameter%name, &
+                                                 reaction,PETSC_FALSE,option)
             if (Uninitialized(i)) then
               option%io_buffer = 'Species "' // &
                 trim(cur_generic_parameter%name) // &
@@ -452,6 +453,18 @@ subroutine RTSetup(realization)
     call RTSetPlotVariables(list,reaction,option, &
                             realization%output_option%tunit)
   endif
+
+  if (option%transport%reactive_transport_coupling == &
+      GLOBAL_IMPLICIT) then
+    ndof = realization%reaction%ncomp
+  else
+    ndof = 1
+  endif
+  allocate(dof_is_active(ndof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%RT%matrix_zeroing, &
+                            patch%aux%RT%inactive_cells_exist,option)
+  deallocate(dof_is_active)
 
 end subroutine RTSetup
 
@@ -598,8 +611,8 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
            (1.d0-liquid_saturation)*porosity*volume*1.d3
       do i = 1, reaction%gas%nactive_gas
         sum_mol_by_gas(i) = sum_mol_by_gas(i) + &
-          ! RGasConcentration returns mol/m^3 gas
-          RGasConcentration(rt_auxvars(ghosted_id)%gas_pp(i), &
+          ! ReactionGasPartialPresToConc returns mol/m^3 gas
+          ReactionGasPartialPresToConc(rt_auxvars(ghosted_id)%gas_pp(i), &
                             global_auxvars(ghosted_id)%temp) * &
           ! m^3 gas
           (1.d0-liquid_saturation) * porosity * volume
@@ -2681,7 +2694,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 
   ! CO2-specific
   use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner
+  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
 
   implicit none
 
@@ -2751,8 +2764,8 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 !         r_p(jco2+(local_id-1)*reaction%ncomp)
 
       iflag = 1
-      call co2_span_wagner(pg*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
-              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
+      call co2_span_wagner(pg*1D-6,tc+T273K,dg,dddt,dddp,fg, &
+              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
 
       call EOSWaterSaturationPressure(tc, sat_pressure, ierr)
 
@@ -3631,7 +3644,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
     call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
   endif
 
-  if (update_bcs) then
+  if (update_bcs .and. reaction%naqcomp > 0) then
 
     call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
 

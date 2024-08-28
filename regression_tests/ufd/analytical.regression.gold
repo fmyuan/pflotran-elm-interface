@@ -1,0 +1,24 @@
+-- PRESSURE: Liquid Pressure --
+        1:   2.0132500000000E+05
+-- SATURATION: Liquid Saturation --
+        1:   1.0000000000000E+00
+-- CONCENTRATION: Total tracer --
+        1:   6.6722109718596E-02
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Flow --
+   Time (seconds):   1.7134780000000E-02
+   Time Steps:           42
+   Newton Iterations:           42
+   Linear Solver Iterations:            0
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.0132500000000E+05
+   Residual 2-Norm:   0.0000000000000E+00
+-- SOLUTION: Transport --
+   Time (seconds):   7.1922470000000E-03
+   Time Steps:           42
+   Newton Iterations:           42
+   Linear Solver Iterations:            2
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.6909096351024E-02
+   Residual 2-Norm:   0.0000000000000E+00

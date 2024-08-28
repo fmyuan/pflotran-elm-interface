@@ -3,6 +3,9 @@ module Block_Tridiag_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Utility_module, only : Equal
+
+  implicit none
+
   private
 
   public :: decbt, &

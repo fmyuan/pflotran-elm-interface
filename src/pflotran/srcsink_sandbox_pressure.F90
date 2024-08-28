@@ -190,7 +190,7 @@ end subroutine PressureRead
 
 ! ************************************************************************** !
 
-subroutine PressureSetup(this,grid,material_auxvars,option)
+subroutine PressureSetup(this,grid,region_list,material_auxvars,option)
   !
   ! Sets up the pressure src/sink
   !
@@ -200,18 +200,20 @@ subroutine PressureSetup(this,grid,material_auxvars,option)
   use Option_module
   use Grid_module
   use Material_Aux_module, only: material_auxvar_type
+  use Region_module
 
   implicit none
 
   class(srcsink_sandbox_pressure_type) :: this
   type(grid_type) :: grid
+  type(region_list_type) :: region_list
   type(material_auxvar_type) :: material_auxvars(:)
   type(option_type) :: option
 
   PetscInt :: icell
   PetscErrorCode :: ierr
 
-  call SSSandboxBaseSetup(this,grid,material_auxvars,option)
+  call SSSandboxBaseSetup(this,grid,region_list,material_auxvars,option)
   if (this%scale_maximum_mass_rate) then
     this%sum_volume = 0.d0
     if (associated(this%local_cell_ids)) then

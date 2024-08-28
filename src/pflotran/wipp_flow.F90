@@ -69,6 +69,7 @@ subroutine WIPPFloSetup(realization)
   PetscInt :: i, idof, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscBool, allocatable :: dof_is_active(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
@@ -179,11 +180,18 @@ subroutine WIPPFloSetup(realization)
     enddo
   endif
 
+  allocate(dof_is_active(option%nflowdof))
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%WIPPFlo%matrix_zeroing, &
+                            patch%aux%WIPPFlo%inactive_cells_exist,option)
+  deallocate(dof_is_active)
+
+  call PatchSetupUpwindDirection(patch,option)
+
   wippflo_ts_count = 0
   wippflo_ts_cut_count = 0
   wippflo_ni_count = 0
-
-  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine WIPPFloSetup
 
@@ -1291,9 +1299,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   if (wippflo_well_quasi_imp_coupled) then
     if (associated(pmwell_ptr)) then
       if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call PMWellUpdateRates(pmwell_ptr,ZERO_INTEGER,ierr)
+        call pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call PMWellCalcResidualValues(pmwell_ptr,r_p,ss_flow_vol_flux)
+          call pmwell_ptr%ModifyFlowResidual(r_p,ss_flow_vol_flux)
         endif
       endif
     endif
@@ -1718,11 +1726,11 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   if (wippflo_well_quasi_imp_coupled) then
   if (associated(pmwell_ptr)) then
     if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-      call PMWellUpdateRates(pmwell_ptr,ONE_INTEGER,ierr)
+      call pmwell_ptr%UpdateFlowRates(ONE_INTEGER,ONE_INTEGER,-999,ierr)
       if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-        call PMWellUpdateRates(pmwell_ptr,TWO_INTEGER,ierr)
+        call pmwell_ptr%UpdateFlowRates(TWO_INTEGER,TWO_INTEGER,-999,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call PMWellCalcJacobianValues(pmwell_ptr,A,ierr)
+          call pmwell_ptr%ModifyFlowJacobian(A,ierr)
         endif
       endif
     endif

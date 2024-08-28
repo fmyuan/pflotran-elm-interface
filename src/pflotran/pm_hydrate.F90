@@ -5,7 +5,7 @@ module PM_Hydrate_class
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use Hydrate_Aux_module
-
+  use PM_Well_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -22,19 +22,21 @@ module PM_Hydrate_class
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
     type(hydrate_parameter_type), pointer :: hydrate_parameters
-    PetscBool :: converged_flag(3,15,MAX_INDEX)
-    PetscInt :: converged_cell(3,15,MAX_INDEX)
-    PetscReal :: converged_real(3,15,MAX_INDEX)
-    PetscReal :: residual_abs_inf_tol(3)
-    PetscReal :: residual_scaled_inf_tol(3)
-    PetscReal :: abs_update_inf_tol(3,15)
-    PetscReal :: rel_update_inf_tol(3,15)
+    PetscBool :: converged_flag(4,15,MAX_INDEX)
+    PetscInt :: converged_cell(4,15,MAX_INDEX)
+    PetscReal :: converged_real(4,15,MAX_INDEX)
+    PetscReal :: residual_abs_inf_tol(4)
+    PetscReal :: residual_scaled_inf_tol(4)
+    PetscReal :: abs_update_inf_tol(4,15)
+    PetscReal :: rel_update_inf_tol(4,15)
     PetscReal :: damping_factor
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMHydrateReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
     procedure, public :: InitializeSolver => PMHydrateInitializeSolver
+    procedure, public :: Setup => PMHydrateSetup
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -96,79 +98,112 @@ function PMHydrateCreate()
   PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
 
   !MAN optimized:
-  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
-  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
-  PetscReal, parameter :: u_abs_inf_tol = 1.d-5 !1.d-7
+  PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !kmol_water/sec
+  PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: u_abs_inf_tol = 1.d-5
+  PetscReal, parameter :: s_mass_abs_inf_tol = 1.d-7
 
-  PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
-                             a_mass_abs_inf_tol, u_abs_inf_tol/)
-  PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
+  PetscReal, parameter :: residual_abs_inf_tol(4) = (/w_mass_abs_inf_tol, &
+                             a_mass_abs_inf_tol, u_abs_inf_tol, &
+                             s_mass_abs_inf_tol/)
+  PetscReal, parameter :: residual_scaled_inf_tol(4) = (/1.d-6, &
+                             1.d-6, 1.d-6, 1.d-8/)
 
   !For convergence using hydrate and ice formation capability
-  PetscReal, parameter :: abs_update_inf_tol(3,15) = &
+  PetscReal, parameter :: abs_update_inf_tol(4,15) = &
              !L_STATE
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !G_STATE
              pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !H_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol,  &
+             xmol_abs_inf_tol, &
              !I_STATE
              pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !GA_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HG_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HA_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HI_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !GI_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !AI_STATE
              pres_abs_inf_tol,xmol_abs_inf_tol,sat_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HGA_STATE
              sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HAI_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HGI_STATE
              sat_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !GAI_STATE
              pres_abs_inf_tol,sat_abs_inf_tol,temp_abs_inf_tol, &
+             xmol_abs_inf_tol, &
              !HGAI_STATE
-             sat_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol], &
+             sat_abs_inf_tol,sat_abs_inf_tol,sat_abs_inf_tol, &
+             xmol_abs_inf_tol], &
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
-  PetscReal, parameter :: rel_update_inf_tol(3,15) = &
+  PetscReal, parameter :: rel_update_inf_tol(4,15) = &
              !L_STATE
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !G_STATE
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !H_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !I_STATE
              pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !GA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HG_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HA_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !GI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !AI_STATE
              pres_rel_inf_tol,xmol_rel_inf_tol,sat_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HGA_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HGI_STATE
              sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !GAI_STATE
              pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             xmol_rel_inf_tol, &
              !HGAI_STATE
-             sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
+             sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             xmol_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   allocate(this)
@@ -207,13 +242,15 @@ function PMHydrateCreate()
   allocate(this%hydrate_parameters)
   nullify(this%hydrate_parameters%methanogenesis)
 
+  nullify(this%pmwell_ptr)
+
   PMHydrateCreate => this
 
 end function PMHydrateCreate
 
 ! ************************************************************************** !
 
-subroutine PMHydrateSetFlowMode(option)
+subroutine PMHydrateSetFlowMode(pm_well,option)
 !
 ! Sets the flow mode for equilibrium hydrate formation and dissociation
 !
@@ -225,27 +262,53 @@ subroutine PMHydrateSetFlowMode(option)
 
   implicit none
 
+  class(pm_well_type), pointer :: pm_well
   type(option_type) :: option
 
   option%iflowmode = H_MODE
-  option%nphase = 4
+  option%nphase = 5
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
   option%hydrate_phase = 3
   option%ice_phase = 4
+  option%precipitate_phase = 5
+  option%trapped_gas_phase = 6
 
-  option%air_pressure_id = 3
-  option%capillary_pressure_id = 4
-  option%vapor_pressure_id = 5
-  option%saturation_pressure_id = 6
+  option%air_pressure_id = 4
+  option%capillary_pressure_id = 5
+  option%vapor_pressure_id = 6
+  option%saturation_pressure_id = 7
+  option%reduced_vapor_pressure_id = 8
 
-  option%water_id = 1
-  option%air_id = 2
-  option%energy_id = 3
+  option%pure_water_phase = 5
+  option%pure_brine_phase = 6
 
-  option%nflowdof = 3
-  option%nflowspec = 2
+  option%water_id = 1 ! Water component
+  option%air_id = 2 ! Air component
+  option%energy_id = 3 ! Energy
+  option%salt_id = 3 ! Salt component
+
+  option%nflowdof = 4
+  option%nflowspec = 3
   option%use_isothermal = PETSC_FALSE
+
+  if (associated(pm_well)) then
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+        option%io_buffer = 'Currently, HYDRATE mode can only be &
+                  &used with the HYDROSTATIC well model.'
+        call PrintErrMsg(option)
+      endif
+      hydrate_well_coupling = HYDRATE_FULLY_IMPLICIT_WELL
+      option%nflowdof = option%nflowdof + 1
+      option%coupled_well = PETSC_TRUE
+      HYDRATE_WELL_DOF = option%nflowdof
+    else
+      option%io_buffer = 'Currently, only FULLY_IMPLICIT &
+                  &wellbore coupling is implemented for Hydrate Mode.'
+      call PrintErrMsg(option)
+    endif
+  endif
 
 end subroutine PMHydrateSetFlowMode
 
@@ -304,6 +367,8 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         select case(word)
           case('CRAMER')
             hydrate_henrys_constant = 2
+          case('CO2')
+            hydrate_use_henry_co2 = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_HENRYS_CONSTANT',option)
@@ -314,15 +379,14 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         call StringToUpper(word)
         select case(word)
           case('AIR')
-            hydrate_gas_air = PETSC_TRUE
-            hydrate_gas_methane = PETSC_FALSE
+            hydrate_former = HYDRATE_FORMER_NULL
             hydrate_fmw_comp(2) = FMWAIR
-          case('METHANE')
-            hydrate_gas_methane = PETSC_TRUE
+          case('METHANE','CH4')
+            hydrate_former = HYDRATE_FORMER_CH4
             hydrate_fmw_comp(2) = FMWCH4
-          case('CH4')
-            hydrate_gas_methane = PETSC_TRUE
-            hydrate_fmw_comp(2) = FMWCH4
+          case('CO2')
+            hydrate_former = HYDRATE_FORMER_CO2
+            hydrate_fmw_comp(2) = FMWCO2
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_GAS',option)
@@ -398,9 +462,6 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'PERM_SCALING_FUNCTION',option)
         end select
-      case('SALINITY')
-        call InputReadDouble(input,option,hydrate_xmol_nacl)
-        call InputErrorMsg(input,option,'SALINITY',error_string)
       case('THERMAL_CONDUCTIVITY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','thermal_conductivity_func')
@@ -450,28 +511,16 @@ subroutine PMHydrateAssignParameters(realization, pm)
   option => realization%option
 
   ! initialize parameters
-  allocate(pm%hydrate_parameters%diffusion_coefficient(option%nphase))
+  allocate(pm%hydrate_parameters%diffusion_coefficient(option%nflowspec, &
+                                                       option%nphase))
   cur_fluid_property => realization%fluid_properties
   do
     if (.not.associated(cur_fluid_property)) exit
     pm%hydrate_parameters% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
+      diffusion_coefficient(:,cur_fluid_property%phase_id) = &
         cur_fluid_property%diffusion_coefficient
     cur_fluid_property => cur_fluid_property%next
   enddo
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(pm%hydrate_parameters% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(pm%hydrate_parameters% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
 
   realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters
 
@@ -577,6 +626,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CALCULATE_SURFACE_TENSION')
         hydrate_compute_surface_tension = PETSC_TRUE
+      case('LEGACY_FLUXES')
+        hydrate_legacy_fluxes = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
@@ -613,13 +664,14 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
   PetscBool :: found
   PetscReal :: tempreal
-  PetscInt :: lid, gid, eid
+  PetscInt :: lid, gid, eid, sid
 
   option => this%option
 
-  lid = 1 !option%liquid_phase
-  gid = 2 !option%gas_phase
-  eid = 3 !option%energy_id
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  eid = option%energy_id
+  sid = option%salt_id
 
   error_string = 'HYDRATE Newton Solver'
 
@@ -630,6 +682,14 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+      case('NO_GOVERNORS')
+        hydrate_use_governors = PETSC_FALSE
+      case('CHECK_SOLUTION_UPDATES')
+        hydrate_check_updates = PETSC_TRUE
+      case('USE_LIMITED_CONVERGENCE_CRITERIA')
+        hydrate_full_convergence = PETSC_FALSE
+      case('NO_UPDATE_TRUNCATION')
+        hydrate_truncate_updates = PETSC_FALSE
       case('CENTRAL_DIFFERENCE_JACOBIAN')
         hydrate_central_diff_jacobian = PETSC_TRUE
       case('HYDRATE_UPDATE_INF_TOL')
@@ -671,6 +731,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
       case('ENERGY_RESIDUAL_ABS_INF_TOL')
         call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
         call InputErrorMsg(input,option,keyword,error_string)
+      case('SALT_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(sid))
+        call InputErrorMsg(input,option,keyword,error_string)
 
       ! Scaled Residual
       case('ITOL_SCALED_RESIDUAL')
@@ -688,6 +751,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
       case('ENERGY_RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SALT_RESIDUAL_SCALED_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(sid))
         call InputErrorMsg(input,option,keyword,error_string)
 
       ! All Updates
@@ -707,6 +773,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(1,1:10) = tempreal
         this%abs_update_inf_tol(2,2) = tempreal
+        this%abs_update_inf_tol(2,6) = tempreal
         this%abs_update_inf_tol(1,12) = tempreal
         this%abs_update_inf_tol(1,14) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
@@ -719,7 +786,8 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%abs_update_inf_tol(2,5:9) = tempreal
+        this%abs_update_inf_tol(2,5) = tempreal
+        this%abs_update_inf_tol(2,7:9) = tempreal
         this%abs_update_inf_tol(2,11:15) = tempreal
         this%abs_update_inf_tol(3,10) = tempreal
         this%abs_update_inf_tol(3,12) = tempreal
@@ -754,6 +822,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(1,:) = tempreal
         this%rel_update_inf_tol(2,2) = tempreal
+        this%rel_update_inf_tol(2,6) = tempreal
         this%rel_update_inf_tol(1,1:10) = tempreal
         this%rel_update_inf_tol(1,12) = tempreal
         this%rel_update_inf_tol(1,14) = tempreal
@@ -770,7 +839,7 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,3) = tempreal
         this%rel_update_inf_tol(2,3) = tempreal
-        this%rel_update_inf_tol(2,6:9) = tempreal
+        this%rel_update_inf_tol(2,7:9) = tempreal
         this%rel_update_inf_tol(3,10) = tempreal
         this%rel_update_inf_tol(2,11:15) = tempreal
         this%rel_update_inf_tol(3,12) = tempreal
@@ -828,9 +897,36 @@ subroutine PMHydrateInitializeSolver(this)
 
   ! helps accommodate rise in residual due to change in state
   this%solver%newton_dtol = 1.d9
-  this%solver%newton_max_iterations = 8
+  this%solver%newton_max_iterations = 16
 
 end subroutine PMHydrateInitializeSolver
+
+! ************************************************************************** !
+
+subroutine PMHydrateSetup(this)
+  !
+  ! Sets up auxvars and parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/11/24
+
+  use Hydrate_module
+  use Material_module
+
+  implicit none
+
+  class(pm_hydrate_type) :: this
+
+  call this%SetRealization()
+  call MaterialSetupThermal( &
+         this%realization%patch%aux%Material%material_parameter, &
+         this%realization%patch%material_property_array, &
+         this%realization%option)
+  call HydrateSetup(this%realization)
+  call PMHydrateAssignParameters(this%realization,this)
+  call PMSubsurfaceFlowSetup(this)
+
+end subroutine PMHydrateSetup
 
 ! ************************************************************************** !
 
@@ -847,6 +943,7 @@ recursive subroutine PMHydrateInitializeRun(this)
 
   class(pm_hydrate_type) :: this
 
+  class(pm_well_type), pointer :: pm_well
   PetscInt :: i
   PetscErrorCode :: ierr
 
@@ -861,6 +958,34 @@ recursive subroutine PMHydrateInitializeRun(this)
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
   enddo
+
+  ! setup coupling in jacobian matrix for the well model
+  if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
+        if (this%solver%M /= this%solver%Mpre) then
+          call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        endif
+      endif
+      pm_well => pm_well%next_well
+    enddo
+    call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr); &
+                         CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+  endif
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
@@ -887,6 +1012,8 @@ subroutine PMHydrateInitializeTimestep(this)
 
   class(pm_hydrate_type) :: this
 
+  class (pm_well_type), pointer :: pm_well
+
   call PMSubsurfaceFlowInitializeTimestepA(this)
 !geh:remove   everywhere
   call MaterialAuxVarCommunicate(this%comm1, &
@@ -895,6 +1022,20 @@ subroutine PMHydrateInitializeTimestep(this)
                                  ZERO_INTEGER)
 
   call HydrateInitializeTimestep(this%realization)
+  if (associated(this%pmwell_ptr)) then
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                     UNINITIALIZED_INTEGER,this%option%ierror)
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+      endif
+      call PMWellUpdateReservoirSrcSinkFlow(pm_well)
+      pm_well => pm_well%next_well
+    enddo
+    if (initialize_well_flow) initialize_well_flow = PETSC_FALSE
+  endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMHydrateInitializeTimestep
@@ -983,10 +1124,16 @@ subroutine PMHydrateUpdateTimestep(this,update_dt, &
     endif
     ifac = max(min(num_newton_iterations,size(tfac)),1)
     umin_scale = fac * (1.d0 + umin)
-    governed_dt = umin_scale * dt
-    dtt = min(time_step_max_growth_factor*dt,governed_dt)
-    dt = min(dtt,tfac(ifac)*dt,dt_max)
-    dt = max(dt,dt_min)
+    if (hydrate_use_governors) then
+      governed_dt = umin_scale * dt
+      dtt = min(time_step_max_growth_factor*dt,governed_dt)
+      dt = min(dtt,tfac(ifac)*dt,dt_max)
+      dt = max(dt,dt_min)
+    else
+      dtt = time_step_max_growth_factor*dt
+      dt = min(dtt,dt_max)
+      dt = max(dt,dt_min)
+    endif
 
     ! Inform user that time step is being limited by a state variable.
     if (Equal(dt,governed_dt)) then
@@ -1064,7 +1211,7 @@ subroutine PMHydrateResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  call HydrateResidual(snes,xx,r,this%realization,ierr)
+  call HydrateResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMHydrateResidual
 
@@ -1086,7 +1233,7 @@ subroutine PMHydrateJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call HydrateJacobian(snes,xx,A,B,this%realization,ierr)
+  call HydrateJacobian(snes,xx,A,B,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMHydrateJacobian
 
@@ -1106,6 +1253,8 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Patch_module
   use Hydrate_Aux_module
   use Global_Aux_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
 
   implicit none
 
@@ -1116,306 +1265,598 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
 
+  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscInt :: local_id, ghosted_id
+  type(hydrate_auxvar_type) :: hyd_auxvar
+  class(characteristic_curves_type), pointer :: characteristic_curves
+  class(pm_well_type), pointer :: cur_well
+  PetscInt :: local_id, ghosted_id, lid, gid, hid, iid, apid, sid
   PetscInt :: offset
-  PetscInt :: pgas_index, xmol_index, pw_index
-  PetscInt :: saturation_index
-  PetscReal :: temp_real
+  PetscInt :: liq_pressure_index, gas_pressure_index, air_pressure_index, &
+              air_frac_index, temp_index, liq_sat_index, gas_sat_index, &
+              hyd_sat_index, ice_sat_index, salt_index, well_index
+  PetscReal :: s_extra
+  PetscReal :: Pc_entry, dP, Psat
+  PetscReal :: Tf_ice, xsl
 
   PetscReal, parameter :: ALMOST_ZERO = 1.d-10
   PetscReal, parameter :: ALMOST_ONE = 1.d0-ALMOST_ZERO
+  ! These need to be bigger than the perturbations,
+  ! and smaller than the epsilons for state changes.
+  PetscReal, parameter :: eps_sat = 1.d-14 !1.d-10
+  PetscReal, parameter :: eps_sg = 2.d-12 !2.d-12
+  PetscReal, parameter :: eps_sh = 2.d-12 !2.d-12
+  PetscReal, parameter :: eps_sl = 2.d-12 !2.d-12
+  PetscReal, parameter :: epsilon = 1.d-14
+  PetscReal, parameter :: gravity = EARTH_GRAVITY
 
-  PetscReal, pointer :: X_p(:),dX_p(:)
+  PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
 
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-
+  field => this%realization%field
   grid => this%realization%patch%grid
   patch => this%realization%patch
   option => this%realization%option
   hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
   global_auxvars => this%realization%patch%aux%Global%auxvars
 
-!  changed = PETSC_TRUE
-if (PETSC_FALSE) then
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    offset = (local_id-1)*option%nflowdof
-    select case(global_auxvars(ghosted_id)%istate)
-      case(L_STATE)
-        ! Truncate liquid pressure > 0
-        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
-          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  hid = option%hydrate_phase
+  iid = option%ice_phase
+  apid = option%air_pressure_id
+  sid = option%salt_id
+
+  call VecCopy(dX,field%flow_dxx,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
+
+  dX_p = -1.d0 * dX_p
+  dX_p2 = -1.d0 * dX_p2
+
+  changed = PETSC_TRUE
+
+  if (this%check_post_convergence .and. hydrate_truncate_updates) then
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset = (local_id-1)*option%nflowdof
+      hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+      Tf_ice = 0.d0
+      call HydrateIceSalinityOffset(hyd_auxvar%m_salt(1),Tf_ice)
+      characteristic_curves => patch%characteristic_curves_array( &
+                               patch%cc_id(ghosted_id))%ptr
+      temp_index = ZERO_INTEGER
+      salt_index = offset + FOUR_INTEGER
+      gas_pressure_index = ZERO_INTEGER
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        well_index = offset + FIVE_INTEGER
+      endif
+
+      ! Compute surface tension
+      ! Compute entry pressure
+      Pc_entry = 0.d0
+      select type(sf => characteristic_curves%saturation_function)
+        class is (sat_func_exp_freezing_type)
+        class is (sat_func_vg_type)
+          Pc_entry = (1.d0 / characteristic_curves% &
+                      saturation_function%GetAlpha_())
+        !class is (sat_func_vg_stomp_type)
+        !  Pc_entry = characteristic_curves% &
+        !             saturation_function%GetAlpha_() * &
+        !             LIQUID_REFERENCE_DENSITY * gravity
+        class default
+      end select
+      Pc_entry = 0.d0
+
+      select case(global_auxvars(ghosted_id)%istate)
+        case(L_STATE)
+          liq_pressure_index = offset + ONE_INTEGER
+          air_frac_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid pressure
+          dP = 5.d-2 * hyd_auxvar%pres(gid)
+          dX_p(liq_pressure_index) = sign( min(dabs(dP), &
+          dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index))
+
+          ! Zero negative corrections for zero aqueous CH4 or CO2
+          if (X_p(air_frac_index) / epsilon < epsilon .and. &
+              dX_p(air_frac_index) / epsilon < epsilon ) then
+            dX_p(air_frac_index) = 0.d0
+            dX_p2(air_frac_index) = 0.d0
+          endif
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) > 1.d0) &
+             dX_p(air_frac_index) = 1.d0 - X_p(air_frac_index)
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) < 0.d0) &
+             dX_p(air_frac_index) = - X_p(air_frac_index)
+
+        case(G_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          air_pressure_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in gas partial pressure
+          if ((hyd_auxvar%pres(apid) / epsilon < epsilon) .and. &
+              (dX_p(air_pressure_index)/epsilon < epsilon)) then
+            dX_p(air_pressure_index) = 0.d0
+          endif
+          dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
+          dX_p(air_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(air_pressure_index))), &
+                                     dX_p(air_pressure_index))
+          if (hyd_auxvar%pres(apid) + dX_p(air_pressure_index) < 1.d-6) &
+             dX_p(air_pressure_index) = - hyd_auxvar%pres(apid)
+
+        case(H_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+        case(I_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+        case(GA_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)-hyd_auxvar%pres(lid)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+          ! Relax pressure updates when transitioning to unsaturated
+          ! conditions
+          !if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+          !   (hyd_auxvar%pres(lid)) < Pc_entry ) then
+          !  dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          !endif
+
+          !Limit changes in gas saturation
+          !dP = 1.d-1
+          !dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+          !                      dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = (1.d0 - epsilon) - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = epsilon - X_p(gas_sat_index)
+
+
+          ! Limit changes in temperature
+          if (hyd_auxvar%sat(hid) > epsilon) then
+            dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          else
+            dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+                               dX_p(temp_index))
+          endif
+
+          call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+          call HydrateBrineSaturationPressure(X_p(temp_index) + &
+                                              dX_p(temp_index),xsl,Psat)
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < Psat) then
+             dX_p(gas_pressure_index) = Psat - X_p(gas_pressure_index)
+          endif
+
+        case(HG_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          !air_pressure_index = offset + TWO_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          ! Limit changes in gas pressure  ---
+
+          !dP = 2.5d-1*max(X_p(gas_pressure_index),1.d6)
+          !dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+          !                           dabs(dX_p(gas_pressure_index))), &
+          !                           dabs(dX_p(gas_pressure_index)))
+
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) > 1.d9) &
+             dX_p(gas_pressure_index) = 1.d9 - X_p(gas_pressure_index)
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < 1.d-6) &
+             dX_p(gas_pressure_index) = 1.d-6 - X_p(gas_pressure_index)
+
+          !Limit changes in gas partial pressure
+          !if ((hyd_auxvar%pres(apid) / epsilon < epsilon) .and. &
+          !    (dX_p(air_pressure_index)/epsilon < epsilon)) then
+          !  dX_p(air_pressure_index) = 0.d0
+          !endif
+          !dP = max(1.d-1*hyd_auxvar%pres(apid),1.d4)
+          !dX_p(air_pressure_index) = sign(min(dabs(dP), &
+          !                           dabs(dX_p(air_pressure_index))), &
+          !                           dX_p(air_pressure_index))
+          !if (X_p(air_pressure_index) + dX_p(air_pressure_index) > &
+          !    (X_p(gas_pressure_index) + dX_p(gas_pressure_index))) then
+          !   dX_p(air_pressure_index) = (X_p(gas_pressure_index) + &
+          !    dX_p(gas_pressure_index)) - X_p(air_pressure_index)
+          !endif
+          !if (X_p(air_pressure_index) + dX_p(air_pressure_index) < 1.d-6) &
+          !   dX_p(air_pressure_index) = 1.d-6 - X_p(air_pressure_index)
+
+          !call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+          !call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl,Psat)
+          !if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < Psat) then
+          !   dX_p(gas_pressure_index) = Psat - X_p(gas_pressure_index)
+          !endif
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < eps_sg) &
+             dX_p(gas_sat_index) = eps_sg - X_p(gas_sat_index)
+
+        case(HA_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+          ! Relax pressure updates when transitioning to unsaturated
+          ! conditions
+          !if((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) - &
+          !   (hyd_auxvar%pres(lid)) < Pc_entry ) then
+          !  dX_p(gas_pressure_index) = 6.d-1*dX_p(gas_pressure_index)
+          !endif
+
+          !Limit changes in hydrate saturation
+          !dP = 1.d-1
+          !dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+          !                      dX_p(hyd_sat_index))
+          !if(hyd_auxvar%sat(lid) < eps_sat) dX_p(hyd_sat_index) = &
+          !                                  min(dX_p(hyd_sat_index),0.d0)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
+             dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < eps_sh) &
+             dX_p(hyd_sat_index) = eps_sh - X_p(hyd_sat_index)
+
+        case(HI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in hydrate saturation
+          dP = 1.d-1
+          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+                                dX_p(hyd_sat_index))
+          if(hyd_auxvar%sat(iid) < eps_sat) dX_p(hyd_sat_index) = &
+                                            min(dX_p(hyd_sat_index),0.d0)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+        case(GI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          ice_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in ice saturation
+          if(hyd_auxvar%sat(gid) < eps_sat) dX_p(ice_sat_index) = &
+                                            min(dX_p(ice_sat_index),0.d0)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+        case(AI_STATE)
+          liq_pressure_index = offset + ONE_INTEGER
+          air_frac_index = offset + TWO_INTEGER
+          liq_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid pressure
+          dP = 5.d-2 * hyd_auxvar%pres(gid)
+          dX_p(liq_pressure_index) = sign( min(dabs(dP), &
+          dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index))
+
+          ! Zero negative corrections for zero aqueous CH4 or CO2
+          if (X_p(air_frac_index) / epsilon < epsilon .and. &
+              dX_p(air_frac_index) / epsilon < epsilon ) then
+            dX_p(air_frac_index) = 0.d0
+            dX_p2(air_frac_index) = 0.d0
+          endif
+          if ((X_p(air_frac_index) + dX_p(air_frac_index)) < 0.d0) &
+             dX_p(air_frac_index) = - X_p(air_frac_index)
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+        case(HGA_STATE)
+          liq_sat_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+          if ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
+              X_p(liq_sat_index) + dX_p(liq_sat_index)) > 1.d0) then
+            s_extra = 1.d0 - ((X_p(hyd_sat_index) + dX_p(hyd_sat_index) + &
+                      X_p(liq_sat_index) + dX_p(liq_sat_index))) ! + &
+                      !hyd_auxvar%sat(gid) / 3.d0)
+            dX_p(hyd_sat_index) = dX_p(hyd_sat_index) + s_extra / 2.d0
+            dX_p(liq_sat_index) = dX_p(liq_sat_index) + s_extra / 2.d0
+          endif
+
+          !Limit changes in liquid saturation
+          ! dP = 1.d-1
+          ! dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))),&
+          !                       dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < eps_sl) &
+             dX_p(liq_sat_index) = eps_sl - X_p(liq_sat_index)
+
+           !Limit changes in hydrate saturation
+           !dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))),&
+           !   dX_p(hyd_sat_index))
+
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0 - eps_sh) &
+             dX_p(hyd_sat_index) = 1.d0 - eps_sh - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+              dX_p(hyd_sat_index) = eps_sh - X_p(hyd_sat_index)
+
+
+          ! Limit changes in temperature
+          !if (hyd_auxvar%sat(hid) > epsilon) then
+          !  dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+          !                     dX_p(temp_index))
+          !else
+          !  dX_p(temp_index) = sign(min(1.d0,dabs(dX_p(temp_index))), &
+          !                     dX_p(temp_index))
+          !endif
+
+        case(HAI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          liq_sat_index = offset + TWO_INTEGER
+          ice_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+        case(HGI_STATE)
+          ice_sat_index = offset + ONE_INTEGER
+          hyd_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+          !Limit changes in hydrate saturation
+          dP = 1.d-1
+          dX_p(hyd_sat_index) = sign(min(dabs(dP),dabs(dX_p(hyd_sat_index))), &
+                                dX_p(hyd_sat_index))
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) > 1.d0) &
+             dX_p(hyd_sat_index) = 1.d0 - X_p(hyd_sat_index)
+          if (X_p(hyd_sat_index) + dX_p(hyd_sat_index) < 0.d0) &
+             dX_p(hyd_sat_index) = - X_p(hyd_sat_index)
+
+        case(GAI_STATE)
+          gas_pressure_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          temp_index = offset + THREE_INTEGER
+
+          !Limit changes in gas phase pressure
+          dP = max(1.d6,2.5d-1*(X_p(gas_pressure_index)))
+          dX_p(gas_pressure_index) = sign(min(dabs(dP), &
+                                     dabs(dX_p(gas_pressure_index))), &
+                                     dX_p(gas_pressure_index))
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+        case(HGAI_STATE)
+          liq_sat_index = offset + ONE_INTEGER
+          gas_sat_index = offset + TWO_INTEGER
+          ice_sat_index = offset + THREE_INTEGER
+
+          !Limit changes in liquid saturation
+          dP = 1.d-1
+          dX_p(liq_sat_index) = sign(min(dabs(dP),dabs(dX_p(liq_sat_index))), &
+                                dX_p(liq_sat_index))
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) > 1.d0) &
+             dX_p(liq_sat_index) = 1.d0 - X_p(liq_sat_index)
+          if (X_p(liq_sat_index) + dX_p(liq_sat_index) < 0.d0) &
+             dX_p(liq_sat_index) = - X_p(liq_sat_index)
+
+          !Limit changes in gas saturation
+          dP = 1.d-1
+          dX_p(gas_sat_index) = sign(min(dabs(dP),dabs(dX_p(gas_sat_index))), &
+                                dX_p(gas_sat_index))
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) > 1.d0) &
+             dX_p(gas_sat_index) = 1.d0 - X_p(gas_sat_index)
+          if (X_p(gas_sat_index) + dX_p(gas_sat_index) < 0.d0) &
+             dX_p(gas_sat_index) = - X_p(gas_sat_index)
+
+          !Limit changes in ice saturation
+          dP = 1.d-1
+          dX_p(ice_sat_index) = sign(min(dabs(dP),dabs(dX_p(ice_sat_index))), &
+                                dX_p(ice_sat_index))
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) > 1.d0) &
+             dX_p(ice_sat_index) = 1.d0 - X_p(ice_sat_index)
+          if (X_p(ice_sat_index) + dX_p(ice_sat_index) < 0.d0) &
+             dX_p(ice_sat_index) = - X_p(ice_sat_index)
+
+      end select
+
+      if (temp_index > ZERO_INTEGER) then
+        ! Limit changes in temperature
+        if (hyd_auxvar%sat(hid) > epsilon) then
+          dX_p(temp_index) = sign(min(2.5d-1,dabs(dX_p(temp_index))), &
+                             dX_p(temp_index))
+        else
+          dX_p(temp_index) = sign(min(1.d-1,dabs(dX_p(temp_index))), &
+                             dX_p(temp_index))
         endif
-        ! Truncate xmol > 0
-        xmol_index = offset + HYDRATE_L_STATE_X_MOLE_DOF
-        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-          dX_p(xmol_index) = X_p(xmol_index)
-          changed = PETSC_TRUE
+
+       ! Relax temperature updates when freezing/thawing
+        if (hyd_auxvar%temp - Tf_ice > 0.d0 .and. &
+            hyd_auxvar%temp + dX_p(temp_index) - Tf_ice < 0.d0) then
+          dX_p(temp_index) = 6.d-1 * dX_p(temp_index)
+        elseif (hyd_auxvar%temp - Tf_ice < 0.d0 .and. &
+          hyd_auxvar%temp + dX_p(temp_index) - Tf_ice > 0.d0) then
+          dX_p(temp_index) = 6.d-1 * dX_p(temp_index)
         endif
-      case(G_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(H_STATE)
-      case(I_STATE)
-      case(GA_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HG_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HA_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HI_STATE)
-      case(GI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        ! Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(AI_STATE)
-        ! Truncate liquid pressure > 0
-        pw_index = offset + HYDRATE_LIQUID_PRESSURE_DOF
-        if (X_p(pw_index) - dX_p(pw_index) <= 0.d0) then
-          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        ! Truncate xmol > 0
-        xmol_index = offset + HYDRATE_GAS_SATURATION_DOF
-        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-          dX_p(xmol_index) = X_p(xmol_index)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGA_STATE)
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HAI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGI_STATE)
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sh <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(GAI_STATE)
-        ! Truncate gas pressure > 0
-        pgas_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  hyd_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sl <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(HGAI_STATE)
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_GAS_PRESSURE_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Sg <= 1
-        saturation_index = offset + HYDRATE_GAS_SATURATION_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-        !Truncate 0 <= Si <= 1
-        saturation_index = offset + HYDRATE_ENERGY_DOF
-        temp_real = X_p(saturation_index) - dX_p(saturation_index)
-        if (temp_real > ALMOST_ONE) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-          changed = PETSC_TRUE
-        else if (temp_real < ALMOST_ZERO) then
-          dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-    end select
-  enddo
-endif
+      endif
+
+      ! Limit salt mass fraction changes to 0.25 of max
+      call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+      if (X_p(salt_index) < xsl ) THEN
+        dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
+                           dabs(dX_p(salt_index))), dX_p(salt_index))
+      endif
+      ! Zero negative corrections without salt present
+      if (X_p(salt_index) / epsilon < epsilon .and. &
+         dX_p(salt_index) / epsilon < epsilon) then
+        dX_p(salt_index) = 0.d0
+        dX_p2(salt_index) = 0.d0
+      endif
+      if ((X_p(salt_index) + dX_p(salt_index)) < epsilon) &
+          dX_p(salt_index) = - X_p(salt_index)
+
+      if (global_auxvars(ghosted_id)%istate == GA_STATE .or.  &
+          global_auxvars(ghosted_id)%istate == HG_STATE) then
+         call HydrateBrineSaturationPressure(X_p(temp_index) + &
+                dX_p(temp_index),hyd_auxvar%xmass(sid,lid),Psat)
+          if (X_p(gas_pressure_index) + dX_p(gas_pressure_index) < Psat) then
+             dX_p(gas_pressure_index) = Psat - X_p(gas_pressure_index)
+          endif
+      endif
+
+      !if (global_auxvars(ghosted_id)%istate == HG_STATE .or. &
+      !    global_auxvars(ghosted_id)%istate == G_STATE) then
+      !  dX_p(salt_index) = 0.d0
+      !  dX_p2(salt_index) = 0.d0
+      !endif
+
+      if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
+                                dX_p(well_index))
+        cur_well => this%pmwell_ptr
+        do
+          if (.not. associated(cur_well)) exit
+          if (cur_well%well_grid%h_rank_id(ONE_INTEGER) == &
+              option%myrank) then
+            if (ghosted_id == cur_well%well_grid% &
+                h_ghosted_id(ONE_INTEGER)) then
+              ! if (cur_well%well%th_ql > 0.d0 .or. &
+              !     cur_well%well%th_qg > 0.d0) then
+              !   if (cur_well%well%pg(ONE_INTEGER) +  dX_p(well_index) < &
+              !       hyd_auxvar%pres(option%gas_phase) + &
+              !       dX_p(liq_pressure_index)) then
+              !     dX_p(well_index) = (hyd_auxvar%pres(option%gas_phase) + &
+              !                        dX_p(liq_pressure_index)) - &
+              !                        (cur_well%well%pg(ONE_INTEGER) +  &
+              !                        dX_p(well_index))
+              !     dX_p(well_index) = dX_p(well_index) * 1.1d0
+              !   endif
+              ! endif
+              ! MAN: this is a hack to get the well to initialize properly
+              if (X_p(well_index) == hyd_auxvar%pres(option%gas_phase)) then
+                dX_p(well_index) = dX_p(well_index) + (hyd_auxvar%well%bh_p - &
+                                   hyd_auxvar%pres(option%gas_phase))
+              elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                dX_p(well_index) = dX_p(well_index) + &
+                                   (cur_well%well%bh_p - X_p(well_index))
+              endif
+              ! dX_p(well_index) = dX_p(well_index) + hyd_auxvar%well%pressure_bump
+              ! hyd_auxvar%well%pressure_bump = 0.d0
+            endif
+          endif
+          cur_well => cur_well%next_well
+        enddo
+        dX_p2(well_index) = dX_p(well_index)
+      endif
+    enddo
+  endif
 
   if (this%damping_factor > 0.d0) then
     dX_p = dX_p*this%damping_factor
     changed = PETSC_TRUE
   endif
 
+  dX_p = -1.d0 * dX_p
+
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
 
 end subroutine PMHydrateCheckUpdatePre
 
@@ -1458,12 +1899,12 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_abs, dX_X0
-  PetscBool :: converged_abs_update_flag(3,15)
-  PetscBool :: converged_rel_update_flag(3,15)
-  PetscInt :: converged_abs_update_cell(3,15)
-  PetscInt :: converged_rel_update_cell(3,15)
-  PetscReal :: converged_abs_update_real(3,15)
-  PetscReal :: converged_rel_update_real(3,15)
+  PetscBool :: converged_abs_update_flag(4,15)
+  PetscBool :: converged_rel_update_flag(4,15)
+  PetscInt :: converged_abs_update_cell(4,15)
+  PetscInt :: converged_rel_update_cell(4,15)
+  PetscReal :: converged_abs_update_real(4,15)
+  PetscReal :: converged_rel_update_real(4,15)
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_relative
@@ -1488,53 +1929,55 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   converged_abs_update_real = 0.d0
   converged_rel_update_real = 0.d0
 
-  do local_id = 1, grid%nlmax
-    offset = (local_id-1)*option%nflowdof
-    ghosted_id = grid%nL2G(local_id)
-    natural_id = grid%nG2A(ghosted_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    istate = global_auxvars(ghosted_id)%istate
+  if (hydrate_check_updates) then
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%nflowdof
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      istate = global_auxvars(ghosted_id)%istate
 
-    do idof = 1, option%nflowdof
+      do idof = 1, option%nflowdof
 
-      ival = offset+idof
+        ival = offset+idof
 
-      ! infinity norms on update
-      converged_absolute = PETSC_TRUE
-      converged_relative = PETSC_TRUE
-      dX_abs = dabs(dX_p(ival))
-      if (X0_p(ival) > 0.d0) then
-        dX_X0 = dabs(dX_abs/(X0_p(ival)))
-      else
-        dX_X0 = dabs(dX_abs/1.d-40)
-      endif
+        ! infinity norms on update
+        converged_absolute = PETSC_TRUE
+        converged_relative = PETSC_TRUE
+        dX_abs = dabs(dX_p(ival))
+        if (X0_p(ival) > 0.d0) then
+          dX_X0 = dabs(dX_abs/(X0_p(ival)))
+        else
+          dX_X0 = dabs(dX_abs/1.d-40)
+        endif
 
-      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-        converged_absolute = PETSC_FALSE
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-        converged_relative = PETSC_FALSE
-      endif
+        if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+          converged_absolute = PETSC_FALSE
+        endif
+        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+          converged_relative = PETSC_FALSE
+        endif
 
-      if (converged_abs_update_real(idof,istate) < dX_abs) then
-        converged_abs_update_real(idof,istate) = dX_abs
-        converged_abs_update_cell(idof,istate) = natural_id
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-        converged_relative = PETSC_FALSE
-      endif
-      if (converged_rel_update_real(idof,istate) < dX_X0) then
-        converged_rel_update_real(idof,istate) = dX_X0
-        converged_rel_update_cell(idof,istate) = natural_id
-      endif
+        if (converged_abs_update_real(idof,istate) < dX_abs) then
+          converged_abs_update_real(idof,istate) = dX_abs
+          converged_abs_update_cell(idof,istate) = natural_id
+        endif
+        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+          converged_relative = PETSC_FALSE
+        endif
+        if (converged_rel_update_real(idof,istate) < dX_X0) then
+          converged_rel_update_real(idof,istate) = dX_X0
+          converged_rel_update_cell(idof,istate) = natural_id
+        endif
 
-      ! only enter this condition if both are not converged
-      if (.not.(converged_absolute .or. converged_relative)) then
-        converged_abs_update_flag(idof,istate) = PETSC_FALSE
-        converged_rel_update_flag(idof,istate) = PETSC_FALSE
-      endif
+        ! only enter this condition if both are not converged
+        if (.not.(converged_absolute .or. converged_relative)) then
+          converged_abs_update_flag(idof,istate) = PETSC_FALSE
+          converged_rel_update_flag(idof,istate) = PETSC_FALSE
+        endif
+      enddo
     enddo
-  enddo
+  endif
   call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
 
@@ -1566,6 +2009,8 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   use Patch_module
   use Option_module
   use String_module
+  use EOS_Gas_module
+  use Material_Aux_module
 
   implicit none
 
@@ -1583,49 +2028,77 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(hydrate_auxvar_type) :: hyd_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
+  PetscReal, pointer :: dX_p(:)
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof, itol
+  PetscInt :: gid, lid, acid, hid, iid, spid, apid, vpid
+  PetscReal :: Psat, Pv, Prvap, Pa
+  PetscReal :: xag, xwg, xal, xsl, xwl, xmolag, xmolwg, xmolal, &
+               xmolsl, xmolwl, x_salt_dissolved
   PetscReal :: R, A, R_A
+  PetscReal :: res_scaled, residual, accumulation, update
+  PetscReal :: Hc
   PetscReal, parameter :: A_zero = 1.d-15
-  PetscBool :: converged_abs_residual_flag(3,15)
-  PetscReal :: converged_abs_residual_real(3,15)
-  PetscInt :: converged_abs_residual_cell(3,15)
-  PetscBool :: converged_scaled_residual_flag(3,15)
-  PetscReal :: converged_scaled_residual_real(3,15)
-  PetscInt :: converged_scaled_residual_cell(3,15)
+  PetscBool :: converged_abs_residual_flag(4,15)
+  PetscReal :: converged_abs_residual_real(4,15)
+  PetscInt :: converged_abs_residual_cell(4,15)
+  PetscBool :: converged_scaled_residual_flag(4,15)
+  PetscReal :: converged_scaled_residual_real(4,15)
+  PetscInt :: converged_scaled_residual_cell(4,15)
   PetscInt :: istate
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
-  PetscBool :: flags(181)
+  PetscBool :: flags(242)
+  PetscBool :: converged_well
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscBool :: rho_flag
-
+  PetscReal, parameter :: T_ref = T273K
+  PetscReal, parameter :: epsilon = 1.d-14
 
   character(len=14), parameter :: state_string(15) = &
     ['Liquid State  ','Gas State     ','Hydrate State ','Ice State     ', &
      'GA State      ','HG State      ','HA State      ','HI State      ', &
      'GI State      ','AI State      ','HGA State     ','HAI State     ', &
      'HGI State     ','GAI State     ','Quad State    ']
-  character(len=17), parameter :: dof_string(3,15) = &
-    reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
+  character(len=17), parameter :: dof_string(4,15) = &
+    reshape(['Liquid Pressure  ','Air Mass Fraction','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Air Pressure     ','Temperature      ', &
-             'Gas Pressure     ','Air Mole Frac Hyd','Temperature      ', &
-             'Gas Pressure     ','Air Mole Frac Ice','Temperature      ', &
+             'Salt Mass Frac   ', &
+             'Gas Pressure     ','Air Mass Frac Hyd','Temperature      ', &
+             'Salt Mass Frac   ', &
+             'Gas Pressure     ','Air Mass Frac Ice','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Ice Saturation   ','Temperature      ', &
-             'Gas Pressure     ','Air Mole Fraction','Liquid Saturation', &
+             'Salt Mass Frac   ', &
+             'Gas Pressure     ','Air Mass Fraction','Liquid Saturation', &
+             'Salt Mass Frac   ', &
              'Liquid Saturation','Hydrate Sat      ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Liquid Saturation','Ice Saturation   ', &
+             'Salt Mass Frac   ', &
              'Hydrate Sat      ','Ice Saturation   ','Temperature      ', &
+             'Salt Mass Frac   ', &
              'Gas Pressure     ','Liquid Saturation','Ice Saturation   ', &
-             'Gas Saturation   ','Liquid Saturation','Ice Saturation   '], &
+             'Salt Mass Frac   ', &
+             'Gas Saturation   ','Liquid Saturation','Ice Saturation   ', &
+             'Salt Mass Frac   '], &
              shape(dof_string))
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
@@ -1635,6 +2108,17 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
+  hyd_auxvars => this%realization%patch%aux%Hydrate%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  hid = option%hydrate_phase
+  iid = option%ice_phase
+  acid = option%air_id
+  apid = option%air_pressure_id
+  spid = option%saturation_pressure_id
+  vpid = option%vapor_pressure_id
 
   call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
@@ -1645,66 +2129,718 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     hydrate_newtontrdc_prev_iter_num = it
   endif
 
+  converged_well = PETSC_TRUE
+
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
     converged_abs_residual_flag = PETSC_TRUE
     converged_abs_residual_real = 0.d0
     converged_abs_residual_cell = ZERO_INTEGER
     converged_scaled_residual_flag = PETSC_TRUE
     converged_scaled_residual_real = 0.d0
     converged_scaled_residual_cell = ZERO_INTEGER
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%nflowdof
-      ghosted_id = grid%nL2G(local_id)
-      natural_id = grid%nG2A(ghosted_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      istate = global_auxvars(ghosted_id)%istate
-      do idof = 1, option%nflowdof
-        ival = offset+idof
-        converged_absolute = PETSC_TRUE
-        converged_scaled = PETSC_TRUE
-        ! infinity norms on residual
-        R = dabs(r_p(ival))
-        A = dabs(accum2_p(ival))
-!         R_A = R/A
 
-        !TOUGH3 way:
-        if (A > 1.d0) then
-          R_A = R/A
-        else
-          R_A = R
-        endif
+    if (hydrate_full_convergence) then
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          ival = offset+idof
+          if (idof == FIVE_INTEGER) then
+            ! Well DOF
+            residual = r_p(ival)
+            accumulation = accum2_p(ival)
+            update = dX_p(ival)
+            if (dabs(update) > 0.d0) then
+              update = update - hyd_auxvar%well%pressure_bump
+            endif
+            ! res_scaled = dabs(update) / &
+            !              (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            res_scaled = dabs(residual/(accumulation + epsilon))
+            if (dabs(res_scaled) > &
+                this%residual_scaled_inf_tol(ONE_INTEGER)) then
+              converged_well = PETSC_FALSE
+            endif
+          else
+            if (option%nflowdof == FIVE_INTEGER .and. &
+                idof > ONE_INTEGER .and. idof < FOUR_INTEGER .and. &
+               (istate == L_STATE .or. istate == GA_STATE)) then
+              converged_absolute = PETSC_TRUE
+              converged_scaled = PETSC_TRUE
+              ! Convergence modification for fully implicit wells
+              select case (istate)
+                case (L_STATE)
+                  if (idof == TWO_INTEGER) then
+                    !---  Air mass equation, ignore residual for small mass
+                    call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+                    xsl = min(hyd_auxvar%m_salt(1),xsl)
+                    call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl, &
+                                                        Psat)
+                    Pv = hyd_auxvar%pres(vpid)
+                    Prvap = Psat
+                    x_salt_dissolved = xsl
+                    call HydrateEquilibrate(hyd_auxvar%temp, &
+                                            hyd_auxvar%pres(lid), &
+                                            istate, 0.d0, &
+                                            Pa, Pv, Psat, Prvap, &
+                                            xag, xwg, xal, xsl, xwl, &
+                                            xmolag, xmolwg, xmolal, xmolsl, &
+                                            xmolwl, option)
+                    x_salt_dissolved = x_salt_dissolved + &
+                                       (xsl - x_salt_dissolved) * &
+                                       (hyd_auxvar%xmass(acid,lid) / xal)
+                    if (hyd_auxvar%xmass(acid,lid) > (1.d-6 * xal)) then
+                      Hc = HydrateHenryCO2(hyd_auxvar%temp,x_salt_dissolved)
+                      res_scaled = min(dabs(update) / &
+                                   max(hyd_auxvar%pres(gid)/Hc, &
+                                   HYDRATE_REFERENCE_PRESSURE/Hc), &
+                                   dabs(residual / (accumulation + epsilon)))
+                      ! find max value regardless of convergence
+                      if (converged_scaled_residual_real(idof,istate) < &
+                              res_scaled) then
+                        converged_scaled_residual_real(idof,istate) = &
+                          res_scaled
+                        converged_scaled_residual_cell(idof,istate) = &
+                          natural_id
+                      endif
+                    endif
+                  endif
+                case (GA_STATE)
+                  if (idof == TWO_INTEGER) then
+                    ! Air equation
+                    if (hyd_auxvar%sat(gid) > 1.d-3) then
+                      res_scaled = min(dabs(update)/ &
+                                   dabs(hyd_auxvar%sat(gid)), &
+                                   dabs(residual/(accumulation + epsilon)))
+                      ! find max value regardless of convergence
+                      if (converged_scaled_residual_real(idof,istate) < &
+                          res_scaled) then
+                        converged_scaled_residual_real(idof,istate) = &
+                          res_scaled
+                        converged_scaled_residual_cell(idof,istate) = &
+                          natural_id
+                      endif
+                    endif
+                  endif
+              end select
+              if (idof == THREE_INTEGER) then
+                !--- Energy Equation ---!
+                res_scaled = 1.d-1 * min(dabs(update) / &
+                               (hyd_auxvar%temp + 237.15d0), &
+                               dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                  converged_scaled_residual_real(idof,istate) = res_scaled
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
 
-        if (R > this%residual_abs_inf_tol(idof)) then
+              if (res_scaled > this%residual_scaled_inf_tol(idof)) then
+                converged_scaled = PETSC_FALSE
+              endif
+            else
+              converged_absolute = PETSC_TRUE
+              converged_scaled = PETSC_TRUE
+              ! infinity norms on residual
+              R = dabs(r_p(ival))
+              A = dabs(accum2_p(ival))
+
+              if (A > 1.d0) then
+                R_A = R/A
+              else
+                R_A = R
+              endif
+
+              if (R > this%residual_abs_inf_tol(idof)) then
+                converged_absolute = PETSC_FALSE
+              endif
+
+              if (hyd_auxvar%sat(hid) > 9.9d-1) then
+                if (R < this%residual_abs_inf_tol(idof) * 1.d2) then
+                  converged_absolute = PETSC_TRUE
+                endif
+              endif
+
+              ! find max value regardless of convergence
+              if (converged_abs_residual_real(idof,istate) < R) then
+                converged_abs_residual_real(idof,istate) = R
+                converged_abs_residual_cell(idof,istate) = natural_id
+              endif
+              if (A > A_zero) then
+                if (R_A > this%residual_scaled_inf_tol(idof)) then
+                  converged_scaled = PETSC_FALSE
+                endif
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < R_A) then
+                  converged_scaled_residual_real(idof,istate) = R_A
+                  converged_scaled_residual_cell(idof,istate) = natural_id
+               endif
+              endif
+              ! only enter this condition if both are not converged
+              if (.not.(converged_absolute .or. converged_scaled)) then
+                converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+                converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
+              endif
+            endif
+          endif
+        enddo
+      enddo
+
+    else
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*option%nflowdof
+        ghosted_id = grid%nL2G(local_id)
+        natural_id = grid%nG2A(ghosted_id)
+
+        hyd_auxvar = hyd_auxvars(ZERO_INTEGER,ghosted_id)
+        material_auxvar = material_auxvars(ghosted_id)
+
+        if (patch%imat(ghosted_id) <= 0) cycle
+        istate = global_auxvars(ghosted_id)%istate
+        do idof = 1, option%nflowdof
+          res_scaled = 0.d0
+          ival = offset+idof
           converged_absolute = PETSC_FALSE
-        endif
+          converged_scaled = PETSC_TRUE
 
-        ! find max value regardless of convergence
-        if (converged_abs_residual_real(idof,istate) < R) then
-          converged_abs_residual_real(idof,istate) = R
-          converged_abs_residual_cell(idof,istate) = natural_id
-        endif
-        if (A > A_zero) then
-          if (R_A > this%residual_scaled_inf_tol(idof)) then
+          residual = r_p(ival)
+          accumulation = accum2_p(ival)
+          update = dX_p(ival)
+
+          if (idof == FIVE_INTEGER) then
+            ! Well DOF
+            if (dabs(update) > 0.d0) then
+              update = update - hyd_auxvar%well%pressure_bump
+            endif
+            res_scaled = dabs(update) / &
+                         (dabs(hyd_auxvar%well%bh_p) + epsilon)
+            if (dabs(res_scaled) > 1.d-6) then
+              converged_well = PETSC_FALSE
+            endif
+          endif
+          if (idof == FOUR_INTEGER) then
+            !---      Salt mass equation  ---
+            call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+            res_scaled = min(dabs(update) / xsl, &
+                         dabs(residual / (accumulation + epsilon)))
+            res_scaled = 1.d-1 * res_scaled
+            if (converged_scaled_residual_real(idof,istate) < &
+                res_scaled) then
+              converged_scaled_residual_real(idof,istate) = res_scaled
+              converged_scaled_residual_cell(idof,istate) = natural_id
+            endif
+          endif
+
+          select case (istate)
+            case(L_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/ (dabs(hyd_auxvar%pres(lid))), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+                xsl = min(hyd_auxvar%m_salt(1),xsl)
+                call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl,Psat)
+                Pv = hyd_auxvar%pres(vpid)
+                Prvap = Psat
+                x_salt_dissolved = xsl
+                call HydrateEquilibrate(hyd_auxvar%temp,hyd_auxvar%pres(lid), &
+                                     istate, &
+                                     hyd_auxvar%sat(hid), &
+                                     Pa, Pv, Psat, Prvap, &
+                                     xag, xwg, xal, xsl, xwl, &
+                                     xmolag, xmolwg, xmolal, xmolsl, &
+                                     xmolwl, option)
+                x_salt_dissolved = x_salt_dissolved + &
+                                   (xsl - x_salt_dissolved) * &
+                                   (hyd_auxvar%xmass(acid,lid) / xal)
+                if (hyd_auxvar%xmol(acid,lid) > (1.d-6 * xmolal)) then
+                  Hc = HydrateHenryCO2(hyd_auxvar%temp,x_salt_dissolved)
+                  res_scaled = min(dabs(update) / &
+                               max(hyd_auxvar%pres(gid)/Hc, &
+                               HYDRATE_REFERENCE_PRESSURE/Hc), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(G_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                call HydrateSaltSolubility(hyd_auxvar%temp,xsl)
+                if (hyd_auxvar%m_salt(2) <= 0.d0) xsl = 0.d0
+                call HydrateBrineSaturationPressure(hyd_auxvar%temp,xsl,Psat)
+
+                res_scaled = min(dabs(update) / Psat, &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(apid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(H_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(I_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(lid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                if (hyd_auxvar%sat(gid) > 1.d-3) then
+                  res_scaled = min(dabs(update)/dabs(hyd_auxvar%sat(gid)), &
+                               dabs(residual/(accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HG_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(AI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(lid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                if (hyd_auxvar%xmass(acid,lid) > 1.d-10) then
+                  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid), &
+                                   Hc,ierr)
+                  res_scaled = min(dabs(update) / &
+                               max(hyd_auxvar%pres(gid)/Hc, &
+                               HYD_REFERENCE_PRESSURE/Hc), &
+                               dabs(residual / (accumulation + epsilon)))
+                  ! find max value regardless of convergence
+                  if (converged_scaled_residual_real(idof,istate) < &
+                      res_scaled) then
+                   converged_scaled_residual_real(idof,istate) = res_scaled
+                   converged_scaled_residual_cell(idof,istate) = natural_id
+                  endif
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGA_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(GAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update)/dabs(hyd_auxvar%pres(gid)), &
+                             dabs(residual / (accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = dabs(update)/T_ref
+
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              endif
+            case(HGAI_STATE)
+              if (idof == ONE_INTEGER) then
+              ! Water equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == TWO_INTEGER) then
+              ! Air equation
+                res_scaled = min(dabs(update), &
+                             dabs(residual/(accumulation + epsilon)))
+                ! find max value regardless of convergence
+                if (converged_scaled_residual_real(idof,istate) < &
+                    res_scaled) then
+                 converged_scaled_residual_real(idof,istate) = res_scaled
+                 converged_scaled_residual_cell(idof,istate) = natural_id
+                endif
+              elseif (idof == THREE_INTEGER) then
+              ! Energy equation
+                res_scaled = residual/(dabs(accumulation + epsilon))
+              endif
+          end select
+
+          if (res_scaled > this%residual_scaled_inf_tol(idof)) then
             converged_scaled = PETSC_FALSE
           endif
-          ! find max value regardless of convergence
-          if (converged_scaled_residual_real(idof,istate) < R_A) then
-            converged_scaled_residual_real(idof,istate) = R_A
-            converged_scaled_residual_cell(idof,istate) = natural_id
+
+          if (.not.(converged_absolute .or. converged_scaled)) then
+           converged_abs_residual_flag(idof,istate) = PETSC_FALSE
+           converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
           endif
-        endif
-        ! only enter this condition if both are not converged
-        if (.not.(converged_absolute .or. converged_scaled)) then
-          converged_abs_residual_flag(idof,istate) = PETSC_FALSE
-          converged_scaled_residual_flag(idof,istate) = PETSC_FALSE
-        endif
+        enddo
       enddo
-    enddo
+    endif
+
     call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
                                 ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
 
     this%converged_flag(:,:,RESIDUAL_INDEX) = converged_abs_residual_flag(:,:)
     this%converged_real(:,:,RESIDUAL_INDEX) = converged_abs_residual_real(:,:)
@@ -1716,17 +2852,19 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
     !mpi_int = 9*MAX_INDEX
-    flags(1:45*MAX_INDEX) = reshape(this%converged_flag,(/45*MAX_INDEX/))
-    flags(181) = .not.hydrate_high_temp_ts_cut
-    mpi_int = 181
+    flags(1:60*MAX_INDEX) = reshape(this%converged_flag,(/60*MAX_INDEX/))
+    flags(241) = .not.hydrate_high_temp_ts_cut
+    flags(242) = converged_well
+    mpi_int = 242
     ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_LOGICAL,MPI_LAND, &
                        option%mycomm,ierr);CHKERRQ(ierr)
-    this%converged_flag = reshape(flags(1:45*MAX_INDEX),(/3,15,MAX_INDEX/))
-    hydrate_high_temp_ts_cut = .not.flags(181)
+    this%converged_flag = reshape(flags(1:60*MAX_INDEX),(/4,15,MAX_INDEX/))
+    hydrate_high_temp_ts_cut = .not.flags(241)
+    converged_well = flags(242)
 
-    mpi_int = 45*MAX_INDEX
+    mpi_int = 60*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm, &
                        ierr);CHKERRQ(ierr)
@@ -1736,6 +2874,12 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     do itol = 1, MAX_INDEX
       do istate = 1, 15
         do idof = 1, option%nflowdof
+          if (idof == FIVE_INTEGER) then
+            if (.not. converged_well) then
+              option%convergence = CONVERGENCE_KEEP_ITERATING
+            endif
+            cycle
+          endif
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
             if (this%logging_verbosity > 0) then
@@ -1747,9 +2891,12 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 elseif (idof == 2) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Air Mass'
-                else
+                elseif (idof == 3) then
                   string = '   ' // trim(tol_string(itol)) // ', ' // &
                    trim(state_string(istate)) // ', Energy'
+                elseif (idof == 4) then
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Salt Mass'
                 endif
               else
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
@@ -1903,7 +3050,7 @@ subroutine PMHydrateUpdateAuxVars(this)
 
   class(pm_hydrate_type) :: this
 
-  call HydrateUpdateAuxVars(this%realization,PETSC_FALSE)
+  call HydrateUpdateAuxVars(this%realization,this%pmwell_ptr,PETSC_FALSE)
 
 end subroutine PMHydrateUpdateAuxVars
 

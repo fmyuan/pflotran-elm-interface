@@ -7,6 +7,7 @@ module Reaction_Aux_module
   use Generic_module
   use Reaction_Base_module
   use Reaction_Database_Aux_module
+  use Reaction_Equation_module
   use Reaction_Gas_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Isotherm_Aux_module
@@ -86,7 +87,7 @@ module Reaction_Aux_module
     PetscReal :: rate_constant
     PetscReal :: half_life
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(radioactive_decay_rxn_type), pointer :: next
   end type radioactive_decay_rxn_type
 
@@ -96,7 +97,7 @@ module Reaction_Aux_module
     PetscReal :: forward_rate
     PetscReal :: backward_rate
     PetscBool :: print_me
-    type(database_rxn_type), pointer :: dbaserxn
+    type(reaction_equation_type), pointer :: reaction_equation
     type(general_rxn_type), pointer :: next
   end type general_rxn_type
 
@@ -121,7 +122,7 @@ module Reaction_Aux_module
 
   type, public, extends(reaction_base_type) :: reaction_rt_type
     character(len=MAXSTRINGLENGTH) :: database_filename
-    PetscBool :: use_full_geochemistry
+    PetscBool :: read_reaction_database
     PetscReal :: truncated_concentration
     PetscBool :: check_update
     PetscBool :: print_all_species
@@ -310,61 +311,54 @@ module Reaction_Aux_module
  end type reaction_rt_type
 
 
-  interface GetPrimarySpeciesIDFromName
-    module procedure GetPrimarySpeciesIDFromName1
-    module procedure GetPrimarySpeciesIDFromName2
+  interface ReactionAuxGetPriSpecIDFromName
+    module procedure ReactionAuxGetPriSpecIDFromName1
+    module procedure ReactionAuxGetPriSpecIDFromName2
   end interface
 
-  interface GetSecondarySpeciesIDFromName
-    module procedure GetSecondarySpeciesIDFromName1
-    module procedure GetSecondarySpeciesIDFromName2
+  interface ReactionAuxGetSecSpecIDFromName
+    module procedure ReactionAuxGetSecSpecIDFromName1
+    module procedure ReactionAuxGetSecSpecIDFromName2
   end interface
 
-  public :: ReactionCreate, &
-            ReactionCast, &
-            SpeciesIndexCreate, &
-            GasSpeciesCreate, &
-            GetPrimarySpeciesCount, &
-            GetPrimarySpeciesNames, &
-            GetPrimarySpeciesIDFromName, &
-            GetSecondarySpeciesCount, &
-            GetSecondarySpeciesNames, &
-            GetSecondarySpeciesIDFromName, &
-            GetImmobileCount, &
-            ReactionFitLogKCoef, &
-            ReactionInitializeLogK, &
-            ReactionInterpolateLogK, &
-            ReactionInitializeLogK_hpt, &
-            ReactionInterpolateLogK_hpt, &
-            TransitionStateTheoryRxnCreate, &
-            TransitionStatePrefactorCreate, &
-            TSPrefactorSpeciesCreate, &
-            TransitionStateTheoryRxnDestroy, &
-            AqueousSpeciesCreate, &
-            AqueousSpeciesDestroy, &
-            AqueousSpeciesConstraintCreate, &
-            AqueousSpeciesConstraintDestroy, &
-            GuessConstraintCreate, &
-            GuessConstraintDestroy, &
-            MineralConstraintCreate, &
-            MineralConstraintDestroy, &
-            RadioactiveDecayRxnCreate, &
-            RadioactiveDecayRxnDestroy, &
-            GeneralRxnCreate, &
-            GeneralRxnDestroy, &
-            DynamicKDRxnCreate, &
-            DynamicKDRxnDestroy, &
-            IonExchangeRxnCreate, &
-            IonExchangeCationCreate, &
-            ReactionInputRecord, &
-            ReactionNetworkToStoich, &
-            ReactionDestroy
+  public :: ReactionAuxCreateAux, &
+            ReactionAuxCast, &
+            ReactionAuxCreateAqSpeciesIndex, &
+            ReactionAuxGetPriSpeciesCount, &
+            ReactionAuxGetPriSpeciesNames, &
+            ReactionAuxGetPriSpecIDFromName, &
+            ReactionAuxGetSecSpeciesCount, &
+            ReactionAuxGetSecSpeciesNames, &
+            ReactionAuxGetSecSpecIDFromName, &
+            ReactionAuxGetImmobileCount, &
+            ReactionAuxFitLogKCoef, &
+            ReactionAuxInitializeLogK, &
+            ReactionAuxInterpolateLogK, &
+            ReactionAuxInitializeLogK_hpt, &
+            ReactionAuxInterpolateLogK_hpt, &
+            ReactionAuxCreateAqSpecies, &
+            ReactionAuxDestroyAqSpecies, &
+            ReactionAuxCreateSpecConstraint, &
+            ReactionAuxDestroySpecConstraint, &
+            ReactionAuxCreateGuessConstraint, &
+            ReactionAuxDestroyGuesConstraint, &
+            ReactionAuxCreateRadioDecayRxn, &
+            ReactionAuxDestroyRadioDecayRxn, &
+            ReactionAuxCreateGeneralRxn, &
+            ReactionAuxDestroyGeneralRxn, &
+            ReactionAuxCreateDynamicKDRxn, &
+            ReactionAuxDestroyDynamicKDRxn, &
+            ReactionAuxCreateIonExchangeRxn, &
+            ReactionAuxCreateIonExchCation, &
+            ReactionAuxInputRecord, &
+            ReactionAuxNetworkToStoich, &
+            ReactionAuxDestroyAux
 
 contains
 
 ! ************************************************************************** !
 
-function ReactionCreate()
+function ReactionAuxCreateAux()
   !
   ! Allocate and initialize reaction object
   !
@@ -373,7 +367,7 @@ function ReactionCreate()
   !
   implicit none
 
-  class(reaction_rt_type), pointer :: ReactionCreate
+  class(reaction_rt_type), pointer :: ReactionAuxCreateAux
 
   class(reaction_rt_type), pointer :: reaction
 
@@ -401,7 +395,7 @@ function ReactionCreate()
   reaction%print_act_coefs = PETSC_FALSE
   reaction%truncated_concentration = UNINITIALIZED_DOUBLE
   reaction%check_update = PETSC_TRUE
-  reaction%use_full_geochemistry = PETSC_FALSE
+  reaction%read_reaction_database = PETSC_FALSE
   reaction%use_activity_h2o = PETSC_FALSE
   reaction%calculate_tracer_age = PETSC_FALSE
   reaction%calculate_water_age = PETSC_FALSE
@@ -439,12 +433,12 @@ function ReactionCreate()
   nullify(reaction%gas_diffusion_coefficients)
 
   ! new reaction objects
-  reaction%surface_complexation => SurfaceComplexationCreate()
-  reaction%mineral => MineralCreate()
-  reaction%microbial => MicrobialCreate()
-  reaction%immobile => ImmobileCreate()
-  reaction%gas => GasCreate()
-  reaction%isotherm => IsothermCreate()
+  reaction%surface_complexation => ReactionSrfCplxCreateAux()
+  reaction%mineral => ReactionMnrlCreateAux()
+  reaction%microbial => ReactionMicrobCreateAux()
+  reaction%immobile => ReactionImCreateAux()
+  reaction%gas => ReactionGasCreateAux()
+  reaction%isotherm => ReactionIsothermCreateAux()
 #ifdef SOLID_SOLUTION
   nullify(reaction%solid_solution_list)
 #endif
@@ -463,7 +457,7 @@ function ReactionCreate()
   reaction%ncomp = 0
   reaction%naqcomp = 0
   reaction%offset_aqueous = 0
-  reaction%offset_immobile = 0
+  reaction%offset_immobile = UNINITIALIZED_INTEGER
   nullify(reaction%primary_spec_a0)
   nullify(reaction%primary_spec_Z)
   nullify(reaction%primary_spec_molar_wt)
@@ -547,13 +541,13 @@ function ReactionCreate()
   reaction%nauxiliary = 0
   reaction%mc_flag = 0
 
-  ReactionCreate => reaction
+  ReactionAuxCreateAux => reaction
 
-end function ReactionCreate
+end function ReactionAuxCreateAux
 
 ! ************************************************************************** !
 
-function ReactionCast(reaction_base)
+function ReactionAuxCast(reaction_base)
   !
   ! Casts a reaction_base type to reaction_nw type if applicable.
   !
@@ -564,20 +558,20 @@ function ReactionCast(reaction_base)
 
   class(reaction_base_type), pointer :: reaction_base
 
-  class(reaction_rt_type), pointer :: ReactionCast
+  class(reaction_rt_type), pointer :: ReactionAuxCast
 
-  nullify(ReactionCast)
+  nullify(ReactionAuxCast)
   if (.not.associated(reaction_base)) return
   select type(r=>reaction_base)
     class is(reaction_rt_type)
-      ReactionCast => r
+      ReactionAuxCast => r
   end select
 
-end function ReactionCast
+end function ReactionAuxCast
 
 ! ************************************************************************** !
 
-function SpeciesIndexCreate()
+function ReactionAuxCreateAqSpeciesIndex()
   !
   ! Allocate and initialize a species index object
   !
@@ -587,7 +581,7 @@ function SpeciesIndexCreate()
 
   implicit none
 
-  type(species_idx_type), pointer :: SpeciesIndexCreate
+  type(species_idx_type), pointer :: ReactionAuxCreateAqSpeciesIndex
 
   type(species_idx_type), pointer :: species_idx
 
@@ -604,13 +598,13 @@ function SpeciesIndexCreate()
   species_idx%tracer_age_id = 0
   species_idx%water_age_id = 0
 
-  SpeciesIndexCreate => species_idx
+  ReactionAuxCreateAqSpeciesIndex => species_idx
 
-end function SpeciesIndexCreate
+end function ReactionAuxCreateAqSpeciesIndex
 
 ! ************************************************************************** !
 
-function AqueousSpeciesCreate()
+function ReactionAuxCreateAqSpecies()
   !
   ! Allocate and initialize an aqueous species object
   !
@@ -619,7 +613,7 @@ function AqueousSpeciesCreate()
   !
   implicit none
 
-  type(aq_species_type), pointer :: AqueousSpeciesCreate
+  type(aq_species_type), pointer :: ReactionAuxCreateAqSpecies
 
   type(aq_species_type), pointer :: species
 
@@ -634,13 +628,13 @@ function AqueousSpeciesCreate()
   nullify(species%dbaserxn)
   nullify(species%next)
 
-  AqueousSpeciesCreate => species
+  ReactionAuxCreateAqSpecies => species
 
-end function AqueousSpeciesCreate
+end function ReactionAuxCreateAqSpecies
 
 ! ************************************************************************** !
 
-function IonExchangeRxnCreate()
+function ReactionAuxCreateIonExchangeRxn()
   !
   ! Allocate and initialize an ion exchange reaction
   !
@@ -650,7 +644,7 @@ function IonExchangeRxnCreate()
 
   implicit none
 
-  type(ion_exchange_rxn_type), pointer :: IonExchangeRxnCreate
+  type(ion_exchange_rxn_type), pointer :: ReactionAuxCreateIonExchangeRxn
 
   type(ion_exchange_rxn_type), pointer :: ionxrxn
 
@@ -661,13 +655,13 @@ function IonExchangeRxnCreate()
   nullify(ionxrxn%cation_list)
   nullify(ionxrxn%next)
 
-  IonExchangeRxnCreate => ionxrxn
+  ReactionAuxCreateIonExchangeRxn => ionxrxn
 
-end function IonExchangeRxnCreate
+end function ReactionAuxCreateIonExchangeRxn
 
 ! ************************************************************************** !
 
-function IonExchangeCationCreate()
+function ReactionAuxCreateIonExchCation()
   !
   ! Allocate and initialize a cation associated with
   ! an ion exchange reaction
@@ -678,7 +672,7 @@ function IonExchangeCationCreate()
 
   implicit none
 
-  type(ion_exchange_cation_type), pointer :: IonExchangeCationCreate
+  type(ion_exchange_cation_type), pointer :: ReactionAuxCreateIonExchCation
 
   type(ion_exchange_cation_type), pointer :: cation
 
@@ -687,13 +681,13 @@ function IonExchangeCationCreate()
   cation%k = 0.d0
   nullify(cation%next)
 
-  IonExchangeCationCreate => cation
+  ReactionAuxCreateIonExchCation => cation
 
-end function IonExchangeCationCreate
+end function ReactionAuxCreateIonExchCation
 
 ! ************************************************************************** !
 
-function RadioactiveDecayRxnCreate()
+function ReactionAuxCreateRadioDecayRxn()
   !
   ! Allocate and initialize a radioactive decay
   ! reaction
@@ -703,7 +697,7 @@ function RadioactiveDecayRxnCreate()
   !
   implicit none
 
-  type(radioactive_decay_rxn_type), pointer :: RadioactiveDecayRxnCreate
+  type(radioactive_decay_rxn_type), pointer :: ReactionAuxCreateRadioDecayRxn
 
   type(radioactive_decay_rxn_type), pointer :: rxn
 
@@ -713,16 +707,16 @@ function RadioactiveDecayRxnCreate()
   rxn%rate_constant = 0.d0
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
-  nullify(rxn%dbaserxn)
+  nullify(rxn%reaction_equation)
   nullify(rxn%next)
 
-  RadioactiveDecayRxnCreate => rxn
+  ReactionAuxCreateRadioDecayRxn => rxn
 
-end function RadioactiveDecayRxnCreate
+end function ReactionAuxCreateRadioDecayRxn
 
 ! ************************************************************************** !
 
-function GeneralRxnCreate()
+function ReactionAuxCreateGeneralRxn()
   !
   ! Allocate and initialize a general reaction
   !
@@ -731,7 +725,7 @@ function GeneralRxnCreate()
   !
   implicit none
 
-  type(general_rxn_type), pointer :: GeneralRxnCreate
+  type(general_rxn_type), pointer :: ReactionAuxCreateGeneralRxn
 
   type(general_rxn_type), pointer :: rxn
 
@@ -741,16 +735,16 @@ function GeneralRxnCreate()
   rxn%forward_rate = 0.d0
   rxn%backward_rate = 0.d0
   rxn%print_me = PETSC_FALSE
-  nullify(rxn%dbaserxn)
+  nullify(rxn%reaction_equation)
   nullify(rxn%next)
 
-  GeneralRxnCreate => rxn
+  ReactionAuxCreateGeneralRxn => rxn
 
-end function GeneralRxnCreate
+end function ReactionAuxCreateGeneralRxn
 
 ! ************************************************************************** !
 
-function DynamicKDRxnCreate()
+function ReactionAuxCreateDynamicKDRxn()
   !
   ! Allocate and initialize a dynamic KD sorption reaction
   !
@@ -760,7 +754,7 @@ function DynamicKDRxnCreate()
 
   implicit none
 
-  type(dynamic_kd_rxn_type), pointer :: DynamicKDRxnCreate
+  type(dynamic_kd_rxn_type), pointer :: ReactionAuxCreateDynamicKDRxn
 
   type(dynamic_kd_rxn_type), pointer :: rxn
 
@@ -774,13 +768,13 @@ function DynamicKDRxnCreate()
   rxn%KD_power = UNINITIALIZED_DOUBLE
   nullify(rxn%next)
 
-  DynamicKDRxnCreate => rxn
+  ReactionAuxCreateDynamicKDRxn => rxn
 
-end function DynamicKDRxnCreate
+end function ReactionAuxCreateDynamicKDRxn
 
 ! ************************************************************************** !
 
-function AqueousSpeciesConstraintCreate(reaction,option)
+function ReactionAuxCreateSpecConstraint(reaction,option)
   !
   ! Creates an aqueous species constraint
   ! object
@@ -794,7 +788,7 @@ function AqueousSpeciesConstraintCreate(reaction,option)
 
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  type(aq_species_constraint_type), pointer :: AqueousSpeciesConstraintCreate
+  type(aq_species_constraint_type), pointer :: ReactionAuxCreateSpecConstraint
 
   type(aq_species_constraint_type), pointer :: constraint
 
@@ -814,13 +808,13 @@ function AqueousSpeciesConstraintCreate(reaction,option)
   allocate(constraint%external_dataset(reaction%naqcomp))
   constraint%external_dataset = PETSC_FALSE
 
-  AqueousSpeciesConstraintCreate => constraint
+  ReactionAuxCreateSpecConstraint => constraint
 
-end function AqueousSpeciesConstraintCreate
+end function ReactionAuxCreateSpecConstraint
 
 ! ************************************************************************** !
 
-function GuessConstraintCreate(reaction,option)
+function ReactionAuxCreateGuessConstraint(reaction,option)
   !
   ! Creates an aqueous species constraint
   ! object
@@ -835,7 +829,7 @@ function GuessConstraintCreate(reaction,option)
 
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  type(guess_constraint_type), pointer :: GuessConstraintCreate
+  type(guess_constraint_type), pointer :: ReactionAuxCreateGuessConstraint
 
   type(guess_constraint_type), pointer :: constraint
 
@@ -845,13 +839,13 @@ function GuessConstraintCreate(reaction,option)
   allocate(constraint%conc(reaction%naqcomp))
   constraint%conc = 0.d0
 
-  GuessConstraintCreate => constraint
+  ReactionAuxCreateGuessConstraint => constraint
 
-end function GuessConstraintCreate
+end function ReactionAuxCreateGuessConstraint
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesNames(reaction)
+function ReactionAuxGetPriSpeciesNames(reaction)
   !
   ! Returns the names of primary species in an array
   !
@@ -861,14 +855,14 @@ function GetPrimarySpeciesNames(reaction)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetPrimarySpeciesNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionAuxGetPriSpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(aq_species_type), pointer :: species
 
-  count = GetPrimarySpeciesCount(reaction)
+  count = ReactionAuxGetPriSpeciesCount(reaction)
   allocate(names(count))
 
   count = 1
@@ -880,13 +874,13 @@ function GetPrimarySpeciesNames(reaction)
     species => species%next
   enddo
 
-  GetPrimarySpeciesNames => names
+  ReactionAuxGetPriSpeciesNames => names
 
-end function GetPrimarySpeciesNames
+end function ReactionAuxGetPriSpeciesNames
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesCount(reaction)
+function ReactionAuxGetPriSpeciesCount(reaction)
   !
   ! Returns the number of primary species
   !
@@ -896,24 +890,24 @@ function GetPrimarySpeciesCount(reaction)
 
   implicit none
 
-  PetscInt :: GetPrimarySpeciesCount
+  PetscInt :: ReactionAuxGetPriSpeciesCount
   class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
-  GetPrimarySpeciesCount = 0
+  ReactionAuxGetPriSpeciesCount = 0
   species => reaction%primary_species_list
   do
     if (.not.associated(species)) exit
-    GetPrimarySpeciesCount = GetPrimarySpeciesCount + 1
+    ReactionAuxGetPriSpeciesCount = ReactionAuxGetPriSpeciesCount + 1
     species => species%next
   enddo
 
-end function GetPrimarySpeciesCount
+end function ReactionAuxGetPriSpeciesCount
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesIDFromName1(name,reaction,option)
+function ReactionAuxGetPriSpecIDFromName1(name,reaction,option)
   !
   ! Returns the id of named primary species
   !
@@ -929,16 +923,16 @@ function GetPrimarySpeciesIDFromName1(name,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetPrimarySpeciesIDFromName1
+  PetscInt :: ReactionAuxGetPriSpecIDFromName1
 
-  GetPrimarySpeciesIDFromName1 = GetPrimarySpeciesIDFromName2(name,reaction, &
-          PETSC_TRUE, option)
+  ReactionAuxGetPriSpecIDFromName1 = &
+    ReactionAuxGetPriSpecIDFromName2(name,reaction,PETSC_TRUE, option)
 
-end function GetPrimarySpeciesIDFromName1
+end function ReactionAuxGetPriSpecIDFromName1
 
 ! ************************************************************************** !
 
-function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
   !
   ! Returns the id of named primary species
   !
@@ -955,20 +949,20 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetPrimarySpeciesIDFromName2
+  PetscInt :: ReactionAuxGetPriSpecIDFromName2
 
   type(aq_species_type), pointer :: species
   PetscInt :: i
   PetscBool :: return_error
 
-  GetPrimarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ReactionAuxGetPriSpecIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the primary species name list exists
   if (associated(reaction%primary_species_names)) then
     do i = 1, size(reaction%primary_species_names)
       if (StringCompare(name,reaction%primary_species_names(i), &
                         MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName2 = i
+        ReactionAuxGetPriSpecIDFromName2 = i
         exit
       endif
     enddo
@@ -979,24 +973,25 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName2 = i
+        ReactionAuxGetPriSpecIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetPrimarySpeciesIDFromName2 <= 0) then
+  if (return_error .and. ReactionAuxGetPriSpecIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among primary species in GetPrimarySpeciesIDFromName().'
+      '" not found among primary species in &
+      &ReactionAuxGetPriSpecIDFromName2().'
     call PrintErrMsg(option)
   endif
 
-end function GetPrimarySpeciesIDFromName2
+end function ReactionAuxGetPriSpecIDFromName2
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesNames(reaction)
+function ReactionAuxGetSecSpeciesNames(reaction)
   !
   ! Returns the names of secondary species in an array
   !
@@ -1006,14 +1001,14 @@ function GetSecondarySpeciesNames(reaction)
 
   implicit none
 
-  character(len=MAXWORDLENGTH), pointer :: GetSecondarySpeciesNames(:)
+  character(len=MAXWORDLENGTH), pointer :: ReactionAuxGetSecSpeciesNames(:)
   class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(aq_species_type), pointer :: species
 
-  count = GetSecondarySpeciesCount(reaction)
+  count = ReactionAuxGetSecSpeciesCount(reaction)
   allocate(names(count))
 
   count = 1
@@ -1025,13 +1020,13 @@ function GetSecondarySpeciesNames(reaction)
     species => species%next
   enddo
 
-  GetSecondarySpeciesNames => names
+  ReactionAuxGetSecSpeciesNames => names
 
-end function GetSecondarySpeciesNames
+end function ReactionAuxGetSecSpeciesNames
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesCount(reaction)
+function ReactionAuxGetSecSpeciesCount(reaction)
   !
   ! Returns the number of secondary species
   !
@@ -1041,24 +1036,24 @@ function GetSecondarySpeciesCount(reaction)
 
   implicit none
 
-  PetscInt :: GetSecondarySpeciesCount
+  PetscInt :: ReactionAuxGetSecSpeciesCount
   class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
-  GetSecondarySpeciesCount = 0
+  ReactionAuxGetSecSpeciesCount = 0
   species => reaction%secondary_species_list
   do
     if (.not.associated(species)) exit
-    GetSecondarySpeciesCount = GetSecondarySpeciesCount + 1
+    ReactionAuxGetSecSpeciesCount = ReactionAuxGetSecSpeciesCount + 1
     species => species%next
   enddo
 
-end function GetSecondarySpeciesCount
+end function ReactionAuxGetSecSpeciesCount
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesIDFromName1(name,reaction,option)
+function ReactionAuxGetSecSpecIDFromName1(name,reaction,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1072,15 +1067,15 @@ function GetSecondarySpeciesIDFromName1(name,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetSecondarySpeciesIDFromName1
-  GetSecondarySpeciesIDFromName1 = &
-    GetSecondarySpeciesIDFromName2(name,reaction, PETSC_TRUE, option)
+  PetscInt :: ReactionAuxGetSecSpecIDFromName1
+  ReactionAuxGetSecSpecIDFromName1 = &
+    ReactionAuxGetSecSpecIDFromName2(name,reaction, PETSC_TRUE, option)
 
-end function GetSecondarySpeciesIDFromName1
+end function ReactionAuxGetSecSpecIDFromName1
 
 ! ************************************************************************** !
 
-function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1093,19 +1088,19 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   character(len=MAXWORDLENGTH) :: name
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
-  PetscInt :: GetSecondarySpeciesIDFromName2
+  PetscInt :: ReactionAuxGetSecSpecIDFromName2
   type(aq_species_type), pointer :: species
   PetscInt :: i
   PetscBool :: return_error
 
-  GetSecondarySpeciesIDFromName2 = UNINITIALIZED_INTEGER
+  ReactionAuxGetSecSpecIDFromName2 = UNINITIALIZED_INTEGER
 
   ! if the Secondary species name list exists
   if (associated(reaction%Secondary_species_names)) then
     do i = 1, size(reaction%Secondary_species_names)
       if (StringCompare(name,reaction%Secondary_species_names(i), &
                         MAXWORDLENGTH)) then
-        GetSecondarySpeciesIDFromName2 = i
+        ReactionAuxGetSecSpecIDFromName2 = i
         exit
       endif
     enddo
@@ -1116,24 +1111,24 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetSecondarySpeciesIDFromName2 = i
+        ReactionAuxGetSecSpecIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (return_error .and. GetSecondarySpeciesIDFromName2 <= 0) then
-    option%io_buffer = 'Species "' // trim(name) // &
-      '" not found among Secondary species in GetSecondarySpeciesIDFromName().'
+  if (return_error .and. ReactionAuxGetSecSpecIDFromName2 <= 0) then
+    option%io_buffer = 'Species "' // trim(name) // '" not found among &
+      &secondary species in ReactionAuxGetSecSpecIDFromName().'
     call PrintErrMsg(option)
   endif
 
-end function GetSecondarySpeciesIDFromName2
+end function ReactionAuxGetSecSpecIDFromName2
 
 ! ************************************************************************** !
 
-function GetImmobileCount(reaction)
+function ReactionAuxGetImmobileCount(reaction)
   !
   ! Returns the number of immobile species
   !
@@ -1143,16 +1138,16 @@ function GetImmobileCount(reaction)
 
   implicit none
 
-  PetscInt :: GetImmobileCount
+  PetscInt :: ReactionAuxGetImmobileCount
   class(reaction_rt_type) :: reaction
 
-  GetImmobileCount = ImmobileGetCount(reaction%immobile)
+  ReactionAuxGetImmobileCount = ReactionImGetCount(reaction%immobile)
 
-end function GetImmobileCount
+end function ReactionAuxGetImmobileCount
 
 ! ************************************************************************** !
 
-subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
+subroutine ReactionAuxFitLogKCoef(coefs,logK,name,option,reaction)
   !
   ! Least squares fit to log K over database temperature
   ! range
@@ -1183,7 +1178,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
   ! need to fill in vec with equations for temperatures vs coefs.
 
   do i = 1, reaction%num_dbase_temperatures
-    temperature_kelvin = reaction%dbase_temperatures(i) + 273.15d0
+    temperature_kelvin = reaction%dbase_temperatures(i) + T273K
     vec(1,i) = log(temperature_kelvin)
     vec(2,i) = 1.d0
     vec(3,i) = temperature_kelvin
@@ -1206,7 +1201,8 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
   enddo
 
   if (iflag == 1) then
-    option%io_buffer = 'In ReactionFitLogKCoef: log K = 500 for ' // trim(name)
+    option%io_buffer = 'In ReactionAuxFitLogKCoef: log K = 500 for ' // &
+                       trim(name)
     call PrintWrnMsg(option)
   endif
 
@@ -1225,11 +1221,11 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
   call LUDecomposition(a,FIVE_INTEGER,indx,i)
   call LUBackSubstitution(a,FIVE_INTEGER,indx,coefs)
 
-end subroutine ReactionFitLogKCoef
+end subroutine ReactionAuxFitLogKCoef
 
 ! ************************************************************************** !
 
-subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
+subroutine ReactionAuxInitializeLogK(logKcoef,logKs,logK,option,reaction)
   !
   ! Least squares fit to log K over database temperature range
   !
@@ -1270,15 +1266,15 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
     logK = logKs(itemperature)
   else                       ! interpolate
     coefs(:,ONE_INTEGER) = logKcoef(:)
-    call ReactionInterpolateLogK(coefs,logK_1D_Array,temperature,ONE_INTEGER)
+    call ReactionAuxInterpolateLogK(coefs,logK_1D_Array,temperature,ONE_INTEGER)
     logK = logK_1D_Array(ONE_INTEGER)
   endif
 
-end subroutine ReactionInitializeLogK
+end subroutine ReactionAuxInitializeLogK
 
 ! ************************************************************************** !
 
-subroutine ReactionInterpolateLogK(coefs,logKs,temp,n)
+subroutine ReactionAuxInterpolateLogK(coefs,logKs,temp,n)
   !
   ! Interpolation log K function: temp - temperature [C]
   ! b - fit coefficients determined from fit(...)
@@ -1295,7 +1291,7 @@ subroutine ReactionInterpolateLogK(coefs,logKs,temp,n)
   PetscInt :: i
   PetscReal :: temp_kelvin
 
-  temp_kelvin = temp + 273.15d0
+  temp_kelvin = temp + T273K
 
   do i = 1, n
     logKs(i) = coefs(1,i)*log(temp_kelvin) &
@@ -1305,13 +1301,14 @@ subroutine ReactionInterpolateLogK(coefs,logKs,temp,n)
              + coefs(5,i)/(temp_kelvin*temp_kelvin)
   enddo
 
-end subroutine ReactionInterpolateLogK
+end subroutine ReactionAuxInterpolateLogK
 
 ! ************************************************************************** !
 
-subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
+subroutine ReactionAuxInitializeLogK_hpt(logKcoef,logK,option,reaction)
   !
-  ! ReactionInitializeLogK: Least squares fit to log K over database temperature range
+  ! ReactionAuxInitializeLogK: Least squares fit to log K over database
+  ! temperature range
   !
   ! Author: Chuan Lu
   ! Date: 12/29/11
@@ -1335,18 +1332,18 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
 
 
   coefs(:,ONE_INTEGER) = logKcoef(:)
-  call ReactionInterpolateLogK_hpt(coefs,logK_1D_Array,temperature,pressure, &
+  call ReactionAuxInterpolateLogK_hpt(coefs,logK_1D_Array,temperature,pressure, &
                                    ONE_INTEGER)
   logK = logK_1D_Array(ONE_INTEGER)
-!   print *,'ReactionInitializeLogK_hpt: ', pressure,temperature, logK
+!   print *,'ReactionAuxInitializeLogK_hpt: ', pressure,temperature, logK
 
-end subroutine ReactionInitializeLogK_hpt
+end subroutine ReactionAuxInitializeLogK_hpt
 
 ! ************************************************************************** !
 
-subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
+subroutine ReactionAuxInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
   !
-  ! ReactionInterpolateLogK: Interpolation log K function: temp - temperature [C]
+  ! ReactionAuxInterpolateLogK: Interpolation log K function: temp - temperature [C]
   ! b - fit coefficients determined from fit(...)
   !
   ! Author: P.C. Lichtner
@@ -1361,8 +1358,8 @@ subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
   PetscInt :: i
   PetscReal :: temp_kelvin, tr, pr, logtr
 
-  temp_kelvin = temp + 273.15d0
-  tr = temp_kelvin/273.15d0
+  temp_kelvin = temp + T273K
+  tr = temp_kelvin/T273K
   pr = pres/1.d7
   logtr = log(tr)/log(10.d0)
 
@@ -1385,12 +1382,12 @@ subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
              + coefs(16,i) * pr * pr * tr &
              + coefs(17,i) * pr * pr / tr
   enddo
- ! print *,'ReactionInterpolateLogK_hpt: ', pres,temp, logKs, coefs
-end subroutine ReactionInterpolateLogK_hpt
+ ! print *,'ReactionAuxInterpolateLogK_hpt: ', pres,temp, logKs, coefs
+end subroutine ReactionAuxInterpolateLogK_hpt
 
 ! ************************************************************************** !
 
-subroutine ReactionInputRecord(rxn)
+subroutine ReactionAuxInputRecord(rxn)
   !
   ! Prints ingested chemistry and reactive transport information to the input
   ! record file.
@@ -1551,11 +1548,11 @@ subroutine ReactionInputRecord(rxn)
     enddo
   endif
 
-end subroutine ReactionInputRecord
+end subroutine ReactionAuxInputRecord
 
 ! ************************************************************************** !
 
-subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
+subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
 
   ! Reads in a reaction network and parses the stoichiometries and species ids
 
@@ -1564,7 +1561,7 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
 
   use Input_Aux_module
   use Option_module
-  use Reaction_Database_Aux_module
+  use Reaction_Equation_module
 
   implicit none
 
@@ -1577,7 +1574,7 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: irxn, nrxn
-  type(database_rxn_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
+  type(reaction_equation_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
 
   input => InputCreate(IUNIT_TEMP,filename,option)
   input%ierr = 0
@@ -1588,17 +1585,17 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    cur_rxn => DatabaseRxnPtrCreate()
+    cur_rxn => ReactionEquationCreateRxnPtr()
     string = input%buf
-    cur_rxn%dbaserxn => &
-      DatabaseRxnCreateFromRxnString(string, &
-                                     reaction%naqcomp, &
-                                     reaction%offset_aqueous, &
-                                     reaction%primary_species_names, &
-                                     reaction%nimcomp, &
-                                     reaction%offset_immobile, &
-                                     reaction%immobile%names, &
-                                     PETSC_FALSE,option)
+    cur_rxn%reaction_equation => &
+      ReactionEquationCreateFromString(string, &
+                                       reaction%naqcomp, &
+                                       reaction%offset_aqueous, &
+                                       reaction%primary_species_names, &
+                                       reaction%nimcomp, &
+                                       reaction%offset_immobile, &
+                                       reaction%immobile%names, &
+                                       PETSC_FALSE,option)
     if (.not.associated(rxn_list)) then
       rxn_list => cur_rxn
     else
@@ -1620,20 +1617,19 @@ subroutine ReactionNetworkToStoich(reaction,filename,spec_ids,stoich,option)
   do
     if (.not.associated(cur_rxn)) exit
     irxn = irxn + 1
-    spec_ids(0,irxn) = cur_rxn%dbaserxn%nspec
-    spec_ids(1:cur_rxn%dbaserxn%nspec,irxn) = &
-      cur_rxn%dbaserxn%spec_ids(:)
-    stoich(1:cur_rxn%dbaserxn%nspec,irxn) = cur_rxn%dbaserxn%stoich(:)
+    spec_ids(0,irxn) = cur_rxn%reaction_equation%nspec
+    spec_ids(1:spec_ids(0,irxn),irxn) = cur_rxn%reaction_equation%specid(:)
+    stoich(1:spec_ids(0,irxn),irxn) = cur_rxn%reaction_equation%stoich(:)
     cur_rxn => cur_rxn%next
   enddo
 
-  call DatabaseRxnPtrDestroy(rxn_list)
+  call ReactionEquationDestroyRxnPtr(rxn_list)
 
-end subroutine ReactionNetworkToStoich
+end subroutine ReactionAuxNetworkToStoich
 
 ! ************************************************************************** !
 
-subroutine SpeciesIndexDestroy(species_idx)
+subroutine ReactionAuxDestroyAqSpeciesIndex(species_idx)
   !
   ! Deallocates a species index object
   !
@@ -1648,11 +1644,11 @@ subroutine SpeciesIndexDestroy(species_idx)
   if (associated(species_idx)) deallocate(species_idx)
   nullify(species_idx)
 
-end subroutine SpeciesIndexDestroy
+end subroutine ReactionAuxDestroyAqSpeciesIndex
 
 ! ************************************************************************** !
 
-subroutine AqueousSpeciesDestroy(species)
+subroutine ReactionAuxDestroyAqSpecies(species)
   !
   ! Deallocates an aqueous species
   !
@@ -1664,15 +1660,16 @@ subroutine AqueousSpeciesDestroy(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) call DatabaseRxnDestroy(species%dbaserxn)
+  if (associated(species%dbaserxn)) &
+    call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 
-end subroutine AqueousSpeciesDestroy
+end subroutine ReactionAuxDestroyAqSpecies
 
 ! ************************************************************************** !
 
-subroutine AqueousSpeciesListDestroy(aq_species_list)
+subroutine ReactionAuxDestroyAqueousSpeciesList(aq_species_list)
   !
   ! Deallocates an aqueous species
   !
@@ -1692,15 +1689,15 @@ subroutine AqueousSpeciesListDestroy(aq_species_list)
     if (.not.associated(species)) exit
     prev_species => species
     species => species%next
-    call AqueousSpeciesDestroy(prev_species)
+    call ReactionAuxDestroyAqSpecies(prev_species)
   enddo
   nullify(aq_species_list)
 
-end subroutine AqueousSpeciesListDestroy
+end subroutine ReactionAuxDestroyAqueousSpeciesList
 
 ! ************************************************************************** !
 
-subroutine IonExchangeRxnDestroy(ionxrxn)
+subroutine ReactionAuxDestroyIonExchangeRxn(ionxrxn)
   !
   ! Deallocates an ion exchange reaction
   !
@@ -1730,11 +1727,11 @@ subroutine IonExchangeRxnDestroy(ionxrxn)
   deallocate(ionxrxn)
   nullify(ionxrxn)
 
-end subroutine IonExchangeRxnDestroy
+end subroutine ReactionAuxDestroyIonExchangeRxn
 
 ! ************************************************************************** !
 
-subroutine RadioactiveDecayRxnDestroy(rxn)
+subroutine ReactionAuxDestroyRadioDecayRxn(rxn)
   !
   ! Deallocates a general reaction
   !
@@ -1748,19 +1745,17 @@ subroutine RadioactiveDecayRxnDestroy(rxn)
 
   if (.not.associated(rxn)) return
 
-  if (associated(rxn%dbaserxn)) &
-    call DatabaseRxnDestroy(rxn%dbaserxn)
-  nullify(rxn%dbaserxn)
+  call ReactionEquationDestroy(rxn%reaction_equation)
   nullify(rxn%next)
 
   deallocate(rxn)
   nullify(rxn)
 
-end subroutine RadioactiveDecayRxnDestroy
+end subroutine ReactionAuxDestroyRadioDecayRxn
 
 ! ************************************************************************** !
 
-subroutine GeneralRxnDestroy(rxn)
+subroutine ReactionAuxDestroyGeneralRxn(rxn)
   !
   ! Deallocates a general reaction
   !
@@ -1774,19 +1769,17 @@ subroutine GeneralRxnDestroy(rxn)
 
   if (.not.associated(rxn)) return
 
-  if (associated(rxn%dbaserxn)) &
-    call DatabaseRxnDestroy(rxn%dbaserxn)
-  nullify(rxn%dbaserxn)
+  call ReactionEquationDestroy(rxn%reaction_equation)
   nullify(rxn%next)
 
   deallocate(rxn)
   nullify(rxn)
 
-end subroutine GeneralRxnDestroy
+end subroutine ReactionAuxDestroyGeneralRxn
 
 ! ************************************************************************** !
 
-subroutine DynamicKDRxnDestroy(rxn)
+subroutine ReactionAuxDestroyDynamicKDRxn(rxn)
   !
   ! Deallocates a dynamic KD reaction
   !
@@ -1803,11 +1796,11 @@ subroutine DynamicKDRxnDestroy(rxn)
   deallocate(rxn)
   nullify(rxn)
 
-end subroutine DynamicKDRxnDestroy
+end subroutine ReactionAuxDestroyDynamicKDRxn
 
 ! ************************************************************************** !
 
-subroutine AqueousSpeciesConstraintDestroy(constraint)
+subroutine ReactionAuxDestroySpecConstraint(constraint)
   !
   ! Destroys an aqueous species constraint
   ! object
@@ -1835,11 +1828,11 @@ subroutine AqueousSpeciesConstraintDestroy(constraint)
   deallocate(constraint)
   nullify(constraint)
 
-end subroutine AqueousSpeciesConstraintDestroy
+end subroutine ReactionAuxDestroySpecConstraint
 
 ! ************************************************************************** !
 
-subroutine GuessConstraintDestroy(constraint)
+subroutine ReactionAuxDestroyGuesConstraint(constraint)
   !
   ! Destroys an aqueous species constraint
   ! object
@@ -1862,11 +1855,11 @@ subroutine GuessConstraintDestroy(constraint)
   deallocate(constraint)
   nullify(constraint)
 
-end subroutine GuessConstraintDestroy
+end subroutine ReactionAuxDestroyGuesConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionDestroy(reaction,option)
+subroutine ReactionAuxDestroyAux(reaction,option)
   !
   ! Deallocates a reaction object
   !
@@ -1893,16 +1886,16 @@ subroutine ReactionDestroy(reaction,option)
   call ReactionBaseStrip(reaction)
 
   !species index
-  call SpeciesIndexDestroy(reaction%species_idx)
+  call ReactionAuxDestroyAqSpeciesIndex(reaction%species_idx)
 
   ! primary species
   if (associated(reaction%primary_species_list)) &
-    call AqueousSpeciesListDestroy(reaction%primary_species_list)
+    call ReactionAuxDestroyAqueousSpeciesList(reaction%primary_species_list)
   nullify(reaction%primary_species_list)
 
   ! secondary species
   if (associated(reaction%secondary_species_list)) &
-    call AqueousSpeciesListDestroy(reaction%secondary_species_list)
+    call ReactionAuxDestroyAqueousSpeciesList(reaction%secondary_species_list)
   nullify(reaction%secondary_species_list)
 
   ! ionx exchange reactions
@@ -1911,7 +1904,7 @@ subroutine ReactionDestroy(reaction,option)
     if (.not.associated(ionxrxn)) exit
     prev_ionxrxn => ionxrxn
     ionxrxn => ionxrxn%next
-    call IonExchangeRxnDestroy(prev_ionxrxn)
+    call ReactionAuxDestroyIonExchangeRxn(prev_ionxrxn)
   enddo
   nullify(reaction%ion_exchange_rxn_list)
 
@@ -1921,7 +1914,7 @@ subroutine ReactionDestroy(reaction,option)
     if (.not.associated(radioactive_decay_rxn)) exit
     prev_radioactive_decay_rxn => radioactive_decay_rxn
     radioactive_decay_rxn => radioactive_decay_rxn%next
-    call RadioactiveDecayRxnDestroy(prev_radioactive_decay_rxn)
+    call ReactionAuxDestroyRadioDecayRxn(prev_radioactive_decay_rxn)
   enddo
   nullify(reaction%radioactive_decay_rxn_list)
 
@@ -1931,7 +1924,7 @@ subroutine ReactionDestroy(reaction,option)
     if (.not.associated(general_rxn)) exit
     prev_general_rxn => general_rxn
     general_rxn => general_rxn%next
-    call GeneralRxnDestroy(prev_general_rxn)
+    call ReactionAuxDestroyGeneralRxn(prev_general_rxn)
   enddo
   nullify(reaction%general_rxn_list)
 
@@ -1941,18 +1934,18 @@ subroutine ReactionDestroy(reaction,option)
     if (.not.associated(dynamic_kd_rxn)) exit
     prev_dynamic_kd_rxn => dynamic_kd_rxn
     dynamic_kd_rxn => dynamic_kd_rxn%next
-    call DynamicKDRxnDestroy(prev_dynamic_kd_rxn)
+    call ReactionAuxDestroyDynamicKDRxn(prev_dynamic_kd_rxn)
   enddo
   nullify(reaction%dynamic_kd_rxn_list)
 
-  call SurfaceComplexationDestroy(reaction%surface_complexation)
-  call MineralDestroy(reaction%mineral)
-  call MicrobialDestroy(reaction%microbial)
-  call ImmobileDestroy(reaction%immobile)
-  call GasDestroy(reaction%gas)
-  call IsothermDestroy(reaction%isotherm,option)
+  call ReactionSrfCplxDestroyAux(reaction%surface_complexation)
+  call ReactionMnrlDestroyAux(reaction%mineral)
+  call ReactionMicrobDestrMicrobAux(reaction%microbial)
+  call ReactionImDestroyAux(reaction%immobile)
+  call ReactionGasDestroyAux(reaction%gas)
+  call ReactionIsothermDestroyAux(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION
-  call SolidSolutionDestroy(reaction%solid_solution_list)
+  call ReactionSolidSolnDestroyAux(reaction%solid_solution_list)
 #endif
 
   if (associated(reaction%dbase_temperatures)) &
@@ -1961,7 +1954,7 @@ subroutine ReactionDestroy(reaction,option)
 
   ! redox species
   if (associated(reaction%redox_species_list)) &
-    call AqueousSpeciesListDestroy(reaction%redox_species_list)
+    call ReactionAuxDestroyAqueousSpeciesList(reaction%redox_species_list)
   nullify(reaction%redox_species_list)
 
   call GenericParameterDestroy(reaction%aq_diffusion_coefficients)
@@ -2030,6 +2023,6 @@ subroutine ReactionDestroy(reaction,option)
   deallocate(reaction)
   nullify(reaction)
 
-end subroutine ReactionDestroy
+end subroutine ReactionAuxDestroyAux
 
 end module Reaction_Aux_module

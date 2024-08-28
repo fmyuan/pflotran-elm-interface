@@ -1,0 +1,118 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+  CELL_IDS
+    14
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 3 3 3
+  BOUNDS 
+    0.d0 0.d0 0.d0
+    3.d0 3.d0 3.d0
+  /
+END
+
+#=========================== datasets =========================================
+DATASET Distance_cell_indexed
+  HDF5_DATASET_NAME Distance
+  FILENAME distance_cell_indexed.h5
+END
+
+DATASET Distance_gridded
+  HDF5_DATASET_NAME Distance
+  FILENAME distance_gridded.h5
+END
+
+#=========================== parameters =======================================
+PARAMETER
+  NAME scalar
+  VALUE 86.
+END
+
+PARAMETER
+  NAME cell_indexed
+  DATASET Distance_cell_indexed
+END
+
+PARAMETER
+  NAME gridded
+  DATASET Distance_gridded
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+    LIQUID_PRESSURE
+    PARAMETER scalar
+    PARAMETER cell_indexed
+    PARAMETER gridded
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 s
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d0 s
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 3.d0
+  LIQUID_PRESSURE 101325
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil1
+  REGION all
+END
+
+END_SUBSURFACE

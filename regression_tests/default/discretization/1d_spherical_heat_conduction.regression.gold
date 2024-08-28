@@ -89,13 +89,13 @@
        66:   0.0000000000000E+00
        98:   0.0000000000000E+00
 -- GENERIC: Temperature --
-      Max:   5.9027905159466E+01
+      Max:   5.9027905159484E+01
       Min:   0.0000000000000E+00
-     Mean:   3.4008620547090E+01
-        2:   5.9027905159466E+01
-       22:   3.7917308463498E+01
-       44:   3.1026090477973E+01
-       66:   3.0004605114919E+01
+     Mean:   3.4008620547218E+01
+        2:   5.9027905159484E+01
+       22:   3.7917308463883E+01
+       44:   3.1026090478138E+01
+       66:   3.0004605114914E+01
        98:   3.0000000000000E+01
 -- GENERIC: Liquid Energy --
       Max:   0.0000000000000E+00
@@ -134,9 +134,10 @@
        66:         1
        98:         1
 -- SOLUTION: Flow --
+   Time (seconds):   1.5061347599953E-01
    Time Steps:           69
-   Newton Iterations:          122
-   Linear Solver Iterations:          122
+   Newton Iterations:          138
+   Linear Solver Iterations:          138
    Time Step Cuts:            0
    Solution 2-Norm:   1.0081710212528E+07
-   Residual 2-Norm:   3.2017889973330E-16
+   Residual 2-Norm:   2.2164589170126E-16

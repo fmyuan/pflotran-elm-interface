@@ -142,6 +142,8 @@ subroutine RichardsSetupPatch(realization)
   type(richards_auxvar_type), pointer :: rich_auxvars_ss(:)
   type(region_type), pointer :: region
   type(coupler_type), pointer :: coupler
+  PetscBool :: dof_is_active(1)
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -352,6 +354,11 @@ subroutine RichardsSetupPatch(realization)
     enddo
 
   endif
+
+  dof_is_active = PETSC_TRUE
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%Richards%matrix_zeroing, &
+                            patch%aux%Richards%inactive_cells_exist,option)
 
 end subroutine RichardsSetupPatch
 
@@ -1893,7 +1900,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                                            global_auxvars(ghosted_id)%den(1)
       endif
       if (associated(patch%ss_flow_fluxes)) then
-        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
+        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec]
         patch%ss_flow_fluxes(1,sum_connection) = qsrc_mol
       endif
     enddo

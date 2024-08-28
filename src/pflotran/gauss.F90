@@ -561,7 +561,7 @@ subroutine GaussTetrahedra(num_gauss_pts,r,w)
       r(1,:) = (/p1,p2,p2/)
       r(2,:) = (/p2,p1,p2/)
       r(3,:) = (/p2,p2,p1/)
-      r(4,:) = (/p1,p1,p1/)
+      r(4,:) = (/p2,p2,p2/)
       !
       w = 1.0/(6.0*4.0)*(/1.0,1.0,1.0,1.0/)
 

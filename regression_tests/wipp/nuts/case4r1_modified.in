@@ -78,13 +78,9 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY rock1
   ID 1
-  SATURATION_FUNCTION default
   POROSITY 0.2d0
   TORTUOSITY  0.1d0
   LONGITUDINAL_DISPERSIVITY 10.0d0
-  PERMEABILITY
-    PERM_ISO 1.d-12
-  /
 END
 
 #=========================== output options ===================================

@@ -11,6 +11,7 @@ module Simulation_Subsurface_class
   use PMC_Base_class
   use PMC_Geophysics_class
   use PMC_Subsurface_class
+  use PM_Well_class
   use Realization_Subsurface_class
   use Waypoint_module
   use Regression_module
@@ -32,6 +33,8 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: tran_process_model_coupler
     ! pointer to geophysics process model coupler
     class(pmc_geophysics_type), pointer :: geop_process_model_coupler
+    ! pointer to well process model coupler
+    class(pm_well_type), pointer :: temp_well_process_model_list
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
     ! regression object
@@ -124,6 +127,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
+  nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
@@ -164,11 +168,12 @@ subroutine SimSubsurfInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 02/15/21
   !
-
+  use Init_Subsurface_module
   use Logging_module
   use Option_module
   use Option_Checkpoint_module
   use Output_module
+  use Parameter_module
   use hdf5
 
   implicit none
@@ -220,8 +225,9 @@ subroutine SimSubsurfInitializeRun(this)
 
   ! the user may request output of variable that do not exist for the
   ! the requested process models; this routine should catch such issues.
-  call OutputEnsureVariablesExist(this%output_option,this%option)
+  call InitSubsurfProcessOutputVars(this%realization)
   call SimSubsurfForbiddenCombinations(this)
+  call ParameterQualityCheck(this%realization%parameter_list,this%option)
 
   if (this%option%restart_flag) then
     if (index(this%option%restart_filename,'.chk') > 0) then
@@ -325,6 +331,8 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
+    case(SCO2_MODE)
+      write(id,'(a)') 'SCO2'
   end select
 
   ! print time information
@@ -353,7 +361,7 @@ subroutine SimSubsurfInputRecord(this)
        this%realization%patch%characteristic_curves_thermal)
 
   ! print chemistry and reactive transport information
-  call ReactionInputRecord(this%realization%reaction)
+  call ReactionAuxInputRecord(this%realization%reaction)
 
   ! print coupler information (ICs, BCs, SSs)
   call PatchCouplerInputRecord(this%realization%patch)
@@ -502,13 +510,7 @@ subroutine SimSubsurfJumpStart(this)
   if (associated(tran_timestepper)) &
     tran_timestepper%start_time_step = tran_timestepper%steps + 1
 
-  if (this%realization%debug%print_regions) then
-    call OutputPrintRegions(this%realization)
-    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
-        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-      call OutputPrintRegionsH5(this%realization)
-    endif
-  endif
+  call OutputPrintRegions(this%realization)
 
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)
@@ -836,7 +838,7 @@ subroutine SimSubsurfFinalizeRun(this)
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
   use Klinkenberg_module, only : KlinkenbergDestroy
-  use CLM_Rxn_module, only : RCLMRxnDestroy
+  use CLM_Rxn_module, only : ReactionCLMRxnDestroy
   use Output_EKG_module
 
   implicit none
@@ -885,7 +887,7 @@ subroutine SimSubsurfFinalizeRun(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
-      call RCLMRxnDestroy()
+      call ReactionCLMRxnDestroy()
     endif
   endif
 

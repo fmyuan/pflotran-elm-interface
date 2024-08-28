@@ -24,12 +24,12 @@ SIMULATION
 
     SUBSURFACE_TRANSPORT  nw_trans
       MODE NWT
-      OPTIONS
-        QUASI_IMPLICIT_WELLBORE_COUPLING
-      END
     END
 
     WELL_MODEL well01
+      OPTIONS
+        TYPE WIPP_DARCY
+      /
     END
     
   END
@@ -125,7 +125,7 @@ END
 !=========================== discretization ===================================
 
 GRID
-  GRAVITY 0.0d0  0.0d0  -9.81d0  ! use z as the vertical direction
+  GRAVITY 0.0d0  0.0d0  -9.80665d0  ! use z as the vertical direction
   TYPE structured
   NXYZ 1 3 15
   DXYZ
@@ -183,29 +183,26 @@ WELLBORE_MODEL
   # Uncommenting PRINT_WELL_FILE will create the .well file at each time step
   #PRINT_WELL_FILE
 
-  WELL_MODEL_TYPE
-    WIPP_DARCY
-  /
-
   # Note the SEGMENT_CENTER_Z_VALUES must be provided in ascending order!
   WELL_GRID
     NUMBER_OF_SEGMENTS 14
+    CASING 0.d0 0.d0 0.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0 1.d0
     TOP_OF_HOLE    5.d0 15.d0 150.0d0   # [x,y,z] in meters
     BOTTOM_OF_HOLE 5.d0 15.d0  10.0d0   # [x,y,z] in meters
   /
 
   WELL
     DIAMETER 0.03d0
-    FRICTION_COEFFICIENT 0.d0
-    WELL_INDEX 1.d0 1.d0 1.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0 0.d0  # cased = 0;  uncased = 1
-    WELL_INDEX_MODEL PEACEMAN_ANISOTROPIC
+    FRICTION_COEFFICIENT 1.d0
+    WELL_INDEX_MODEL PEACEMAN_2D
+    SKIN_FACTOR 0.d0
     #WELL_INDEX_MODEL PEACEMAN_ISO
   /
 
   WELL_BOUNDARY_CONDITIONS
     BOTTOM_OF_HOLE
-      LIQUID_RATE 0.d0 m/s
-      GAS_RATE 0.d0 m/s
+      LIQUID_VELOCITY 0.d0 m/s
+      GAS_VELOCITY 0.d0 m/s
     /
     TOP_OF_HOLE
       LIQUID_PRESSURE 120000.d0 Pa # (pressurized relative to 101325Pa)
@@ -244,8 +241,6 @@ WELLBORE_MODEL
   WELL_TRANSPORT_SOLVER
     MAXIMUM_NUMBER_OF_ITERATIONS 4      ! default=8
     MAXIMUM_NUMBER_OF_TS_CUTS 15        ! default=20
-    TIMESTEP_CUT_FACTOR 2.0             ! default 2.0
-    TIMESTEP_RAMP_FACTOR 1.1            ! default 1.1
     ITOL_ABSOLUTE_RESIDUAL 1.0d-10       ! default 1.0d-8
     ITOL_SCALED_RESIDUAL 1.0d-3         ! default 1.0d-4
     ITOL_ABSOLUTE_UPDATE 1.0d0          ! default 1.0d0 

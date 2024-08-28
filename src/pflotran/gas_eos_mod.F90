@@ -24,7 +24,7 @@ subroutine ideal_gaseos_noderiv(p,tc,d,h,u)
   PetscReal, parameter :: Cv_air = 20.85 ! J/(K mol) heat capacity wiki
   PetscReal  tk
 
-  tk = tc + 273.15
+  tk = tc + T273K
   d = p / tk / Rg * 1.d-3 ! mol/m^3 -> kmol/m^3
   h = Cv_air * tk * 1.d3  ! J/mol -> J/kmol
   u = (Cv_air - Rg) * tk * 1.d3 ! J/mol -> J/kmol
@@ -47,7 +47,7 @@ subroutine ideal_gaseos(p,tc,d,d_p,d_t,h,h_p,h_t,u,u_p,u_t)
   PetscReal, parameter :: Cv_air = 20.85 ! J/(K mol) heat capacity wiki
   PetscReal  tk
 
-  tk = tc + 273.15
+  tk = tc + T273K
   d = p / tk / Rg * 1.d-3 ! mol/m^3 -> kmol/m^3
   h = Cv_air * tk * 1.d3  ! J/mol -> J/kmol
   u = (Cv_air - Rg) * tk * 1.d3 ! J/mol -> J/kmol
@@ -105,7 +105,7 @@ subroutine visgas_noderiv(t,p_air,p_gas,d_air,visg)
           d   = d_air *FMWAIR
           xga = p_air / p_gas ! for debug, set x constant
           xg1 = 1.D0 - xga
-          tk  = t +273.15d0
+          tk  = t +T273K
 
           trd1 = tk/fair
           trd3 = tk/fmix
@@ -152,7 +152,7 @@ subroutine Henry_air_noderiv(p,tc,ps,Henry)
     PetscReal, parameter :: a=-9.67578, b=4.72162, c=11.70585
     PetscReal, parameter :: Tcl=647.096 ! H2O critical temp(K) from IAPWS(1995b)
 
-    t=tc+273.15D0
+    t=tc+T273K
     Tr=t/Tcl
     tao=1.D0-Tr
     tmp= a/Tr + B * tao**0.355/Tr + c * (Tr**(-0.41)) * exp(tao)
@@ -173,7 +173,7 @@ subroutine Henry_air(p,tc,ps,ps_p,ps_t,Henry,Henry_p,Henry_t)
     PetscReal, parameter :: a=-9.67578, b=4.72162, c=11.70585
     PetscReal, parameter :: Tcl=647.096 ! H2O critical temp from IAPWS(1995b)
 
-    t=tc+273.15D0
+    t=tc+T273K
     Tr=t/Tcl
     tao=1.D0-Tr
     tmp= a/Tr + b * tao**0.355/Tr + c * (Tr**(-0.41)) * exp(tao)

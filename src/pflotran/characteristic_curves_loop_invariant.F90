@@ -3,8 +3,8 @@ module Characteristic_Curves_loop_invariant_module
 
 use petscsys ! Necessary for PETSC_TRUE / PETSC_FALSE
 use Characteristic_Curves_Base_module   ! Needed to define base type
-use Characteristic_Curves_Common_module ! Needed to inherent VG type
-use Option_module ! Needed for Verify and unused arguments in Pc and Sl
+use Characteristic_Curves_Common_module ! Needed to inherit VG type
+use Option_module ! Needed for Verify any unused arguments in Pc and Sl
 
 implicit none
 
@@ -40,19 +40,19 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 !
 ! sat_func_base_type        External base type, quasi-abstract
 ! |
-! |-->sat_func_VG_type      External common type, VG constant extension
+! |-->sat_func_vg_type      External common type, VG constant extension
 !     |
-!     |-->sf_VG_type        VG type with loop-invariant parameters, no extension
+!     |-->sf_vg_type        VG type with loop-invariant parameters, no extension
 !         |
-!         |-->sf_VG_extn_type*     Abstract VG type for extensions
+!         |-->sf_vg_extn_type*     Abstract VG type for extensions
 !             |
-!             |-->sf_VG_cons_type  Constant    extension type
-!             |-->sf_VG_expn_type  Exponential extension type
-!             |-->sf_VG_line_type  Linear      extension type
-!             |-->sf_VG_quad_type  Quadratic   extension type
+!             |-->sf_vg_cons_type  Constant    extension type
+!             |-->sf_vg_expn_type  Exponential extension type
+!             |-->sf_vg_line_type  Linear      extension type
+!             |-->sf_vg_quad_type  Quadratic   extension type
 !
-! Objects of sf_VG_type are created and initialized with the constructor:
-! sf_VG_type       => SF_VG_ctor(unsat_ext,alpha,m,Sr,rpf,Pcmax,Sj)
+! Objects of sf_vg_type are created and initialized with the constructor:
+! sf_vg_type       => SF_VG_ctor(unsat_ext,alpha,m,Sr,rpf,Pcmax,Sj)
 !
 ! Warning, Pcmax and Sr are unprotected as Fortran will not extend private
 ! scope to child classed in separate modules.
@@ -74,7 +74,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! **************************************************************************** !
 ! Van Genuchten Saturation Function type defintions
 ! **************************************************************************** !
-  type, public, extends(sat_func_VG_type) :: sf_VG_type
+  type, public, extends(sat_func_vg_type) :: sf_vg_type
 !   public                           ! Unprotected parameters from parent types
 !     PetscReal :: Sr                ! Base   - Residual saturation
 !     PetscReal :: Pcmax             ! Base   - Maximum capillary pressure
@@ -114,7 +114,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
   end type
 
 ! VG Unsaturated Extension Abstract type
-    type, abstract, extends(sf_VG_type) :: sf_VG_extn_type
+    type, abstract, extends(sf_vg_type) :: sf_vg_extn_type
       private
         PetscReal :: Pj, Sj           ! Piecewise junction point
         PetscBool :: Pcmax_designated ! Flag for designated Pcmax
@@ -123,12 +123,12 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       procedure, public :: SetAlpha             => SFVGextnSetAlpha
       procedure, public :: SetM                 => SFVGextnSetM
       ! Mutator prototype
-      procedure(set_Pcmax_type), deferred, public    :: SetPcmax
-      procedure(set_Sj_type   ), deferred, public    :: SetSj
+      procedure(set_pcmax_type), deferred, public    :: SetPcmax
+      procedure(set_sj_type   ), deferred, public    :: SetSj
     end type
 
 ! VG Constant Unsaturated Extension
-      type, public, extends(sf_VG_extn_type) :: sf_VG_cons_type
+      type, public, extends(sf_vg_extn_type) :: sf_vg_cons_type
         private
           PetscReal :: dSj_dPj   ! Non-zero derivative at cusp
           PetscReal :: d2Sj_dPj2 ! Non-zero 2nd derivative at cusp
@@ -143,7 +143,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       end type
 
 ! VG Exponential Unsaturated Extension
-      type, public, extends(sf_VG_extn_type) :: sf_VG_expn_type
+      type, public, extends(sf_vg_extn_type) :: sf_vg_expn_type
         private
           PetscReal :: beta, beta_rec   ! Exponential coefficient and reciprocal
           PetscReal :: dPcmax_dSl       ! Unsaturated limits
@@ -160,7 +160,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       end type
 
 ! VG Linear Unsaturated Extension
-      type, public, extends(sf_VG_extn_type) :: sf_VG_line_type
+      type, public, extends(sf_vg_extn_type) :: sf_vg_line_type
         private
           PetscReal :: dPj_dSj, dSj_dPj ! Linear coefficients
       contains
@@ -174,7 +174,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       end type
 
 ! VG Quadratic Unsaturated Extension
-      type, public, extends(sf_VG_extn_type) :: sf_VG_quad_type
+      type, public, extends(sf_vg_extn_type) :: sf_vg_quad_type
         private
           PetscReal :: A, B            ! Quadratic coefficients
           PetscReal :: dSl_dPcmax
@@ -197,18 +197,18 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! **************************************************************************** !
 
 abstract interface
-  function set_Pcmax_type(this, Pcmax) result (error)
-    import :: sf_VG_extn_type
-    class(sf_VG_extn_type), intent(inout) :: this
+  function set_pcmax_type(this, Pcmax) result (error)
+    import :: sf_vg_extn_type
+    class(sf_vg_extn_type), intent(inout) :: this
     PetscReal, intent(in) :: Pcmax
     PetscInt :: error
   end function
 
 ! **************************************************************************** !
 
-  function set_Sj_type(this, Sj) result (error)
-    import :: sf_VG_extn_type
-    class(sf_VG_extn_type), intent(inout) :: this
+  function set_sj_type(this, Sj) result (error)
+    import :: sf_vg_extn_type
+    class(sf_vg_extn_type), intent(inout) :: this
     PetscReal, intent(in) :: Sj
     PetscInt :: error
   end function
@@ -220,17 +220,17 @@ end interface
 !
 ! rel_perm_func_base_type   External definition in characteristic_curves_base
 ! |
-! |-->rpf_VG_type*                   Abstract base type
+! |-->rpf_vg_type*                   Abstract base type
 !    |
-!    |-->rpf_VG_liq_type*            Abstract liquid base type
+!    |-->rpf_vg_liq_type*            Abstract liquid base type
 !    |   |
-!    |   |-->rpf_MVG_liq_type        Mualem  - van Genuchten - Liquid
-!    |   |-->rpf_BVG_liq_type        Burdine - van Genuchten - Liquid
+!    |   |-->rpf_mvg_liq_type        Mualem  - van Genuchten - Liquid
+!    |   |-->rpf_bvg_liq_type        Burdine - van Genuchten - Liquid
 !    |
-!    |-->rpf_VG_gas_type*            Abstract gas base type
+!    |-->rpf_vg_gas_type*            Abstract gas base type
 !        |
-!        |-->rpf_MVG_gas_type        Mualem  - van Genuchten - Gas
-!        |-->rpf_BVG_gas_type        Burdine - van Genuchten - Gas
+!        |-->rpf_mvg_gas_type        Mualem  - van Genuchten - Gas
+!        |-->rpf_bvg_gas_type        Burdine - van Genuchten - Gas
 !
 ! Caution, Sr is unprotected as Fortran will not extend private
 ! scope to child classed in separate modules. The rel_perm_base_type would
@@ -253,7 +253,7 @@ end interface
 ! RPF type definitions
 ! **************************************************************************** !
 
-type, abstract, extends(rel_perm_func_base_type) :: rpf_VG_type
+type, abstract, extends(rel_perm_func_base_type) :: rpf_vg_type
 ! public
 !   PetscReal :: Sr         ! Base   - Residual saturation
   private
@@ -267,13 +267,13 @@ contains
   procedure, private                         :: GetM  => RPFVGGetM
   procedure(set_m_type)  , deferred, public  :: SetM
   ! Private deferred methods called by RelativePermeability
-  procedure(calc_Kr_type), deferred, private :: Kr
-  procedure(calc_Kr_type), deferred, private :: KrInline
+  procedure(calc_kr_type), deferred, private :: Kr
+  procedure(calc_kr_type), deferred, private :: KrInline
 end type
 
 ! **************************************************************************** !
 
-  type, abstract, extends(rpf_VG_type) :: rpf_VG_liq_type
+  type, abstract, extends(rpf_vg_type) :: rpf_vg_liq_type
     private
       PetscReal :: dKr_dSl_max ! Finite difference derivative at saturation
       PetscReal :: Sl_min      ! Unsaturated limit to avoid NaN
@@ -285,21 +285,21 @@ end type
 
 ! **************************************************************************** !
 
-    type, public, extends(rpf_VG_liq_type) :: rpf_MVG_liq_type
+    type, public, extends(rpf_vg_liq_type) :: rpf_mvg_liq_type
     contains
       procedure, private :: KrInline            => RPFMVGliqKrInline
     end type
 
 ! **************************************************************************** !
 
-    type, public, extends(rpf_VG_liq_type) :: rpf_BVG_liq_type
+    type, public, extends(rpf_vg_liq_type) :: rpf_bvg_liq_type
     contains
       procedure, private :: KrInline            => RPFBVGliqKrInline
     end type
 
 ! **************************************************************************** !
 
-  type, abstract, extends(rpf_VG_type) :: rpf_VG_gas_type
+  type, abstract, extends(rpf_vg_type) :: rpf_vg_gas_type
   private
     PetscReal :: mx2        ! m times 2
     PetscReal :: Sgr        ! Gas residual saturation
@@ -312,14 +312,14 @@ end type
 
 ! **************************************************************************** !
 
-    type, public, extends(rpf_VG_gas_type) :: rpf_MVG_gas_type
+    type, public, extends(rpf_vg_gas_type) :: rpf_mvg_gas_type
     contains
       procedure, private :: KrInline            => RPFMVGgasKrinline
     end type
 
 ! **************************************************************************** !
 
-    type, public, extends(rpf_VG_gas_type) :: rpf_BVG_gas_type
+    type, public, extends(rpf_vg_gas_type) :: rpf_bvg_gas_type
     contains
       procedure, private :: KrInline            => RPFBVGgasKrinline
     end type
@@ -330,17 +330,17 @@ end type
 
 abstract interface
   function set_m_type(this, m) result (error)
-    import :: rpf_VG_type
-    class(rpf_VG_type), intent(inout) :: this
+    import :: rpf_vg_type
+    class(rpf_vg_type), intent(inout) :: this
     PetscReal, intent(in) :: m
     PetscInt :: error
   end function
 
 ! **************************************************************************** !
 
-  pure subroutine calc_Kr_type(this, Sl, Kr, dKr_dSl)
-    import :: rpf_VG_type
-    class(rpf_VG_type), intent(in) :: this
+  pure subroutine calc_kr_type(this, Sl, Kr, dKr_dSl)
+    import :: rpf_vg_type
+    class(rpf_vg_type), intent(in) :: this
     PetscReal, intent(in)  :: Sl
     PetscReal, intent(out) :: Kr, dKr_dSl
   end subroutine
@@ -352,13 +352,14 @@ contains
 ! VG Saturation Function Methods
 ! **************************************************************************** !
 
-function SFVGCtor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
+function SFVGCtor(unsat_ext, alpha, m, Sr, Sgt, vg_rpf_opt, Pcmax, Sj) &
+         result (new)
 
   implicit none
 
-  class(sf_VG_type), pointer :: new
+  class(sf_vg_type), pointer :: new
   character(*), intent(in) :: unsat_ext
-  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Pcmax, Sj
   PetscInt, intent(in) :: vg_rpf_opt
 
 ! This function returns a the van Genuchten saturation function object using
@@ -366,21 +367,21 @@ function SFVGCtor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
 
   select case (unsat_ext)
   case ('NONE') ! No extension
-    new => SFVGNEVGCtor(alpha,m,Sr,vg_rpf_opt)
+    new => SFVGNEVGCtor(alpha,m,Sr,Sgt,vg_rpf_opt)
   case ('FCPC') ! Flat specified cap
-    new => SFVGFCPCCtor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SFVGFCPCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Pcmax)
   case ('FNOC') ! Flat specificed junction
-    new => SFVGFNOCCtor(alpha,m,Sr,vg_rpf_opt,Sj)
+    new => SFVGFNOCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Sj)
   case ('ECPC') ! Exponential specified cap
-    new => SFVGECPCCtor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SFVGECPCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Pcmax)
   case ('ENOC') ! Exponential specified junction
-    new => SFVGENOCCtor(alpha,m,Sr,vg_rpf_opt,Sj)
+    new => SFVGENOCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Sj)
   case ('LCPC') ! Linear specified cap
-    new => SFVGLCPCCtor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SFVGLCPCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Pcmax)
   case ('LNOC') ! Linear specified junction
-    new => SFVGLNOCCtor(alpha,m,Sr,vg_rpf_opt,Sj)
+    new => SFVGLNOCCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Sj)
   case ('QUAD') ! Quadratic specified cap and junction
-    new => SFVGquadCtor(alpha,m,Sr,vg_rpf_opt,Pcmax,Sj)
+    new => SFVGquadCtor(alpha,m,Sr,Sgt,vg_rpf_opt,Pcmax,Sj)
   case default
     nullify(new)
   end select
@@ -392,21 +393,30 @@ subroutine SFVGInit(this)
 
   implicit none
 
-  class(sf_VG_type) :: this
+  class(sf_vg_type) :: this
   ! This method is intentionally left blank.
 end subroutine SFVGInit
 
 ! **************************************************************************** !
 
 subroutine SFVGCapillaryPressure(this, liquid_saturation, &
-                                   capillary_pressure, dPc_dSatl, option)
+                                 capillary_pressure, dPc_dSatl, option, &
+                                 trapped_gas_saturation, Sl_min)
 
   implicit none
 
-  class(sf_VG_type) :: this
+  class(sf_vg_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The loop invariant sat_func_vg_type capillary pressure &
+                  &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   call this%Pc(liquid_saturation, capillary_pressure, dPc_dSatl)
 end subroutine SFVGCapillaryPressure
@@ -414,14 +424,17 @@ end subroutine SFVGCapillaryPressure
 ! **************************************************************************** !
 
 subroutine SFVGSaturation(this, capillary_pressure, &
-                            liquid_saturation, dsat_dpres, option)
+                            liquid_saturation, dsat_dpres, option,&
+                            trapped_gas_saturation, Sl_min)
 
   implicit none
 
-  class(sf_VG_type) :: this
+  class(sf_vg_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   call this%Sl(capillary_pressure, liquid_saturation, dsat_dpres)
   dsat_dpres = -dsat_dpres ! Replicating existing reversed signed behaivor
@@ -433,7 +446,7 @@ subroutine SFVGD2SatDP2(this,Pc, d2s_dp2, option)
 
   implicit none
 
-  class(sf_VG_type) :: this
+  class(sf_vg_type) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
@@ -443,13 +456,13 @@ end subroutine SFVGD2SatDP2
 
 ! **************************************************************************** !
 
-function SFVGConfigure(this, alpha, m, Sr, rpf) result (error)
+function SFVGConfigure(this, alpha, m, Sr, Sgt, rpf) result (error)
 
   implicit none
 
   ! Configure loop-invariant parameters common to all loop-invariant types
-  class(sf_VG_type) :: this
-  PetscReal, intent(in) :: alpha,m,Sr
+  class(sf_vg_type) :: this
+  PetscReal, intent(in) :: alpha,m,Sr,Sgt
   PetscInt, intent(in) :: rpf
   PetscInt :: error
   PetscReal :: Pc1, Pc2, dPc_dSl
@@ -473,6 +486,7 @@ function SFVGConfigure(this, alpha, m, Sr, rpf) result (error)
     this%m_a2 = m + 2d0
     this%m_nrec = -1d0 / m
     this%rpf = rpf
+    this%Sgt_max = Sgt
 
     ! While the Mualem is more common, the Burdine assumption is also supported
     select case (rpf)
@@ -506,7 +520,7 @@ pure subroutine SFVGPcInline(this, Sl, Pc, dPc_dSl)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Pc, dPc_dSl
   PetscReal :: Se, Se_mrtrec, aPc_n
@@ -525,7 +539,7 @@ pure subroutine SFVGSlInline(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
   PetscReal :: aPc_n, Se_mrtrec, Se
@@ -544,7 +558,7 @@ pure subroutine SFVGD2SlDPc2Inline(this, Pc, d2Sl_dPc2)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
   PetscReal :: aPc_n, Se_mrtrec, d2Se_mndPc2
@@ -565,7 +579,7 @@ pure function SFVGSlInflection(this) result (Sl)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal :: Se_mrtrec, Se, Sl
 
   Se_mrtrec = (1d0+this%m)/(this%n_rec+this%m)
@@ -577,16 +591,16 @@ end function SFVGSlInflection
 ! Van Genuchten
 ! **************************************************************************** !
 
-function SFVGNEVGCtor(alpha,m,Sr,rpf) result (new)
+function SFVGNEVGCtor(alpha,m,Sr,Sgt,rpf) result (new)
 
   implicit none
 
-  class(sf_VG_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr
+  class(sf_vg_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   end if
@@ -599,10 +613,10 @@ function SFVGSetAlpha(this,alpha) result (error)
 
   implicit none
 
-  class(sf_VG_type), intent(inout) :: this
+  class(sf_vg_type), intent(inout) :: this
   PetscReal, intent(in) :: alpha
   PetscInt :: error
-  error = this%Configure(alpha,this%m,this%Sr,this%rpf)
+  error = this%Configure(alpha,this%m,this%Sr,this%Sgt_max,this%rpf)
 end function SFVGSetAlpha
 
 ! **************************************************************************** !
@@ -611,10 +625,10 @@ function SFVGSetM(this,m) result (error)
 
   implicit none
 
-  class(sf_VG_type), intent(inout) :: this
+  class(sf_vg_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
-  error = this%Configure(this%alpha,m,this%Sr,this%rpf)
+  error = this%Configure(this%alpha,m,this%Sr,this%Sgt_max,this%rpf)
 end function SFVGSetM
 
 ! **************************************************************************** !
@@ -623,7 +637,7 @@ pure subroutine SFVGPc(this, Sl, Pc, dPc_dSl)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in)   :: Sl
   PetscReal, intent(out)  :: Pc, dPc_dSl
 
@@ -644,7 +658,7 @@ pure subroutine SFVGSl(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
 
@@ -662,7 +676,7 @@ pure subroutine SFVGD2SlDPc2(this, Pc, d2Sl_dPc2)
 
   implicit none
 
-  class(sf_VG_type), intent(in) :: this
+  class(sf_vg_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
 
@@ -681,13 +695,13 @@ function SFVGextnSetAlpha(this,alpha) result (error)
 
   implicit none
 
-  class(sf_VG_extn_type), intent(inout) :: this
+  class(sf_vg_extn_type), intent(inout) :: this
   PetscReal, intent(in) :: alpha
   PetscInt :: error
   PetscReal :: alpha_old
 
   alpha_old = this%alpha
-  error = this%Configure(alpha,this%m,this%Sr,this%rpf)
+  error = this%Configure(alpha,this%m,this%Sr,this%Sgt_max,this%rpf)
   if (error == 0) then                  ! Update unsaturated extension
     if (this%Pcmax_designated) then
       error = this%SetPcmax(this%Pcmax)
@@ -695,7 +709,8 @@ function SFVGextnSetAlpha(this,alpha) result (error)
       error = this%SetSj(this%Sj)
     end if
     if (error /= 0) then                ! Restore previous state upon error
-      error = error + this%Configure(alpha_old,this%m,this%Sr,this%rpf)
+      error = error + this%Configure(alpha_old,this%m,this%Sr,this%Sgt_max, &
+                                     this%rpf)
     end if
   end if
 end function SFVGextnSetAlpha
@@ -706,13 +721,13 @@ function SFVGextnSetM(this,m) result (error)
 
   implicit none
 
-  class(sf_VG_extn_type), intent(inout) :: this
+  class(sf_vg_extn_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
   PetscReal :: m_old
 
   m_old = this%m
-  error = this%Configure(this%alpha,m,this%Sr,this%rpf)
+  error = this%Configure(this%alpha,m,this%Sr,this%Sgt_max,this%rpf)
   if (error == 0) then                   ! Update unsaturated extension
     if (this%Pcmax_designated) then
       error = this%SetPcmax(this%Pcmax)
@@ -720,7 +735,8 @@ function SFVGextnSetM(this,m) result (error)
       error = this%SetSj(this%Sj)
     end if
     if (error /= 0) then                ! Restore previous state upon error
-      error = error + this%Configure(this%alpha,m_old,this%Sr,this%rpf)
+      error = error + this%Configure(this%alpha,m_old,this%Sr,this%Sgt_max, &
+                                     this%rpf)
     end if
   end if
 end function SFVGextnSetM
@@ -729,16 +745,16 @@ end function SFVGextnSetM
 ! Constant Van Genuchten Extension
 ! **************************************************************************** !
 
-function SFVGFCPCCtor(alpha,m,Sr,rpf,Pcmax) result (new)
+function SFVGFCPCCtor(alpha,m,Sr,Sgt,rpf,Pcmax) result (new)
 
   implicit none
 
-  class(sf_VG_cons_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
+  class(sf_vg_cons_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetPcmax(Pcmax) /= 0) then
@@ -753,7 +769,7 @@ function SFVGconsSetPcmax(this,Pcmax) result (error)
 
   implicit none
 
-  class(sf_VG_cons_type), intent(inout) :: this
+  class(sf_vg_cons_type), intent(inout) :: this
   PetscReal, intent(in) :: Pcmax
   PetscInt :: error
 
@@ -770,16 +786,16 @@ end function SFVGconsSetPcmax
 
 ! **************************************************************************** !
 
-function SFVGFNOCCtor(alpha,m,Sr,rpf,Sj) result (new)
+function SFVGFNOCCtor(alpha,m,Sr,Sgt,rpf,Sj) result (new)
 
   implicit none
 
-  class(sf_VG_cons_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Sj
+  class(sf_vg_cons_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetSj(Sj) /= 0) then
@@ -794,7 +810,7 @@ function SFVGconsSetSj(this,Sj) result (error)
 
   implicit none
 
-  class(sf_VG_cons_type), intent(inout) :: this
+  class(sf_vg_cons_type), intent(inout) :: this
   PetscReal, intent(in) :: Sj
   PetscInt :: error
   PetscReal :: dPj_dSj
@@ -817,7 +833,7 @@ pure subroutine SFVGconsPc(this, Sl, Pc, dPc_dSl)
 
   implicit none
 
-  class(sf_VG_cons_type), intent(in) :: this
+  class(sf_vg_cons_type), intent(in) :: this
   PetscReal, intent(in)  :: Sl
   PetscReal, intent(out) :: Pc, dPc_dSl
 
@@ -838,7 +854,7 @@ pure subroutine SFVGconsSl(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_cons_type), intent(in) :: this
+  class(sf_vg_cons_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
 
@@ -859,7 +875,7 @@ pure subroutine SFVGconsD2SlDPc2(this,Pc,d2Sl_dPc2)
 
   implicit none
 
-  class(sf_VG_cons_type), intent(in) :: this
+  class(sf_vg_cons_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
 
@@ -876,16 +892,16 @@ end subroutine SFVGconsD2SlDPc2
 ! Exponential Van Genuchten Extension
 ! **************************************************************************** !
 
-function SFVGECPCctor(alpha,m,Sr,rpf,Pcmax) result (new)
+function SFVGECPCctor(alpha,m,Sr,Sgt,rpf,Pcmax) result (new)
 
   implicit none
 
-  class(sf_VG_expn_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
+  class(sf_vg_expn_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetPcmax(Pcmax) /= 0) then
@@ -900,7 +916,7 @@ function SFVGexpnSetPcmax(this,Pcmax) result (error)
 
   implicit none
 
-  class(sf_VG_expn_type), intent(inout) :: this
+  class(sf_vg_expn_type), intent(inout) :: this
   PetscReal, intent(in) :: Pcmax
   PetscInt :: error
   PetscReal :: Sa, Sb, Pe, dPj_dSj
@@ -946,16 +962,16 @@ end function SFVGexpnSetPcmax
 
 ! **************************************************************************** !
 
-function SFVGENOCCtor(alpha,m,Sr,rpf,Sj) result (new)
+function SFVGENOCCtor(alpha,m,Sr,Sgt,rpf,Sj) result (new)
 
   implicit none
 
-  class(sf_VG_expn_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Sj
+  class(sf_vg_expn_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetSj(Sj) /= 0) then
@@ -970,7 +986,7 @@ function SFVGexpnSetSj(this,Sj) result (error)
 
   implicit none
 
-  class(sf_VG_expn_type), intent(inout) :: this
+  class(sf_vg_expn_type), intent(inout) :: this
   PetscReal, intent(in) :: Sj
   PetscInt :: error
   PetscReal :: dPj_dSj
@@ -999,7 +1015,7 @@ pure subroutine SFVGexpnPc(this, Sl, Pc, dPc_dSl)
 
   implicit none
 
-  class(sf_VG_expn_type), intent(in) :: this
+  class(sf_vg_expn_type), intent(in) :: this
   PetscReal, intent(in)   :: Sl
   PetscReal, intent(out)  :: Pc, dPc_dSl
 
@@ -1025,7 +1041,7 @@ pure subroutine SFVGexpnSl(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_expn_type), intent(in) :: this
+  class(sf_vg_expn_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
 
@@ -1051,7 +1067,7 @@ pure subroutine SFVGexpnD2SlDPc2(this, Pc, d2Sl_dPc2)
 
   implicit none
 
-  class(sf_VG_expn_type), intent(in) :: this
+  class(sf_vg_expn_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
 
@@ -1072,16 +1088,16 @@ end subroutine SFVGexpnD2SlDPc2
 ! Linear Van Genuchten Extension
 ! **************************************************************************** !
 
-function SFVGLCPCCtor(alpha,m,Sr,rpf,Pcmax) result (new)
+function SFVGLCPCCtor(alpha,m,Sr,Sgt,rpf,Pcmax) result (new)
 
   implicit none
 
-  class(sf_VG_line_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
+  class(sf_vg_line_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetPcmax(Pcmax) /= 0) then
@@ -1096,7 +1112,7 @@ function SFVGlineSetPcmax(this,Pcmax) result (error)
 
   implicit none
 
-  class(sf_VG_line_type), intent(inout) :: this
+  class(sf_vg_line_type), intent(inout) :: this
   PetscReal, intent(in) :: Pcmax
   PetscInt :: error
   PetscReal :: Sa, Sb, Pe, dPj_dSj
@@ -1136,16 +1152,16 @@ end function SFVGlineSetPcmax
 
 ! **************************************************************************** !
 
-function SFVGLNOCCtor(alpha,m,Sr,rpf,Sj) result (new)
+function SFVGLNOCCtor(alpha,m,Sr,Sgt,rpf,Sj) result (new)
 
   implicit none
 
-  class(sf_VG_line_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Sj
+  class(sf_vg_line_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Sgt, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetSj(Sj) /= 0) then
@@ -1157,7 +1173,7 @@ end function SFVGLNOCCtor
 ! **************************************************************************** !
 
 function SFVGlineSetSj(this,Sj) result (error)
-  class(sf_VG_line_type), intent(inout) :: this
+  class(sf_vg_line_type), intent(inout) :: this
   PetscReal, intent(in) :: Sj
   PetscInt :: error
 
@@ -1178,7 +1194,7 @@ end function SFVGlineSetSj
 ! **************************************************************************** !
 
 pure subroutine SFVGlinePc(this, Sl, Pc, dPc_dSl)
-  class(sf_VG_line_type), intent(in) :: this
+  class(sf_vg_line_type), intent(in) :: this
   PetscReal, intent(in)   :: Sl
   PetscReal, intent(out)  :: Pc, dPc_dSl
 
@@ -1203,7 +1219,7 @@ pure subroutine SFVGlineSl(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_line_type), intent(in) :: this
+  class(sf_vg_line_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
 
@@ -1225,7 +1241,7 @@ end subroutine SFVGlineSl
 ! **************************************************************************** !
 
 pure subroutine SFVGlineD2SlDPc2(this, Pc, d2Sl_dPc2)
-  class(sf_VG_line_type), intent(in) :: this
+  class(sf_vg_line_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
 
@@ -1242,13 +1258,13 @@ end subroutine SFVGlineD2SlDPc2
 ! Quadratic Van Genuchten Extension
 ! **************************************************************************** !
 
-function SFVGquadCtor(alpha, m, Sr, rpf, Pcmax, Sj) result (new)
-  class(sf_VG_quad_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
+function SFVGquadCtor(alpha, m, Sr, Sgt, rpf, Pcmax, Sj) result (new)
+  class(sf_vg_quad_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sgt, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%Configure(alpha,m,Sr,rpf) /= 0) then
+  if (new%Configure(alpha,m,Sr,Sgt,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%SetQuad(Pcmax, Sj) /= 0) then
@@ -1263,7 +1279,7 @@ function SFVGquadSetPcmax(this, Pcmax) result (error)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(inout) :: this
+  class(sf_vg_quad_type), intent(inout) :: this
   PetscReal, intent(in) :: Pcmax
   PetscInt :: error
 
@@ -1276,7 +1292,7 @@ function SFVGquadSetSj(this, Sj) result (error)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(inout) :: this
+  class(sf_vg_quad_type), intent(inout) :: this
   PetscReal, intent(in) :: Sj
   PetscInt :: error
 
@@ -1289,7 +1305,7 @@ function SFVGquadSetQuad(this, Pcmax, Sj) result (error)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(inout) :: this
+  class(sf_vg_quad_type), intent(inout) :: this
   PetscReal, intent(in) :: Pcmax, Sj
   PetscInt :: error
   PetscReal :: Pj, dPj_dSj, dPc_dSj, A, B, Sl_extremum, Sl_qa, Sl_cq
@@ -1344,7 +1360,7 @@ pure subroutine SFVGquadPc(this, Sl, Pc, dPc_dSl)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(in) :: this
+  class(sf_vg_quad_type), intent(in) :: this
   PetscReal, intent(in)   :: Sl
   PetscReal, intent(out)  :: Pc, dPc_dSl
 
@@ -1370,7 +1386,7 @@ pure subroutine SFVGquadSl(this, Pc, Sl, dSl_dPc)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(in) :: this
+  class(sf_vg_quad_type), intent(in) :: this
   PetscReal, intent(in)  :: Pc
   PetscReal, intent(out) :: Sl, dSl_dPc
 
@@ -1396,7 +1412,7 @@ pure subroutine SFVGquadD2SlDPc2(this, Pc, d2Sl_dPc2)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(in) :: this
+  class(sf_vg_quad_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2Sl_dPc2
   PetscReal :: Sl
@@ -1421,7 +1437,7 @@ pure function SFVGquadSlRoot(this,Pc) result (Sl)
 
   implicit none
 
-  class(sf_VG_quad_type), intent(in) :: this
+  class(sf_vg_quad_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal :: Sl
   PetscReal :: C, Q
@@ -1443,7 +1459,7 @@ pure function RPFVGGetM(this) result (m)
 
   implicit none
 
-  class(rpf_VG_type), intent(in) :: this
+  class(rpf_vg_type), intent(in) :: this
   PetscReal :: m
   m = this%m
 end function RPFVGGetM
@@ -1454,7 +1470,7 @@ subroutine RPFVGInit(this)
 
   implicit none
 
-  class(rpf_VG_type) :: this
+  class(rpf_vg_type) :: this
   ! This method is intentionally left blank.
 end subroutine RPFVGInit
 
@@ -1465,7 +1481,7 @@ subroutine RPFVGRelativePermeability(this, liquid_saturation, &
 
   implicit none
 
-  class(rpf_VG_type) :: this
+  class(rpf_vg_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
@@ -1481,7 +1497,7 @@ function RPFVGliqConfigure(this, m, Sr) result (error)
 
   implicit none
 
-  class(rpf_VG_liq_type), intent(inout) :: this
+  class(rpf_vg_liq_type), intent(inout) :: this
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
   PetscReal :: Kr
@@ -1512,7 +1528,7 @@ function RPFVGliqSetM(this, m) result (error)
 
   implicit none
 
-  class(rpf_VG_liq_type), intent(inout) :: this
+  class(rpf_vg_liq_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
   error = this%Configure(m, this%Sr)
@@ -1524,7 +1540,7 @@ pure subroutine RPFVGliqKr(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_VG_liq_type), intent(in) :: this
+  class(rpf_vg_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
 
@@ -1547,7 +1563,7 @@ function RPFMVGliqCtor(m, Sr) result (new)
 
   implicit none
 
-  class(rpf_MVG_liq_type), pointer :: new
+  class(rpf_mvg_liq_type), pointer :: new
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
@@ -1567,7 +1583,7 @@ pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_MVG_liq_type), intent(in) :: this
+  class(rpf_mvg_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, f
@@ -1576,11 +1592,15 @@ pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
   Se_mrt  = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
   Se_mrt_comp_m = Se_mrt_comp**this%m
-  f = 1d0 - Se_mrt_comp_m
+  f = max(1d0 - Se_mrt_comp_m,0.d0)
 
   Kr = sqrt(Se)*f*f
-  dKr_dSl = this%dSe_dSl * Kr / Se * &
-           (0.5d0 + 2d0*Se_mrt*Se_mrt_comp_m/(f*Se_mrt_comp))
+  if (f > 0.d0) then
+    dKr_dSl = this%dSe_dSl * Kr / Se * &
+             (0.5d0 + 2d0*Se_mrt*Se_mrt_comp_m/(f*Se_mrt_comp))
+  else
+    dKr_dSl = 0.d0
+  endif
 end subroutine RPFMVGliqKrInline
 
 ! **************************************************************************** !
@@ -1591,7 +1611,7 @@ function RPFBVGliqCtor(m, Sr) result (new)
 
   implicit none
 
-  class(rpf_BVG_liq_type), pointer :: new
+  class(rpf_bvg_liq_type), pointer :: new
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
@@ -1612,7 +1632,7 @@ pure subroutine RPFBVGliqKrInline(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_BVG_liq_type), intent(in) :: this
+  class(rpf_bvg_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, Kr_Se
@@ -1635,7 +1655,7 @@ function RPFVGgasConfigure(this, m, Sr, Sgr) result (error)
 
   implicit none
 
-  class(rpf_VG_gas_type), intent(inout) :: this
+  class(rpf_vg_gas_type), intent(inout) :: this
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
@@ -1664,7 +1684,7 @@ function RPFVGgasSetM(this, m) result (error)
 
   implicit none
 
-  class(rpf_VG_gas_type), intent(inout) :: this
+  class(rpf_vg_gas_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
   error = this%Configure(m, this%Sr, this%Sgr)
@@ -1676,7 +1696,7 @@ pure subroutine RPFVGgasKr(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_VG_gas_type), intent(in) :: this
+  class(rpf_vg_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
 
@@ -1699,7 +1719,7 @@ function RPFMVGgasCtor(m, Sr, Sgr) result (new)
 
   implicit none
 
-  class(rpf_MVG_gas_type), pointer :: new
+  class(rpf_mvg_gas_type), pointer :: new
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
@@ -1720,7 +1740,7 @@ pure subroutine RPFMVGgasKrInline(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_MVG_gas_type), intent(in) :: this
+  class(rpf_mvg_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp
@@ -1742,7 +1762,7 @@ function RPFBVGgasCtor(m, Sr, Sgr) result (new)
 
   implicit none
 
-  class(rpf_BVG_gas_type), pointer :: new
+  class(rpf_bvg_gas_type), pointer :: new
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
@@ -1763,7 +1783,7 @@ pure subroutine RPFBVGgasKrInline(this, Sl, Kr, dKr_dSl)
 
   implicit none
 
-  class(rpf_BVG_gas_type), intent(in) :: this
+  class(rpf_bvg_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp, Kr_Se_comp

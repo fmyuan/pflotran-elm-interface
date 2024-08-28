@@ -455,7 +455,7 @@ function DatasetBaseGetPointer(dataset_list, dataset_name, debug_string, &
 
   class(dataset_base_type), pointer :: dataset_list
   character(len=MAXWORDLENGTH) :: dataset_name
-  character(len=MAXSTRINGLENGTH) :: debug_string
+  character(len=*) :: debug_string
   type(option_type) :: option
 
   class(dataset_base_type), pointer :: DatasetBaseGetPointer

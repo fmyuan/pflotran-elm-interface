@@ -242,10 +242,10 @@ subroutine FieldDestroy(field)
   endif
   if (field%flow_scaled_xx /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_scaled_xx,ierr);CHKERRQ(ierr)
-  endif 
+  endif
   if (field%flow_work_loc /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_work_loc,ierr);CHKERRQ(ierr)
-  endif 
+  endif
   if (field%flow_xx /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_xx,ierr);CHKERRQ(ierr)
   endif

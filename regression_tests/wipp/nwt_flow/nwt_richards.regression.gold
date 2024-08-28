@@ -1,0 +1,56 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   5.6024528181543E+06
+      Min:   8.1212460621065E+05
+     Mean:   3.2068441093247E+06
+        3:   3.2063995065037E+06
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        3:   1.0000000000000E+00
+-- CONCENTRATION: Total Bulk Conc. Am241 --
+      Max:   2.9932901302468E-02
+      Min:   2.9784893177279E-02
+     Mean:   2.9857345171415E-02
+        3:   2.9856291756483E-02
+-- CONCENTRATION: Aq. Conc. Am241 --
+      Max:   3.0853184768064E-03
+      Min:   3.0853184768064E-03
+     Mean:   3.0853184768064E-03
+        3:   3.0853184768064E-03
+-- CONCENTRATION: Mnrl. Conc. Am241 --
+      Max:   2.9007302729724E-02
+      Min:   2.8859294609132E-02
+     Mean:   2.8931746600970E-02
+        3:   2.8930693186039E-02
+-- CONCENTRATION: Sorb. Conc. Am241 --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        3:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
+      Max:   2.5042914428020E-06
+      Min:   2.4915134498140E-06
+     Mean:   2.4977684513790E-06
+        3:   2.4976775067734E-06
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        3:         3
+-- SOLUTION: Flow --
+   Time (seconds):   5.7267148999756E-02
+   Time Steps:           90
+   Newton Iterations:          136
+   Linear Solver Iterations:          136
+   Time Step Cuts:            0
+   Solution 2-Norm:   8.1093324845548E+06
+   Residual 2-Norm:   1.3551999095955E-15
+-- SOLUTION: Transport --
+   Time (seconds):   2.4126700999886E-02
+   Time Steps:           90
+   Newton Iterations:           90
+   Linear Solver Iterations:           90
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.6763154670416E-02
+   Residual 2-Norm:   2.4527199007760E-08

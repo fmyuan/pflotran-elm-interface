@@ -32,7 +32,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: D2SatDP2 => SFConstantD2SatDP2
   end type sat_func_constant_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_VG_type
+  type, public, extends(sat_func_base_type) :: sat_func_vg_type
     PetscReal :: alpha
     PetscReal :: m
   contains
@@ -45,21 +45,36 @@ module Characteristic_Curves_Common_module
     procedure, public :: GetM_ => SFVGGetM
     procedure, public :: SetAlpha_ => SFVGSetAlpha
     procedure, public :: SetM_ => SFVGSetM
-  end type sat_func_VG_type
+  end type sat_func_vg_type
+
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_BC_type
+  type, public, extends(sat_func_base_type) :: sat_func_bc_type
     PetscReal :: alpha
     PetscReal :: lambda
   contains
     procedure, public :: Init => SFBCInit
     procedure, public :: Verify => SFBCVerify
+    procedure, public :: GetAlpha_ => SFBCGetAlpha
     procedure, public :: SetupPolynomials => SFBCSetupPolynomials
+    procedure, public :: SetupExtension => SFBCSetupExtension
     procedure, public :: CapillaryPressure => SFBCCapillaryPressure
     procedure, public :: Saturation => SFBCSaturation
     procedure, public :: D2SatDP2 => SFBCD2SatDP2
-  end type sat_func_BC_type
+  end type sat_func_bc_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_Linear_type
+  type, public, extends(sat_func_base_type) :: sat_func_bc_spe11_type
+    PetscReal :: alpha
+    PetscReal :: lambda
+  contains
+    procedure, public :: Init => SFBCSPE11Init
+    procedure, public :: Verify => SFBCSPE11Verify
+    procedure, public :: SetupPolynomials => SFBCSPE11SetupPolynomials
+    procedure, public :: CapillaryPressure => SFBCSPE11CapillaryPressure
+    procedure, public :: Saturation => SFBCSPE11Saturation
+    procedure, public :: GetAlpha_ => SFBCSPE11GetAlpha
+  end type sat_func_bc_spe11_type
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_linear_type
     PetscReal :: alpha
   contains
     procedure, public :: Init => SFLinearInit
@@ -67,9 +82,9 @@ module Characteristic_Curves_Common_module
     procedure, public :: CapillaryPressure => SFLinearCapillaryPressure
     procedure, public :: Saturation => SFLinearSaturation
     procedure, public :: D2SatDP2 => SFLinearD2SatDP2
-  end type sat_func_Linear_type
+  end type sat_func_linear_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_mK_type
+  type, public, extends(sat_func_base_type) :: sat_func_mk_type
     PetscReal :: sigmaz, muz
     PetscReal :: rmax, r0
     PetscInt :: nparam
@@ -78,9 +93,9 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFmKVerify
     procedure, public :: CapillaryPressure => SFmKCapillaryPressure
     procedure, public :: Saturation => SFmKSaturation
-  end type sat_func_mK_type
+  end type sat_func_mk_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_IGHCC2_type
+  type, public, extends(sat_func_base_type) :: sat_func_ighcc2_type
     PetscReal :: alpha
     PetscReal :: m
   contains
@@ -88,25 +103,37 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SFIGHCC2Verify
     procedure, public :: CapillaryPressure => SFIGHCC2CapillaryPressure
     procedure, public :: Saturation => SFIGHCC2Saturation
-  end type sat_func_IGHCC2_type
+    procedure, public :: GetAlpha_ => SFIGHCC2GetAlpha
+  end type sat_func_ighcc2_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_Exp_Freezing_type
+  type, public, extends(sat_func_base_type) :: sat_func_exp_freezing_type
     PetscReal :: w
   contains
     procedure, public :: Init => SFExpFreezingInit
     procedure, public :: Verify => SFExpFreezingVerify
     procedure, public :: CapillaryPressure => SFExpFreezingCapillaryPressure
     procedure, public :: Saturation => SFExpFreezingSaturation
-  end type sat_func_Exp_Freezing_type
+  end type sat_func_exp_freezing_type
   !---------------------------------------------------------------------------
-  type, public, extends(sat_func_base_type) :: sat_func_Table_type
+  type, public, extends(sat_func_base_type) :: sat_func_vg_stomp_type
+    PetscReal :: alpha
+    PetscReal :: n
+  contains
+    procedure, public :: Init => SFVGSTOMPInit
+    procedure, public :: Verify => SFVGSTOMPVerify
+    procedure, public :: GetAlpha_ => SFVGSTOMPGetAlpha
+    procedure, public :: CapillaryPressure => SFVGSTOMPCapillaryPressure
+    procedure, public :: Saturation => SFVGSTOMPSaturation
+  end type sat_func_vg_stomp_type
+  !---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_table_type
     class(dataset_ascii_type), pointer :: pc_dataset
   contains
     procedure, public :: Init => SFTableInit
     procedure, public :: Verify => SFTableVerify
     procedure, public :: CapillaryPressure => SFTableCapillaryPressure
     procedure, public :: Saturation => SFTableSaturation
-  end type sat_func_Table_type
+  end type sat_func_table_type
 
 !-----------------------------------------------------------------------------
 !-- Relative Permeability Functions ------------------------------------------
@@ -118,7 +145,7 @@ module Characteristic_Curves_Common_module
     procedure, public :: RelativePermeability => RPFDefaultRelPerm
   end type rel_perm_func_default_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mualem_vg_liq_type
     PetscReal :: m
   contains
     procedure, public :: Init => RPFMualemVGLiqInit
@@ -127,34 +154,34 @@ module Characteristic_Curves_Common_module
     procedure, public :: RelativePermeability => RPFMualemVGLiqRelPerm
     procedure, public :: GetM_ => RPFMualemVGGetM
     procedure, public :: SetM_ => RPFMualemVGSetM
-  end type rpf_Mualem_VG_liq_type
+  end type rpf_mualem_vg_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mualem_vg_gas_type
     PetscReal :: m
   contains
     procedure, public :: Init => RPFMualemVGGasInit
     procedure, public :: Verify => RPFMualemVGGasVerify
     procedure, public :: RelativePermeability => RPFMualemVGGasRelPerm
-  end type rpf_Mualem_VG_gas_type
+  end type rpf_mualem_vg_gas_type
 
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_BC_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_burdine_bc_liq_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFBurdineBCLiqInit
     procedure, public :: Verify => RPFBurdineBCLiqVerify
     procedure, public :: RelativePermeability => RPFBurdineBCLiqRelPerm
-  end type rpf_Burdine_BC_liq_type
+  end type rpf_burdine_bc_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_BC_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_burdine_bc_gas_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFBurdineBCGasInit
     procedure, public :: Verify => RPFBurdineBCGasVerify
     procedure, public :: RelativePermeability => RPFBurdineBCGasRelPerm
-  end type rpf_Burdine_BC_gas_type
+  end type rpf_burdine_bc_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_BC_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mualem_bc_liq_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFMualemBCLiqInit
@@ -162,62 +189,62 @@ module Characteristic_Curves_Common_module
     procedure, public :: RelativePermeability => RPFMualemBCLiqRelPerm
   end type rpf_MUALEM_BC_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_BC_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mualem_bc_gas_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFMualemBCGasInit
     procedure, public :: Verify => RPFMualemBCGasVerify
     procedure, public :: RelativePermeability => RPFMualemBCGasRelPerm
-  end type rpf_Mualem_BC_gas_type
+  end type rpf_mualem_bc_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_VG_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_burdine_vg_liq_type
     PetscReal :: m
   contains
     procedure, public :: Init => RPFBurdineVGLiqInit
     procedure, public :: Verify => RPFBurdineVGLiqVerify
     procedure, public :: SetupPolynomials => RPFBurdineVGSetupPolynomials
     procedure, public :: RelativePermeability => RPFBurdineVGLiqRelPerm
-  end type rpf_Burdine_VG_liq_type
+  end type rpf_burdine_vg_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_VG_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_burdine_vg_gas_type
     PetscReal :: m
   contains
     procedure, public :: Init => RPFBurdineVGGasInit
     procedure, public :: Verify => RPFBurdineVGGasVerify
     procedure, public :: RelativePermeability => RPFBurdineVGGasRelPerm
-  end type rpf_Burdine_VG_gas_type
+  end type rpf_burdine_vg_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_Linear_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mualem_linear_liq_type
     PetscReal :: pcmax
     PetscReal :: alpha
   contains
     procedure, public :: Init => RPFMualemLinearLiqInit
     procedure, public :: Verify => RPFMualemLinearLiqVerify
     procedure, public :: RelativePermeability => RPFMualemLinearLiqRelPerm
-  end type rpf_Mualem_Linear_liq_type
+  end type rpf_mualem_linear_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rpf_Mualem_Linear_liq_type) :: &
-                        rpf_Mualem_Linear_gas_type
+  type, public, extends(rpf_mualem_linear_liq_type) :: &
+                        rpf_mualem_linear_gas_type
   contains
     procedure, public :: Init => RPFMualemLinearGasInit
     procedure, public :: Verify => RPFMualemLinearGasVerify
     procedure, public :: RelativePermeability => RPFMualemLinearGasRelPerm
-  end type rpf_Mualem_Linear_gas_type
+  end type rpf_mualem_linear_gas_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_Linear_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_burdine_linear_liq_type
   contains
     procedure, public :: Init => RPFBurdineLinearLiqInit
     procedure, public :: Verify => RPFBurdineLinearLiqVerify
     procedure, public :: RelativePermeability => RPFBurdineLinearLiqRelPerm
-  end type rpf_Burdine_Linear_liq_type
+  end type rpf_burdine_linear_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                        rpf_Burdine_Linear_gas_type
+                        rpf_burdine_linear_gas_type
   contains
     procedure, public :: Init => RPFBurdineLinearGasInit
     procedure, public :: Verify => RPFBurdineLinearGasVerify
     procedure, public :: RelativePermeability => RPFBurdineLinearGasRelPerm
-  end type rpf_Burdine_Linear_gas_type
+  end type rpf_burdine_linear_gas_type
   !---------------------------------------------------------------------------
   ! Constant: for running tests with a fixed relative permeability
   type, public, extends(rel_perm_func_base_type) :: rel_perm_func_constant_type
@@ -227,91 +254,101 @@ module Characteristic_Curves_Common_module
     procedure, public :: RelativePermeability => RPFConstantRelPerm
   end type rel_perm_func_constant_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_mK_liq_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mk_liq_type
     PetscReal :: sigmaz
   contains
     procedure, public :: Init => RPFmKLiqInit
     procedure, public :: Verify => RPFmKLiqVerify
     procedure, public :: RelativePermeability => RPFmKLiqRelPerm
-  end type rpf_mK_liq_type
+  end type rpf_mk_liq_type
   !---------------------------------------------------------------------------
-  type, public, extends(rel_perm_func_base_type) :: rpf_mK_gas_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_mk_gas_type
     PetscReal :: sigmaz
   contains
     procedure, public :: Verify => RPFmKGasVerify
     procedure, public :: RelativePermeability => RPFmKGasRelPerm
-  end type rpf_mK_gas_type
+  end type rpf_mk_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                     rpf_IGHCC2_liq_type
+                                     rpf_ighcc2_liq_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFIGHCC2LiqInit
     procedure, public :: Verify => RPFIGHCC2LiqVerify
     procedure, public :: RelativePermeability => &
                                   RPFIGHCC2LiqRelPerm
-  end type rpf_IGHCC2_liq_type
+  end type rpf_ighcc2_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                       rpf_IGHCC2_gas_type
+                                       rpf_ighcc2_gas_type
     PetscReal :: lambda
   contains
     procedure, public :: Init => RPFIGHCC2GasInit
     procedure, public :: Verify => RPFIGHCC2GasVerify
     procedure, public :: RelativePermeability => &
                                   RPFIGHCC2GasRelPerm
-  end type rpf_IGHCC2_gas_type
+  end type rpf_ighcc2_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                     rpf_mod_Brooks_Corey_liq_type
+                                     rpf_mod_brooks_corey_liq_type
     PetscReal :: kr_max
     PetscReal :: n
   contains
     procedure, public :: Init => RPFModBrooksCoreyLiqInit
     procedure, public :: Verify => RPFModBrooksCoreyLiqVerify
     procedure, public :: RelativePermeability => RPFModBrooksCoreyLiqRelPerm
-  end type rpf_mod_Brooks_Corey_liq_type
+  end type rpf_mod_brooks_corey_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                       rpf_mod_Brooks_Corey_gas_type
+                                       rpf_mod_brooks_corey_gas_type
     PetscReal :: kr_max
     PetscReal :: n
   contains
     procedure, public :: Init => RPFModBrooksCoreyGasInit
     procedure, public :: Verify => RPFModBrooksCoreyGasVerify
     procedure, public :: RelativePermeability => RPFModBrooksCoreyGasRelPerm
-  end type rpf_mod_Brooks_Corey_gas_type
+  end type rpf_mod_brooks_corey_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                     rpf_Table_liq_type
+                                     rpf_table_liq_type
     class(dataset_ascii_type), pointer :: rpf_dataset
   contains
     procedure, public :: Init => RPFTableLiqInit
     procedure, public :: Verify => RPFTableLiqVerify
     procedure, public :: RelativePermeability => &
                                   RPFTableLiqRelPerm
-  end type rpf_Table_liq_type
+  end type rpf_table_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
-                                       rpf_Table_gas_type
+                                       rpf_table_gas_type
     class(dataset_ascii_type), pointer :: rpf_dataset
   contains
     procedure, public :: Init => RPFTableGasInit
     procedure, public :: Verify => RPFTableGasVerify
     procedure, public :: RelativePermeability => &
                                   RPFTableGasRelPerm
-  end type rpf_Table_gas_type
+  end type rpf_table_gas_type
 
+  type, public, extends(rel_perm_func_base_type) :: rpf_modified_corey_gas_type
+    PetscReal :: a
+    contains
+    procedure, public :: Init => RPFModifiedCoreyGasInit
+    procedure, public :: Verify => RPFModifiedCoreyGasVerify
+    procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
+    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
+  end type rpf_modified_corey_gas_type
 
   public :: &! standard char. curves:
             SFDefaultCreate, &
             SFConstantCreate, &
             SFVGCreate, &
             SFBCCreate, &
+            SFBCSPE11Create, &
             SFLinearCreate, &
             SFmKCreate, &
             SFIGHCC2Create, &
             SFExpFreezingCreate, &
+            SFVGSTOMPCreate, &
             SFTableCreate, &
             ! standard rel. perm. curves:
             RPFDefaultCreate, &
@@ -336,7 +373,8 @@ module Characteristic_Curves_Common_module
             RPFModBrooksCoreyLiqCreate, &
             RPFModBrooksCoreyGasCreate, &
             RPFTableLiqCreate, &
-            RPFTableGasCreate
+            RPFTableGasCreate, &
+            RPFModifiedCoreyGasCreate
 
 contains
 
@@ -380,7 +418,8 @@ end subroutine SFDefaultVerify
 ! ************************************************************************** !
 
 subroutine SFDefaultCapillaryPressure(this,liquid_saturation, &
-                                      capillary_pressure,dpc_dsatl,option)
+                                      capillary_pressure,dpc_dsatl,option, &
+                                      trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -390,6 +429,8 @@ subroutine SFDefaultCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   if (liquid_saturation < 1.d0) then
     option%io_buffer = 'SFDefaultCapillaryPressure is a dummy routine used &
@@ -403,7 +444,8 @@ end subroutine SFDefaultCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFDefaultSaturation(this,capillary_pressure, &
-                               liquid_saturation,dsat_dpres,option)
+                               liquid_saturation,dsat_dpres,option,&
+                               trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -413,6 +455,8 @@ subroutine SFDefaultSaturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   option%io_buffer = 'SFDefaultSaturation is a dummy routine used &
     &for saturated flow only.  The user must specify a valid &
@@ -554,7 +598,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,MPH_MODE,H_MODE)
+    case(WF_MODE,G_MODE,MPH_MODE,H_MODE,SCO2_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
@@ -575,7 +619,8 @@ end subroutine SFConstantVerify
 ! ************************************************************************** !
 
 subroutine SFConstantCapillaryPressure(this,liquid_saturation, &
-                                       capillary_pressure,dpc_dsatl,option)
+                                       capillary_pressure,dpc_dsatl,option, &
+                                       trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -585,6 +630,8 @@ subroutine SFConstantCapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   dpc_dsatl = 0.d0
   capillary_pressure = this%constant_capillary_pressure
@@ -594,7 +641,8 @@ end subroutine SFConstantCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFConstantSaturation(this,capillary_pressure, &
-                                liquid_saturation,dsat_dpres,option)
+                                liquid_saturation,dsat_dpres,option,&
+                                trapped_gas_saturation, Sl_min)
   use Option_module
 
   implicit none
@@ -604,6 +652,8 @@ subroutine SFConstantSaturation(this,capillary_pressure, &
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   liquid_saturation = this%constant_saturation
   dsat_dpres = 0.d0
@@ -699,7 +749,7 @@ function SFVGCreate()
 
   implicit none
 
-  class(sat_func_VG_type), pointer :: SFVGCreate
+  class(sat_func_vg_type), pointer :: SFVGCreate
 
   allocate(SFVGCreate)
   call SFVGCreate%Init()
@@ -714,7 +764,7 @@ subroutine SFVGInit(this)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -732,7 +782,7 @@ subroutine SFVGVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -758,7 +808,8 @@ end subroutine SFVGVerify
 ! ************************************************************************** !
 
 subroutine SFVGCapillaryPressure(this,liquid_saturation, &
-                                 capillary_pressure,dpc_dsatl,option)
+                                 capillary_pressure,dpc_dsatl,option, &
+                                 trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation
   !
@@ -774,11 +825,13 @@ subroutine SFVGCapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: n
   PetscReal :: Se
@@ -790,6 +843,12 @@ subroutine SFVGCapillaryPressure(this,liquid_saturation, &
   PetscReal :: Se_sup_neg_one_over_m_minus_one
 
   dpc_dsatl = 0.d0
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_vg_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -829,7 +888,8 @@ end subroutine SFVGCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFVGSaturation(this,capillary_pressure, &
-                          liquid_saturation,dsat_dpres,option)
+                          liquid_saturation,dsat_dpres,option,&
+                          trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
@@ -847,11 +907,13 @@ subroutine SFVGSaturation(this,capillary_pressure, &
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal, parameter :: pc_alpha_n_epsilon = 1.d-15
   PetscReal :: n
@@ -911,7 +973,7 @@ subroutine SFVGD2SatDP2(this,pc,d2s_dp2,option)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   PetscReal, intent(in) :: pc
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
@@ -952,7 +1014,7 @@ function SFVGGetAlpha(this)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
 
   PetscReal :: SFVGGetAlpha
 
@@ -966,7 +1028,7 @@ function SFVGGetM(this)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
 
   PetscReal :: SFVGGetM
 
@@ -980,7 +1042,7 @@ subroutine SFVGSetAlpha(this,tempreal)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   PetscReal :: tempreal
 
   this%alpha = tempreal
@@ -993,7 +1055,7 @@ subroutine SFVGSetM(this,tempreal)
 
   implicit none
 
-  class(sat_func_VG_type) :: this
+  class(sat_func_vg_type) :: this
   PetscReal :: tempreal
 
   this%m = tempreal
@@ -1009,7 +1071,7 @@ function SFIGHCC2Create()
 
   implicit none
 
-  class(sat_func_IGHCC2_type), pointer :: &
+  class(sat_func_ighcc2_type), pointer :: &
                               SFIGHCC2Create
 
   allocate(SFIGHCC2Create)
@@ -1025,7 +1087,7 @@ subroutine SFIGHCC2Init(this)
 
   implicit none
 
-  class(sat_func_IGHCC2_type) :: this
+  class(sat_func_ighcc2_type) :: this
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -1037,13 +1099,27 @@ end subroutine SFIGHCC2Init
 
 ! ************************************************************************** !
 
+function SFIGHCC2GetAlpha(this)
+
+  implicit none
+
+  class(sat_func_ighcc2_type) :: this
+
+  PetscReal :: SFIGHCC2GetAlpha
+
+  SFIGHCC2GetAlpha = this%alpha
+
+end function SFIGHCC2GetAlpha
+
+! ************************************************************************** !
+
 subroutine SFIGHCC2Verify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(sat_func_IGHCC2_type) :: this
+  class(sat_func_ighcc2_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1069,7 +1145,8 @@ end subroutine SFIGHCC2Verify
 ! ************************************************************************** !
 
 subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation, adapted to
   ! benchmark against the IGHCC2 study.
@@ -1081,11 +1158,13 @@ subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_IGHCC2_type) :: this
+  class(sat_func_ighcc2_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: n
   PetscReal :: Se
@@ -1098,10 +1177,16 @@ subroutine SFIGHCC2CapillaryPressure(this,liquid_saturation, &
 
   dpc_dsatl = 0.d0
 
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_ighcc2_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
+
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
     return
-  else if (liquid_saturation >= 1.d0) then
+  elseif (liquid_saturation >= 9.99d-1) then
     capillary_pressure = 0.d0
     return
   endif
@@ -1130,7 +1215,8 @@ end subroutine SFIGHCC2CapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFIGHCC2Saturation(this,capillary_pressure, &
-                          liquid_saturation,dsat_dpres,option)
+                          liquid_saturation,dsat_dpres,option,&
+                          trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
@@ -1143,11 +1229,13 @@ subroutine SFIGHCC2Saturation(this,capillary_pressure, &
 
   implicit none
 
-  class(sat_func_IGHCC2_type) :: this
+  class(sat_func_ighcc2_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal, parameter :: pc_alpha_n_epsilon = 1.d-15
   PetscReal :: n
@@ -1208,7 +1296,7 @@ function SFExpFreezingCreate()
 
   implicit none
 
-  class(sat_func_Exp_Freezing_type), pointer :: &
+  class(sat_func_exp_freezing_type), pointer :: &
                               SFExpFreezingCreate
 
   allocate(SFExpFreezingCreate)
@@ -1224,7 +1312,7 @@ subroutine SFExpFreezingInit(this)
 
   implicit none
 
-  class(sat_func_Exp_Freezing_type) :: this
+  class(sat_func_exp_freezing_type) :: this
 
   call SFBaseInit(this)
   this%w = UNINITIALIZED_DOUBLE
@@ -1241,7 +1329,7 @@ subroutine SFExpFreezingVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_Exp_Freezing_type) :: this
+  class(sat_func_exp_freezing_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1263,7 +1351,8 @@ end subroutine SFExpFreezingVerify
 ! ************************************************************************** !
 
 subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                          capillary_pressure,dpc_dsatl,option, &
+                                          trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation based on a
   ! freezing curve .
@@ -1275,11 +1364,13 @@ subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_Exp_Freezing_type) :: this
+  class(sat_func_exp_freezing_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: c
   PetscReal :: Se
@@ -1288,6 +1379,12 @@ subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
   PetscReal :: L_ICE = 6033.54
 
   dpc_dsatl = 0.d0
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_exp_freezing_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -1300,8 +1397,8 @@ subroutine SFExpFreezingCapillaryPressure(this,liquid_saturation, &
   dSe_dsatl = 1.d0 / (1.d0-this%Sr)
   Se = (liquid_saturation-this%Sr)*dSe_dsatl
 
-  capillary_pressure = sqrt(-1*log(Se))*this%w * (L_ICE * ICE_DENSITY * 1.D6)/(273.15)
-  c = this%w * L_ICE * ICE_DENSITY * 1.d6 / 273.15
+  capillary_pressure = sqrt(-1*log(Se))*this%w * (L_ICE * ICE_DENSITY * 1.D6)/(T273K)
+  c = this%w * L_ICE * ICE_DENSITY * 1.d6 / T273K
   dpc_dsatl = c / (2 * (this%sr - liquid_saturation) * (-1.d0 * log((this%sr - liquid_saturation)/(this%sr-1))) ** 0.5d0)
 
   if (capillary_pressure > this%pcmax) then
@@ -1314,7 +1411,8 @@ end subroutine SFExpFreezingCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFExpFreezingSaturation(this,capillary_pressure, &
-                            liquid_saturation,dsat_dpres,option)
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
@@ -1328,11 +1426,13 @@ subroutine SFExpFreezingSaturation(this,capillary_pressure, &
 
   implicit none
 
-  class(sat_func_Exp_Freezing_type) :: this
+  class(sat_func_exp_freezing_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal, parameter :: dpc_dpres = -1.d0
   PetscReal :: ICE_DENSITY = 50.86D0 !mol/L
@@ -1345,11 +1445,175 @@ subroutine SFExpFreezingSaturation(this,capillary_pressure, &
     liquid_saturation = 1.d0
     return
   else
-    dTf = -1.d0 * (capillary_pressure * 273.15) /(L_ICE * ICE_DENSITY * 1.D6)
+    dTf = -1.d0 * (capillary_pressure * T273K) /(L_ICE * ICE_DENSITY * 1.D6)
     liquid_saturation = (1.d0 - this%sr) * exp(-1.d0 * (dTf/this%w)**2) + this%sr
   endif
-  
+
 end subroutine SFExpFreezingSaturation
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function SFVGSTOMPCreate()
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_vg_stomp_type), pointer :: SFVGSTOMPCreate
+
+  allocate(SFVGSTOMPCreate)
+  call SFVGSTOMPCreate%Init()
+
+end function SFVGSTOMPCreate
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPInit(this)
+
+  ! Creates the VGSTOMP capillary pressure function object
+
+  implicit none
+
+  class(sat_func_vg_stomp_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%n = UNINITIALIZED_DOUBLE
+
+end subroutine SFVGSTOMPInit
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_vg_stomp_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,VG_STOMP'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%n)) then
+    option%io_buffer = UninitializedMessage('N',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFVGSTOMPVerify
+
+! ************************************************************************** !
+
+function SFVGSTOMPGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_vg_stomp_type) :: this
+
+  PetscReal :: SFVGSTOMPGetAlpha
+
+  SFVGSTOMPGetAlpha = this%alpha
+
+end function SFVGSTOMPGetAlpha
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPCapillaryPressure(this,liquid_saturation, &
+                                      capillary_pressure,dpc_dsatl,option, &
+                                      trapped_gas_saturation, Sl_min)
+  !
+  ! Computes the capillary_pressure as a function of saturation, VGSTOMP.
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_vg_stomp_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
+  PetscReal :: esl, m, n
+
+  ! if (present(trapped_gas_saturation)) then
+  !   option%io_buffer = 'The sat_func_vg_stomp_type capillary pressure &
+  !                       &function does not currently support gas trapping.'
+  !   call PrintErrMsg(option)
+  ! endif
+
+  esl = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+
+  if (liquid_saturation > this%Sr) then
+    capillary_pressure = ((1.d0 / esl)**(1.d0/m)-1.d0)**(1.d0/n) / &
+                          this%alpha
+  else
+    capillary_pressure = this%pcmax
+  endif
+
+end subroutine SFVGSTOMPCapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
+                               liquid_saturation,dsat_dpres,option,&
+                               trapped_gas_saturation, Sl_min)
+  !
+  ! Computes saturation as a function of capillary head:
+  ! sigma * Pc / (rho_l * g)
+  !
+  ! Author: Michael Nole
+  ! Date: 01/09/2024
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_vg_stomp_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
+
+  PetscReal :: m,n
+  PetscReal :: asl
+
+  if (present(trapped_gas_saturation)) then
+    trapped_gas_saturation = 0.d0
+  endif
+
+  dsat_dpres = 0.d0
+
+  n = this%n
+  m = 1.d0 - 1.d0 / n
+  ! m = this%m
+  ! n = - 1.d0 / (m - 1.d0)
+
+  asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
+  liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
+
+end subroutine SFVGSTOMPSaturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -1360,7 +1624,7 @@ function SFTableCreate()
 
   implicit none
 
-  class(sat_func_Table_type), pointer :: &
+  class(sat_func_table_type), pointer :: &
                               SFTableCreate
 
   allocate(SFTableCreate)
@@ -1376,7 +1640,7 @@ subroutine SFTableInit(this)
 
   implicit none
 
-  class(sat_func_Table_type) :: this
+  class(sat_func_table_type) :: this
 
   call SFBaseInit(this)
   this%pc_dataset => DatasetAsciiCreate()
@@ -1394,7 +1658,7 @@ subroutine SFTableVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_Table_type) :: this
+  class(sat_func_table_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1416,7 +1680,8 @@ end subroutine SFTableVerify
 ! ************************************************************************** !
 
 subroutine SFTableCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                   capillary_pressure,dpc_dsatl,option, &
+                                   trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation.
   !
@@ -1427,16 +1692,23 @@ subroutine SFTableCapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_Table_type) :: this
+  class(sat_func_table_type) :: this
   PetscReal, intent(in) :: liquid_saturation
-
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   class(dataset_ascii_type), pointer :: dataset
   PetscReal, pointer :: times(:)
   PetscInt :: i, j, num_entries
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_table_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   dataset => this%pc_dataset
   times => dataset%time_storage%times
@@ -1490,7 +1762,8 @@ end subroutine SFTableCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFTableSaturation(this,capillary_pressure, &
-                            liquid_saturation,dsat_dpres,option)
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
   !
   ! Computes saturation as a function of capillary pressure.
   !
@@ -1501,12 +1774,14 @@ subroutine SFTableSaturation(this,capillary_pressure, &
 
   implicit none
 
-  class(sat_func_Table_type) :: this
+  class(sat_func_table_type) :: this
   PetscReal, intent(in) :: capillary_pressure
 
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   class(dataset_ascii_type), pointer :: dataset
   PetscReal, pointer :: times(:)
@@ -1573,7 +1848,7 @@ function SFBCCreate()
 
   implicit none
 
-  class(sat_func_BC_type), pointer :: SFBCCreate
+  class(sat_func_bc_type), pointer :: SFBCCreate
 
   allocate(SFBCCreate)
   call SFBCCreate%Init()
@@ -1588,7 +1863,7 @@ subroutine SFBCInit(this)
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -1606,7 +1881,7 @@ subroutine SFBCVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1626,8 +1901,31 @@ subroutine SFBCVerify(this,name,option)
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call PrintErrMsg(option)
   endif
+  if (Initialized(this%Sgt_max)) then
+    select case (option%iflowmode)
+      case(SCO2_MODE)
+      case default
+        option%io_buffer = 'Gas trapping is not &
+           &enabled in the requested flow mode.'
+        call PrintErrMsg(option)
+    end select
+  endif
 
 end subroutine SFBCVerify
+
+! ************************************************************************** !
+
+function SFBCGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_bc_type) :: this
+
+  PetscReal :: SFBCGetAlpha
+
+  SFBCGetAlpha = this%alpha
+
+end function SFBCGetAlpha
 
 ! ************************************************************************** !
 
@@ -1640,7 +1938,7 @@ subroutine SFBCSetupPolynomials(this,option,error_string)
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
 
@@ -1702,8 +2000,83 @@ end subroutine SFBCSetupPolynomials
 
 ! ************************************************************************** !
 
+subroutine SFBCSetupExtension(this,option,error_string)
+
+  ! Sets up unsaturated extensions for the Brooks-Corey saturation function
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_bc_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  PetscReal :: Sm, Sem, Pcm, Pcm2, dPc, dPcm
+  PetscReal :: psi, hdod
+  PetscReal :: A,B,F1,F2,dF
+  PetscInt :: iteration
+
+  ! Iterate to find the matching point
+  ! Starting guess
+  psi = 1.d0 / this%alpha
+  Sm = 1.d-2 * (1.d0 - this%Sr) + this%Sr
+  Sem = (Sm - this%Sr) / (1.d0 - this%Sr)
+
+  !Convert to head
+  psi = psi / 1.d4
+  hdod = this%pcmax / 1.d4
+
+  Pcm = psi / (Sem ** (1.d0 / this%lambda))
+  Pcm = 1.d1 ** (4.d-1*log10(hdod))
+
+  iteration = 0
+  do
+    iteration = iteration + 1
+
+    dPc = max(1.d-4,1.d-6*Pcm)
+    dPc = sign(dPc,5.d-1*hdod-Pcm)
+    A = - ((psi/Pcm)**this%lambda) * (1.d0 - this%Sr)
+    B = Pcm * (log(hdod)-log(Pcm))
+    F1 = (A - this%Sr) / B - A * this%lambda / Pcm
+
+    Pcm2 = Pcm + dPc
+    A = - ((psi/Pcm2)**this%lambda) * (1.d0 - this%Sr)
+    B = Pcm2 * (log(hdod)-log(Pcm2))
+    F2 = (A - this%Sr) / B - A * this%lambda / Pcm2
+
+    dF = (F2 - F1) / dPc
+    dPcm = -F1/dF
+    Pcm = min(max(Pcm+dPcm,psi),hdod-1.d0)
+
+    if (dabs(dPcm) > 1.d-4) then
+      if (iteration > 64) then
+        option%io_buffer = "Webb extension failed to converge on &
+            &a matching point during SCBCSetupExtension."
+        call PrintErrMsg(option)
+      endif
+    else
+      exit
+    endif
+  enddo
+
+  Sem = (psi / Pcm) ** this%lambda
+  Sm = Sem * (1.d0 - this%Sr) + this%Sr
+  this%Sm = Sm
+  this%Pcm = Pcm * 1.d4
+
+end subroutine SFBCSetupExtension
+
+! ************************************************************************** !
+
 subroutine SFBCCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                 capillary_pressure,dpc_dsatl,option, &
+                                 trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation using the
   ! Brooks-Corey formulation
@@ -1716,21 +2089,37 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
   !
+  ! Added Webb Extensions and Trapped Gas.
+  ! MAN: Analytical derivatives are untested for these extensions.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/26/2024
+  !
   use Option_module
   use Utility_module
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se
   PetscReal :: dSe_dsatl
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
+  PetscReal :: Sgt, Sgf, Sgte, Sle, Sla, Sgtme
+  PetscReal :: dPc
+
+  if (present(trapped_gas_saturation)) then
+    Sgt = trapped_gas_saturation
+  else
+    Sgt = UNINITIALIZED_DOUBLE
+  endif
 
   dpc_dsatl = 0.d0
 
@@ -1742,27 +2131,66 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
     return
   endif
 
-  dSe_dsatl = 1.d0 / (1.d0-this%Sr)
-  Se = (liquid_saturation-this%Sr)*dSe_dsatl
-  if (associated(this%sat_poly)) then
-    if (Se > this%sat_poly%low) then
-      call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
-                                       Se,capillary_pressure,dpc_dSe)
-      dpc_dsatl = dpc_dSe*dSe_dsatl
-      return
-    endif
+  if (this%Sgt_max > 0.d0) then
+    ! Consider gas trapping
+    Sgtme = this%Sgt_max
+    Sgf = max(1.d0-liquid_saturation-Sgt,0.d0)
+    Sgf = Sgf + max(Sgt-this%Sgt_max,0.d0)
+    Sgt = min(Sgt,this%Sgt_max)
+    Sle = 1.d0 - Sgf - Sgt
+    Sgte = Sgt
+    Sla = liquid_saturation + Sgt
+    Se = (Sla -this%Sr) / (1.d0 -this%Sr)
+    ! R = 1.d0 / this%Sgt_max - 1.d0
+    ! if (Sl_min < 0.d0) then
+    !   Sl_min = (Sgte * R * Sla + Sgte * (R**2) * Sla + Sla - Sgte - &
+    !             2.d0 * Sgte * R - Sgte * (R**2)) / &
+    !             (1.d0 + Sgte * (R**2) * Sla - Sgte * R - Sgte * (R**2))
+    !   Sl_min = min(max(Sl_min,0.d0),1.d0)
+    ! endif
+  else
+    dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+    Se = (liquid_saturation-this%Sr)*dSe_dsatl
   endif
-  neg_one_over_lambda = -1.d0/this%lambda
-  capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
-  dpc_dsatl = capillary_pressure/Se*neg_one_over_lambda*dSe_dsatl
+
+  if (this%extended .and. liquid_saturation < this%Sm) then
+    ! Use Webb extension
+    if (liquid_saturation < this%Sm) then
+        ! Below the matching point, use Webb extension
+        dPc = -((log10(this%pcmax))-log10(this%Pcm))/ this%Sm
+        capillary_pressure = 1.d1 ** (dPc*(liquid_saturation - this%Sm) + &
+                             log10(this%Pcm))
+        dpc_dsatl = log(10.d0)*capillary_pressure*dPc
+    else
+      dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+      neg_one_over_lambda = -1.d0/this%lambda
+      capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
+      dpc_dsatl = capillary_pressure/Se*neg_one_over_lambda*dSe_dsatl
+    endif
+
+  else
+    dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+    if (associated(this%sat_poly)) then
+      if (Se > this%sat_poly%low) then
+        call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
+                                       Se,capillary_pressure,dpc_dSe)
+        dpc_dsatl = dpc_dSe*dSe_dsatl
+        return
+      endif
+    endif
+    neg_one_over_lambda = -1.d0/this%lambda
+    capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
+    dpc_dsatl = capillary_pressure/Se*neg_one_over_lambda*dSe_dsatl
 
 #if defined(MATCH_TOUGH2)
-  if (liquid_saturation > 0.999d0) then
-    capillary_pressure = capillary_pressure*(1.d0-liquid_saturation)/0.001d0
-    dpc_dsatl = dpc_satl*(1.d0-liquid_saturation)/0.001d0 + &
-                capillary_pressure*(-1.d0/0.001d0)
-  endif
+    if (liquid_saturation > 0.999d0) then
+      capillary_pressure = capillary_pressure*(1.d0-liquid_saturation)/0.001d0
+      dpc_dsatl = dpc_satl*(1.d0-liquid_saturation)/0.001d0 + &
+                  capillary_pressure*(-1.d0/0.001d0)
+    endif
 #endif
+
+  endif
 
   if (capillary_pressure > this%pcmax) then
     capillary_pressure = this%pcmax
@@ -1774,7 +2202,8 @@ end subroutine SFBCCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFBCSaturation(this,capillary_pressure, &
-                            liquid_saturation,dsat_dpres,option)
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
@@ -1786,50 +2215,95 @@ subroutine SFBCSaturation(this,capillary_pressure, &
   !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
+  !
+  ! Added Webb Extensions and Trapped Gas.
+  ! MAN: Analytical derivatives are untested for these extensions.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/30/2024
+  !
 
   use Option_module
   use Utility_module
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: pc_alpha_neg_lambda
   PetscReal :: Se
   PetscReal :: dSe_dpc
+  PetscReal :: Pc, dPc
+  PetscReal :: Sla, Slam, R, Sgtmax
   PetscReal, parameter :: dpc_dpres = -1.d0
+  PetscReal, parameter ::epsilon = 1.d-14
 
   dsat_dpres = 0.d0
 
-  ! reference #1
-  if (associated(this%pres_poly)) then
-    if (capillary_pressure < this%pres_poly%low) then
-      liquid_saturation = 1.d0
-      return
-    else if (capillary_pressure < this%pres_poly%high) then
-      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
-                                   capillary_pressure,Se,dSe_dpc)
-      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
-      return
-    endif
+  if (present(Sl_min)) then
+    Sla = Sl_min
   else
-    if (capillary_pressure < 1.d0/this%alpha) then
-      liquid_saturation = 1.d0
-      dsat_dpres = 0.d0
-      return
-    endif
+    Sla = UNINITIALIZED_DOUBLE
   endif
 
-  pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
-  Se = pc_alpha_neg_lambda
-  dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
-  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-  dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+  if (present(trapped_gas_saturation)) trapped_gas_saturation = 0.d0
+
+  if (this%extended .and. capillary_pressure > this%Pcm) then
+    ! Above the matching point capillary pressure, use Webb Extension
+    Pc = capillary_pressure
+    Pc = min(Pc,this%pcmax)
+    dPc = this%Sm / (log10(this%pcmax)-log10(this%Pcm))
+    liquid_saturation = - (log10(Pc)-log10(this%pcmax)) * dPc
+    dsat_dpres = 1.d0 / (log(10.d0)*Pc*dPc)
+  else
+    ! reference #1
+    if (associated(this%pres_poly)) then
+      if (capillary_pressure < this%pres_poly%low) then
+        liquid_saturation = 1.d0
+        return
+      elseif (capillary_pressure < this%pres_poly%high) then
+        call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+                                     capillary_pressure,Se,dSe_dpc)
+        liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+        dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+        return
+      endif
+    else
+      if (capillary_pressure < 1.d0/this%alpha) then
+        liquid_saturation = 1.d0
+        dsat_dpres = 0.d0
+        return
+      endif
+    endif
+
+    pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+    Se = pc_alpha_neg_lambda
+    dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+  endif
+
+  if (this%Sgt_max > 0.d0) then
+    ! Consider gas trapping
+    Slam = max(min(liquid_saturation,Sla),0.d0)
+    if (this%Sgt_max > epsilon .and. liquid_saturation > Slam) then
+      Sgtmax = this%Sgt_max
+      R = 1.d0 / Sgtmax - 1.d0
+      trapped_gas_saturation = (1.d0 - Slam) / (1.d0 + R * (1.d0 - Slam)) - &
+                      (1.d0 - liquid_saturation) / &
+                      (1.d0 + R * (1.d0 - liquid_saturation))
+      if (trapped_gas_saturation < epsilon) trapped_gas_saturation = 0.d0
+    else
+      trapped_gas_saturation = 0.d0
+    endif
+    liquid_saturation = liquid_saturation - trapped_gas_saturation
+  endif
 
 end subroutine SFBCSaturation
 
@@ -1842,7 +2316,7 @@ subroutine SFBCD2SatDP2(this,pc,d2s_dp2,option)
 
   implicit none
 
-  class(sat_func_BC_type) :: this
+  class(sat_func_bc_type) :: this
   PetscReal, intent(in) :: pc
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
@@ -1875,6 +2349,298 @@ subroutine SFBCD2SatDP2(this,pc,d2s_dp2,option)
 
 end subroutine SFBCD2SatDP2
 
+!  ************************************************************************** !
+
+function SFBCSPE11Create()
+
+  ! Creates the Brooks Corey capillary pressure function object
+
+  implicit none
+
+  class(sat_func_bc_spe11_type), pointer :: SFBCSPE11Create
+
+  allocate(SFBCSPE11Create)
+  call SFBCSPE11Create%Init()
+
+end function SFBCSPE11Create
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Init(this)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+
+  call SFBaseInit(this)
+  this%alpha = UNINITIALIZED_DOUBLE
+  this%lambda = UNINITIALIZED_DOUBLE
+
+  this%analytical_derivative_available = PETSC_FALSE
+
+end subroutine SFBCSPE11Init
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION,BROOKS_COREY_SPE11'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%lambda)) then
+    option%io_buffer = UninitializedMessage('LAMBDA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%pcmax)) then
+    option%io_buffer = UninitializedMessage('MAX_CAPILLARY_PRESSURE',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SFBCSPE11Verify
+
+! ************************************************************************** !
+
+function SFBCSPE11GetAlpha(this)
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+
+  PetscReal :: SFBCSPE11GetAlpha
+
+  SFBCSPE11GetAlpha = this%alpha
+
+end function SFBCSPE11GetAlpha
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Brooks-Corey saturation function
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  PetscReal :: b(4)
+
+  ! polynomial fitting pc as a function of saturation
+  ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
+  this%sat_poly => PolynomialCreate()
+  this%sat_poly%low = 1.05d0**(-this%lambda)
+  this%sat_poly%high = 1.d0
+
+  b = 0.d0
+  ! fill right hand side
+  ! capillary pressure at 1
+  b(1) = 1.05d0/this%alpha
+  ! capillary pressure at 2
+  b(2) = 0.d0
+  ! derivative of pressure at saturation_1
+  ! pc = Se**(-1/lambda)/alpha
+  ! dpc_dSe = -1/lambda*Se**(-1/lambda-1)/alpha
+  b(3) = -1.d0/this%lambda* &
+          this%sat_poly%low**(-1.d0/this%lambda-1.d0)/ &
+          this%alpha
+
+  call QuadraticPolynomialSetup(this%sat_poly%low,this%sat_poly%high,b(1:3), &
+                                ! indicates derivative given at 1
+                                PETSC_TRUE)
+
+  this%sat_poly%coefficients(1:3) = b(1:3)
+
+  ! polynomial fitting saturation as a function of pc
+  !geh: cannot invert the pressure/saturation relationship above
+  !     since it can result in saturations > 1 with both
+  !     quadratic and cubic polynomials
+  ! fill matix with values
+  this%pres_poly => PolynomialCreate()
+  this%pres_poly%low = 0.95/this%alpha
+  this%pres_poly%high = 1.05/this%alpha
+
+  b = 0.d0
+  ! Se at 1
+  b(1) = 1.d0
+  ! Se at 2
+  b(2) = (this%pres_poly%high*this%alpha)** &
+          (-this%lambda)
+  ! derivative of Se at 1
+  b(3) = 0.d0
+  ! derivative of Se at 2
+  b(4) = -this%lambda/this%pres_poly%high* &
+            (this%pres_poly%high*this%alpha)** &
+              (-this%lambda)
+
+  call CubicPolynomialSetup(this%pres_poly%low,this%pres_poly%high,b)
+
+  this%pres_poly%coefficients(1:4) = b(1:4)
+
+
+end subroutine SFBCSPE11SetupPolynomials
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11CapillaryPressure(this,liquid_saturation, &
+                                      capillary_pressure,dpc_dsatl,option, &
+                                      trapped_gas_saturation, Sl_min)
+  !
+  ! Computes the capillary_pressure as a function of saturation using the
+  ! Brooks-Corey formulation, and then wraps it in an error function following
+  ! the SPE 11th Comparative Solution Project description.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/27/24
+  !
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
+
+  PetscReal :: Se
+  PetscReal :: dSe_dsatl
+  PetscReal :: dpc_dSe
+  PetscReal :: neg_one_over_lambda
+
+  !if (present(trapped_gas_saturation)) then
+  !  option%io_buffer = 'The sat_func_bc_spe11_type capillary pressure &
+  !                      &function does not currently support gas trapping.'
+  !  call PrintErrMsg(option)
+  !endif
+
+  dpc_dsatl = 0.d0
+
+  dSe_dsatl = 1.d0 / (1.d0-this%Sr)
+  Se = (liquid_saturation-this%Sr)*dSe_dsatl
+  Se = max(Se,0.d0)
+
+  if (associated(this%sat_poly)) then
+    if (Se > this%sat_poly%low) then
+      call QuadraticPolynomialEvaluate(this%sat_poly%coefficients(1:3), &
+                                       Se,capillary_pressure,dpc_dSe)
+      capillary_pressure = this%pcmax * &
+                           erf(capillary_pressure/this%pcmax * sqrt(PI)/2.d0)
+      return
+    endif
+  endif
+
+  if (Se <= 0.d0) then
+    capillary_pressure = this%pcmax
+  elseif (Se >= 1.d0) then
+    capillary_pressure = 0.d0
+  else
+    neg_one_over_lambda = -1.d0/this%lambda
+    capillary_pressure = (Se**neg_one_over_lambda)/this%alpha
+    capillary_pressure = this%pcmax * &
+                           erf(capillary_pressure/this%pcmax * sqrt(PI)/2.d0)
+  endif
+
+
+
+end subroutine SFBCSPE11CapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SFBCSPE11Saturation(this,capillary_pressure, &
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
+  !
+  ! Computes  saturation as a function of capillary pressure after passing
+  ! through an inverse error function, inverting the function from the
+  ! SPE 11th Comparative Solution Project description.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/27/24
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_bc_spe11_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
+
+  PetscReal :: pc_alpha_neg_lambda
+  PetscReal :: Se
+  PetscReal :: dSe_dpc,dndp
+  PetscReal :: one_minus_pc_pcmax_over_two, inverse_erfc, p_cap_tilde
+  PetscReal, parameter :: dpc_dpres = -1.d0
+  PetscReal, parameter :: epsilon = 1.d-14
+
+  dsat_dpres = 0.d0
+
+  one_minus_pc_pcmax_over_two = (1.d0 - capillary_pressure/this%pcmax) / 2.d0
+  if (one_minus_pc_pcmax_over_two <= epsilon) then
+    liquid_saturation = this%Sr
+    return
+  endif
+
+  call InverseNorm(one_minus_pc_pcmax_over_two, inverse_erfc, PETSC_FALSE,dndp)
+  inverse_erfc = -inverse_erfc / sqrt(2.d0)
+  p_cap_tilde = inverse_erfc * this%pcmax * 2.d0 / sqrt(PI)
+
+  ! reference #1
+  if (associated(this%pres_poly)) then
+    if (p_cap_tilde < this%pres_poly%low) then
+      liquid_saturation = 1.d0
+      return
+    else if (p_cap_tilde < this%pres_poly%high) then
+      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+                                   p_cap_tilde,Se,dSe_dpc)
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
+      return
+    endif
+  endif
+
+  if (p_cap_tilde <= 0.d0) then
+    Se = 1.d0
+  elseif (p_cap_tilde >= this%pcmax) then
+    Se = 0.d0
+  else
+    pc_alpha_neg_lambda = (p_cap_tilde*this%alpha)**(-this%lambda)
+    Se = pc_alpha_neg_lambda
+  endif
+  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+
+end subroutine SFBCSPE11Saturation
+
 ! ************************************************************************** !
 
 function SFLinearCreate()
@@ -1883,7 +2649,7 @@ function SFLinearCreate()
 
   implicit none
 
-  class(sat_func_Linear_type), pointer :: SFLinearCreate
+  class(sat_func_linear_type), pointer :: SFLinearCreate
 
   allocate(SFLinearCreate)
   call SFLinearCreate%Init()
@@ -1898,7 +2664,7 @@ subroutine SFLinearInit(this)
 
   implicit none
 
-  class(sat_func_Linear_type) :: this
+  class(sat_func_linear_type) :: this
 
   call SFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -1915,7 +2681,7 @@ subroutine SFLinearVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_Linear_type) :: this
+  class(sat_func_linear_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -1937,7 +2703,8 @@ end subroutine SFLinearVerify
 ! ************************************************************************** !
 
 subroutine SFLinearCapillaryPressure(this,liquid_saturation, &
-                                       capillary_pressure,dpc_dsatl,option)
+                                     capillary_pressure,dpc_dsatl,option, &
+                                     trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary pressure as a function of saturation.
   !
@@ -1949,15 +2716,23 @@ subroutine SFLinearCapillaryPressure(this,liquid_saturation, &
 
   implicit none
 
-  class(sat_func_Linear_type) :: this
+  class(sat_func_linear_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se
   PetscReal :: dSe_dsatl
   PetscReal :: one_over_alpha_minus_pcmax
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_linear_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   dpc_dsatl = 0.d0
 
@@ -1993,7 +2768,8 @@ end subroutine SFLinearCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFLinearSaturation(this,capillary_pressure, &
-                                liquid_saturation,dsat_dpres,option)
+                                liquid_saturation,dsat_dpres,option,&
+                                trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
@@ -2006,11 +2782,13 @@ subroutine SFLinearSaturation(this,capillary_pressure, &
 
   implicit none
 
-  class(sat_func_Linear_type) :: this
+  class(sat_func_linear_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: Se
   PetscReal :: dSe_dpc
@@ -2039,7 +2817,7 @@ subroutine SFLinearD2SatDP2(this,pc,d2s_dp2,option)
 
   implicit none
 
-  class(sat_func_Linear_type) :: this
+  class(sat_func_linear_type) :: this
   PetscReal, intent(in) :: pc
   PetscReal, intent(out) :: d2s_dp2
   type(option_type), intent(inout) :: option
@@ -2056,7 +2834,7 @@ function SFmKCreate()
 
   implicit none
 
-  class(sat_func_mK_type), pointer :: SFmKCreate
+  class(sat_func_mk_type), pointer :: SFmKCreate
 
   allocate(SFmKCreate)
   call SFmKCreate%Init()
@@ -2071,7 +2849,7 @@ subroutine SFmKInit(this)
 
   implicit none
 
-  class(sat_func_mK_type) :: this
+  class(sat_func_mk_type) :: this
 
   call SFBaseInit(this)
   this%sigmaz = UNINITIALIZED_DOUBLE
@@ -2092,7 +2870,7 @@ subroutine SFmKVerify(this,name,option)
 
   implicit none
 
-  class(sat_func_mK_type) :: this
+  class(sat_func_mk_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2145,7 +2923,8 @@ end subroutine SFmKVerify
 ! ************************************************************************** !
 
 subroutine SFmKCapillaryPressure(this,liquid_saturation, &
-                                   capillary_pressure,dpc_dsatl,option)
+                                 capillary_pressure,dpc_dsatl,option, &
+                                 trapped_gas_saturation, Sl_min)
   !
   ! Computes the capillary_pressure as a function of saturation
   ! for modified Kosugi model.
@@ -2166,11 +2945,13 @@ subroutine SFmKCapillaryPressure(this,liquid_saturation, &
   PetscReal, parameter :: LNKAP = log(KAPPA)
   PetscReal, parameter :: UNIT_CONVERSION = 9.982D+2*9.81d0/1.0D+2
 
-  class(sat_func_mK_type) :: this
+  class(sat_func_mk_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
+  PetscReal, intent(in), optional :: trapped_gas_saturation
+  PetscReal, intent(inout), optional :: Sl_min
 
   PetscReal :: Se
   PetscReal :: inverse, exparg
@@ -2179,6 +2960,12 @@ subroutine SFmKCapillaryPressure(this,liquid_saturation, &
   PetscReal :: dSe_dsatl, dexparg_dinverse, dpc_dexparg
   PetscReal :: one_over_pc
   PetscReal :: tempreal
+
+  if (present(trapped_gas_saturation)) then
+    option%io_buffer = 'The sat_func_mk_type capillary pressure &
+                        &function does not currently support gas trapping.'
+    call PrintErrMsg(option)
+  endif
 
   dpc_dsatl = 0.d0
 
@@ -2223,7 +3010,8 @@ end subroutine SFmKCapillaryPressure
 ! ************************************************************************** !
 
 subroutine SFmKSaturation(this,capillary_pressure, &
-                            liquid_saturation,dsat_dpres,option)
+                            liquid_saturation,dsat_dpres,option,&
+                            trapped_gas_saturation, Sl_min)
   !
   ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure for modified Kosugi model
@@ -2249,11 +3037,13 @@ subroutine SFmKSaturation(this,capillary_pressure, &
   PetscReal, parameter :: SQRTPI = sqrt(4.0d0*atan(1.0d0))
   PetscReal, parameter :: UNIT_CONVERSION = 9.982D+2*9.81d0/1.0D+2
 
-  class(sat_func_mK_type) :: this
+  class(sat_func_mk_type) :: this
   PetscReal, intent(in) :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
+  PetscReal, intent(out), optional :: trapped_gas_saturation
+  PetscReal, intent(in), optional :: Sl_min
 
   PetscReal :: hc, hmax, cap_press_scaled
   PetscReal :: rt2sz
@@ -2295,7 +3085,7 @@ function RPFMualemVGLiqCreate()
 
   implicit none
 
-  class(rpf_Mualem_vg_liq_type), pointer :: RPFMualemVGLiqCreate
+  class(rpf_mualem_vg_liq_type), pointer :: RPFMualemVGLiqCreate
 
   allocate(RPFMualemVGLiqCreate)
   call RPFMualemVGLiqCreate%Init()
@@ -2311,7 +3101,7 @@ subroutine RPFMualemVGLiqInit(this)
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
 
   call RPFBaseInit(this)
   this%m = UNINITIALIZED_DOUBLE
@@ -2328,7 +3118,7 @@ subroutine RPFMualemVGLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2359,7 +3149,7 @@ subroutine RPFMualemVGSetupPolynomials(this,option,error_string)
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
 
@@ -2409,7 +3199,7 @@ subroutine RPFMualemVGLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2461,7 +3251,7 @@ function RPFMualemVGGetM(this)
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
 
   PetscReal :: RPFMualemVGGetM
 
@@ -2475,7 +3265,7 @@ subroutine RPFMualemVGSetM(this,tempreal)
 
   implicit none
 
-  class(rpf_Mualem_VG_liq_type) :: this
+  class(rpf_mualem_vg_liq_type) :: this
   PetscReal :: tempreal
 
   this%m = tempreal
@@ -2491,7 +3281,7 @@ function RPFMualemVGGasCreate()
 
   implicit none
 
-  class(rpf_Mualem_VG_gas_type), pointer :: RPFMualemVGGasCreate
+  class(rpf_mualem_vg_gas_type), pointer :: RPFMualemVGGasCreate
 
   allocate(RPFMualemVGGasCreate)
   call RPFMualemVGGasCreate%Init()
@@ -2507,7 +3297,7 @@ subroutine RPFMualemVGGasInit(this)
 
   implicit none
 
-  class(rpf_Mualem_VG_gas_type) :: this
+  class(rpf_mualem_vg_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -2523,7 +3313,7 @@ subroutine RPFMualemVGGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_VG_gas_type) :: this
+  class(rpf_mualem_vg_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2562,7 +3352,7 @@ subroutine RPFMualemVGGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_VG_gas_type) :: this
+  class(rpf_mualem_vg_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2606,7 +3396,7 @@ function RPFBurdineBCLiqCreate()
 
   implicit none
 
-  class(rpf_Burdine_BC_liq_type), pointer :: RPFBurdineBCLiqCreate
+  class(rpf_burdine_bc_liq_type), pointer :: RPFBurdineBCLiqCreate
 
   allocate(RPFBurdineBCLiqCreate)
   call RPFBurdineBCLiqCreate%Init()
@@ -2621,7 +3411,7 @@ subroutine RPFBurdineBCLiqInit(this)
 
   implicit none
 
-  class(rpf_Burdine_BC_liq_type) :: this
+  class(rpf_burdine_bc_liq_type) :: this
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
@@ -2640,7 +3430,7 @@ subroutine RPFBurdineBCLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_BC_liq_type) :: this
+  class(rpf_burdine_bc_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2679,7 +3469,7 @@ subroutine RPFBurdineBCLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_BC_liq_type) :: this
+  class(rpf_burdine_bc_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2720,7 +3510,7 @@ function RPFIGHCC2LiqCreate()
 
   implicit none
 
-  class(rpf_IGHCC2_liq_type), pointer :: &
+  class(rpf_ighcc2_liq_type), pointer :: &
                         RPFIGHCC2LiqCreate
 
   allocate(RPFIGHCC2LiqCreate)
@@ -2736,7 +3526,7 @@ subroutine RPFIGHCC2LiqInit(this)
 
   implicit none
 
-  class(rpf_IGHCC2_liq_type) :: this
+  class(rpf_ighcc2_liq_type) :: this
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
@@ -2755,7 +3545,7 @@ subroutine RPFIGHCC2LiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_IGHCC2_liq_type) :: this
+  class(rpf_ighcc2_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2789,7 +3579,7 @@ subroutine RPFIGHCC2LiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_IGHCC2_liq_type) :: this
+  class(rpf_ighcc2_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2829,7 +3619,7 @@ function RPFModBrooksCoreyLiqCreate()
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_liq_type), pointer :: &
+  class(rpf_mod_brooks_corey_liq_type), pointer :: &
                         RPFModBrooksCoreyLiqCreate
 
   allocate(RPFModBrooksCoreyLiqCreate)
@@ -2845,7 +3635,7 @@ subroutine RPFModBrooksCoreyLiqInit(this)
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_liq_type) :: this
+  class(rpf_mod_brooks_corey_liq_type) :: this
 
   call RPFBaseInit(this)
   this%kr_max = UNINITIALIZED_DOUBLE
@@ -2865,7 +3655,7 @@ subroutine RPFModBrooksCoreyLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_liq_type) :: this
+  class(rpf_mod_brooks_corey_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -2906,7 +3696,7 @@ subroutine RPFModBrooksCoreyLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_liq_type) :: this
+  class(rpf_mod_brooks_corey_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -2944,7 +3734,7 @@ function RPFTableLiqCreate()
 
   implicit none
 
-  class(rpf_Table_liq_type), pointer :: &
+  class(rpf_table_liq_type), pointer :: &
                         RPFTableLiqCreate
 
   allocate(RPFTableLiqCreate)
@@ -2958,7 +3748,7 @@ subroutine RPFTableLiqInit(this)
 
   implicit none
 
-  class(rpf_Table_liq_type) :: this
+  class(rpf_table_liq_type) :: this
 
   call RPFBaseInit(this)
   this%rpf_dataset => DatasetAsciiCreate()
@@ -2975,7 +3765,7 @@ subroutine RPFTableLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Table_liq_type) :: this
+  class(rpf_table_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3003,7 +3793,7 @@ subroutine RPFTableLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Table_liq_type) :: this
+  class(rpf_table_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3078,7 +3868,7 @@ function RPFBurdineBCGasCreate()
 
   implicit none
 
-  class(rpf_Burdine_BC_gas_type), pointer :: RPFBurdineBCGasCreate
+  class(rpf_burdine_bc_gas_type), pointer :: RPFBurdineBCGasCreate
 
   allocate(RPFBurdineBCGasCreate)
   call RPFBurdineBCGasCreate%Init()
@@ -3094,7 +3884,7 @@ subroutine RPFBurdineBCGasInit(this)
 
   implicit none
 
-  class(rpf_Burdine_BC_gas_type) :: this
+  class(rpf_burdine_bc_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -3110,7 +3900,7 @@ subroutine RPFBurdineBCGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_BC_gas_type) :: this
+  class(rpf_burdine_bc_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3153,7 +3943,7 @@ subroutine RPFBurdineBCGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_BC_gas_type) :: this
+  class(rpf_burdine_bc_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3198,7 +3988,7 @@ function RPFIGHCC2GasCreate()
 
   implicit none
 
-  class(rpf_IGHCC2_gas_type), pointer :: &
+  class(rpf_ighcc2_gas_type), pointer :: &
                         RPFIGHCC2GasCreate
 
   allocate(RPFIGHCC2GasCreate)
@@ -3215,7 +4005,7 @@ subroutine RPFIGHCC2GasInit(this)
 
   implicit none
 
-  class(rpf_IGHCC2_gas_type) :: this
+  class(rpf_ighcc2_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -3231,7 +4021,7 @@ subroutine RPFIGHCC2GasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_IGHCC2_gas_type) :: this
+  class(rpf_ighcc2_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3269,7 +4059,7 @@ subroutine RPFIGHCC2GasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_IGHCC2_gas_type) :: this
+  class(rpf_ighcc2_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3310,7 +4100,7 @@ function RPFModBrooksCoreyGasCreate()
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_gas_type), pointer :: &
+  class(rpf_mod_brooks_corey_gas_type), pointer :: &
                         RPFModBrooksCoreyGasCreate
 
   allocate(RPFModBrooksCoreyGasCreate)
@@ -3327,7 +4117,7 @@ subroutine RPFModBrooksCoreyGasInit(this)
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_gas_type) :: this
+  class(rpf_mod_brooks_corey_gas_type) :: this
 
   call RPFBaseInit(this)
   this%kr_max = UNINITIALIZED_DOUBLE
@@ -3345,7 +4135,7 @@ subroutine RPFModBrooksCoreyGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_gas_type) :: this
+  class(rpf_mod_brooks_corey_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3386,7 +4176,7 @@ subroutine RPFModBrooksCoreyGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_mod_Brooks_Corey_gas_type) :: this
+  class(rpf_mod_brooks_corey_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3424,7 +4214,7 @@ function RPFTableGasCreate()
 
   implicit none
 
-  class(rpf_Table_gas_type), pointer :: &
+  class(rpf_table_gas_type), pointer :: &
                         RPFTableGasCreate
 
   allocate(RPFTableGasCreate)
@@ -3438,7 +4228,7 @@ subroutine RPFTableGasInit(this)
 
   implicit none
 
-  class(rpf_Table_gas_type) :: this
+  class(rpf_table_gas_type) :: this
 
   call RPFBaseInit(this)
   this%rpf_dataset => DatasetAsciiCreate()
@@ -3455,7 +4245,7 @@ subroutine RPFTableGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Table_gas_type) :: this
+  class(rpf_table_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3482,7 +4272,7 @@ subroutine RPFTableGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Table_gas_type) :: this
+  class(rpf_table_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3550,7 +4340,7 @@ function RPFMualemBCLiqCreate()
 
   implicit none
 
-  class(rpf_Mualem_BC_liq_type), pointer :: RPFMualemBCLiqCreate
+  class(rpf_mualem_bc_liq_type), pointer :: RPFMualemBCLiqCreate
 
   allocate(RPFMualemBCLiqCreate)
   call RPFMualemBCLiqCreate%Init()
@@ -3566,7 +4356,7 @@ subroutine RPFMualemBCLiqInit(this)
 
   implicit none
 
-  class(rpf_Mualem_BC_liq_type) :: this
+  class(rpf_mualem_bc_liq_type) :: this
 
   call RPFBaseInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
@@ -3585,7 +4375,7 @@ subroutine RPFMualemBCLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_BC_liq_type) :: this
+  class(rpf_mualem_bc_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3624,7 +4414,7 @@ subroutine RPFMualemBCLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_BC_liq_type) :: this
+  class(rpf_mualem_bc_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3665,7 +4455,7 @@ function RPFMualemBCGasCreate()
 
   implicit none
 
-  class(rpf_Mualem_BC_gas_type), pointer :: RPFMualemBCGasCreate
+  class(rpf_mualem_bc_gas_type), pointer :: RPFMualemBCGasCreate
 
   allocate(RPFMualemBCGasCreate)
   call RPFMualemBCGasCreate%Init()
@@ -3681,7 +4471,7 @@ subroutine RPFMualemBCGasInit(this)
 
   implicit none
 
-  class(rpf_Mualem_BC_gas_type) :: this
+  class(rpf_mualem_bc_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -3697,7 +4487,7 @@ subroutine RPFMualemBCGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_BC_gas_type) :: this
+  class(rpf_mualem_bc_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3736,7 +4526,7 @@ subroutine RPFMualemBCGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_BC_gas_type) :: this
+  class(rpf_mualem_bc_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3797,7 +4587,7 @@ subroutine RPFBurdineVGLiqInit(this)
 
   implicit none
 
-  class(rpf_Burdine_VG_liq_type) :: this
+  class(rpf_burdine_vg_liq_type) :: this
 
   call RPFBaseInit(this)
   this%m = UNINITIALIZED_DOUBLE
@@ -3814,7 +4604,7 @@ subroutine RPFBurdineVGLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_VG_liq_type) :: this
+  class(rpf_burdine_vg_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -3845,7 +4635,7 @@ subroutine RPFBurdineVGSetupPolynomials(this,option,error_string)
 
   implicit none
 
-  class(rpf_Burdine_VG_liq_type) :: this
+  class(rpf_burdine_vg_liq_type) :: this
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
 
@@ -3893,7 +4683,7 @@ subroutine RPFBurdineVGLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_VG_liq_type) :: this
+  class(rpf_burdine_vg_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -3945,7 +4735,7 @@ function RPFBurdineVGGasCreate()
 
   implicit none
 
-  class(rpf_Burdine_VG_gas_type), pointer :: RPFBurdineVGGasCreate
+  class(rpf_burdine_vg_gas_type), pointer :: RPFBurdineVGGasCreate
 
   allocate(RPFBurdineVGGasCreate)
   call RPFBurdineVGGasCreate%Init()
@@ -3961,7 +4751,7 @@ subroutine RPFBurdineVGGasInit(this)
 
   implicit none
 
-  class(rpf_Burdine_VG_gas_type) :: this
+  class(rpf_burdine_vg_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -3977,7 +4767,7 @@ subroutine RPFBurdineVGGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_VG_gas_type) :: this
+  class(rpf_burdine_vg_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4016,7 +4806,7 @@ subroutine RPFBurdineVGGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_VG_gas_type) :: this
+  class(rpf_burdine_vg_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4059,7 +4849,7 @@ function RPFMualemLinearLiqCreate()
 
   implicit none
 
-  class(rpf_Mualem_linear_liq_type), pointer :: RPFMualemLinearLiqCreate
+  class(rpf_mualem_linear_liq_type), pointer :: RPFMualemLinearLiqCreate
 
   allocate(RPFMualemLinearLiqCreate)
   call RPFMualemLinearLiqCreate%Init()
@@ -4074,7 +4864,7 @@ subroutine RPFMualemLinearLiqInit(this)
 
   implicit none
 
-  class(rpf_Mualem_Linear_liq_type) :: this
+  class(rpf_mualem_linear_liq_type) :: this
 
   call RPFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -4092,7 +4882,7 @@ subroutine RPFMualemLinearLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_Linear_liq_type) :: this
+  class(rpf_mualem_linear_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4132,7 +4922,7 @@ subroutine RPFMualemLinearLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_Linear_liq_type) :: this
+  class(rpf_mualem_linear_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4188,7 +4978,7 @@ function RPFMualemLinearGasCreate()
 
   implicit none
 
-  class(rpf_Mualem_Linear_gas_type), pointer :: RPFMualemLinearGasCreate
+  class(rpf_mualem_linear_gas_type), pointer :: RPFMualemLinearGasCreate
 
   allocate(RPFMualemLinearGasCreate)
   call RPFMualemLinearGasCreate%Init()
@@ -4204,7 +4994,7 @@ subroutine RPFMualemLinearGasInit(this)
 
   implicit none
 
-  class(rpf_Mualem_Linear_gas_type) :: this
+  class(rpf_mualem_linear_gas_type) :: this
 
   call RPFBaseInit(this)
   this%alpha = UNINITIALIZED_DOUBLE
@@ -4222,7 +5012,7 @@ subroutine RPFMualemLinearGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Mualem_Linear_gas_type) :: this
+  class(rpf_mualem_linear_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4264,7 +5054,7 @@ subroutine RPFMualemLinearGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Mualem_Linear_gas_type) :: this
+  class(rpf_mualem_linear_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4318,7 +5108,7 @@ function RPFBurdineLinearLiqCreate()
 
   implicit none
 
-  class(rpf_Burdine_Linear_liq_type), pointer :: RPFBurdineLinearLiqCreate
+  class(rpf_burdine_linear_liq_type), pointer :: RPFBurdineLinearLiqCreate
 
   allocate(RPFBurdineLinearLiqCreate)
   call RPFBurdineLinearLiqCreate%Init()
@@ -4333,7 +5123,7 @@ subroutine RPFBurdineLinearLiqInit(this)
 
   implicit none
 
-  class(rpf_Burdine_Linear_liq_type) :: this
+  class(rpf_burdine_linear_liq_type) :: this
 
   call RPFBaseInit(this)
 
@@ -4349,7 +5139,7 @@ subroutine RPFBurdineLinearLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_Linear_liq_type) :: this
+  class(rpf_burdine_linear_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4380,7 +5170,7 @@ subroutine RPFBurdineLinearLiqRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_Linear_liq_type) :: this
+  class(rpf_burdine_linear_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4414,7 +5204,7 @@ function RPFBurdineLinearGasCreate()
 
   implicit none
 
-  class(rpf_Burdine_Linear_gas_type), pointer :: RPFBurdineLinearGasCreate
+  class(rpf_burdine_linear_gas_type), pointer :: RPFBurdineLinearGasCreate
 
   allocate(RPFBurdineLinearGasCreate)
   call RPFBurdineLinearGasCreate%Init()
@@ -4430,7 +5220,7 @@ subroutine RPFBurdineLinearGasInit(this)
 
   implicit none
 
-  class(rpf_Burdine_Linear_gas_type) :: this
+  class(rpf_burdine_linear_gas_type) :: this
 
   call RPFBaseInit(this)
 
@@ -4446,7 +5236,7 @@ subroutine RPFBurdineLinearGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_Burdine_Linear_gas_type) :: this
+  class(rpf_burdine_linear_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4482,7 +5272,7 @@ subroutine RPFBurdineLinearGasRelPerm(this,liquid_saturation, &
 
   implicit none
 
-  class(rpf_Burdine_Linear_gas_type) :: this
+  class(rpf_burdine_linear_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4523,7 +5313,7 @@ function RPFmKLiqCreate()
 
   implicit none
 
-  class(rpf_mK_liq_type), pointer :: RPFmKLiqCreate
+  class(rpf_mk_liq_type), pointer :: RPFmKLiqCreate
 
   allocate(RPFmKLiqCreate)
   call RPFmKLiqCreate%Init()
@@ -4538,7 +5328,7 @@ subroutine RPFmKLiqInit(this)
 
   implicit none
 
-  class(rpf_mK_liq_type) :: this
+  class(rpf_mk_liq_type) :: this
 
   call RPFBaseInit(this)
   this%sigmaz = UNINITIALIZED_DOUBLE
@@ -4555,7 +5345,7 @@ subroutine RPFmKLiqVerify(this,name,option)
 
   implicit none
 
-  class(rpf_mK_liq_type) :: this
+  class(rpf_mk_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4599,7 +5389,7 @@ subroutine RPFmKLiqRelPerm(this,liquid_saturation, &
 
   PetscReal, parameter :: SQRT2 = sqrt(2.0d0)
 
-  class(rpf_mK_liq_type) :: this
+  class(rpf_mk_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4655,7 +5445,7 @@ function RPFmKGasCreate()
 
   implicit none
 
-  class(rpf_mK_gas_type), pointer :: RPFmKGasCreate
+  class(rpf_mk_gas_type), pointer :: RPFmKGasCreate
 
   allocate(RPFmKGasCreate)
   call RPFmKGasCreate%Init()
@@ -4670,7 +5460,7 @@ subroutine RPFmKGasInit(this)
 
   implicit none
 
-  class(rpf_mK_gas_type) :: this
+  class(rpf_mk_gas_type) :: this
 
   call RPFBaseInit(this)
   this%sigmaz = UNINITIALIZED_DOUBLE
@@ -4687,7 +5477,7 @@ subroutine RPFmKGasVerify(this,name,option)
 
   implicit none
 
-  class(rpf_mK_gas_type) :: this
+  class(rpf_mk_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -4735,7 +5525,7 @@ subroutine RPFmKGasRelPerm(this,liquid_saturation, &
 
   PetscReal, parameter :: SQRT2 = sqrt(2.0d0)
 
-  class(rpf_mK_gas_type) :: this
+  class(rpf_mk_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_sat
@@ -4785,5 +5575,135 @@ subroutine RPFmKGasRelPerm(this,liquid_saturation, &
 
 end subroutine RPFmKGasRelPerm
 
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPFModifiedCoreyGasCreate()
+
+  ! Creates the Modified Corey gas relative permeability function object
+
+  implicit none
+
+  class(rpf_modified_corey_gas_type), pointer :: RPFModifiedCoreyGasCreate
+
+  allocate(RPFModifiedCoreyGasCreate)
+  call RPFModifiedCoreyGasCreate%Init()
+
+end function RPFModifiedCoreyGasCreate
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasInit(this)
+
+  ! Initializes the Modified Corey gas relative permeability function
+  ! object
+
+  implicit none
+
+  class(rpf_modified_corey_gas_type) :: this
+
+  call RPFBaseInit(this)
+
+  this%analytical_derivative_available = PETSC_FALSE
+  this%a = 1.d0
+
+end subroutine RPFModifiedCoreyGasInit
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_modified_corey_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,Modified_Corey_GAS'
+  endif
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPFModifiedCoreyGasVerify
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
+                                      relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(rpf_modified_corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0)
+  Sla = Se
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+end subroutine
+
+! ************************************************************************** !
+
+subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
+                 trapped_gas_sat, relative_permeability,dkr_sat,option)
+  !
+  ! Computes the relative permeability as a
+  ! function of liquid and trapped gas saturation
+  !
+  ! Author: Michael Nole
+  ! Date: 01/18/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_modified_corey_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(in) :: trapped_gas_sat
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: Se
+  PetscReal :: Sla
+  PetscReal :: Sgte
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  Se = min(max(Se,0.d0),1.d0)
+  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
+  Sla = Se + Sgte
+
+  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
+
+end subroutine RPFModifiedCoreyGasRelPermWTGas
+
+! ************************************************************************** !
+! ************************************************************************** !
 
 end module Characteristic_Curves_Common_module

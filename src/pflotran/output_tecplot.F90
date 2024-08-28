@@ -28,7 +28,8 @@ module Output_Tecplot_module
             WriteTecplotDatasetNumPerLine, &
             WriteTecplotDataset, &
             OutputPrintExplicitFlowrates, &
-            OutputSecondaryContinuumTecplot
+            OutputSecondaryContinuumTecplot, &
+            OutputTecplotPrintRegions
 
 contains
 
@@ -334,7 +335,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     tempint = 0
     select case(option%iflowmode)
-      case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
+      case(MPH_MODE,G_MODE,H_MODE,WF_MODE,SCO2_MODE)
         tempint(0) =  2
         tempint(1) = LIQUID_PHASE
         tempint(2) = GAS_PHASE
@@ -372,7 +373,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     tempint = 0
     select case(option%iflowmode)
-      case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
+      case(MPH_MODE,G_MODE,H_MODE,WF_MODE,SCO2_MODE)
         tempint(0) =  3
         tempint(1) = LIQUID_PHASE
         tempint(2) = GAS_PHASE
@@ -602,7 +603,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   use Connection_module
   use Coupler_module
   use Patch_module
-  use DM_Kludge_module
+  use DM_Custom_module
 
   implicit none
 
@@ -2350,7 +2351,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       select case(option%itranmode)
         case(RT_MODE)
           rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-          reaction => ReactionCast(realization_base%reaction_base)
+          reaction => ReactionAuxCast(realization_base%reaction_base)
       end select
     endif
     if (option%iflowmode == TH_MODE &
@@ -2411,7 +2412,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       if (icell > 1) then
         string = '"dist [m]"'
         write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-      endif   
+      endif
       call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
                                          observation%region, &
                                          observation% &
@@ -2422,7 +2423,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
         if (icell > 1) then
           string = '"dist [m]"'
           write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-        endif    
+        endif
         call WriteTecplotHeaderForCellSec(OUTPUT_UNIT,realization_base, &
                                           observation%region,icell, &
                                           observation% &
@@ -2440,7 +2441,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
     write(OUTPUT_UNIT,1009)
 
-   
+
     do sec_id = 1,option%nsec_cells
       do icell = 1,observation%region%num_cells
         local_id = observation%region%cell_ids(icell)
@@ -2450,14 +2451,14 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
         elseif (associated(patch%aux%SC_RT)) then
           dist => rt_sec_tranport_vars(ghosted_id)%sec_continuum%distance
         endif
-      
+
         if (size(dist) < sec_id) then
           write(OUTPUT_UNIT,1000,advance='no') &
               -999.d0
-        else        
+        else
           write(OUTPUT_UNIT,1000,advance='no') dist(sec_id)
         endif
-       
+
         if (observation%print_secondary_data(1)) then
           write(OUTPUT_UNIT,1000,advance='no') &
           RealizGetVariableValueAtCell(realization_base,ghosted_id, &
@@ -2676,7 +2677,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   if (option%ntrandof > 0) then
     select case(option%itranmode)
       case(RT_MODE)
-        reaction => ReactionCast(realization_base%reaction_base)
+        reaction => ReactionAuxCast(realization_base%reaction_base)
         if (print_secondary_data(2)) then
           do j = 1, reaction%naqcomp
             string = 'Free ion ' // trim(reaction%primary_species_names(j))
@@ -2782,5 +2783,49 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
             TEN_INTEGER)
 
 end subroutine WriteTecplotPolyUGridElements
+
+! ************************************************************************** !
+
+subroutine OutputTecplotPrintRegions(realization_base)
+  !
+  ! Prints out the number of connections to each cell in a region.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/03/16
+  !
+  use Realization_Base_class, only : realization_base_type
+  use Field_module
+  use Region_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+
+  type(field_type), pointer :: field
+  type(region_type), pointer :: cur_region
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  field => realization_base%field
+
+  cur_region => realization_base%patch%region_list%first
+  do
+    if (.not.associated(cur_region)) exit
+    call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    do i = 1, cur_region%num_cells
+      vec_ptr(cur_region%cell_ids(i)) = vec_ptr(cur_region%cell_ids(i)) + 1.d0
+    enddo
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    word = 'REGION ' // trim(cur_region%name)
+    string = 'region_' // trim(cur_region%name) // '.tec'
+    call OutputVectorTecplot(string,word,realization_base,field%work)
+    cur_region => cur_region%next
+  enddo
+
+end subroutine OutputTecplotPrintRegions
 
 end module Output_Tecplot_module

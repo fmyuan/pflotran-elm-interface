@@ -1,0 +1,26 @@
+-- CONCENTRATION: D(im) --
+      Max:   2.5944175756703E-04
+      Min:   2.5944175756703E-04
+     Mean:   2.5944175756703E-04
+        1:   2.5944175756703E-04
+        2:   2.5944175756703E-04
+-- CONCENTRATION: E(im) --
+      Max:   1.0000000000000E-03
+      Min:   1.0000000000000E-03
+     Mean:   1.0000000000000E-03
+        1:   1.0000000000000E-03
+        2:   1.0000000000000E-03
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+        2:         1
+-- SOLUTION: Transport --
+   Time (seconds):   7.9825770005755E-03
+   Time Steps:           25
+   Newton Iterations:           75
+   Linear Solver Iterations:           75
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.4610338980116E-03
+   Residual 2-Norm:   6.4133921573017E-24

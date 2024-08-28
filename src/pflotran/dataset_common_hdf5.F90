@@ -241,6 +241,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   use Option_module
   use Logging_module
   use HDF5_Aux_module
+  use String_module
 
   implicit none
 
@@ -263,12 +264,15 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   integer(SIZE_T) :: size_t_int
   PetscMPIInt :: array_rank_mpi
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: attribute_name, time_units
+  character(len=MAXWORDLENGTH) :: attribute_name, time_units, word
   character(len=MAXWORDLENGTH) :: internal_units
   PetscMPIInt :: int_mpi
-  PetscInt :: temp_int, num_times_read_by_iorank
+  PetscInt :: num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
   PetscBool :: time_attribute_exists, time_group_exists
+  PetscBool :: time_interp_attribute_exists
+  PetscInt :: time_interpolation_method
+  PetscInt :: int_bcast(3)
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
@@ -278,6 +282,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
 #endif
 
+  time_interpolation_method = UNINITIALIZED_INTEGER
   h5fopen_err = 0
   option%io_buffer = 'Reading times for hdf5 dataset "' // &
     trim(dataset_name) // '", if they exist.'
@@ -304,6 +309,31 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         call h5aclose_f(attribute_id,hdf5_err)
       else
         time_units = 's'
+      endif
+      attribute_name = "Time Interpolation Method"
+      call H5aexists_f(grp_id,attribute_name,time_interp_attribute_exists, &
+                       hdf5_err)
+      if (time_interp_attribute_exists) then
+        call h5tcopy_f(H5T_NATIVE_CHARACTER,atype_id,hdf5_err)
+        size_t_int = MAXWORDLENGTH
+        call h5tset_size_f(atype_id,size_t_int,hdf5_err)
+        call h5aopen_f(grp_id,attribute_name,attribute_id,hdf5_err)
+        call h5aread_f(attribute_id,atype_id,word,attribute_dim,hdf5_err)
+        call h5aclose_f(attribute_id,hdf5_err)
+        call h5tclose_f(atype_id,hdf5_err)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('STEP')
+            time_interpolation_method = INTERPOLATION_STEP
+          case('LINEAR')
+            time_interpolation_method = INTERPOLATION_LINEAR
+          case default
+            option%io_buffer = 'Time Interpolation Method "' // &
+              trim(adjustl(word)) // '" not recognized in &
+              &HDF5 Dataset "' // trim(dataset_name) // &
+              '" in "' // trim(filename) // '".'
+            call PrintErrMsg(option)
+        end select
       endif
 
       ! Check whether a time array actually exists
@@ -338,19 +368,18 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 
   ! Need to catch errors in opening the file.  Since the file is only opened
   ! by the I/O rank, need to broadcast the error flag.
-  temp_int = h5fopen_err
-  int_mpi = 1
-  call MPI_Bcast(temp_int,int_mpi,MPI_INTEGER,option%comm%io_rank, &
-                 option%mycomm,ierr);CHKERRQ(ierr)
-  if (temp_int < 0) then ! actually h5fopen_err
+  int_bcast(1) = h5fopen_err
+  int_bcast(2) = num_times_read_by_iorank
+  int_bcast(3) = time_interpolation_method
+  call MPI_Bcast(int_bcast,THREE_INTEGER_MPI,MPI_INTEGER, &
+                 option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
+  h5fopen_err = int_bcast(1)
+  num_times = int_bcast(2)
+  time_interpolation_method = int_bcast(3)
+  if (h5fopen_err < 0) then ! actually h5fopen_err
     option%io_buffer = 'Error opening file: ' // trim(filename)
     call PrintErrMsg(option)
   endif
-
-  int_mpi = 1
-  call MPI_Bcast(num_times_read_by_iorank,int_mpi,MPI_INTEGER, &
-                 option%comm%io_rank,option%mycomm,ierr);CHKERRQ(ierr)
-  num_times = num_times_read_by_iorank
 
   if (num_times == -1) then
     ! no times exist, simply return
@@ -358,6 +387,9 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   endif
 
   time_storage => TimeStorageCreate()
+  if (Initialized(time_interpolation_method)) then
+    time_storage%time_interpolation_method = time_interpolation_method
+  endif
   time_storage%max_time_index = int(num_times)
   allocate(time_storage%times(num_times))
   time_storage%times = 0.d0

@@ -14,6 +14,16 @@ module Mphase_Aux_module
 !#define GARCIA 1
 #define DUANDEN 1
 
+  ! mphase equation of state
+  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
+  PetscInt, parameter, public :: EOS_MRK = 2
+
+  PetscInt, public :: mphase_co2_eos = EOS_SPAN_WAGNER
+
+  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
+
   type, public :: mphase_auxvar_elem_type
     PetscReal :: pres
     PetscReal :: temp
@@ -56,6 +66,7 @@ module Mphase_Aux_module
   end type mphase_auxvar_type
 
   type, public :: mphase_parameter_type
+    PetscInt :: idt_switch
     PetscReal, pointer :: dencpr(:)
     PetscReal, pointer :: ckwet(:)
     PetscReal, pointer :: sir(:,:)
@@ -111,6 +122,7 @@ function MphaseAuxCreate()
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
   allocate(aux%mphase_parameter)
+  aux%mphase_parameter%idt_switch = -1
   nullify(aux%mphase_parameter%sir)
   nullify(aux%mphase_parameter%ckwet)
   nullify(aux%mphase_parameter%dencpr)
@@ -336,19 +348,19 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
     if (p2 >= 5.d4) then
 
-      if (option%co2eos == EOS_SPAN_WAGNER) then
+      if (mphase_co2_eos == EOS_SPAN_WAGNER) then
 ! ************ Span-Wagner EOS ********************
-        select case(option%itable)
+        select case(co2_sw_itable)
           case(0,1,2,4,5)
-            if (option%itable >= 4) then
+            if (co2_sw_itable >= 4) then
                 ! print *,' interp', itable
               call co2_sw_interp(p2*1.D-6,t,dg,dddt,dddp,fg, &
-                     dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
+                     dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,co2_sw_itable)
             else
               iflag = 1
-              call co2_span_wagner(p2*1.D-6,t+273.15D0,dg,dddt,dddp,fg, &
+              call co2_span_wagner(p2*1.D-6,t+T273K,dg,dddt,dddp,fg, &
                      dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag, &
-                     option%itable)
+                     co2_sw_itable)
             endif
 
             dg = dg/FMWCO2
@@ -366,7 +378,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
             xphi = fg/p2
           end select
 
-       elseif (option%co2eos == EOS_MRK) then
+       elseif (mphase_co2_eos == EOS_MRK) then
 
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(t,p2,dg,fg,xphi,hg)
@@ -438,13 +450,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !   auxvar%diff(option%nflowspec+1:option%nflowspec*2) = 2.13D-5
     auxvar%diff(option%nflowspec+1:option%nflowspec*2) = &
       fluid_properties%gas_diffusion_coefficient &
-      * 101325.d0/p * ((t+273.15d0)/273.15d0)**1.8d0
+      * 101325.d0/p * ((t+T273K)/T273K)**1.8d0
 !       fluid_properties%diff_base(2)
 
 !   print *,'gas diff: ',fluid_properties%gas_diffusion_coefficient,p,t
 
 !  z factor
-    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1.D-3)
+    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+T273K)*1.D-3)
 
 !***************  Liquid phase properties **************************
 
@@ -503,7 +515,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
  ! Hebach, J. Chem.Eng.Data 2004 (49),p950 ***********
  !   den(1) = 949.7109D0 + p*(0.559684D-6 - 0.00097D-12*p) &
- !      + (t+273.15)*(0.883148 - 0.00228*(t+273.15))
+ !      + (t+T273K)*(0.883148 - 0.00228*(t+T273K))
  !  den(1) = dw_kg + (den(1)-dw_kg)*xmol(2)/p*henry
  !  den(1) = den(1)/avgmw(1)
 

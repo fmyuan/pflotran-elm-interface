@@ -9,14 +9,14 @@ module Reaction_Isotherm_module
 
   implicit none
 
-  public :: IsothermRead, &
-            RTotalSorbKD
+  public :: ReactionIsothermReadIsotherm, &
+            ReactionIsothermTotalSorbKD
 
 contains
 
 ! ************************************************************************** !
 
-subroutine IsothermRead(isotherm,input,option)
+subroutine ReactionIsothermReadIsotherm(isotherm,input,option)
   !
   ! Reads chemical species
   !
@@ -70,10 +70,10 @@ subroutine IsothermRead(isotherm,input,option)
     kd_units = ''
     multi_kd_units = ''
     isotherm%neqkdrxn = isotherm%neqkdrxn + 1
-    isotherm_rxn => IsothermLinkCreate()
+    isotherm_rxn => ReactionIsothermCreateLink()
     isotherm_rxn%species_name = trim(word)
     if (option%use_sc) then
-      sec_cont_isotherm_rxn => IsothermLinkCreate()
+      sec_cont_isotherm_rxn => ReactionIsothermCreateLink()
       sec_cont_isotherm_rxn%species_name = isotherm_rxn%species_name
       sec_cont_isotherm_rxn%Kd = UNINITIALIZED_DOUBLE
     endif
@@ -155,10 +155,12 @@ subroutine IsothermRead(isotherm,input,option)
       endif
     endif
 
-    call IsothermConvertKDUnits(isotherm_rxn%Kd,kd_units,ikd_units,option)
+    call ReactionIsothermConvertKDUnits(isotherm_rxn%Kd,kd_units, &
+                                        ikd_units,option)
     if (associated(sec_cont_isotherm_rxn)) then
-      call IsothermConvertKDUnits(sec_cont_isotherm_rxn%Kd,multi_kd_units, &
-                                  imulti_kd_units,option)
+      call ReactionIsothermConvertKDUnits(sec_cont_isotherm_rxn%Kd, &
+                                          multi_kd_units, &
+                                          imulti_kd_units,option)
       if (ikd_units /= imulti_kd_units) then
         if (len_trim(kd_units) == 0) kd_units = 'default'
         if (len_trim(multi_kd_units) == 0) multi_kd_units = 'default'
@@ -214,10 +216,10 @@ subroutine IsothermRead(isotherm,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine IsothermRead
+end subroutine ReactionIsothermReadIsotherm
 
 ! ************************************************************************** !
-subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
+subroutine ReactionIsothermConvertKDUnits(kd,kd_units,ikd_units,option)
 
   ! Converts units of isotherm reaction
 
@@ -257,11 +259,12 @@ subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
     endif
   endif
 
-end subroutine IsothermConvertKDUnits
+end subroutine ReactionIsothermConvertKDUnits
 
 ! ************************************************************************** !
-subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
-                        isotherm_rxn,option)
+subroutine ReactionIsothermTotalSorbKD(rt_auxvar,global_auxvar, &
+                                       material_auxvar,isotherm, &
+                                       isotherm_rxn,option)
   !
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion for the linear
@@ -346,6 +349,6 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
       rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc
   enddo
 
-end subroutine RTotalSorbKD
+end subroutine ReactionIsothermTotalSorbKD
 
 end module Reaction_Isotherm_module

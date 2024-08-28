@@ -53,10 +53,19 @@ REGION injection_cell
   BLOCK 3 3 1 1 2 4
 END
 
+REGION source
+  LIST
+    8
+    13
+    18
+    23
+  /
+END
+
 #=========================== src/sink sandbox =================================
 SOURCE_SINK_SANDBOX
   PRESSURE
-    CELL_IDS 8 13 18 23
+    REGION source
     PHASE LIQUID
     INHIBIT_FLOW_ABOVE_PRESSURE
     PRESSURE 1.1d6

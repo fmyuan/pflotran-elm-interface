@@ -38,7 +38,7 @@ END
 #=========================== src/sink sandbox =================================
 SOURCE_SINK_SANDBOX
   PRESSURE
-    COORDINATE 2.5 0.5 2.5
+    REGION injection_cell
     PHASE LIQUID
     INHIBIT_FLOW_BELOW_PRESSURE
     PRESSURE 0.9d6

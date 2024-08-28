@@ -2,8 +2,11 @@ ARG IMAGE
 FROM $IMAGE
 ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch
 
-WORKDIR /scratch
+ENV PFLOTRAN_DIR=/scratch
+ENV SRC_DIR=$PFLOTRAN_DIR/src/clm-pflotran ARTIFACT_DIR=/tmp/test-pflotran-interface
+
+WORKDIR $PFLOTRAN_DIR
 COPY . .
-RUN ./.gitlab/info.sh
-RUN ./.gitlab/build-pflotran-interface.sh
-RUN ./.gitlab/test-pflotran-interface.sh
+RUN $PFLOTRAN_DIR/.gitlab/info.sh
+RUN $PFLOTRAN_DIR/.gitlab/build-pflotran-interface.sh
+RUN $PFLOTRAN_DIR/.gitlab/test-pflotran-interface.sh

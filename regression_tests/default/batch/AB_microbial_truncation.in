@@ -57,7 +57,6 @@ CHEMISTRY
     /
   /
   TRUNCATE_CONCENTRATION 1.d-20
-  DATABASE ../../../database/hanford.dat
   ACTIVITY_COEFFICIENTS OFF
   MOLAL
   OUTPUT
