@@ -1463,11 +1463,11 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   PetscReal ::rock_dencpr
 
   PetscReal :: vol,por
-  PetscReal :: porXvol, mol(option%nflowspec), eng
+  PetscReal :: porXvol, kmol(option%nflowspec), eng
   PetscReal :: vol_frac_prim
 
   ! ice variables
-  PetscReal :: sat_g, den_g, mol_g, u_g
+  PetscReal :: sat_g, den_g, kmol_g, u_g
   PetscReal :: sat_i, den_i, u_i
 
   vol = material_auxvar%volume
@@ -1476,11 +1476,15 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
   ! TechNotes, TH Mode: First term of Equation 8
   porXvol = por*vol
-
-  mol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*porXvol
+  ! [kmol] = [m^3 water/m^3 por] * [kmol water/m^3 water] * [m^3 pore/m^3 bulk] &
+  !           * [m^3 bulk]
+  kmol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*porXvol
 
 ! TechNotes, TH Mode: First term of Equation 9
   ! rock_dencpr [MJ/m^3 rock-K]
+  ! [MJ] = [m^3 water/m^3 por] * [kmol water/m^3 water] * [MJ/m^3 water] &
+  !        * [m^3 pore/m^3 bulk] * [m^3 bulk] + [m^3 rock/m^3 bulk] * [m^3 bulk] &
+  !        * [MJ/m^3 rock-K] * [C]
   eng = global_auxvar%sat(1) * &
         global_auxvar%den(1) * &
         auxvar%u * porXvol + &
@@ -1493,13 +1497,14 @@ subroutine THAccumulation(auxvar,global_auxvar, &
      u_i   = auxvar%ice%u_ice
      den_i = auxvar%ice%den_ice
      den_g = auxvar%ice%den_gas
-     mol_g = auxvar%ice%mol_gas
+     kmol_g = auxvar%ice%mol_gas
      u_g = auxvar%ice%u_gas
-     mol(1) = mol(1) + (sat_g*den_g*mol_g + sat_i*den_i)*porXvol
+     kmol(1) = kmol(1) + (sat_g*den_g*kmol_g + sat_i*den_i)*porXvol
      eng = eng + (sat_g*den_g*u_g + sat_i*den_i*u_i)*porXvol
   endif
-
-  Res(1:option%nflowdof-1) = mol(:)/option%flow_dt
+  ! [kmol/s]
+  Res(1:option%nflowdof-1) = kmol(:)/option%flow_dt
+  ! [MJ/s]
   Res(option%nflowdof) = vol_frac_prim*eng/option%flow_dt
 
 end subroutine THAccumulation
@@ -4075,6 +4080,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
 
   implicit none
 
@@ -4088,7 +4094,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: xx_loc_p(:), yy_p(:)
 
-  PetscReal :: qsrc1, esrc1
+  PetscReal :: qsrc1, esrc1, qsrc_kmol
 
   PetscReal :: Res_src(realization%option%nflowdof)
 
@@ -4112,6 +4118,11 @@ subroutine THResidualSourceSink(r,realization,ierr)
   PetscReal :: pressure_max
   PetscReal :: pressure_min
   PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: dummy
 
   PetscInt :: iconn, istart, iend
   PetscInt :: sum_connection
@@ -4153,6 +4164,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
+      qsrc1 = 0.d0
       if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
         source_sink%flow_condition%itype(1) /= WELL_SS) &
         qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
@@ -4160,20 +4172,41 @@ subroutine THResidualSourceSink(r,realization,ierr)
       Res_src = 0.d0
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc_kmol = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
+          qsrc_kmol = qsrc1 / FMWH2O * &
                       ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc_kmol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,dummy)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+          endif
+          !
+          qsrc_kmol = qsrc1/FMWH2O*volume_scale*smoothstep_scale
         case(WELL_SS) ! production well, Karra 11/10/2015
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -4203,7 +4236,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
                 if (ukvr*Dq > floweps) then
                   v_darcy = Dq * ukvr * dphi
                   ! store volumetric rate for ss_fluid_fluxes()
-                  qsrc1 = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
+                  qsrc_kmol = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
                 endif
               endif
             endif
@@ -4216,9 +4249,10 @@ subroutine THResidualSourceSink(r,realization,ierr)
             trim(adjustl(string)) // ', not implemented.'
       end select
 
-      Res_src(TH_PRESSURE_DOF) = qsrc1
+      Res_src(TH_PRESSURE_DOF) = qsrc_kmol
 
       esrc1 = 0.d0
+      ! the unit of *_RATE_SS are J/s
       select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
         case (ENERGY_RATE_SS)
           esrc1 = source_sink%flow_condition%energy_rate%dataset%rarray(1)
@@ -4234,13 +4268,13 @@ subroutine THResidualSourceSink(r,realization,ierr)
       Res_src(TH_TEMPERATURE_DOF) = esrc1*1.d6*option%scale
 
       ! Update residual term associated with T
-      if (qsrc1 > 0.d0) then ! injection
+      if (qsrc_kmol > 0.d0) then ! injection
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars_ss(sum_connection)%h
+          qsrc_kmol*auxvars_ss(sum_connection)%h
       else
         ! extraction
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars(ghosted_id)%h
+          qsrc_kmol*auxvars(ghosted_id)%h
       endif
 
       r_p(istart:iend) = r_p(istart:iend) - Res_src
@@ -4250,13 +4284,12 @@ subroutine THResidualSourceSink(r,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - Res_src(1)
       endif
       if (associated(patch%ss_flow_vol_fluxes)) then
-        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
-        patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc1 / &
+        ! fluid flux [m^3/sec] = qsrc_kmol [kmol/sec] / den [kmol/m^3]
+        patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc_kmol / &
                                            global_auxvars(ghosted_id)%den(1)
       endif
       if (associated(patch%ss_flow_fluxes)) then
-        patch%ss_flow_fluxes(1,sum_connection) = qsrc1
-
+        patch%ss_flow_fluxes(1,sum_connection) = qsrc_kmol
       endif
 
 
@@ -4924,6 +4957,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Utility_module, only : Smoothstep
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -4931,7 +4965,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   PetscErrorCode :: ierr
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal :: qsrc1
+  PetscReal :: qsrc1, qsrc_kmol
   PetscInt :: local_id, ghosted_id
   PetscReal :: f_up
   PetscReal :: Jsrc(realization%option%nflowdof,realization%option%nflowdof)
@@ -4955,6 +4989,11 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   PetscViewer :: viewer
 
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: derivative ! rename to dsss_dp smooth step scale
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -4975,6 +5014,12 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     if (.not.associated(source_sink)) exit
 
     cur_connection_set => source_sink%connection_set
+    smoothstep_scale = 1.d0
+    derivative = 0.d0
+
+    if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
+      source_sink%flow_condition%itype(1) /= WELL_SS) &
+      qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
 
     do iconn = 1, cur_connection_set%num_connections
 
@@ -4990,20 +5035,41 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc_kmol = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
+          qsrc_kmol = qsrc1 / FMWH2O * &
                ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
                    source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc_kmol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,derivative)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+            derivative = -1.d0 * derivative
+          endif
+          qsrc_kmol = qsrc1/FMWH2O*volume_scale
         case default
           write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer = &
@@ -5014,17 +5080,23 @@ subroutine THJacobianSourceSink(A,realization,ierr)
       Jsrc = 0.d0
 
       if (qsrc1 > 0.d0) then ! injection
+        Jsrc(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = -qsrc_kmol*derivative
+        !Jsrc(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = 0.d0
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars_ss(sum_connection)%dh_dp
+          - qsrc_kmol*(auxvars_ss(sum_connection)%dh_dp*smoothstep_scale + &
+                       auxvars_ss(sum_connection)%h*derivative)
         ! since tsrc1 is prescribed, there is no derivative
         ! dresT_dT = -qsrc1*hw_dT
         istart = ghosted_id*option%nflowdof
       else
         ! extraction
+        Jsrc(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = -qsrc_kmol*derivative
+        !Jsrc(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = 0.d0
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dp
+          - qsrc_kmol*(auxvars(ghosted_id)%dh_dp*smoothstep_scale + &
+                       auxvars(ghosted_id)%h*derivative)
         Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dT
+          -qsrc_kmol*auxvars(ghosted_id)%dh_dT*smoothstep_scale
         istart = ghosted_id*option%nflowdof
       endif
 
@@ -5033,7 +5105,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-
 
     enddo
     source_sink => source_sink%next

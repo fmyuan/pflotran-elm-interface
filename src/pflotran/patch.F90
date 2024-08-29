@@ -4158,7 +4158,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                                             flow_condition%rate%dataset, &
                                             TH_PRESSURE_DOF,option)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS,PRES_REG_MASS_RATE_SS)
         call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
                                   option)
         rate_scale_type = flow_condition%rate%isubtype

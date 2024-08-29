@@ -1856,7 +1856,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
 
         case(PRES_REG_MASS_RATE_SS)
           threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
-          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          inhibit_flow_above_pressure = (threshold_pressure > 0.d0)
           threshold_pressure = dabs(threshold_pressure)
           pressure_span = source_sink%flow_condition%rate%aux_real(2)
           if (inhibit_flow_above_pressure) then
@@ -2806,7 +2806,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
         case(PRES_REG_MASS_RATE_SS)
           threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
-          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          inhibit_flow_above_pressure = (threshold_pressure > 0.d0)
           threshold_pressure = dabs(threshold_pressure)
           pressure_span = source_sink%flow_condition%rate%aux_real(2)
           if (inhibit_flow_above_pressure) then

@@ -1,0 +1,141 @@
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+  /
+
+  LINEAR_SOLVER
+    # cannot use direct solver in parallel
+    #SOLVER DIRECT
+    
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 1 5
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 1.d0 5.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  THERMAL_CONDUCTIVITY_DRY 0.5 W/m-C
+  THERMAL_CONDUCTIVITY_WET 2.0 W/m-C
+  SPECIFIC_HEAT 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-16
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  DEFAULT
+END
+
+skip
+OUTPUT
+  FORMAT TECPLOT POINT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  VARIABLES
+    LIQUID_PRESSURE
+    TEMPERATURE
+  /
+END
+
+OBSERVATION
+  REGION well
+END
+noskip
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    8
+    13
+    18
+    23
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+    TEMPERATURE
+  /
+END
+
+#=========================== regions ==========================================
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 1.d0 5.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 5.d0
+  /
+END
+
+REGION well
+  LIST
+    8
+    13
+    18
+    23
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0. 0. 5.
+  LIQUID_PRESSURE 1.d6
+  TEMPERATURE 25.d0
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== condition couplers ===============================
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+

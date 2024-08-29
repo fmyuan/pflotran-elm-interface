@@ -518,7 +518,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,dpsat_dT,aux, &
                               visl,dvis_dT,dvis_dp,ierr)
   endif
-  ! J/kmol -> whatever units
+  ! J/kmol -> whatever units (default of option%scale is 1.e-6)
   hw = hw * option%scale
   hw_dp = hw_dp * option%scale
   hw_dT = hw_dT * option%scale
