@@ -1881,6 +1881,22 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                 endif
               endif
             endif
+          ! injection well (well status = 1)
+          elseif (dabs(well_status - 1.D0) > -1.D-1) then
+            if (global_auxvars(ghosted_id)%pres(1) < pressure_max) then
+              Dq = well_factor
+              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
+              if (dphi <= 0.D0) then ! inflow only
+                ukvr = rich_auxvars(ghosted_id)%kvr
+                if (ukvr < 1.e-20) ukvr = 0.D0
+                v_darcy = 0.D0
+                if (ukvr*Dq > floweps) then
+                  v_darcy = Dq * ukvr * dphi
+                  ! store volumetric rate for ss_fluid_fluxes()
+                  qsrc_mol = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
+                endif
+              endif
+            endif
           endif
       end select
 
@@ -2779,6 +2795,25 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
               Dq = well_factor
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
               if (dphi >= 0.D0) then ! outflow only
+                ukvr = rich_auxvars(ghosted_id)%kvr
+                if (ukvr < 1.e-20) ukvr = 0.D0
+                v_darcy = 0.D0
+                if (ukvr*Dq > floweps) then
+                  v_darcy = Dq * ukvr * dphi
+                  ! store volumetric rate for ss_fluid_fluxes()
+                  Jup(1,1) = -1.d0*(-Dq*rich_auxvars(ghosted_id)%dkvr_dp*dphi* &
+                             global_auxvars(ghosted_id)%den(1) &
+                             -Dq*ukvr*1.d0*global_auxvars(ghosted_id)%den(1) &
+                             -Dq*ukvr*dphi*rich_auxvars(ghosted_id)%dden_dp)
+                endif
+              endif
+            endif
+          ! injection well (well status = 1)
+          elseif (dabs(well_status - 1.D0) > -1.D-1) then
+            if (global_auxvars(ghosted_id)%pres(1) < pressure_max) then
+              Dq = well_factor
+              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
+              if (dphi <= 0.D0) then ! inflow only
                 ukvr = rich_auxvars(ghosted_id)%kvr
                 if (ukvr < 1.e-20) ukvr = 0.D0
                 v_darcy = 0.D0
