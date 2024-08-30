@@ -1750,6 +1750,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
 
   implicit none
 
@@ -1783,6 +1784,11 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscReal :: pressure_max
   PetscReal :: pressure_min
   PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: dummy
 
   Mat, parameter :: null_mat = tMat(0)
 
@@ -1848,6 +1854,26 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                                                            ! kg/sec -> kmol/sec
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
 
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,dummy)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+          endif
+          qsrc_mol = qsrc/FMWH2O*volume_scale*smoothstep_scale
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -2700,6 +2726,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
 
   implicit none
 
@@ -2734,6 +2761,11 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   PetscReal :: ukvr, Dq, dphi, v_darcy
   Vec, parameter :: null_vec = tVec(0)
   character(len=MAXSTRINGLENGTH) :: string
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: derivative
 
   patch => realization%patch
   grid => patch%grid
@@ -2772,6 +2804,27 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
         case(HET_VOL_RATE_SS)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,derivative)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+            derivative = -1.d0 * derivative
+          endif
+          Jup(1,1) = -qsrc/FMWH2O*volume_scale*derivative
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -3057,17 +3110,17 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
       call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                         global_auxvars(ghosted_id), &
                                         rich_auxvars(ghosted_id),option)
-      call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
+      call cur_srcsink%Evaluate(res,Jac,compute_derivative, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
       if (compute_derivative) then
+#if 0
         call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                           global_auxvars(ghosted_id), &
                                           rich_auxvars(ghosted_id),option)
         call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
                                   material_auxvars(ghosted_id), &
                                   aux_real,option)
-#if 0
         pert = global_auxvars(ghosted_id)%pres(1)*1.d-6
         aux_real(1) = global_auxvars(ghosted_id)%pres(1)+pert
         call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &

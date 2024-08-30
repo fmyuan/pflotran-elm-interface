@@ -1215,7 +1215,7 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
               energy_rate_unit_string = 'MJ/sec|MW'
             case('SCALED_MASS_RATE','SCALED_VOLUMETRIC_RATE', &
-                 'SCALED_ENERGY_RATE')
+                 'SCALED_ENERGY_RATE','PRESSURE_REGULATED_MASS_RATE')
               select case(word)
                 case('SCALED_MASS_RATE')
                   sub_condition_ptr%itype = SCALED_MASS_RATE_SS
@@ -1226,6 +1226,9 @@ subroutine FlowConditionRead(condition,input,option)
                 case('SCALED_ENERGY_RATE')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
                   energy_rate_unit_string = 'MW|MJ/sec'
+                case('PRESSURE_REGULATED_MASS_RATE')
+                  sub_condition_ptr%itype = PRES_REG_MASS_RATE_SS
+                  rate_unit_string = 'kg/sec'
               end select
               ! store name of type for error messaging below.
               string = word
@@ -1434,7 +1437,13 @@ subroutine FlowConditionRead(condition,input,option)
                                  saturation%units,internal_units)
       case('CONDUCTANCE')
         call InputReadDouble(input,option,pressure%aux_real(1))
-        call InputErrorMsg(input,option,'CONDUCTANCE','CONDITION')
+        call InputErrorMsg(input,option,word,'CONDITION')
+      case('THRESHOLD_PRESSURE')
+        call InputReadDouble(input,option,rate%aux_real(1))
+        call InputErrorMsg(input,option,word,'CONDITION')
+      case('THRESHOLD_PRESSURE_SPAN')
+        call InputReadDouble(input,option,rate%aux_real(2))
+        call InputErrorMsg(input,option,word,'CONDITION')
       case('PRESSURE','SATURATION','FLUX')
         call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
       case default
