@@ -597,6 +597,7 @@ subroutine PMSCO2Setup(this)
 
   use Material_module
   use SCO2_module
+  use co2_sw_module, only : init_span_wagner
 
   implicit none
 
@@ -607,6 +608,11 @@ subroutine PMSCO2Setup(this)
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
          this%realization%option)
+  ! MAN: This is in here to have the S-W EOS initialized for
+  ! transport. This should be done differently.
+  if (this%realization%option%ntrandof > 0) then
+    call init_span_wagner(this%realization%option)
+  endif
   call SCO2Setup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 

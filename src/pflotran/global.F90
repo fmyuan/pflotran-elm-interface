@@ -840,7 +840,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
 
       ! temperature
       call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
-    case(G_MODE,WF_MODE,SCO2_MODE)
+    case(G_MODE,WF_MODE)
       ! pressure
       call GlobalUpdateSingleAuxVar(realization,LIQUID_DENSITY,time_level)
       if (option%iflowmode == G_MODE .or. option%iflowmode == SCO2_MODE) then
@@ -851,6 +851,18 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY,time_level)
       ! Gas density
       call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY,time_level)
+    case(SCO2_MODE)
+      ! Gas density
+      call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY,time_level)
+      call GlobalUpdateSingleAuxVar(realization,GAS_DENSITY_MOL,time_level)
+      ! liquid pressure
+      call GlobalUpdateSingleAuxVar(realization,LIQUID_PRESSURE,time_level)
+      ! gas pressure
+      call GlobalUpdateSingleAuxVar(realization,GAS_PRESSURE,time_level)
+      ! temperature
+      call GlobalUpdateSingleAuxVar(realization,TEMPERATURE,time_level)
+      ! fugacity coeff
+      call GlobalUpdateSingleAuxVar(realization,SC_FUGA_COEFF,time_level)
   end select
 
   ! darcy velocity (start)

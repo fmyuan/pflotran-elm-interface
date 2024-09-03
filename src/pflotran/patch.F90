@@ -7398,6 +7398,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                 vec_ptr(local_id) = 0.d0
               endif
             enddo
+          case(SC_FUGA_COEFF)
+            if (.not.associated(patch%aux%Global%auxvars(1)%fugacoeff) .and. &
+                OptionPrintToScreen(option))then
+              print *,'ERROR: fugacoeff not allocated for ', &
+                       option%iflowmode, 1
+            endif
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Global%&
+                auxvars(grid%nL2G(local_id))%fugacoeff(1)
+            enddo
           case default
             call PatchUnsupportedVariable('SCO2',ivar,option)
         end select

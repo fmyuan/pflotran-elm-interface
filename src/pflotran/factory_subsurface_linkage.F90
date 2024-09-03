@@ -990,8 +990,9 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
     end select
 
     if ( (option%itranmode /= NULL_MODE) .and. &
-        (option%itranmode /= NWT_MODE) ) then
-        option%io_buffer = 'The WELLBORE_MODEL process model can only be &
+         (option%iflowmode /= SCO2_MODE) .and. &
+         (option%itranmode /= NWT_MODE) ) then
+      option%io_buffer = 'The WELLBORE_MODEL process model can only be &
                           &used with NWT mode at the moment.'
       call PrintErrMsg(option)
     endif
