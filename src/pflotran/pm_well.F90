@@ -2238,21 +2238,14 @@ subroutine PMWellSetup(this)
         do
           if (.not.associated(coupler)) exit
           if (StringCompare(coupler%well_name,this%name)) then
-            if (.not. associated(this%flow_condition)) then
-              this%flow_condition => coupler%flow_condition
-            endif
-            if (option%itranmode == RT_MODE) then
-              source_sink%tran_condition => coupler%tran_condition
+            if (option%ntrandof > 0) then
+              if (option%itranmode == RT_MODE) then
+                source_sink%tran_condition => coupler%tran_condition
+              endif
             endif
           endif
           coupler => coupler%next
         enddo
-        if (.not. associated(this%flow_condition)) then
-          option%io_buffer = 'Well model invokes USE_WELL_COUPLER &
-            &for flow conditions, but no WELL_COUPLERs were found &
-            &linked to well named '// trim(this%name) // '.'
-          call PrintErrMsg(option)
-        endif
       endif
 
     case(H_MODE)
@@ -2303,6 +2296,23 @@ subroutine PMWellSetup(this)
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
   enddo
+
+  if (this%use_well_coupler) then
+    coupler => realization%patch%well_coupler_list%first
+    do
+      if (.not.associated(coupler)) exit
+      if (StringCompare(coupler%well_name,this%name)) then
+        this%flow_condition => coupler%flow_condition
+      endif
+      coupler => coupler%next
+    enddo
+    if (.not. associated(this%flow_condition)) then
+      option%io_buffer = 'Well model invokes USE_WELL_COUPLER &
+        &for flow conditions, but no WELL_COUPLERs were found &
+        &linked to well named '// trim(this%name) // '.'
+      call PrintErrMsg(option)
+    endif
+  endif
 
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
   ! exclude the bottom of the well for hydrostatic well model.

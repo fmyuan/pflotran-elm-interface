@@ -799,32 +799,34 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                                                    UNINITIALIZED_DOUBLE
       endif
     endif
-    global_auxvars(ghosted_id)%pres(lid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(lid)
-    global_auxvars(ghosted_id)%pres(gid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)
-    global_auxvars(ghosted_id)%temp = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%temp
-    global_auxvars(ghosted_id)%sat(lid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid)
-    global_auxvars(ghosted_id)%sat(gid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid)
-    global_auxvars(ghosted_id)%den(lid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(lid)
-    global_auxvars(ghosted_id)%den(gid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(gid)
-    global_auxvars(ghosted_id)%den_kg(lid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid)
-    global_auxvars(ghosted_id)%den_kg(gid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid)
-    global_auxvars(ghosted_id)%xmass(lid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid)
-    global_auxvars(ghosted_id)%xmass(gid) = &
-                          sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
-    !MAN: this might be better placed elsewhere.
-    global_auxvars(ghosted_id)%reaction_rate_store(:) = &
-                                   global_auxvars(ghosted_id)%reaction_rate(:)
-    global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
+    if (option%ntrandof > 0) then
+      global_auxvars(ghosted_id)%pres(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(lid)
+      global_auxvars(ghosted_id)%pres(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)
+      global_auxvars(ghosted_id)%temp = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%temp
+      global_auxvars(ghosted_id)%sat(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid)
+      global_auxvars(ghosted_id)%sat(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid)
+      global_auxvars(ghosted_id)%den(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(lid)
+      global_auxvars(ghosted_id)%den(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(gid)
+      global_auxvars(ghosted_id)%den_kg(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid)
+      global_auxvars(ghosted_id)%den_kg(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid)
+      global_auxvars(ghosted_id)%xmass(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid)
+      global_auxvars(ghosted_id)%xmass(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
+      !MAN: this might be better placed elsewhere.
+      global_auxvars(ghosted_id)%reaction_rate_store(:) = &
+                                    global_auxvars(ghosted_id)%reaction_rate(:)
+      global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
+    endif
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -961,28 +963,30 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             end select
         endif
       endif
-      global_auxvars_bc(sum_connection)%pres(lid) = &
-                              sco2_auxvars_bc(sum_connection)%pres(lid)
-      global_auxvars_bc(sum_connection)%pres(gid) = &
-                              sco2_auxvars_bc(sum_connection)%pres(gid)
-      global_auxvars_bc(sum_connection)%temp = &
-                              sco2_auxvars_bc(sum_connection)%temp
-      global_auxvars_bc(sum_connection)%sat(lid) = &
-                              sco2_auxvars_bc(sum_connection)%sat(lid)
-      global_auxvars_bc(sum_connection)%sat(gid) = &
-                              sco2_auxvars_bc(sum_connection)%sat(gid)
-      global_auxvars_bc(sum_connection)%den(lid) = &
-                              sco2_auxvars_bc(sum_connection)%den(lid)
-      global_auxvars_bc(sum_connection)%den(gid) = &
-                              sco2_auxvars_bc(sum_connection)%den(gid)
-      global_auxvars_bc(sum_connection)%den_kg(lid) = &
-                              sco2_auxvars_bc(sum_connection)%den_kg(lid)
-      global_auxvars_bc(sum_connection)%den_kg(lid) = &
-                              sco2_auxvars_bc(sum_connection)%den_kg(lid)
-      global_auxvars_bc(sum_connection)%xmass(lid) = &
-                              sco2_auxvars_bc(sum_connection)%xmass(wid,lid)
-      global_auxvars_bc(sum_connection)%xmass(gid) = &
-                              sco2_auxvars_bc(sum_connection)%xmass(wid,gid)
+      if (option%ntrandof > 0) then
+        global_auxvars_bc(sum_connection)%pres(lid) = &
+                                sco2_auxvars_bc(sum_connection)%pres(lid)
+        global_auxvars_bc(sum_connection)%pres(gid) = &
+                                sco2_auxvars_bc(sum_connection)%pres(gid)
+        global_auxvars_bc(sum_connection)%temp = &
+                                sco2_auxvars_bc(sum_connection)%temp
+        global_auxvars_bc(sum_connection)%sat(lid) = &
+                                sco2_auxvars_bc(sum_connection)%sat(lid)
+        global_auxvars_bc(sum_connection)%sat(gid) = &
+                                sco2_auxvars_bc(sum_connection)%sat(gid)
+        global_auxvars_bc(sum_connection)%den(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den(lid)
+        global_auxvars_bc(sum_connection)%den(gid) = &
+                                sco2_auxvars_bc(sum_connection)%den(gid)
+        global_auxvars_bc(sum_connection)%den_kg(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den_kg(lid)
+        global_auxvars_bc(sum_connection)%den_kg(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den_kg(lid)
+        global_auxvars_bc(sum_connection)%xmass(lid) = &
+                                sco2_auxvars_bc(sum_connection)%xmass(wid,lid)
+        global_auxvars_bc(sum_connection)%xmass(gid) = &
+                                sco2_auxvars_bc(sum_connection)%xmass(wid,gid)
+      endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -992,7 +996,10 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   do
     if (.not.associated(source_sink)) exit
 
-    qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
+    if (.not. associated(source_sink%flow_condition%well)) then
+      qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
+    endif
+
     cur_connection_set => source_sink%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
@@ -1119,28 +1126,30 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                           patch%cc_id(ghosted_id))%ptr, &
                           sco2_parameter, grid%nG2A(ghosted_id), &
                           scale, Res_dummy, PETSC_TRUE) ! aux_var_compute_only
-      global_auxvars_ss(sum_connection)%pres(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(lid)
-      global_auxvars_ss(sum_connection)%pres(gid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(gid)
-      global_auxvars_ss(sum_connection)%temp = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
-      global_auxvars_ss(sum_connection)%sat(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(lid)
-      global_auxvars_ss(sum_connection)%sat(gid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(gid)
-      global_auxvars_ss(sum_connection)%den(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(lid)
-      global_auxvars_ss(sum_connection)%den(gid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(gid)
-      global_auxvars_ss(sum_connection)%den_kg(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(lid)
-      global_auxvars_ss(sum_connection)%den_kg(gid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(gid)
-      global_auxvars_ss(sum_connection)%xmass(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
-      global_auxvars_ss(sum_connection)%xmass(lid) = &
-                    sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
+      if (option%ntrandof > 0) then
+        global_auxvars_ss(sum_connection)%pres(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(lid)
+        global_auxvars_ss(sum_connection)%pres(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(gid)
+        global_auxvars_ss(sum_connection)%temp = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
+        global_auxvars_ss(sum_connection)%sat(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(lid)
+        global_auxvars_ss(sum_connection)%sat(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(gid)
+        global_auxvars_ss(sum_connection)%den(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(lid)
+        global_auxvars_ss(sum_connection)%den(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(gid)
+        global_auxvars_ss(sum_connection)%den_kg(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(lid)
+        global_auxvars_ss(sum_connection)%den_kg(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(gid)
+        global_auxvars_ss(sum_connection)%xmass(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
+        global_auxvars_ss(sum_connection)%xmass(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
+      endif
     enddo
     source_sink => source_sink%next
   enddo
