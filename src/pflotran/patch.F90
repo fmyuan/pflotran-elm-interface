@@ -7401,8 +7401,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(SC_FUGA_COEFF)
             if (.not.associated(patch%aux%Global%auxvars(1)%fugacoeff) .and. &
                 OptionPrintToScreen(option))then
-              print *,'ERROR: fugacoeff not allocated for ', &
-                       option%iflowmode, 1
+              call PrintErrMsg(option, "SC_FUGA_COEFF not available for &
+                            &SCO2 flow mode without use of a transport mode.")
             endif
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global%&
