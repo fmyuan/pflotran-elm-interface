@@ -2070,6 +2070,8 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
+  ! print *,'RT CO2 conc', realization%patch%aux%rt%auxvars(1)%pri_molal(11)
+
   call PetscLogEventEnd(logging%event_rt_residual,ierr);CHKERRQ(ierr)
 
 end subroutine RTResidual
@@ -2585,13 +2587,21 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       do
         if (.not.associated(source_sink)) exit
 
+        cur_connection_set => source_sink%connection_set
+
         if (associated(source_sink%flow_condition%well)) then
-          select case(option%iflowmode)
-            case (SCO2_MODE)
-              msrc(1) = source_sink%flow_condition%well%aux_real(1)
-              msrc(2) = source_sink%flow_condition%well%aux_real(2)
-              msrc(3) = 0.d0
-          end select
+          if (dabs(source_sink%flow_condition%well%aux_real(1)) < 1.d-30 .and. &
+              dabs(source_sink%flow_condition%well%aux_real(2)) < 1.d-30) then
+            source_sink => source_sink%next
+            cycle
+          else
+            select case(option%iflowmode)
+              case (SCO2_MODE)
+                msrc(1) = source_sink%flow_condition%well%aux_real(1)
+                msrc(2) = source_sink%flow_condition%well%aux_real(2)
+                msrc(3) = 0.d0
+            end select
+          endif
         else
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
@@ -2627,7 +2637,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                     istartall = iendall-reaction%ncomp
                     Res(icomp) = -msrc(2)
                     r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-  !                 print *,'RT SC source', iactgas,icomp, res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
                   endif
                 enddo
             end select
@@ -2641,7 +2651,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                     istartall = iendall-reaction%ncomp
                     Res(icomp) = -msrc(2)
                     r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-  !                 print *,'RT SC source', iactgas,icomp, res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
                   endif
                 enddo
             end select

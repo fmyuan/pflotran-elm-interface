@@ -1008,6 +1008,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
 
       if (patch%imat(ghosted_id) <= 0) cycle
       if (associated(source_sink%flow_condition%well)) then
+        source_sink%flow_condition%well%aux_real(:) = 0.d0
         if (option%coupled_well .and. associated(pm_well)) then
           cur_well => pm_well
           do

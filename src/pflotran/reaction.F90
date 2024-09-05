@@ -5992,7 +5992,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     if (associated(reaction%gas%acteqlogKcoef)) then
       call ReactionAuxInterpolateLogK_hpt(reaction%gas%acteqlogKcoef, &
                                           reaction%gas%acteqlogK, &
-                                          temp,pres,reaction%gas%npassive_gas)
+                                          temp,pres,reaction%gas%nactive_gas)
     endif
     if (associated(reaction%gas%paseqlogKcoef)) then
       call ReactionAuxInterpolateLogK_hpt(reaction%gas%paseqlogKcoef, &
