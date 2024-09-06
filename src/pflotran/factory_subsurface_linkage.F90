@@ -679,15 +679,17 @@ subroutine FactSubLinkAddPMCUFDBiosphere(simulation,pm_ufd_biosphere, &
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   call pm_ufd_biosphere%ReadPMBlock(input)
-  if (option%itranmode /= RT_MODE) then
+  if (option%itranmode /= RT_MODE .and. option%itranmode /= NWT_MODE) then
      option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
           &transport.'
      call PrintErrMsg(option)
   endif
-  if (.not.pm_ufd_decay_present) then
-     option%io_buffer = 'The UFD_BIOSPHERE process model requires the &
-          &UFD_DECAY process model.'
-     call PrintErrMsg(option)
+  if (option%itranmode == RT_MODE) then
+    if (.not.pm_ufd_decay_present) then
+       option%io_buffer = 'The UFD_BIOSPHERE process model requires the &
+            &UFD_DECAY process model.'
+       call PrintErrMsg(option)
+    endif
   endif
 
   pmc_ufd_biosphere => PMCThirdPartyCreate()
