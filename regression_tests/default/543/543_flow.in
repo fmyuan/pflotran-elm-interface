@@ -199,10 +199,7 @@ END
 
 #=========================== regions ==========================================
 REGION all
-  COORDINATES
-    0.d0 0.d0 0.d0
-    60.d0 46.d0 60.d0
-  /
+  INFINITE
 END
 
 REGION top
