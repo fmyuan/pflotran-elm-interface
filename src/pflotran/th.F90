@@ -162,6 +162,12 @@ subroutine THSetup(realization)
     call PrintErrMsg(option)
   endif
 
+  if (.not.associated(patch%char_curves_thermal_array)) then
+    option%io_buffer = 'Thermal properties must be added to all &
+      &material properties (MATERIAL_PROPERTY).'
+    call PrintErrMsg(option)
+  endif
+
   !Copy the values in the th_parameter from the global realization
   error_found = PETSC_FALSE
   do i = 1, size(patch%material_property_array)
