@@ -1441,7 +1441,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
@@ -2052,7 +2052,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       call RTResidualEquilibrateCO2(r,realization)
   end select
 !#endif
@@ -2069,6 +2069,8 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
+
+  ! print *,'RT CO2 conc', realization%patch%aux%rt%auxvars(1)%pri_molal(11)
 
   call PetscLogEventEnd(logging%event_rt_residual,ierr);CHKERRQ(ierr)
 
@@ -2536,6 +2538,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+      else
+        qsrc_flow = 0.d0
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
                         qsrc_flow,source_sink%tran_condition%itype, &
@@ -2578,17 +2582,40 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
 
-        select case(source_sink%flow_condition%itype(1))
-          case(MASS_RATE_SS)
-            msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
-          case default
-            msrc(:) = 0.d0
-        end select
+        cur_connection_set => source_sink%connection_set
+
+        if (associated(source_sink%flow_condition%well)) then
+          if (dabs(source_sink%flow_condition%well%aux_real(1)) < 1.d-30 .and. &
+              dabs(source_sink%flow_condition%well%aux_real(2)) < 1.d-30) then
+            source_sink => source_sink%next
+            cycle
+          else
+            select case(option%iflowmode)
+              case (SCO2_MODE)
+                msrc(1) = source_sink%flow_condition%well%aux_real(1)
+                msrc(2) = source_sink%flow_condition%well%aux_real(2)
+                msrc(3) = 0.d0
+            end select
+          endif
+        else
+          select case(source_sink%flow_condition%itype(1))
+            case(MASS_RATE_SS)
+              select case(option%iflowmode)
+                case (MPH_MODE)
+                  msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
+                case (SCO2_MODE)
+                  msrc(:) = source_sink%flow_condition%sco2%rate%dataset% &
+                            rarray(:)
+              end select
+            case default
+              msrc(:) = 0.d0
+          end select
+        endif
 
         msrc(1) =  msrc(1) / FMWH2O*1D3
         msrc(2) =  msrc(2) / FMWCO2*1D3
@@ -2600,19 +2627,35 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
           if (patch%imat(ghosted_id) <= 0) cycle
 
-          select case(source_sink%flow_condition%itype(1))
-            case(MASS_RATE_SS)
-              do iactgas = 1, reaction%gas%nactive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
-                  icomp = reaction%gas%paseqspecid(1,iactgas)
-                  iendall = local_id*reaction%ncomp
-                  istartall = iendall-reaction%ncomp
-                  Res(icomp) = -msrc(2)
-                  r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', iactgas,icomp, res(icomp)
-                endif
-              enddo
-          end select
+          if (associated(source_sink%flow_condition%well)) then
+            select case(option%iflowmode)
+              case (SCO2_MODE)
+                do iactgas = 1, reaction%gas%nactive_gas
+                  if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                    icomp = reaction%gas%paseqspecid(1,iactgas)
+                    iendall = local_id*reaction%ncomp
+                    istartall = iendall-reaction%ncomp
+                    Res(icomp) = -msrc(2)
+                    r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
+                  endif
+                enddo
+            end select
+          else
+            select case(source_sink%flow_condition%itype(1))
+              case(MASS_RATE_SS)
+                do iactgas = 1, reaction%gas%nactive_gas
+                  if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                    icomp = reaction%gas%paseqspecid(1,iactgas)
+                    iendall = local_id*reaction%ncomp
+                    istartall = iendall-reaction%ncomp
+                    Res(icomp) = -msrc(2)
+                    r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
+                  endif
+                enddo
+            end select
+          endif
         enddo
         source_sink => source_sink%next
       enddo
@@ -2855,7 +2898,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
     call RTJacobianEquilibrateCO2(J,realization)
   end select
 !#endif
@@ -3236,6 +3279,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+      else
+        qsrc_flow = 0.d0
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
                         qsrc_flow,source_sink%tran_condition%itype, &
@@ -3465,7 +3510,8 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
       call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
-      if (option%iflowmode == MPH_MODE) then
+      if (option%iflowmode == MPH_MODE .or. &
+          option%iflowmode == SCO2_MODE) then
         call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
@@ -3490,7 +3536,8 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                    patch%aux%Global% &
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE) then
+        if (option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == SCO2_MODE) then
           call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
                              patch%aux%Global%auxvars_bc(sum_connection), &
                              reaction,option)
@@ -3629,7 +3676,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         call RActivityCoefficients(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE) then
+        if (option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == SCO2_MODE) then
           call CO2AqActCoeff(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
@@ -3710,7 +3758,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 #endif
 
         equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
-        if (option%iflowmode /= MPH_MODE) then
+        if (option%iflowmode /= MPH_MODE .and. &
+            option%iflowmode /= SCO2_MODE) then
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! since basis_molarity is in molarity, must convert to molality

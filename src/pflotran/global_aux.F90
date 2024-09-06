@@ -203,7 +203,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%m_nacl)
       nullify(auxvar%reaction_rate)
       nullify(auxvar%reaction_rate_store)
-    case (G_MODE,H_MODE,SCO2_MODE)
+    case (G_MODE,H_MODE)
       if (option%ntrandof > 0 .or. option%flow%store_state_variables_in_global) then
         allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0
@@ -217,6 +217,26 @@ subroutine GlobalAuxVarInit(auxvar,option)
       if (option%ntrandof > 0) then
         allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0
+      endif
+    case (SCO2_MODE)
+      if (option%ntrandof > 0 .or. option%flow%store_state_variables_in_global) then
+        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
+        auxvar%pres_store = 0.d0
+        allocate(auxvar%temp_store(TWO_INTEGER))
+        auxvar%temp_store = 0.d0
+        allocate(auxvar%den_store(nphase,TWO_INTEGER))
+        auxvar%den_store = 0.d0
+        ! This is the water mass fraction in each phase.
+        allocate(auxvar%xmass(nphase))
+        auxvar%xmass = 1.d0
+        allocate(auxvar%fugacoeff(ONE_INTEGER))
+        auxvar%fugacoeff = 1.d0
+        allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
+        auxvar%fugacoeff_store = 1.d0
+        allocate(auxvar%reaction_rate(option%nflowspec))
+        auxvar%reaction_rate = 0.d0
+        allocate(auxvar%reaction_rate_store(option%nflowspec))
+        auxvar%reaction_rate_store = 0.d0
       endif
     case default
   end select

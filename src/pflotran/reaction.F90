@@ -1616,7 +1616,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE) then
+      if (option%iflowmode == MPH_MODE .or. &
+          option%iflowmode == SCO2_MODE) then
         call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
       endif
     endif
@@ -2260,7 +2261,9 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
 
     if (associated(aq_species_constraint)) then
       ! CO2-specific
-      if (.not.option%use_isothermal .and. option%iflowmode == MPH_MODE) then
+      if (.not.option%use_isothermal .and.  &
+          (option%iflowmode == MPH_MODE .or. &
+           option%iflowmode == SCO2_MODE) ) then
         if (associated(reaction%gas%paseqlogKcoef)) then
           do i = 1, reaction%naqcomp
             if (aq_species_constraint%constraint_type(i) == &
@@ -4630,7 +4633,8 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,reaction%isotherm%isotherm_rxn,option)
   endif
-  if (option%iflowmode == MPH_MODE) then
+  if (option%iflowmode == MPH_MODE .or. &
+      option%iflowmode == SCO2_MODE) then
     call ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)

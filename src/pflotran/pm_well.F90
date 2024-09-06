@@ -2165,7 +2165,8 @@ subroutine PMWellSetup(this)
 
   this%flow_soln%ndof = this%nphase
 
-  if (option%itranmode /= NULL_MODE) then
+  if (option%itranmode /= NULL_MODE .and. &
+      option%iflowmode /= SCO2_MODE) then
     this%transport = PETSC_TRUE
     if (option%itranmode /= NWT_MODE) then
       option%io_buffer ='The only transport mode allowed with the &
@@ -2231,6 +2232,22 @@ subroutine PMWellSetup(this)
       else
         source_sink%flow_condition%well%ctype = 'well'
       endif
+
+      if (this%use_well_coupler) then
+        coupler => realization%patch%well_coupler_list%first
+        do
+          if (.not.associated(coupler)) exit
+          if (StringCompare(coupler%well_name,this%name)) then
+            if (option%ntrandof > 0) then
+              if (option%itranmode == RT_MODE) then
+                source_sink%tran_condition => coupler%tran_condition
+              endif
+            endif
+          endif
+          coupler => coupler%next
+        enddo
+      endif
+
     case(H_MODE)
       source_sink%flow_condition%hydrate => FlowHydrateConditionCreate(option)
       string = 'RATE'
@@ -5703,9 +5720,9 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
               -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
           case (SCO2_MODE)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
-              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
+              0.d0 ! [kg/s]
             source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-              -1.d0 * pm_well%well%gas%Q(k) ! [kg/s]
+              0.d0 ! [kg/s]
           case (H_MODE)
             source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]

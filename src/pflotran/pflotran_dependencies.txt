@@ -2184,6 +2184,7 @@ pm_sco2.o : \
   characteristic_curves.o \
   characteristic_curves_common.o \
   checkpoint.o \
+  co2_sw.o \
   convergence.o \
   field.o \
   global.o \
