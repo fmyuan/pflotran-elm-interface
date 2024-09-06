@@ -1,0 +1,24 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.4416633971572E+06
+      Min:   1.0373206342530E+06
+     Mean:   1.1507068699134E+06
+        8:   1.3835728216937E+06
+       13:   1.4359903357151E+06
+       18:   1.4416633971572E+06
+       23:   1.4354249432018E+06
+-- GENERIC: Temperature --
+      Max:   2.5010491000375E+01
+      Min:   2.5000632374890E+01
+     Mean:   2.5004347764814E+01
+        8:   2.5006731010057E+01
+       13:   2.5009605383293E+01
+       18:   2.5010326286013E+01
+       23:   2.5010491000375E+01
+-- SOLUTION: Flow --
+   Time (seconds):   1.2919603200044E-01
+   Time Steps:           10
+   Newton Iterations:           27
+   Linear Solver Iterations:           66
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.7889055978647E+06
+   Residual 2-Norm:   3.8354030915441E-13
