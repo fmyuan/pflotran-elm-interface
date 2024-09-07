@@ -697,6 +697,30 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         patch%material_property_array(i)%ptr%thermal_conductivity_wet
     endif
   enddo
+  select case(option%iflowmode)
+    case(TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE)
+      if (associated(realization%characteristic_curves_thermal)) then
+        if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+          option%io_buffer = 'Mixed thermal characteristic curves and &
+            &legacy thermal conductivity in input deck. Please use one &
+            &or the other.'
+          call PrintErrMsg(option)
+        endif
+      else
+        !geh: dislike the logic here, but i have to follow what was here
+        if (.not.(maxval(check_thermal_conductivity(:,:)) >= 0.d0)) then
+          option%io_buffer = 'No thermal conductivities included in input &
+                             &deck for a flow mode that includes the heat &
+                             &conservation equation.'
+          call PrintErrMsg(option)
+        else if (minval(check_thermal_conductivity(:,:)) < 0.d0) then
+          option%io_buffer = 'Missing thermal conductivities in input &
+                             &deck for a flow mode that includes the heat &
+                             &conservation equation.'
+          call PrintErrMsg(option)
+        endif
+      endif
+  end select
   if (associated(realization%characteristic_curves_thermal)) then
     if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
       option%io_buffer = 'Cannot combine material-based thermal conductivity'//&
