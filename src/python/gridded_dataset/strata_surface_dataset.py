@@ -8,8 +8,8 @@ def create_group(h5file,group_name,cell_centered,step_interpolation,
     if cell_centered:
         h5grp.attrs['Cell Centered'] = True
     if step_interpolation:
-        h5grp.attrs['Space Interpolation Method'] = numpy.string_('STEP')
-    h5grp.attrs['Dimension'] = numpy.string_('XY')
+        h5grp.attrs['Space Interpolation Method'] = numpy.bytes_('STEP')
+    h5grp.attrs['Dimension'] = numpy.bytes_('XY')
 
     if (cell_centered):
         dx = len_[0]/nxy[0]
