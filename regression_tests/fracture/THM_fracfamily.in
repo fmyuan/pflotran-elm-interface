@@ -1,0 +1,317 @@
+#Regression test for fracture model
+#3D
+#Thermo-hydrological mechanical
+#includes fracture family only (no individual fractures)
+#granite system
+
+#================================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+    /
+    FRACTURE_MODEL frac01
+    END
+/
+END
+
+SUBSURFACE
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  Origin 0.d0  0.d0 -500.0d0
+  NXYZ 5 2 4
+  DXYZ
+    5@1
+    2@0.5
+    4@2
+  /
+END
+
+#===========================  flow solver options ===================================
+
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TIMESTEP_REDUCTION_FACTOR 0.75d0
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 3.0d0
+    MAXIMUM_CONSECUTIVE_TS_CUTS 10
+    INITIAL_TIMESTEP_SIZE 10.d0 s
+    MAXIMUM_TIMESTEP_SIZE 0.5d0 d
+  /
+
+  NEWTON_SOLVER
+    VERBOSE_LOGGING
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+/
+ 
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.5d0 y
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    9
+    18
+  /
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  VELOCITY_AT_CENTER
+  SNAPSHOT_FILE
+    
+    PERIODIC TIME 0.1 y between 0.0 y and 1.0 y
+  /
+    FORMAT HDF5
+    VARIABLES
+      TEMPERATURE
+      LIQUID_PRESSURE
+      PERMEABILITY
+      MINERAL_POROSITY #m^3 mineral/m^3 bulk
+      LIQUID_SATURATION
+      LIQUID_MOBILITY #(m/s/kg)
+      MATERIAL_ID
+      PERMEABILITY_X
+      PERMEABILITY_Y
+      PERMEABILITY_Z
+  /
+END
+noskip
+!=========================== geothermal fracture model ========================
+GEOTHERMAL_FRACTURE_MODEL
+  
+  THERMAL_EXPANSION_COEFFICIENT 40.0d-6 # [1/C]
+
+  FRACTURE_FAMILY
+    ID 1
+    MAX_DISTANCE 1.5 [m]
+    NUMBER_OF_FRACTURES 3  # [-]
+    HYDRAULIC_APERTURE
+      HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
+      HYDRAULIC_APERTURE_STDEV 3.d-4 # [m]
+      HYDRAULIC_APERTURE_SEED 213  # [-] must be an integer
+      HYDRAULIC_APERTURE_MAX 1.d-2  # [m]
+    /
+    CENTER 
+      COORDINATE 1.5d0 0.1d0 -493.10  # [m]
+      XCOORD_STDEV 1.0d0  # [m]
+      YCOORD_STDEV 1.0d0  # [m]
+      ZCOORD_STDEV 1.5d0  # [m]
+      CENTER_SEED 20  # [-] must be an integer
+    /
+    NORMAL_VECTOR 
+      VECTOR_COORDINATES 0.80d0 0.d0 0.5d0 # [m]
+      XCOORD_STDEV 2.0d0  # [m]
+      YCOORD_STDEV 0d0  # [m]
+      ZCOORD_STDEV 5.5d0  # [m]
+      NORMAL_SEED 19  # [-] must be an integer
+    /
+    RADIUS 
+      RADIUS_XYZ 1.d0 0.2d0 3.0d0 # [m]
+      RAD_X_STDEV 5.0d0  # [m]
+      RAD_Y_STDEV 1.0d0  # [m]
+      RAD_Z_STDEV 5.0d0  # [m]
+      RADIUS_SEED 31  # [-] must be an integer
+    /
+
+  /
+
+  FRACTURE_FAMILY
+    ID 2
+    MAX_DISTANCE 1.5 [m]
+    NUMBER_OF_FRACTURES 3  # [-]
+    HYDRAULIC_APERTURE
+      HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
+      HYDRAULIC_APERTURE_STDEV 3.d-4 # [m]
+      HYDRAULIC_APERTURE_SEED 213  # [-] must be an integer
+      HYDRAULIC_APERTURE_MAX 1.d-2  # [m]
+    /
+    CENTER 
+      COORDINATE 0.5d0 0.1d0 -497.10  # [m]
+      XCOORD_STDEV 1.0d0  # [m]
+      YCOORD_STDEV 1.0d0  # [m]
+      ZCOORD_STDEV 1.5d0  # [m]
+      CENTER_SEED 20  # [-] must be an integer
+    /
+    NORMAL_VECTOR 
+      VECTOR_COORDINATES 0.0d0 0.5d0 1.0d0 # [m]
+      XCOORD_STDEV 2.0d0  # [m]
+      YCOORD_STDEV 0d0  # [m]
+      ZCOORD_STDEV 5.5d0  # [m]
+      NORMAL_SEED 19  # [-] must be an integer
+    /
+    RADIUS 
+      RADIUS_XYZ 1.d0 0.2d0 3.0d0 # [m]
+      RAD_X_STDEV 5.0d0  # [m]
+      RAD_Y_STDEV 1.0d0  # [m]
+      RAD_Z_STDEV 5.0d0  # [m]
+      RADIUS_SEED 31  # [-] must be an integer
+    /
+
+  /
+
+/
+#=========================== equation of state ================================
+
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+END
+
+#=========================== regions ==========================================
+
+REGION all
+  COORDINATES
+    -1.d20 -1.e20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+
+REGION bottom_face
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 -500
+    5.0d0 1.0d0 -500
+  /
+END
+
+REGION top_face
+  FACE EAST
+  COORDINATES
+    0.d0 0.d0 -492
+    5.0d0 0.3d0 -492
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY rock1 # 0 to -2500 m
+  ID 1
+  CHARACTERISTIC_CURVES rock1
+  POROSITY 0.01d0 #not being read
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.8E3
+  SPECIFIC_HEAT 0.9d3
+  THERMAL_CONDUCTIVITY_DRY 0.9 W/m-C
+  THERMAL_CONDUCTIVITY_WET 0.9 W/m-C
+  PERMEABILITY_CRITICAL_POROSITY 1
+  PERMEABILITY_POWER 0.66
+  PERMEABILITY_MIN_SCALE_FACTOR 1.0
+  PERMEABILITY
+    PERM_X 1.0d-13
+    PERM_Y 1.0d-13
+    PERM_Z 1.0d-13
+  /
+END
+
+
+CHARACTERISTIC_CURVES rock1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 5.d-8
+    M 0.6 
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.6 
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    M 0.6 
+    LIQUID_RESIDUAL_SATURATION 0.0d0
+    GAS_RESIDUAL_SATURATION 0.0d0
+  /
+END
+
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    TEMPERATURE dirichlet
+  /
+  DATUM 0.0 0.0 0.0
+  LIQUID_PRESSURE 101325.d0
+  TEMPERATURE 150.0d0 # [C]
+
+END
+
+
+FLOW_CONDITION top_face
+  TYPE
+   LIQUID_PRESSURE HYDROSTATIC
+   TEMPERATURE dirichlet
+  /
+  TEMPERATURE 150.0d0 # [C]
+  
+  DATUM 0.0 0.0 0.0
+  LIQUID_PRESSURE 101325.d0
+ END
+
+
+
+#=============================================================================
+
+FLOW_CONDITION Inj_well_1
+  TYPE
+    RATE MASS_RATE
+    TEMPERATURE dirichlet
+  /
+  SYNC_TIMESTEP_WITH_UPDATE
+  RATE 0.00005 kg/s
+  TEMPERATURE 70.d0
+END
+
+
+#=========================== set initial and bc conditions ====================
+
+INITIAL_CONDITION initial
+  REGION all
+  FLOW_CONDITION initial
+  #TRANSPORT_CONDITION background_conc_matrix
+END
+
+
+BOUNDARY_CONDITION top
+  REGION top_face
+  FLOW_CONDITION top_face
+END
+
+
+#===============================================================================
+
+SOURCE_SINK Inj_well_1
+  REGION bottom_face
+  FLOW_CONDITION Inj_well_1
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL rock1
+END
+
+END_SUBSURFACE
+
+

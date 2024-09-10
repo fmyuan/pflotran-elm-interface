@@ -98,6 +98,7 @@ STANDARD_CFG = \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
 	default/zflow/zflow.cfg \
+	fracture/fracture.cfg \
 	general/general.cfg \
 	hydrate/hydrate.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
@@ -151,6 +152,7 @@ GEOCHEMISTRY_CFG = \
 	default/constraint/constraint.cfg \
 	default/column/column.cfg \
 	default/multicontinuum/multicontinuum.cfg \
+	fracture/fracture.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
@@ -174,6 +176,7 @@ FLOW_CFG = \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
 	default/zflow/zflow.cfg \
+	fracture/fracture.cfg \
 	general/general.cfg \
 	general/cpr_general/cpr_general.cfg \
         pnf/unit_cube/unit_cube.cfg \
@@ -188,6 +191,7 @@ TRANSPORT_CFG = \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
+	fracture/fracture.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \
 	wipp/well_model/well.cfg

@@ -51,6 +51,9 @@ module PM_Fracture_class
     PetscReal, pointer :: dL(:)
     ! total number of cells this fracture occupies
     PetscInt :: ncells
+    ! maximum distance grid cell center can be from the fracture plane in
+    ! order to mark the cell as being fractured # [m]
+    PetscReal :: max_distance
     ! linked list next object
     class(fracture_type), pointer :: next
   end type fracture_type
@@ -90,6 +93,9 @@ module PM_Fracture_class
     type(point3d_type) :: radius_stdev
     ! fracture family radius seed [-]
     PetscInt :: radius_seed
+    ! maximum distance grid cell center can be from the fracture plane in
+    ! order to mark the cell as being fractured # [m]
+    PetscReal :: max_distance
     ! list of fractures in this family
     class(fracture_type), pointer :: fracture_list
     ! linked list next object
@@ -104,9 +110,6 @@ module PM_Fracture_class
     PetscInt, pointer :: allfrac_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
     PetscInt, pointer :: frac_common_cell_ids(:)
-    ! maximum distance grid cell center can be from the fracture plane in
-    ! order to mark the cell as being fractured # [m]
-    PetscReal :: max_distance
     ! thermal expansion coefficient # [1/C]
     PetscReal :: t_coeff
     ! number of fractures in the domain
@@ -163,7 +166,6 @@ function PMFracCreate()
   nullify(this%frac_common_cell_ids)
   this%nfrac = 0
   this%max_frac = UNINITIALIZED_INTEGER
-  this%max_distance = 5.0
   this%t_coeff = UNINITIALIZED_DOUBLE ! 40.d-6 is value for granite
   this%update_material_auxvar_perm = PETSC_FALSE
 
@@ -227,6 +229,7 @@ subroutine PMFractureInit(this)
   nullify(this%dL)
   nullify(this%hap)
   nullify(this%kx0); nullify(this%ky0); nullify(this%kz0)
+  this%max_distance = 5.0
   this%ncells = UNINITIALIZED_INTEGER
   this%id = UNINITIALIZED_INTEGER
   this%hap0 = UNINITIALIZED_DOUBLE
@@ -262,11 +265,12 @@ subroutine PMFractureFamInit(this)
   nullify(this%fracture_list)
   this%id = UNINITIALIZED_INTEGER
   this%nfrac_in_fam = 0
+  this%max_distance = 5.0
   this%intensity_fracfam= UNINITIALIZED_DOUBLE
   this%surface_area_fracfam = 0.d0
   this%hap0 = UNINITIALIZED_DOUBLE
   this%hap0_stdev = UNINITIALIZED_DOUBLE
-  this%hap0_seed = 5 
+  this%hap0_seed = 5
   this%hap0_max = UNINITIALIZED_DOUBLE
   this%center%x = UNINITIALIZED_DOUBLE
   this%center%y = UNINITIALIZED_DOUBLE
@@ -401,14 +405,14 @@ subroutine PMFracSetup(this)
     ! Ax + By + Cz + D = 0
     ! Get D by knowing the plane must contain the center point (x,y,z)
     D = -1.d0*(cur_fracture%normal%x*cur_fracture%center%x + &
-    	       cur_fracture%normal%y*cur_fracture%center%y + &
-    	       cur_fracture%normal%z*cur_fracture%center%z)
+             cur_fracture%normal%y*cur_fracture%center%y + &
+             cur_fracture%normal%z*cur_fracture%center%z)
     j = 0
     do k = 1,res_grid%nlmax
       distance = cur_fracture%normal%x*res_grid%x(res_grid%nL2G(k)) + &
                  cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
                  cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
-      if (abs(distance) < this%max_distance) then
+      if (abs(distance) < cur_fracture%max_distance) then
         ! entered here if the center of the grid cell is within a tolerance
         ! of max_distance of the plane.
         ! next check if the (x,y) position of the grid cell lies within the
@@ -498,8 +502,8 @@ subroutine PMFracSetup(this)
     cur_fracture%parallel%y = c2
     cur_fracture%parallel%z = c3
     vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
-        	    (cur_fracture%parallel%y)**2.d0 + &
-        	    (cur_fracture%parallel%z)**2.d0)
+              (cur_fracture%parallel%y)**2.d0 + &
+              (cur_fracture%parallel%z)**2.d0)
     cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
     cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
     cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
@@ -806,21 +810,17 @@ subroutine PMFracReadPMBlock(this,input)
 
     ! Read keywords within GEOTHERMAL_FRACTURE_MODEL block:
     select case(trim(word))
-      case('MAX_DISTANCE')
-        call InputReadDouble(input,option,this%max_distance)
-        call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
-        cycle
     !-------------------------------------
       case('THERMAL_EXPANSION_COEFFICIENT')
         call InputReadDouble(input,option,this%t_coeff)
         call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
-        	               error_string)
+                         error_string)
         cycle
     !-------------------------------------
       case('MAXIMUM_NUMBER_OF_FRACTURES')
         call InputReadInt(input,option,this%max_frac)
         call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_FRACTURES', &
-        	               error_string)
+                         error_string)
         cycle
     !-------------------------------------
 
@@ -855,8 +855,6 @@ if (Uninitialized(this%max_frac)) then
                              ! is never reached
 endif
 
-! Is this where I should check whether individual FRACTURE blocks were given, or
-! if FRACTURE_FAMILY blocks were given?
 if (Associated(this%fracfam_list)) fracfam_given = PETSC_TRUE
 if (Associated(this%fracture_list)) frac_given = PETSC_TRUE
 
@@ -871,7 +869,7 @@ end subroutine PMFracReadPMBlock
 ! ************************************************************************** !
 
 subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
-	                          found)
+                            found)
   !
   ! Reads input file parameters associated with the fracture model grid.
   !
@@ -918,6 +916,10 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
             call InputReadInt(input,option,new_fracture%id)
             call InputErrorMsg(input,option,'ID',error_string)
         !-----------------------------
+          case('MAX_DISTANCE')
+            call InputReadDouble(input,option,new_fracture%max_distance)
+            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
+        !-----------------------------
           case('HYDRAULIC_APERTURE')
             call InputReadDouble(input,option,new_fracture%hap0)
             call InputErrorMsg(input,option,'HYDRAULIC_APERTURE',error_string)
@@ -937,24 +939,24 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
           case('CENTER')
             call InputReadDouble(input,option,new_fracture%center%x)
             call InputErrorMsg(input,option,'CENTER, X COORDINATE', &
-            	               error_string)
+                             error_string)
             call InputReadDouble(input,option,new_fracture%center%y)
             call InputErrorMsg(input,option,'CENTER, Y COORDINATE', &
-            	               error_string)
+                             error_string)
             call InputReadDouble(input,option,new_fracture%center%z)
             call InputErrorMsg(input,option,'CENTER, Z COORDINATE', &
-            	               error_string)
+                             error_string)
         !-----------------------------
           case('NORMAL_VECTOR')
             call InputReadDouble(input,option,new_fracture%normal%x)
             call InputErrorMsg(input,option,'NORMAL_VECTOR, X COORDINATE', &
-            	               error_string)
+                             error_string)
             call InputReadDouble(input,option,new_fracture%normal%y)
             call InputErrorMsg(input,option,'NORMAL_VECTOR, Y COORDINATE', &
-            	               error_string)
+                             error_string)
             call InputReadDouble(input,option,new_fracture%normal%z)
             call InputErrorMsg(input,option,'NORMAL_VECTOR, Z COORDINATE', &
-            	               error_string)
+                             error_string)
         !-----------------------------
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -989,22 +991,22 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
         call PrintMsg(option); num_errors = num_errors + 1
       endif
       if (Uninitialized(new_fracture%center%x) .or. &
-      	  Uninitialized(new_fracture%center%y) .or. &
-      	  Uninitialized(new_fracture%center%z)) then
+          Uninitialized(new_fracture%center%y) .or. &
+          Uninitialized(new_fracture%center%z)) then
         option%io_buffer = 'ERROR: CENTER coordinate must be specified in ' // &
                            trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
       endif
       if (Uninitialized(new_fracture%normal%x) .or. &
-      	  Uninitialized(new_fracture%normal%y) .or. &
-      	  Uninitialized(new_fracture%normal%z)) then
+          Uninitialized(new_fracture%normal%y) .or. &
+          Uninitialized(new_fracture%normal%z)) then
         option%io_buffer = 'ERROR: NORMAL_VECTOR coordinate must be specified &
                             &in ' // trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
       else
         vmag = sqrt((new_fracture%normal%x)**2.d0 + &
-        	        (new_fracture%normal%y)**2.d0 + &
-        	        (new_fracture%normal%z)**2.d0)
+                  (new_fracture%normal%y)**2.d0 + &
+                  (new_fracture%normal%z)**2.d0)
         new_fracture%normal%x = new_fracture%normal%x/vmag
         new_fracture%normal%y = new_fracture%normal%y/vmag
         new_fracture%normal%z = new_fracture%normal%z/vmag
@@ -1042,7 +1044,7 @@ end subroutine PMFracReadFracture
 ! ************************************************************************** !
 
 subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
-	                          found)
+                            found)
   !
   ! Reads input file parameters associated with the fracture model grid.
   !
@@ -1087,6 +1089,10 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
           case('ID')
             call InputReadInt(input,option,new_fracfam%id)
             call InputErrorMsg(input,option,'ID',error_string)
+        !-----------------------------
+          case('MAX_DISTANCE')
+            call InputReadDouble(input,option,new_fracfam%max_distance)
+            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
         !-----------------------------
           case('NUMBER_OF_FRACTURES')
             call InputReadInt(input,option,new_fracfam%intensity_fracfam)
@@ -1318,8 +1324,8 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
         call PrintMsg(option); num_errors = num_errors + 1
       endif
       if (Uninitialized(new_fracfam%center%x) .or. &
-      	  Uninitialized(new_fracfam%center%y) .or. &
-      	  Uninitialized(new_fracfam%center%z)) then
+          Uninitialized(new_fracfam%center%y) .or. &
+          Uninitialized(new_fracfam%center%z)) then
         option%io_buffer = 'ERROR: CENTER coordinate must be specified in ' // &
                            trim(error_string) // ' block.'
         call PrintMsg(option); num_errors = num_errors + 1
@@ -1467,6 +1473,7 @@ subroutine PMFracGenerateFracFam(fracfam)
     fracfam%nfrac_in_fam = fracfam%nfrac_in_fam + 1
     new_fracture => PMFractureCreate()
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
+    new_fracture%max_distance = fracfam%max_distance
 
     call GetRndNumFromNormalDist(fracfam%center%x,fracfam%center_stdev%x, &
       new_fracture%center%x,(fracfam%center_seed + fracfam%nfrac_in_fam))
