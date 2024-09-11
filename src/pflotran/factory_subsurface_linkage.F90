@@ -938,10 +938,13 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   class(pmc_third_party_type), pointer :: pmc_well
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH), allocatable :: well_names(:)
   class(pmc_base_type), pointer :: pmc_dummy
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   PetscBool :: found
+  PetscInt :: num_wells
+  PetscInt :: i,j
 
   realization => simulation%realization
   option => realization%option
@@ -951,8 +954,10 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   ! Link each well PM with its respective wellbore model.
   pm_well_temp => simulation%temp_well_process_model_list
   pm_well => pm_well_list
+  num_wells = 0
   do
     if (.not. associated(pm_well_temp)) exit
+    num_wells = num_wells + 1
     pm_well_temp%flow_coupling = pm_well%flow_coupling
     pm_well_temp%well%well_model_type = pm_well%well%well_model_type
     pm_well%next_well => PMWellCreate()
@@ -964,6 +969,27 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   deallocate(pm_well_list)
   nullify(pm_well_list)
   pm_well_list => simulation%temp_well_process_model_list
+
+  allocate(well_names(num_wells))
+  do i = 1,num_wells
+    well_names(i) = pm_well_list%name
+    pm_well_list => pm_well_list%next_well
+  enddo
+
+  if (num_wells > 1) then
+    do i = 1,num_wells-1
+      do j = i+1,num_wells
+        if (StringCompareIgnoreCase(trim(well_names(i)), &
+                                    trim(well_names(j)))) then
+          option%io_buffer = "Duplicate WELLBORE_MODEL names."
+          call PrintErrMsg(option)
+        endif
+      enddo
+    enddo
+  endif
+
+  pm_well_list => simulation%temp_well_process_model_list
+
   nullify(pm_well_temp)
   nullify(pm_well)
   nullify(simulation%temp_well_process_model_list)
