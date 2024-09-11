@@ -5913,13 +5913,8 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
                 if (k == 1) then
                   ! An extra residual is required for the bottom well cell.
                   ! Residual = Q - sum(q)
-                  if (dabs(this%well%th_qg) > 0.d0) then
-                    sum_q = sum_q + sum(this%well%gas%q)
-                    Q = -1.d0 * (this%well%th_qg)
-                  else
-                    sum_q = sum(this%well%liq%q)
-                    Q = -1.d0 * (this%well%th_ql)
-                  endif
+                  sum_q = sum_q + sum(this%well%gas%q) + sum(this%well%liq%q)
+                  Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   residual(local_end) = Q - sum_q
                 endif
                 do j = 0,2
@@ -6116,13 +6111,8 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           enddo
           if (k==1) then
             sum_q = 0.d0
-            if (dabs(well%th_qg) > 0.d0) then
-              sum_q = sum(well%gas%q)
-              Q = -1.d0 * (well%th_qg)
-            else
-              sum_q = sum(well%liq%q)
-              Q = -1.d0 * (well%th_ql)
-            endif
+            sum_q = sum(well%gas%q) + sum(this%well%liq%q)
+            Q = -1.d0 * (well%th_qg + well%th_ql)
             residual(k,option%nflowdof) = Q - sum_q
           endif
           ! Energy residual
@@ -6147,11 +6137,8 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             ! well bottom.
             if (this%well_grid%h_rank_id(1) == option%myrank) then
               res_pert = 0.d0
-              if (dabs(well_pert%th_qg) > 0.d0) then
-                res_pert = well_pert%gas%q(k) - well%gas%q(k)
-              else
-                res_pert = well_pert%liq%q(k) - well%liq%q(k)
-              endif
+              res_pert = (well_pert%gas%q(k) + well_pert%liq%q(k)) - &
+                         (well%gas%q(k) + well%liq%q(k))
 
               local_row_index = this%well_grid%h_ghosted_id(1)* &
                                 option%nflowdof-1
@@ -6201,23 +6188,13 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           ! Compute dRwell / dPwell
           if (k == 1) then
             sum_q = 0.d0
-            if (dabs(well%th_qg) > 0.d0) then
-              sum_q = sum(well%gas%q)
-              Q = -1.d0 * (well%th_qg)
-            else
-              sum_q = sum(well%liq%q)
-              Q = -1.d0 * (well%th_ql)
-            endif
+            sum_q = sum(well%gas%q) + sum(well%liq%q)
+            Q = -1.d0 * (well%th_qg + well%th_ql)
             res = Q - sum_q
 
             sum_q = 0.d0
-            if (dabs(well_pert%th_qg) > 0.d0) then
-              sum_q = sum(well_pert%gas%q)
-              Q = -1.d0 * (well_pert%th_qg)
-            else
-              sum_q = sum(well_pert%liq%q)
-              Q = -1.d0 * (well_pert%th_ql)
-            endif
+            sum_q = sum(well_pert%gas%q) + sum(well_pert%liq%q)
+            Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
             res_pert = Q - sum_q
 
             J_block(option%nflowdof,option%nflowdof) = &
@@ -7744,7 +7721,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   use Grid_module
   use EOS_Water_module
   use EOS_Gas_module
-  use SCO2_Aux_module, only : fmw_comp
+  use SCO2_Aux_module, only : fmw_comp, SCO2BrineDensity
   use Hydrate_Aux_module, only : hydrate_fmw_comp
 
   implicit none
@@ -7784,6 +7761,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   PetscReal :: aux(2)
   PetscReal :: res_pg_temp, res_pl_temp, res_z
   PetscReal :: fmw_comp_temp(3)
+  PetscReal :: mixture_ratio
   PetscReal, parameter :: threshold_p = 0.d0
   PetscReal, parameter :: epsilon = 1.d-14
 
@@ -7850,8 +7828,15 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
     !MAN: pure brine and pure gas columns for now, needs updating.
     aux(1) = well%liq%xmass(1,option%salt_id)
-    call EOSWaterDensityExt(temperature,pl, &
-                            aux,rho_kg_liq,dummy,ierr)
+    select case (option%iflowmode)
+      case (SCO2_MODE)
+        call SCO2BrineDensity(temperature, pl, &
+                              aux(1), rho_kg_liq, option)
+      case default
+        call EOSWaterDensityExt(temperature,pl, &
+                                  aux,rho_kg_liq,dummy,ierr)
+    end select
+
     pl0 = pl
 
     call EOSGasDensity(temperature,pg, &
@@ -7869,9 +7854,15 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
       ! Compute well cell pressures based off of bottom segment pressure
       temperature = well%temp(i)
-      aux(1) = well%liq%xmass(i,option%salt_id)
-      call EOSWaterDensityExt(temperature,pl0, &
-                              aux,rho_kg_liq,dummy,ierr)
+      aux(1) = well%liq%xmass(1,option%salt_id)
+      select case (option%iflowmode)
+        case (SCO2_MODE)
+          call SCO2BrineDensity(temperature, pl, &
+                                aux(1), rho_kg_liq, option)
+        case default
+          call EOSWaterDensityExt(temperature,pl, &
+                                    aux,rho_kg_liq,dummy,ierr)
+      end select
       call EOSGasDensity(temperature,pg0, &
                        den_mol,dummy,dummy2,ierr)
       rho_kg_gas = den_mol * fmw_comp_temp(TWO_INTEGER)
@@ -7901,7 +7892,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
           option%io_buffer = 'Hydrostatic iteration failed to &
-                              &converge in well model'
+                              &converge in the well model'
           call PrintErrMsgByRank(option)
         endif
       enddo
@@ -7941,7 +7932,37 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
       res_z = pm_well%well_grid%res_z(i)
       delta_z = res_z - pm_well%well_grid%h(i)%z
 
-      if (well%th_qg > 0.d0) then
+      if (well%th_qg > 0.d0 .and. well%th_ql > 0.d0) then
+        ! mixture injection: assume constant mass ratio
+        mixture_ratio = well%th_ql / well%th_qg
+
+        if (reservoir%s_g(i) > epsilon) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * &
+                        delta_z
+        else
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_l(i) * gravity * &
+                        delta_z
+        endif
+        upwind = res_pg_temp > well%pg(i)
+        if (upwind) then
+          mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
+          den_ave = reservoir%den_g(i)
+          enthalpy = reservoir%H_g(i)
+        else
+          mobility = 1.d0 / well%gas%visc(i)
+          den_ave = well%gas%den(i)
+          enthalpy = well%gas%H(i)
+        endif
+
+        ! Flowrate in kg/s
+        well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                        (res_pg_temp-well%pg(i))
+
+        ! Assuming the mass ratio of water and CO2 remains the same
+        ! everywhere.
+        well%liq%Q(i) = well%gas%Q(i) * mixture_ratio
+
+      elseif (well%th_qg > 0.d0) then
         ! Rate-controlled gas injection well. Can potentially have
         ! under-pressure in some well segments.
         ! Compute reservoir pressure at well cell center
@@ -10796,15 +10817,18 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     enddo
   endif
 
+  select case (pm_well%option%iflowmode)
+    case (WF_MODE)
+      units = 'kmol/sec'
+    case default
+      units = 'kg/sec'
+  end select
   if (pm_well%well%liq%output_Q) then
     name = 'Well Liq. Q'
-    units = 'kmol/sec'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_LIQ_Q)
   endif
-
   if (pm_well%well%gas%output_Q) then
     name = 'Well Gas Q'
-    units = 'kmol/sec'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
   endif
 

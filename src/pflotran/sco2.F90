@@ -1507,13 +1507,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
         if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
           ghosted_id = cur_well%well_grid%h_ghosted_id(1)
           ghosted_end = ghosted_id * option%nflowdof
-          if (dabs(cur_well%well%th_qg) > 0.d0) then
-            accum_p2(ghosted_end) = cur_well%well%th_qg
-          elseif (dabs(cur_well%well%th_ql) > 0.d0) then
-            accum_p2(ghosted_end) = cur_well%well%th_ql
-          else
-            accum_p2(ghosted_end) = 0.d0
-          endif
+          accum_p2(ghosted_end) = cur_well%well%th_qg + cur_well%well%th_ql
           r_p(ghosted_end) = 0.d0
         endif
         cur_well => cur_well%next_well
@@ -2101,7 +2095,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           ! Perturb the well and well's reservoir variables.
           call cur_well%Perturb()
-
           ! Go through and update the well contributions to the Jacobian:
           ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
           call cur_well%ModifyFlowJacobian(A,ierr)
