@@ -1337,9 +1337,17 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,reaction_nw,Res)
         rad_rxn => rad_rxn%next
       enddo
       ! Add in species decay
-      Res(species%id) = -(rad_rxn%rate_constant * &
-                          nwt_auxvar%total_bulk_conc(species%id))
-      ! units are [mol-species/m^3-bulk/sec] right now
+      if (Initialized(nwt_background_conc)) then
+        ! decay only if above background concentration
+        if (nwt_auxvar%total_bulk_conc(species%id) >= nwt_background_conc) then
+          Res(species%id) = -(rad_rxn%rate_constant * &
+                    nwt_auxvar%total_bulk_conc(species%id))
+        endif
+      else
+        Res(species%id) = -(rad_rxn%rate_constant * &
+                            nwt_auxvar%total_bulk_conc(species%id))
+        ! units are [mol-species/m^3-bulk/sec] right now
+      endif
 
       ! Add in contribution from parent (if exists)
       if (rad_rxn%parent_id > 0.d0) then
