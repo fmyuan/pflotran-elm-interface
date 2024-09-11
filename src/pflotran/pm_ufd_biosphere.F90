@@ -893,6 +893,7 @@ subroutine PMUFDBSetup(this)
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
   !
+  use Option_module
 
   implicit none
 
@@ -906,10 +907,17 @@ subroutine PMUFDBSetup(this)
   class(ERB_base_type), pointer :: cur_ERB
   class(ERB_base_type), pointer :: prev_ERB
   class(ERB_base_type), pointer :: next_ERB
+  type(option_type), pointer :: option
+
+  option => this%option
 
   call this%SetRealization()
   call PMUFDBAssociateRegion(this,this%realization%patch%region_list)
-  call PMUFDBSupportedRadCheckRT(this)
+  if (option%itranmode == RT_MODE) then
+    call PMUFDBSupportedRadCheckRT(this)
+  elseif (option%itranmode == NWT_MODE) then
+    call PMUFDBSupportedRadCheckNWT(this)
+  endif
   call PMUFDBAscUnsuppRadWithSuppRad(this)
   call PMUFDBCheckSrcSinkCouplers(this)
   call PMUFDBAllocateERBarrays(this)
@@ -1041,6 +1049,72 @@ subroutine PMUFDBSupportedRadCheckRT(this)
   deallocate(sec_names)
 
 end subroutine PMUFDBSupportedRadCheckRT
+
+! *************************************************************************** !
+
+subroutine PMUFDBSupportedRadCheckNWT(this)
+  !
+  ! Checks whether the supported radionuclides are also defined as a
+  ! primary or a secondary species in the CHEMISTRY block.
+  !
+  ! Author: David Fukuyama
+  ! Date: 09/06/2024
+  !
+
+  use Option_module
+  use String_module
+  use NW_Transport_Aux_module
+
+  implicit none
+
+  type(pm_ufd_biosphere_type) :: this
+
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH), pointer :: species_names(:)
+  type(supported_rad_type), pointer :: cur_supp_rad
+  character(len=MAXWORDLENGTH) :: rad_name
+  PetscBool :: found
+  PetscInt :: i
+
+  option => this%option
+
+  if (associated(this%realization%reaction_nw)) then
+    allocate(species_names(NWTAuxGetSpeciesCount( &
+                         this%realization%reaction_nw)))
+    species_names => NWTAuxGetSpeciesNames(this%realization%reaction_nw)
+  else
+    option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
+                       &transport.'
+    call PrintErrMsg(option)
+  endif
+
+  cur_supp_rad => this%supported_rad_list
+  do
+    if (.not.associated(cur_supp_rad)) exit
+    rad_name = cur_supp_rad%name
+    found = PETSC_FALSE
+    do i = 1,len(species_names)
+      if (adjustl(trim(rad_name)) == adjustl(trim(species_names(i)))) then
+        found = PETSC_TRUE
+        cur_supp_rad%species_id = &
+          NWTGetSpeciesIDFromName(rad_name,this%realization%reaction_nw, &
+                                          option)
+      endif
+      if (found) exit
+    enddo
+    if (.not.found) then
+      option%io_buffer = 'SUPPORTED_RADIONUCLIDE ' // trim(rad_name) // &
+        ' must be included as a primary or secondary species under the &
+        &CHEMISTRY block.'
+      call PrintErrMsg(option)
+    endif
+
+    cur_supp_rad => cur_supp_rad%next
+  enddo
+
+  deallocate(species_names)
+
+end subroutine PMUFDBSupportedRadCheckNWT
 
 ! *************************************************************************** !
 
@@ -1346,6 +1420,7 @@ end subroutine PMUFDBInitializeTimestep
   use Material_Aux_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
@@ -1369,10 +1444,15 @@ end subroutine PMUFDBInitializeTimestep
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   PetscReal, parameter :: avagadro = 6.0221409d23
   PetscInt, parameter :: iphase = 1  ! LIQUID_PHASE
 
-  rt_auxvars => this%realization%patch%aux%RT%auxvars
+  if (this%option%itranmode == RT_MODE) then
+    rt_auxvars => this%realization%patch%aux%RT%auxvars
+  elseif (this%option%itranmode == NWT_MODE) then
+    nwt_auxvars => this%realization%patch%aux%NWT%auxvars
+  endif
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -1392,9 +1472,16 @@ end subroutine PMUFDBInitializeTimestep
       local_conc = 0.d0
       do i = 1,cur_ERB%region%num_cells
         ghosted_id = grid%nL2G(cur_ERB%region%cell_ids(i))
-        local_conc = local_conc + &                              ! [mol/L]
-            (rt_auxvars(ghosted_id)%total(species_id,iphase) * & ! [mol/L]
-             cur_ERB%region_scaling_factor(i))                   ! [-]
+        if (this%option%itranmode == RT_MODE) then
+          local_conc = local_conc + &                              ! [mol/L]
+              (rt_auxvars(ghosted_id)%total(species_id,iphase) * & ! [mol/L]
+               cur_ERB%region_scaling_factor(i))                   ! [-]
+        elseif (this%option%itranmode == NWT_MODE) then
+          local_conc = local_conc + &                                  ! [mol/L]
+              (nwt_auxvars(ghosted_id)%aqueous_eq_conc(species_id) * & ! [mol-species/m^3-liquid]
+               (1.d0 / 1000.d0) * &                                    ! [1/(L/m^3)]
+               cur_ERB%region_scaling_factor(i))                       ! [-]
+        endif
       enddo
       call CalcParallelSum(this%option,cur_ERB%rank_list, &
                            local_conc,global_conc)
