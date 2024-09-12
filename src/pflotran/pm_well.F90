@@ -224,6 +224,7 @@ module PM_Well_class
     ! well top of hole rate BC [kg/s]
     PetscReal :: th_ql
     PetscReal :: th_qg
+    PetscReal :: total_rate
     ! well transport constraint name
     character(len=MAXWORDLENGTH) :: tran_condition_name
     ! Link to characteristic curves
@@ -691,6 +692,7 @@ subroutine PMWellVarCreate(well)
   well%bh_qg = UNINITIALIZED_DOUBLE
   well%th_ql = 0.d0
   well%th_qg = 0.d0
+  well%total_rate = 999.d0
   well%tran_condition_name = ''
   nullify(well%ccid)
   nullify(well%permeability)
@@ -4734,8 +4736,7 @@ subroutine PMWellSCO2Perturb(pm_well)
         well%th_qg > 0.d0) then
       ! Injection well
       pres_bump = 1.25d0 * (pres_bump + 1.d0)
-    elseif (well%th_ql < 0.d0 .or. &
-            well%th_qg < 0.d0) then
+    elseif (well%total_rate < 0.d0) then
       ! Extraction well
       pres_bump = 1.25d0 * (pres_bump - 1.d0)
     else
@@ -5914,7 +5915,11 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
                   ! An extra residual is required for the bottom well cell.
                   ! Residual = Q - sum(q)
                   sum_q = sum_q + sum(this%well%gas%q) + sum(this%well%liq%q)
-                  Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
+                  if (this%well%total_rate < 0.d0) then
+                    Q = -1.d0 * this%well%total_rate
+                  else
+                    Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
+                  endif
                   residual(local_end) = Q - sum_q
                 endif
                 do j = 0,2
@@ -6111,8 +6116,12 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           enddo
           if (k==1) then
             sum_q = 0.d0
-            sum_q = sum(well%gas%q) + sum(this%well%liq%q)
-            Q = -1.d0 * (well%th_qg + well%th_ql)
+            sum_q = sum(well%gas%q) + sum(well%liq%q)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
+            else
+              Q = -1.d0 * (well%th_qg + well%th_ql)
+            endif
             residual(k,option%nflowdof) = Q - sum_q
           endif
           ! Energy residual
@@ -6189,12 +6198,20 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           if (k == 1) then
             sum_q = 0.d0
             sum_q = sum(well%gas%q) + sum(well%liq%q)
-            Q = -1.d0 * (well%th_qg + well%th_ql)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
+            else
+              Q = -1.d0 * (well%th_qg + well%th_ql)
+            endif
             res = Q - sum_q
 
             sum_q = 0.d0
             sum_q = sum(well_pert%gas%q) + sum(well_pert%liq%q)
-            Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
+            if (well_pert%total_rate < 0.d0) then
+              Q = -1.d0 * well_pert%total_rate
+            else
+              Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
+            endif
             res_pert = Q - sum_q
 
             J_block(option%nflowdof,option%nflowdof) = &
@@ -8002,37 +8019,23 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pl_temp-well%pl(i))
-      elseif (well%th_qg < 0.d0 .or. well%th_ql < 0.d0) then
+      elseif (well%total_rate < 0.d0) then
         ! Extraction well
         ! Compute reservoir pressure at well cell center
-        res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
-        upwind = res_pl_temp > well%pl(i)
-        if (upwind) then
+
+          res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
           mobility = reservoir%kr_l(i)/reservoir%visc_l(i)
           den_ave = reservoir%den_l(i)
-        else
-          mobility = dabs(well%th_ql)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%liq%visc(i)
-          den_ave = well%liq%den(i)
-        endif
-        ! Flowrate in kg/s
-        well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pl_temp-well%pl(i))
+          ! Flowrate in kg/s
+          well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pl_temp-well%pl(i))
 
-        res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
-        upwind = res_pg_temp > well%pg(i)
-        if (upwind) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
           mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
           den_ave = reservoir%den_g(i)
-        else
-          mobility = dabs(well%th_qg)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%gas%visc(i)
-          den_ave = well%gas%den(i)
-        endif
-
-        ! Flowrate in kg/s
-        well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pg_temp-well%pg(i))
+          ! Flowrate in kg/s
+          well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pg_temp-well%pg(i))
       endif
     enddo
 
@@ -10699,6 +10702,7 @@ subroutine PMWellCopyWell(well,well_copy,transport)
   well_copy%bh_qg = well%bh_qg
   well_copy%th_ql = well%th_ql
   well_copy%th_qg = well%th_qg
+  well_copy%total_rate = well%total_rate
   well_copy%liq%visc(:) = well%liq%visc(:)
   well_copy%gas%visc(:) = well%gas%visc(:)
   well_copy%temp(:) = well%temp(:)

@@ -1302,7 +1302,16 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               ! endif
 
               ! MAN: this is a hack to get the well to initialize properly
-              if (dabs(cur_well%well%th_qg) > epsilon) then
+              if (cur_well%well%total_rate < 0.d0) then
+                if (X_p(well_index) == sco2_auxvar%pres(option%liquid_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (sco2_auxvar%well%bh_p - &
+                                     sco2_auxvar%pres(option%liquid_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              elseif (dabs(cur_well%well%th_qg) > epsilon) then
                 if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
                   dX_p(well_index) = dX_p(well_index) + &
                                      (sco2_auxvar%well%bh_p - &

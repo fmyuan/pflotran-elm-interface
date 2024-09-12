@@ -1166,8 +1166,22 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                               rarray(1)
         endif
         if (associated(well_flow_condition%sco2%rate)) then
-          cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
-          cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
+          if (any(well_flow_condition%sco2%rate%dataset%rarray(:) < 0.d0)) then
+            cur_well%well%total_rate = sum(well_flow_condition%sco2%rate%dataset% &
+                                      rarray(:))
+            if (cur_well%well%total_rate > 0.d0) then
+              option%io_buffer = "The well model does not support a concurrent &
+                                 & injection and production well."
+            endif
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+          else
+            cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset% &
+                                  rarray(1)
+            cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset% &
+                                  rarray(2)
+            cur_well%well%total_rate = 999.d0
+          endif
         endif
         if (Initialized(cur_well%well%bh_p)) then
           do idof = 1,option%nflowdof
@@ -1507,7 +1521,11 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
         if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
           ghosted_id = cur_well%well_grid%h_ghosted_id(1)
           ghosted_end = ghosted_id * option%nflowdof
-          accum_p2(ghosted_end) = cur_well%well%th_qg + cur_well%well%th_ql
+          if (cur_well%well%total_rate < 0.d0) then
+            accum_p2(ghosted_end) = cur_well%well%total_rate
+          else
+            accum_p2(ghosted_end) = cur_well%well%th_qg + cur_well%well%th_ql
+          endif
           r_p(ghosted_end) = 0.d0
         endif
         cur_well => cur_well%next_well
@@ -2132,7 +2150,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         do
           if (.not. associated(cur_well)) exit
           if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
-               dabs(cur_well%well%th_ql) < epsilon) then
+               dabs(cur_well%well%th_ql) < epsilon .and. &
+               cur_well%well%total_rate > 0.d0) then
             ! Don't solve for BHP if there is no flow in the well.
             deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
