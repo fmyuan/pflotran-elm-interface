@@ -135,6 +135,7 @@ subroutine THSetupPatch(realization)
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscInt :: i, iphase, material_id, icct
+  PetscInt :: num_tcc
   PetscBool :: error_found
   PetscReal :: tempreal
   PetscBool :: dof_is_active(2)
@@ -165,19 +166,29 @@ subroutine THSetupPatch(realization)
 
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only
   !single value in the array <modified pcl 1-13-11>
-  allocate(patch%aux%TH%th_parameter%dencpr( &
-             size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           ckwet(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           ckdry(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           alpha(size(patch%char_curves_thermal_array)))
+  num_tcc = size(patch%char_curves_thermal_array)
+  allocate(patch%aux%TH%th_parameter%dencpr(num_tcc))
+  allocate(patch%aux%TH%th_parameter%ckwet(num_tcc))
+  allocate(patch%aux%TH%th_parameter%ckdry(num_tcc))
+  allocate(patch%aux%TH%th_parameter%alpha(num_tcc))
   if (option%flow%th_freezing) then
-   allocate(patch%aux%TH%th_parameter%ckfrozen( &
-              size(patch%char_curves_thermal_array)))
-   allocate(patch%aux%TH%th_parameter%alpha_fr( &
-              size(patch%char_curves_thermal_array)))
+   allocate(patch%aux%TH%th_parameter%ckfrozen(num_tcc))
+   allocate(patch%aux%TH%th_parameter%alpha_fr(num_tcc))
+  endif
+
+  if (num_tcc == 0) then
+    call PrintErrMsg(option,'No thermal conductivities specified for TH.')
+  endif
+  do icct = 1, num_tcc
+    if (.not.associated(patch%char_curves_thermal_array(icct)%ptr)) then
+      call PrintErrMsg(option,'Unassociated thermal conductivity in TH.')
+    endif
+  enddo
+  if (num_tcc /= size(patch%material_property_array)) then
+    option%io_buffer = 'Number of thermal characteristic curves must match &
+                       &the number of materials in TH due to dencpr being &
+                       &allocated to size(patch%char_curves_thermal_array'
+    call PrintErrMsg(option)
   endif
 
   !Copy the values in the th_parameter from the global realization
@@ -186,6 +197,12 @@ subroutine THSetupPatch(realization)
     word = patch%material_property_array(i)%ptr%name
     if (Uninitialized(patch%material_property_array(i)%ptr%specific_heat)) then
       option%io_buffer = 'ERROR: Non-initialized HEAT_CAPACITY in material ' &
+                         // trim(word)
+      call PrintMsgByRank(option)
+      error_found = PETSC_TRUE
+    endif
+    if (Uninitialized(patch%material_property_array(i)%ptr%rock_density)) then
+      option%io_buffer = 'ERROR: Non-initialized ROCK_DENSITY in material ' &
                          // trim(word)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
