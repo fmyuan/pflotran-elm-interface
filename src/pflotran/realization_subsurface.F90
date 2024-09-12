@@ -698,7 +698,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
   enddo
   select case(option%iflowmode)
-    case(TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE)
+    case(TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE,H_MODE)
       if (associated(realization%characteristic_curves_thermal)) then
         if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
           option%io_buffer = 'Mixed thermal characteristic curves and &
@@ -710,12 +710,12 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         !geh: dislike the logic here, but i have to follow what was here
         if (.not.(maxval(check_thermal_conductivity(:,:)) >= 0.d0)) then
           option%io_buffer = 'No thermal conductivities included in input &
-                             &deck for a flow mode that includes the heat &
+                             &deck for a flow mode that includes the energy &
                              &conservation equation.'
           call PrintErrMsg(option)
         else if (minval(check_thermal_conductivity(:,:)) < 0.d0) then
           option%io_buffer = 'Missing thermal conductivities in input &
-                             &deck for a flow mode that includes the heat &
+                             &deck for a flow mode that includes the energy &
                              &conservation equation.'
           call PrintErrMsg(option)
         endif
