@@ -224,6 +224,7 @@ module PM_Well_class
     ! well top of hole rate BC [kg/s]
     PetscReal :: th_ql
     PetscReal :: th_qg
+    PetscReal :: total_rate
     ! well transport constraint name
     character(len=MAXWORDLENGTH) :: tran_condition_name
     ! Link to characteristic curves
@@ -691,6 +692,7 @@ subroutine PMWellVarCreate(well)
   well%bh_qg = UNINITIALIZED_DOUBLE
   well%th_ql = 0.d0
   well%th_qg = 0.d0
+  well%total_rate = 999.d0
   well%tran_condition_name = ''
   nullify(well%ccid)
   nullify(well%permeability)
@@ -4734,8 +4736,7 @@ subroutine PMWellSCO2Perturb(pm_well)
         well%th_qg > 0.d0) then
       ! Injection well
       pres_bump = 1.25d0 * (pres_bump + 1.d0)
-    elseif (well%th_ql < 0.d0 .or. &
-            well%th_qg < 0.d0) then
+    elseif (well%total_rate < 0.d0) then
       ! Extraction well
       pres_bump = 1.25d0 * (pres_bump - 1.d0)
     else
@@ -5914,7 +5915,11 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
                   ! An extra residual is required for the bottom well cell.
                   ! Residual = Q - sum(q)
                   sum_q = sum_q + sum(this%well%gas%q) + sum(this%well%liq%q)
-                  Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
+                  if (this%well%total_rate < 0.d0) then
+                    Q = -1.d0 * this%well%total_rate
+                  else
+                    Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
+                  endif
                   residual(local_end) = Q - sum_q
                 endif
                 do j = 0,2
@@ -6111,8 +6116,12 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           enddo
           if (k==1) then
             sum_q = 0.d0
-            sum_q = sum(well%gas%q) + sum(this%well%liq%q)
-            Q = -1.d0 * (well%th_qg + well%th_ql)
+            sum_q = sum(well%gas%q) + sum(well%liq%q)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
+            else
+              Q = -1.d0 * (well%th_qg + well%th_ql)
+            endif
             residual(k,option%nflowdof) = Q - sum_q
           endif
           ! Energy residual
@@ -6189,12 +6198,20 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           if (k == 1) then
             sum_q = 0.d0
             sum_q = sum(well%gas%q) + sum(well%liq%q)
-            Q = -1.d0 * (well%th_qg + well%th_ql)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
+            else
+              Q = -1.d0 * (well%th_qg + well%th_ql)
+            endif
             res = Q - sum_q
 
             sum_q = 0.d0
             sum_q = sum(well_pert%gas%q) + sum(well_pert%liq%q)
-            Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
+            if (well_pert%total_rate < 0.d0) then
+              Q = -1.d0 * well_pert%total_rate
+            else
+              Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
+            endif
             res_pert = Q - sum_q
 
             J_block(option%nflowdof,option%nflowdof) = &
@@ -8002,37 +8019,23 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pl_temp-well%pl(i))
-      elseif (well%th_qg < 0.d0 .or. well%th_ql < 0.d0) then
+      elseif (well%total_rate < 0.d0) then
         ! Extraction well
         ! Compute reservoir pressure at well cell center
-        res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
-        upwind = res_pl_temp > well%pl(i)
-        if (upwind) then
+
+          res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
           mobility = reservoir%kr_l(i)/reservoir%visc_l(i)
           den_ave = reservoir%den_l(i)
-        else
-          mobility = dabs(well%th_ql)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%liq%visc(i)
-          den_ave = well%liq%den(i)
-        endif
-        ! Flowrate in kg/s
-        well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pl_temp-well%pl(i))
+          ! Flowrate in kg/s
+          well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pl_temp-well%pl(i))
 
-        res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
-        upwind = res_pg_temp > well%pg(i)
-        if (upwind) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
           mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
           den_ave = reservoir%den_g(i)
-        else
-          mobility = dabs(well%th_qg)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%gas%visc(i)
-          den_ave = well%gas%den(i)
-        endif
-
-        ! Flowrate in kg/s
-        well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pg_temp-well%pg(i))
+          ! Flowrate in kg/s
+          well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pg_temp-well%pg(i))
       endif
     enddo
 
@@ -10332,127 +10335,138 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
 
   nsegments =pm_well%well_grid%nsegments
 
-  if (well%th_qg > 0.d0) then
-    ! CO2 Injection well. Need to update to flexibly accommodate humidity.
-    well%gas%xmass(:,:) = 0.d0
-    well%gas%xmass(:,TWO_INTEGER) = 1.d0
-  elseif (well%th_ql > 0.d0) then
-    ! Liquid Injection well: Need to update to flexibly
-    ! accommodate dissolved gas.
-    well%liq%xmass(:,:) = 0.d0
-    well%liq%xmass(:,ONE_INTEGER) = 1.d0
-  endif
-
-  do i = 1,nsegments
-
-    !Liquid Density
-    xsl = well%liq%xmass(i,option%salt_id)
-    call SCO2BrineSaturationPressure(well%temp(i), &
-                                     xsl,Ps)
-    call SCO2BrineDensity(well%temp(i), well%pg(i), &
-                          xsl, den_kg_brine, option)
-    call SCO2VaporPressureBrine(well%temp(i), Ps, &
-                                0.d0, den_kg_brine, &
-                                xsl, Prvap)
-    call SCO2WaterDensity(well%temp(i),Prvap, &
-                          TWO_INTEGER,den_kg_water, &
-                          den_kg_steam,option)
-    call SCO2DensityCompositeLiquid(well%temp(i),den_kg_brine, &
-                                  well%liq%xmass(i,option%co2_id), &
-                                  den_kg_liq)
-
-    well%liq%den(i) = den_kg_liq
-
-    call SCO2Equilibrate(well%temp(i),well%pg(i), &
-                         Pco2, Pvap, Ps, Prvap, &
-                         xco2g, xwg, xco2l, xsl, xwl, &
-                         xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-
-    xmolco2g = (well%gas%xmass(i,co2_id)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-                (well%gas%xmass(i,wid)/fmw_comp(1)))
-    xmolwg = 1.d0 - xmolco2g
-    xmolco2l = (well%liq%xmass(i,co2_id)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
-               (well%gas%xmass(i,sid)/fmw_comp(3)))
-    xmolwl = (well%liq%xmass(i,wid)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
-               (well%gas%xmass(i,sid)/fmw_comp(3)))
-    xmolsl = 1.d0 - xmolco2l - xmolwl
-
-    !Gas Density
-    Pva = max(well%pg(i),Prvap)
-    call EOSGasDensity(well%temp(i),Pva, &
-                       den_mol_co2,drho_dT,drho_dP,ierr)
-    den_kg_co2 = den_mol_co2 * fmw_comp(2)
-    den_kg_gas = well%gas%xmass(i,option%co2_id) * &
-                 den_kg_co2 + &
-                 well%gas%xmass(i,option%water_id) * &
-                 den_kg_steam
-    well%gas%den(i) = den_kg_gas
-
-    ! Liquid Viscosity
-    call SCO2ViscosityWater(well%temp(i),well%pg(i), &
-                           den_kg_water,visc_water,option)
-    call SCO2ViscosityCO2(well%temp(i), den_kg_co2, &
-                          visc_co2)
-    call SCO2ViscosityBrine(well%temp(i), xsl, &
-                           visc_water, visc_brine)
-    call SCO2ViscosityLiquid(xmolco2l, visc_brine, &
-                             visc_co2, visc_liq)
-
-    well%liq%visc(i) = visc_liq
-
-    ! Gas Viscosity
-    call SCO2ViscosityGas(visc_water,visc_co2,xmolwg, &
-                          xmolco2g,visc_gas)
-
-    well%gas%visc(i) = visc_gas
-
-    if (sco2_thermal) then
-      ! Energy calculations
-
-      ! Brine enthalpy
-      call EOSWaterEnthalpy(well%temp(i),well%pg(i), &
-                            well%liq%H(i),ierr)
-      ! J/kmol --> J/kg
-      well%liq%H(i) = well%liq%H(i) / fmw_comp(wid)
-      call SCO2BrineEnthalpy(well%temp(i), well%liq%xmass(i,sid), &
-                             well%liq%H(i),H_temp)
-      ! CO2 density, internal energy, enthalpy
-      call EOSGasDensityEnergy(well%temp(i),well%pg(i),den_co2, &
-                               well%gas%H(i),U_temp,ierr)
-      ! J/kmol --> J/kg
-      well%gas%H(i) = well%gas%H(i) / fmw_comp(co2_id)
-
-      ! Liquid phase enthalpy
-      well%liq%H(i) = SCO2EnthalpyCompositeLiquid(well%temp(i), &
-                                     well%liq%xmass(i,sid), &
-                                     well%liq%xmass(i,co2_id), &
-                                     H_temp, well%gas%H(i))
-
-      well%liq%H(i) = well%liq%H(i) * 1.d-6 ! J/kg -> MJ/kg
-      well%gas%H(i) = well%gas%H(i)  * 1.d-6 ! MJ/kg
-      call EOSWaterSteamDensityEnthalpy(well%temp(i), &
-                                        well%pg(i), &
-                                        den_kg_steam, &
-                                        den_steam, &
-                                        H_steam,ierr)
-      ! J/kmol -> MJ/kg
-      H_steam = H_steam / fmw_comp(wid) * 1.d-6
-    else
-      den_steam = 0.d0
-      H_steam = 0.d0
+  if (well%total_rate < 0.d0) then
+    ! Extraction well: use reservoir fluid properties
+    well%liq%xmass(:,:) = well%reservoir%xmass_liq(:,:)
+    well%gas%xmass(:,:) = well%reservoir%xmass_gas(:,:)
+    well%liq%den(:) = well%reservoir%den_l(:)
+    well%gas%den(:) = well%reservoir%den_g(:)
+    well%liq%visc(:) = well%reservoir%visc_l(:)
+    well%gas%visc(:) = well%reservoir%visc_g(:)
+    well%liq%H(:) = well%reservoir%h_l(:)
+    well%gas%H(:) = well%reservoir%h_g(:)
+  else
+    if (well%th_qg > 0.d0) then
+      ! CO2 Injection well. Need to update to flexibly accommodate humidity.
+      well%gas%xmass(:,:) = 0.d0
+      well%gas%xmass(:,TWO_INTEGER) = 1.d0
+    elseif (well%th_ql > 0.d0) then
+      ! Liquid Injection well: Need to update to flexibly
+      ! accommodate dissolved gas.
+      well%liq%xmass(:,:) = 0.d0
+      well%liq%xmass(:,ONE_INTEGER) = 1.d0
     endif
 
-    ! Gas phase enthalpy
-    well%gas%H(i) = well%gas%xmass(i,wid) * H_steam + &
-                    well%gas%xmass(i,co2_id) * well%gas%H(i)
+    do i = 1,nsegments
 
-  enddo
+      !Liquid Density
+      xsl = well%liq%xmass(i,option%salt_id)
+      call SCO2BrineSaturationPressure(well%temp(i), &
+                                      xsl,Ps)
+      call SCO2BrineDensity(well%temp(i), well%pg(i), &
+                            xsl, den_kg_brine, option)
+      call SCO2VaporPressureBrine(well%temp(i), Ps, &
+                                  0.d0, den_kg_brine, &
+                                  xsl, Prvap)
+      call SCO2WaterDensity(well%temp(i),Prvap, &
+                            TWO_INTEGER,den_kg_water, &
+                            den_kg_steam,option)
+      call SCO2DensityCompositeLiquid(well%temp(i),den_kg_brine, &
+                                    well%liq%xmass(i,option%co2_id), &
+                                    den_kg_liq)
 
+      well%liq%den(i) = den_kg_liq
+
+      call SCO2Equilibrate(well%temp(i),well%pg(i), &
+                          Pco2, Pvap, Ps, Prvap, &
+                          xco2g, xwg, xco2l, xsl, xwl, &
+                          xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
+
+      xmolco2g = (well%gas%xmass(i,co2_id)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                  (well%gas%xmass(i,wid)/fmw_comp(1)))
+      xmolwg = 1.d0 - xmolco2g
+      xmolco2l = (well%liq%xmass(i,co2_id)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+                (well%gas%xmass(i,sid)/fmw_comp(3)))
+      xmolwl = (well%liq%xmass(i,wid)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+                (well%gas%xmass(i,sid)/fmw_comp(3)))
+      xmolsl = 1.d0 - xmolco2l - xmolwl
+
+      !Gas Density
+      Pva = max(well%pg(i),Prvap)
+      call EOSGasDensity(well%temp(i),Pva, &
+                        den_mol_co2,drho_dT,drho_dP,ierr)
+      den_kg_co2 = den_mol_co2 * fmw_comp(2)
+      den_kg_gas = well%gas%xmass(i,option%co2_id) * &
+                  den_kg_co2 + &
+                  well%gas%xmass(i,option%water_id) * &
+                  den_kg_steam
+      well%gas%den(i) = den_kg_gas
+
+      ! Liquid Viscosity
+      call SCO2ViscosityWater(well%temp(i),well%pg(i), &
+                            den_kg_water,visc_water,option)
+      call SCO2ViscosityCO2(well%temp(i), den_kg_co2, &
+                            visc_co2)
+      call SCO2ViscosityBrine(well%temp(i), xsl, &
+                            visc_water, visc_brine)
+      call SCO2ViscosityLiquid(xmolco2l, visc_brine, &
+                              visc_co2, visc_liq)
+
+      well%liq%visc(i) = visc_liq
+
+      ! Gas Viscosity
+      call SCO2ViscosityGas(visc_water,visc_co2,xmolwg, &
+                            xmolco2g,visc_gas)
+
+      well%gas%visc(i) = visc_gas
+
+      if (sco2_thermal) then
+        ! Energy calculations
+
+        ! Brine enthalpy
+        call EOSWaterEnthalpy(well%temp(i),well%pg(i), &
+                              well%liq%H(i),ierr)
+        ! J/kmol --> J/kg
+        well%liq%H(i) = well%liq%H(i) / fmw_comp(wid)
+        call SCO2BrineEnthalpy(well%temp(i), well%liq%xmass(i,sid), &
+                              well%liq%H(i),H_temp)
+        ! CO2 density, internal energy, enthalpy
+        call EOSGasDensityEnergy(well%temp(i),well%pg(i),den_co2, &
+                                well%gas%H(i),U_temp,ierr)
+        ! J/kmol --> J/kg
+        well%gas%H(i) = well%gas%H(i) / fmw_comp(co2_id)
+
+        ! Liquid phase enthalpy
+        well%liq%H(i) = SCO2EnthalpyCompositeLiquid(well%temp(i), &
+                                      well%liq%xmass(i,sid), &
+                                      well%liq%xmass(i,co2_id), &
+                                      H_temp, well%gas%H(i))
+
+        well%liq%H(i) = well%liq%H(i) * 1.d-6 ! J/kg -> MJ/kg
+        well%gas%H(i) = well%gas%H(i)  * 1.d-6 ! MJ/kg
+        call EOSWaterSteamDensityEnthalpy(well%temp(i), &
+                                          well%pg(i), &
+                                          den_kg_steam, &
+                                          den_steam, &
+                                          H_steam,ierr)
+        ! J/kmol -> MJ/kg
+        H_steam = H_steam / fmw_comp(wid) * 1.d-6
+      else
+        den_steam = 0.d0
+        H_steam = 0.d0
+      endif
+
+      ! Gas phase enthalpy
+      well%gas%H(i) = well%gas%xmass(i,wid) * H_steam + &
+                      well%gas%xmass(i,co2_id) * well%gas%H(i)
+
+    enddo
+  endif
 
 end subroutine PMWellUpdatePropertiesSCO2Flow
 
@@ -10699,6 +10713,7 @@ subroutine PMWellCopyWell(well,well_copy,transport)
   well_copy%bh_qg = well%bh_qg
   well_copy%th_ql = well%th_ql
   well_copy%th_qg = well%th_qg
+  well_copy%total_rate = well%total_rate
   well_copy%liq%visc(:) = well%liq%visc(:)
   well_copy%gas%visc(:) = well%gas%visc(:)
   well_copy%temp(:) = well%temp(:)
