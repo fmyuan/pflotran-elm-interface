@@ -956,6 +956,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Global_Aux_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -1303,11 +1304,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
               ! MAN: this is a hack to get the well to initialize properly
               if (cur_well%well%total_rate < 0.d0) then
-                if (X_p(well_index) == sco2_auxvar%pres(option%liquid_phase)) then
+                if (Equal(X_p(well_index),sco2_auxvar%pres(option%liquid_phase))) then
                   dX_p(well_index) = dX_p(well_index) + &
                                      (sco2_auxvar%well%bh_p - &
                                      sco2_auxvar%pres(option%liquid_phase))
-                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                elseif (.not. Equal(X_p(well_index), cur_well%well%bh_p)) then
                   dX_p(well_index) = dX_p(well_index) + &
                                     (cur_well%well%bh_p - X_p(well_index))
                 endif
