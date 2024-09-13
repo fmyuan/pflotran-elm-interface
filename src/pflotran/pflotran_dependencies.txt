@@ -2291,6 +2291,7 @@ pm_ufd_biosphere.o : \
   grid.o \
   input_aux.o \
   material_aux.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   pflotran_constants.o \
@@ -2384,6 +2385,7 @@ pm_well.o : \
   output_aux.o \
   pflotran_constants.o \
   pm_base.o \
+  reactive_transport_aux.o \
   realization_subsurface.o \
   sco2_aux.o \
   strata.o \

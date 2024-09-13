@@ -1794,6 +1794,8 @@ subroutine PMWellSetup(this)
   use NW_Transport_Aux_module
   use SCO2_Aux_module
   use Hydrate_Aux_module
+  use Global_Aux_module
+  use Reactive_Transport_Aux_module
 
   implicit none
 
@@ -1826,7 +1828,11 @@ subroutine PMWellSetup(this)
   PetscBool :: res_grid_cell_within_well_x
   PetscErrorCode :: ierr
   PetscInt :: well_bottom_local, well_bottom_ghosted
+  PetscInt :: iconn, sum_connection, global_ss_connections
   PetscInt, allocatable :: temp(:), temp2(:)
+  type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
+                                                   rt_auxvars_ss_temp(:)
 
   call this%SetRealization()
   option => this%option
@@ -2314,6 +2320,51 @@ subroutine PMWellSetup(this)
         &linked to well named '// trim(this%name) // '.'
       call PrintErrMsg(option)
     endif
+  endif
+
+  ! Enable allocation of mass balance array
+  if (option%ntrandof > 0 .and. option%iflowmode /= WF_MODE) then
+    source_sink => realization%patch%source_sink_list%first
+    sum_connection = 0
+    do
+      if (.not.associated(source_sink)) exit
+      sum_connection = sum_connection + &
+                      source_sink%connection_set%num_connections
+      source_sink => source_sink%next
+    enddo
+
+    if (associated(realization%patch%aux%Global%auxvars_ss)) then
+      auxvars_ss => realization%patch%aux%Global%auxvars_ss
+      global_ss_connections = realization%patch%aux%Global%num_aux_ss
+      sum_connection = sum_connection + global_ss_connections
+      allocate(auxvars_ss_temp(sum_connection))
+      auxvars_ss_temp(1:global_ss_connections) = auxvars_ss(:)
+      realization%patch%aux%Global%auxvars_ss => auxvars_ss_temp
+      deallocate(auxvars_ss)
+      nullify(auxvars_ss_temp)
+      auxvars_ss => realization%patch%aux%Global%auxvars_ss
+
+      rt_auxvars_ss => realization%patch%aux%RT%auxvars_ss
+      allocate(rt_auxvars_ss_temp(sum_connection))
+      rt_auxvars_ss_temp(1:global_ss_connections) = rt_auxvars_ss(:)
+      realization%patch%aux%RT%auxvars_ss => rt_auxvars_ss_temp
+      deallocate(rt_auxvars_ss)
+      nullify(rt_auxvars_ss_temp)
+    else
+      global_ss_connections = 0
+      allocate (auxvars_ss(sum_connection))
+      realization%patch%aux%Global%auxvars_ss => auxvars_ss
+      allocate(realization%patch%aux%RT%auxvars_ss(sum_connection))
+    endif
+    if (sum_connection > 0) then
+      option%iflag = 1 ! enable allocation of mass_balance array
+      do iconn = global_ss_connections + 1, sum_connection
+        call GlobalAuxVarInit(auxvars_ss(iconn),option)
+        call RTAuxVarInit(realization%patch%aux%RT%auxvars_ss(iconn), &
+                          realization%reaction,option)
+      enddo
+    endif
+    realization%patch%aux%Global%num_aux_ss = sum_connection
   endif
 
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
