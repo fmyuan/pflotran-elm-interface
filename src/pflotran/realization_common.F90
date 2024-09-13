@@ -106,6 +106,8 @@ subroutine RealizationAddCoupler(patch,coupler)
       call CouplerAddToList(new_coupler,patch%source_sink_list)
     case(WELL_COUPLER_TYPE)
       call CouplerAddToList(new_coupler,patch%well_coupler_list)
+    case(PRESCRIBED_COUPLER_TYPE)
+      call CouplerAddToList(new_coupler,patch%prescribed_condition_list)
   end select
   nullify(new_coupler)
 

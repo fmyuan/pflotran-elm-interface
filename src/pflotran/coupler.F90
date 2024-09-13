@@ -18,6 +18,7 @@ module Coupler_module
   PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
   PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
   PetscInt, parameter, public :: WELL_COUPLER_TYPE = 4
+  PetscInt, parameter, public :: PRESCRIBED_COUPLER_TYPE = 5
   PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
 
   type, public :: coupler_type
@@ -96,7 +97,7 @@ function CouplerCreate1()
   allocate(coupler)
   coupler%id = 0
   coupler%name = ''
-  coupler%itype = BOUNDARY_COUPLER_TYPE
+  coupler%itype = UNINITIALIZED_INTEGER
   coupler%ctype = "boundary"
   coupler%flow_condition_name = ""
   coupler%tran_condition_name = ""
@@ -152,6 +153,8 @@ function CouplerCreate2(itype)
       coupler%ctype = 'source_sink'
     case(WELL_COUPLER_TYPE)
       coupler%ctype = 'well'
+    case(PRESCRIBED_COUPLER_TYPE)
+      coupler%ctype = 'prescribed'
   end select
 
   CouplerCreate2 => coupler
@@ -418,6 +421,8 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       connection_itype = BOUNDARY_CONNECTION_TYPE
     case(WELL_COUPLER_TYPE)
       connection_itype = WELL_CONNECTION_TYPE
+    case(PRESCRIBED_COUPLER_TYPE)
+      connection_itype = PRESCRIBED_CONNECTION_TYPE
   end select
 
   if (nullify_connection_set) then

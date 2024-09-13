@@ -1289,8 +1289,7 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
           trim(adjustl(option%io_buffer)) // '.'
         call PrintErrMsg(option)
       endif
-    case(INITIAL_CONNECTION_TYPE)
-    case(SRC_SINK_CONNECTION_TYPE)
+    case default
   end select
 
 end subroutine StructGridPopulateConnection

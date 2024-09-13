@@ -70,6 +70,7 @@ module Patch_module
     type(coupler_list_type), pointer :: initial_condition_list
     type(coupler_list_type), pointer :: source_sink_list
     type(coupler_list_type), pointer :: well_coupler_list
+    type(coupler_list_type), pointer :: prescribed_condition_list
 
     type(material_property_type), pointer :: material_properties
     type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -179,6 +180,8 @@ function PatchCreate()
   call CouplerInitList(patch%source_sink_list)
   allocate(patch%well_coupler_list)
   call CouplerInitList(patch%well_coupler_list)
+  allocate(patch%prescribed_condition_list)
+  call CouplerInitList(patch%prescribed_condition_list)
 
   nullify(patch%material_properties)
   nullify(patch%material_property_array)
@@ -372,7 +375,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     coupler => coupler%next
   enddo
 
-
   ! initial conditions
   coupler => patch%initial_condition_list%first
   do
@@ -560,6 +562,83 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     coupler => coupler%next
   enddo
 
+  ! prescribed conditions
+  coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(coupler)) exit
+    ! pointer to region
+    coupler%region => RegionGetPtrFromList(coupler%region_name, &
+                                           patch%region_list)
+    if (.not.associated(coupler%region)) then
+      option%io_buffer = 'Region "' // trim(coupler%region_name) // &
+                 '" in prescribed condition "' // &
+                 trim(coupler%name) // &
+                 '" not found in region list'
+      call PrintErrMsg(option)
+    endif
+    ! pointer to flow condition
+    if (option%nflowdof > 0) then
+      if (len_trim(coupler%flow_condition_name) > 0) then
+        coupler%flow_condition => &
+          FlowConditionGetPtrFromList(coupler%flow_condition_name, &
+                                      flow_conditions)
+        if (.not.associated(coupler%flow_condition)) then
+          option%io_buffer = 'Flow condition "' // &
+                   trim(coupler%flow_condition_name) // &
+                   '" in prescribed condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in flow condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A FLOW_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to transport condition
+    if (option%ntrandof > 0) then
+      if (len_trim(coupler%tran_condition_name) > 0) then
+        coupler%tran_condition => &
+          TranConditionGetPtrFromList(coupler%tran_condition_name, &
+                                      transport_conditions)
+        if (.not.associated(coupler%tran_condition)) then
+           option%io_buffer = 'Transport condition "' // &
+                   trim(coupler%tran_condition_name) // &
+                   '" in prescribed condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in transport condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to geophysics condition
+    if (option%ngeopdof > 0) then
+      if (len_trim(coupler%geop_condition_name) > 0) then
+        coupler%geop_condition => &
+          GeopConditionGetPtrFromList(coupler%geop_condition_name, &
+                                      geophysics_conditions)
+        if (.not.associated(coupler%geop_condition)) then
+           option%io_buffer = 'Geophysics condition "' // &
+                   trim(coupler%geop_condition_name) // &
+                   '" in boundary condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in prescribed condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A GEOPHYSICS_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    coupler => coupler%next
+  enddo
+
 !----------------------------
 ! AUX
 
@@ -610,6 +689,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                                      patch%boundary_condition_list)
   call CouplerListComputeConnections(patch%grid,option, &
                                      patch%source_sink_list)
+  call CouplerListComputeConnections(patch%grid,option, &
+                                     patch%prescribed_condition_list)
 
   ! linkage of observation to regions and couplers must take place after
   ! connection list have been created.
@@ -778,6 +859,8 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
                                option)
   call PatchInitCouplerAuxVars(patch%well_coupler_list,patch, &
                                option)
+  call PatchInitCouplerAuxVars(patch%prescribed_condition_list,patch, &
+                               option)
 
   !geh: This should not be included in PatchUpdateAllCouplerAuxVars
   ! as it will result in excessive updates to initial conditions
@@ -845,7 +928,8 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
         coupler%flow_condition%is_transient = &
           FlowConditionIsTransient(coupler%flow_condition)
         if (coupler%itype == INITIAL_COUPLER_TYPE .or. &
-            coupler%itype == BOUNDARY_COUPLER_TYPE) then
+            coupler%itype == BOUNDARY_COUPLER_TYPE .or. &
+            coupler%itype == PRESCRIBED_COUPLER_TYPE) then
 
           if (associated(coupler%flow_condition%pressure) .or. &
               associated(coupler%flow_condition%concentration) .or. &
@@ -1167,6 +1251,8 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
                                  force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%well_coupler_list, &
+                                 force_update_flag,option)
+  call PatchUpdateCouplerAuxVars(patch,patch%prescribed_condition_list, &
                                  force_update_flag,option)
 
 end subroutine PatchUpdateAllCouplerAuxVars
@@ -5909,6 +5995,9 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
                                    reaction_base,option)
 
   call PatchInitCouplerConstraints(patch%well_coupler_list, &
+                                   reaction_base,option)
+
+  call PatchInitCouplerConstraints(patch%prescribed_condition_list, &
                                    reaction_base,option)
 
 end subroutine PatchInitConstraints
@@ -11891,6 +11980,7 @@ subroutine PatchDestroy(patch)
   call CouplerDestroyList(patch%initial_condition_list)
   call CouplerDestroyList(patch%source_sink_list)
   call CouplerDestroyList(patch%well_coupler_list)
+  call CouplerDestroyList(patch%prescribed_condition_list)
 
   call ObservationDestroyList(patch%observation_list)
   call IntegralFluxDestroyList(patch%integral_flux_list)

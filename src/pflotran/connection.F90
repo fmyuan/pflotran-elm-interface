@@ -14,6 +14,7 @@ module Connection_module
   PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   PetscInt, parameter, public :: WELL_CONNECTION_TYPE = 5
+  PetscInt, parameter, public :: PRESCRIBED_CONNECTION_TYPE = 6
 
   type, public :: connection_set_type
     PetscInt :: id
@@ -118,7 +119,8 @@ function ConnectionCreate(num_connections,connection_itype)
       connection%dist = 0.d0
       connection%intercp = 0.d0
       connection%area = 0.d0
-    case(SRC_SINK_CONNECTION_TYPE,INITIAL_CONNECTION_TYPE)
+    case(SRC_SINK_CONNECTION_TYPE,INITIAL_CONNECTION_TYPE, &
+         PRESCRIBED_CONNECTION_TYPE)
       allocate(connection%id_dn(num_connections))
       connection%id_dn = 0
   end select

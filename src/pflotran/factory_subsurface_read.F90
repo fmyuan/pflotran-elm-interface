@@ -1233,6 +1233,15 @@ subroutine FactorySubsurfReadInput(simulation,input)
         nullify(coupler)
 
 !....................
+      case ('PRESCRIBED_CONDITION')
+        coupler => CouplerCreate(PRESCRIBED_COUPLER_TYPE)
+        call InputReadWord(input,option,coupler%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Prescribed Condition name')
+        call CouplerRead(coupler,input,option)
+        call RealizationAddCoupler(realization%patch,coupler)
+        nullify(coupler)
+
+!....................
       case ('SOURCE_SINK_SANDBOX')
         call SSSandboxRead(input,option)
 
