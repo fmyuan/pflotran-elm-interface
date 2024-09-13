@@ -11829,6 +11829,8 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
   use Option_module
   use String_module
   use Matrix_Zeroing_module
+  use Coupler_module, only : coupler_type
+  use Connection_module, only : connection_set_type
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -11840,11 +11842,14 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
   type(option_type) :: option
 
   PetscInt :: ncount, idof
+  PetscInt :: iconn
   PetscInt :: local_id, ghosted_id
   PetscInt :: ndof, n_active_dof
   PetscInt :: n_inactive_rows
 
   type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: flag
   PetscErrorCode :: ierr
 
@@ -11866,6 +11871,19 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
     else if (n_active_dof < ndof) then
       n_inactive_rows = n_inactive_rows + (ndof-n_active_dof)
     endif
+  enddo
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      n_inactive_rows = n_inactive_rows + ndof
+    enddo
+    cur_coupler => cur_coupler%next
   enddo
 
   call MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
@@ -11894,6 +11912,26 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
           (ghosted_id-1)*ndof+idof-1
       enddo
     endif
+  enddo
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+   if (.not.associated(cur_coupler)) exit
+   cur_connection_set => cur_coupler%connection_set
+   do iconn = 1, cur_connection_set%num_connections
+     local_id = cur_connection_set%id_dn(iconn)
+     ghosted_id = grid%nL2G(local_id)
+     if (patch%imat(ghosted_id) <= 0) cycle
+     do idof = 1, ndof
+       ncount = ncount + 1
+       ! 1-based indexing
+       matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+       ! 0-based indexing
+       matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+         (ghosted_id-1)*ndof+idof-1
+     enddo
+   enddo
+   cur_coupler => cur_coupler%next
   enddo
 
   call MPI_Allreduce(n_inactive_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &

@@ -760,7 +760,10 @@ subroutine PMERTSetupSolvers(this)
   call DiscretizationCreateMatrix(this%realization%discretization, &
                                   ONEDOF, &
                                   solver%Mpre_mat_type, &
-                                  solver%Mpre,option)
+                                  solver%Mpre, &
+                                  associated(this%realization%patch% &
+                                    prescribed_condition_list%first), &
+                                  option)
 
   call MatSetOptionsPrefix(solver%Mpre,"geop_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre
