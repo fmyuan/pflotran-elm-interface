@@ -334,6 +334,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
+        option%use_isothermal = PETSC_TRUE
+        option%flow%reference_temperature = tempreal
       case('UPWIND_VISCOSITY')
         sco2_harmonic_viscosity = PETSC_FALSE
       case('PHASE_PARTITIONING')
