@@ -315,13 +315,12 @@ subroutine PMFracSetup(this)
   type(option_type), pointer :: option
   type(fracture_type), pointer :: cur_fracture,new_fracture_list
   type(fracfam_type), pointer :: cur_fracfam
-  type(point3d_type) :: coordinate
   type(grid_type), pointer :: res_grid
   character(len=MAXWORDLENGTH) :: word
   PetscInt, pointer :: temp_cell_ids(:)
   PetscInt, pointer :: temp_allfrac_cell_ids(:)
   PetscInt, pointer :: temp_frac_common_cell_ids(:)
-  PetscInt :: k,j,local_id,local_id_center
+  PetscInt :: k,j
   PetscInt :: nf,tfc,read_max
   PetscReal :: D,distance
   PetscReal :: min_x,max_x,min_y,max_y,min_z,max_z
@@ -1464,7 +1463,6 @@ subroutine PMFracGenerateFracFam(fracfam)
   class(fracfam_type) :: fracfam
 
   class(fracture_type), pointer :: new_fracture,cur_fracture
-  PetscReal :: temp_real
   PetscBool :: added
 
   do while (fracfam%nfrac_in_fam < fracfam%intensity_fracfam)
