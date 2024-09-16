@@ -1301,7 +1301,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
       if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
         call pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
         if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call pmwell_ptr%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+          call pmwell_ptr%ModifyFlowResidual(r_p)
         endif
       endif
     endif

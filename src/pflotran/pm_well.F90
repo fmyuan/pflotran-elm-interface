@@ -2191,11 +2191,11 @@ subroutine PMWellSetup(this)
 
     write(string,'(I0.6)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
-    source_sink%name = 'well_segment_' // trim(string)
+    source_sink%name = trim(this%name) // '_well_segment_' // trim(string)
 
     ! ----- flow ------------------
-    source_sink%flow_condition_name = 'well_segment_' // trim(string) // &
-                                      '_flow_srcsink'
+    source_sink%flow_condition_name = trim(this%name) // '_well_segment_' // &
+                                      trim(string) // '_flow_srcsink'
     source_sink%flow_condition => FlowConditionCreate(option)
     source_sink%flow_condition%name = source_sink%flow_condition_name
     select case (option%iflowmode)
@@ -2283,8 +2283,8 @@ subroutine PMWellSetup(this)
     ! ----- transport -------------
     if (this%transport) then
       write(string,'(I0.6)') k
-      source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
-                                        '_tran_srcsink'
+      source_sink%tran_condition_name = trim(this%name) // &
+                            '_well_segment_' // trim(string) // '_tran_srcsink'
       source_sink%tran_condition => TranConditionCreate(option)
       source_sink%tran_condition%name = source_sink%tran_condition_name
       source_sink%tran_condition%itype = WELL_SS
@@ -2292,8 +2292,8 @@ subroutine PMWellSetup(this)
       allocate(tran_constraint_coupler_nwt%nwt_auxvar)
       call NWTAuxVarInit(tran_constraint_coupler_nwt%nwt_auxvar,&
                          this%realization%reaction_nw,option)
-      tran_constraint_coupler_nwt%constraint_name = &
-                                               'well_segment_' // trim(string)
+      tran_constraint_coupler_nwt%constraint_name = trim(this%name) //  &
+                                               '_well_segment_' // trim(string)
       source_sink%tran_condition%cur_constraint_coupler => &
                                                    tran_constraint_coupler_nwt
     endif
@@ -2323,7 +2323,7 @@ subroutine PMWellSetup(this)
   endif
 
   ! Enable allocation of mass balance array
-  if (option%ntrandof > 0 .and. option%iflowmode /= WF_MODE) then
+  if (option%iflowmode /= WF_MODE) then
     source_sink => realization%patch%source_sink_list%first
     sum_connection = 0
     do
@@ -2343,28 +2343,52 @@ subroutine PMWellSetup(this)
       deallocate(auxvars_ss)
       nullify(auxvars_ss_temp)
       auxvars_ss => realization%patch%aux%Global%auxvars_ss
-
-      rt_auxvars_ss => realization%patch%aux%RT%auxvars_ss
-      allocate(rt_auxvars_ss_temp(sum_connection))
-      rt_auxvars_ss_temp(1:global_ss_connections) = rt_auxvars_ss(:)
-      realization%patch%aux%RT%auxvars_ss => rt_auxvars_ss_temp
-      deallocate(rt_auxvars_ss)
-      nullify(rt_auxvars_ss_temp)
+      if (option%ntrandof > 0) then
+        rt_auxvars_ss => realization%patch%aux%RT%auxvars_ss
+        allocate(rt_auxvars_ss_temp(sum_connection))
+        rt_auxvars_ss_temp(1:global_ss_connections) = rt_auxvars_ss(:)
+        realization%patch%aux%RT%auxvars_ss => rt_auxvars_ss_temp
+        deallocate(rt_auxvars_ss)
+        nullify(rt_auxvars_ss_temp)
+      endif
     else
       global_ss_connections = 0
       allocate (auxvars_ss(sum_connection))
       realization%patch%aux%Global%auxvars_ss => auxvars_ss
-      allocate(realization%patch%aux%RT%auxvars_ss(sum_connection))
+      if (option%ntrandof > 0) then
+        allocate(realization%patch%aux%RT%auxvars_ss(sum_connection))
+      endif
     endif
     if (sum_connection > 0) then
       option%iflag = 1 ! enable allocation of mass_balance array
       do iconn = global_ss_connections + 1, sum_connection
         call GlobalAuxVarInit(auxvars_ss(iconn),option)
-        call RTAuxVarInit(realization%patch%aux%RT%auxvars_ss(iconn), &
-                          realization%reaction,option)
+        if (option%ntrandof > 0) then
+          call RTAuxVarInit(realization%patch%aux%RT%auxvars_ss(iconn), &
+                            realization%reaction,option)
+        endif
       enddo
     endif
     realization%patch%aux%Global%num_aux_ss = sum_connection
+
+    if (sum_connection > 0) then
+      ! flow
+      if (option%nflowdof > 0) then
+        allocate(realization%patch%ss_flow_fluxes(option%nflowdof, &
+                 sum_connection))
+        realization%patch%ss_flow_fluxes = 0.d0
+      endif
+      ! transport
+      if (option%ntrandof > 0) then
+        allocate(realization%patch%ss_tran_fluxes(option%ntrandof, &
+                 sum_connection))
+        realization%patch%ss_tran_fluxes = 0.d0
+        ! only needed by transport
+        allocate(realization%patch%ss_flow_vol_fluxes(option%nphase, &
+                 sum_connection))
+        realization%patch%ss_flow_vol_fluxes = 0.d0
+      endif
+    endif
   endif
 
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
@@ -4074,6 +4098,8 @@ recursive subroutine PMWellInitializeRun(this)
   !                              (2,:) perturbed wrt gas saturation
   allocate(this%srcsink_water(0:2,nsegments))
   allocate(this%srcsink_gas(0:2,nsegments))
+  this%srcsink_water = 0.d0
+  this%srcsink_gas = 0.d0
 
   patch_strata => this%realization%patch%strata_list%first
   do
@@ -5541,8 +5567,6 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
   use NW_Transport_Aux_module
   use Transport_Constraint_NWT_module
   use Option_module
-  use SCO2_Aux_module, only: sco2_well_coupling, &
-                             SCO2_FULLY_IMPLICIT_WELL
   use Hydrate_Aux_module, only: hydrate_well_coupling, &
                              HYDRATE_FULLY_IMPLICIT_WELL
 
@@ -5566,7 +5590,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
     if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
 
     write(string,'(I0.6)') k
-    srcsink_name = 'well_segment_' // trim(string)
+    srcsink_name = trim(pm_well%name) // '_well_segment_' // trim(string)
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
@@ -5623,17 +5647,10 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
             pm_well%realization%patch%aux%wippflo%auxvars(:,ghosted_id)%&
                  well%Qg = pm_well%well%gas%Q(k)
           case(SCO2_MODE)
-            if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
-              source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
-                0.d0 ! [kmol/s]
-              source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-                0.d0 ! [kmol/s]
-            else
-              source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
-                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
-              source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
-            endif
+            source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
+              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
+            source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
+              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
 
             source_sink%flow_condition%sco2%liquid_pressure%aux_real(1) = &
                                                             pm_well%well%pl(k)
@@ -5751,7 +5768,7 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
     if (pm_well%well_grid%h_rank_id(k) /= pm_well%option%myrank) cycle
 
     write(string,'(I0.6)') k
-    srcsink_name = 'well_segment_' // trim(string)
+    srcsink_name = trim(pm_well%name) // '_well_segment_' // trim(string)
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
@@ -5772,9 +5789,9 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
               -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
           case (SCO2_MODE)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
-              0.d0 ! [kg/s]
+              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
             source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-              0.d0 ! [kg/s]
+              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
           case (H_MODE)
             source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
@@ -5883,16 +5900,23 @@ subroutine PMWellUpdateFlowRates(this,well_pert,res_pert,segment_index,ierr)
   call PMWellSolveFlow(this,well_pert,ierr)
   this%print_output = PETSC_TRUE
 
-  this%srcsink_water(well_pert,:) = -1.d0 * &
-                                          this%well%liq%Q(:)! [kmol/s]
-  this%srcsink_gas(well_pert,:)   = -1.d0 * &
-                                          this%well%gas%Q(:)! [kmol/s]
+  if (option%iflowmode == WF_MODE) then
+    this%srcsink_water(well_pert,:) = -1.d0 * &
+                                            this%well%liq%Q(:)! [kmol/s]
+    this%srcsink_gas(well_pert,:)   = -1.d0 * &
+                                            this%well%gas%Q(:)! [kmol/s]
+  else
+    this%srcsink_water(ONE_INTEGER,:) = -1.d0 * &
+                                            this%well%liq%Q(:)! [kg/s]
+    this%srcsink_gas(TWO_INTEGER,:)   = -1.d0 * &
+                                            this%well%gas%Q(:)! [kg/s]
+  endif
 
 end subroutine PMWellUpdateFlowRates
 
 ! ************************************************************************** !
 
-subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
+subroutine PMWellModifyFlowResidual(this,residual)
   !
   ! This subroutine computes the well contribution to the reservoir residual
   ! when called from the fully- or quasi-coupled source/sink update in WIPP
@@ -5909,7 +5933,6 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
 
   class(pm_well_type) :: this
   PetscReal, pointer :: residual(:)
-  PetscReal :: ss_flow_vol_flux(this%option%nphase)
 
   PetscReal :: Res(this%flow_soln%ndof)
   PetscReal :: Q, sum_q

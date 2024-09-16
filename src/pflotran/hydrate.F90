@@ -1486,7 +1486,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
         if (.not. associated(cur_well)) exit
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-          call cur_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+          call cur_well%ModifyFlowResidual(r_p)
         endif
         cur_well => cur_well%next_well
       enddo
