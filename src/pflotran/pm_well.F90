@@ -2308,7 +2308,7 @@ subroutine PMWellSetup(this)
                                                    tran_constraint_coupler_nwt
     endif
 
-    source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
+    source_sink%connection_set => ConnectionCreate(1,GENERIC_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = well_grid%h_local_id(k)
 
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)

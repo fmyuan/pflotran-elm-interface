@@ -414,15 +414,15 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       else
         nullify_connection_set = PETSC_TRUE
       endif
-      connection_itype = INITIAL_CONNECTION_TYPE
+      connection_itype = GENERIC_CONNECTION_TYPE
     case(SRC_SINK_COUPLER_TYPE)
-      connection_itype = SRC_SINK_CONNECTION_TYPE
+      connection_itype = GENERIC_CONNECTION_TYPE
     case(BOUNDARY_COUPLER_TYPE)
-      connection_itype = BOUNDARY_CONNECTION_TYPE
+      connection_itype = BOUNDARY_FACE_CONNECTION_TYPE
     case(WELL_COUPLER_TYPE)
-      connection_itype = WELL_CONNECTION_TYPE
+      connection_itype = GENERIC_CONNECTION_TYPE
     case(PRESCRIBED_COUPLER_TYPE)
-      connection_itype = PRESCRIBED_CONNECTION_TYPE
+      connection_itype = GENERIC_CONNECTION_TYPE
   end select
 
   if (nullify_connection_set) then
@@ -455,7 +455,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       ! if using higher order advection, allocate associated arrays
       if (option%itranmode == EXPLICIT_ADVECTION .and. &
           option%transport%tvd_flux_limiter /= 1 .and. &  ! 1 = upwind
-          connection_set%itype == BOUNDARY_CONNECTION_TYPE) then
+          connection_set%itype == BOUNDARY_FACE_CONNECTION_TYPE) then
         ! connections%id_up2 should remain null as it will not be used
         allocate(connection_set%id_dn2(size(connection_set%id_dn)))
         connection_set%id_dn2 = 0

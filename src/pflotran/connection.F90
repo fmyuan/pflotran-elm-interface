@@ -9,12 +9,9 @@ module Connection_module
   private
 
   ! connection types
-  PetscInt, parameter, public :: INTERNAL_CONNECTION_TYPE = 1
-  PetscInt, parameter, public :: BOUNDARY_CONNECTION_TYPE = 2
-  PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
-  PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
-  PetscInt, parameter, public :: WELL_CONNECTION_TYPE = 5
-  PetscInt, parameter, public :: PRESCRIBED_CONNECTION_TYPE = 6
+  PetscInt, parameter, public :: INTERNAL_FACE_CONNECTION_TYPE = 1
+  PetscInt, parameter, public :: BOUNDARY_FACE_CONNECTION_TYPE = 2
+  PetscInt, parameter, public :: GENERIC_CONNECTION_TYPE = 3
 
   type, public :: connection_set_type
     PetscInt :: id
@@ -96,7 +93,7 @@ function ConnectionCreate(num_connections,connection_itype)
   nullify(connection%area)
   nullify(connection%cntr)
   select case(connection_itype)
-    case(INTERNAL_CONNECTION_TYPE)
+    case(INTERNAL_FACE_CONNECTION_TYPE)
       allocate(connection%id_up(num_connections))
       allocate(connection%id_dn(num_connections))
       allocate(connection%dist(-1:3,num_connections))
@@ -109,7 +106,7 @@ function ConnectionCreate(num_connections,connection_itype)
       connection%dist = 0.d0
       connection%intercp = 0.d0
       connection%area = 0.d0
-    case(BOUNDARY_CONNECTION_TYPE)
+    case(BOUNDARY_FACE_CONNECTION_TYPE)
       allocate(connection%id_dn(num_connections))
       allocate(connection%dist(-1:3,num_connections))
       allocate(connection%intercp(1:3,num_connections))
@@ -119,8 +116,7 @@ function ConnectionCreate(num_connections,connection_itype)
       connection%dist = 0.d0
       connection%intercp = 0.d0
       connection%area = 0.d0
-    case(SRC_SINK_CONNECTION_TYPE,INITIAL_CONNECTION_TYPE, &
-         PRESCRIBED_CONNECTION_TYPE)
+    case(GENERIC_CONNECTION_TYPE)
       allocate(connection%id_dn(num_connections))
       connection%id_dn = 0
   end select

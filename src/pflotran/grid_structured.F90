@@ -869,7 +869,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   leny = structured_grid%ngy - 1
   lenz = structured_grid%ngz - 1
 
-  connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
 
   ! if using higher order advection, allocate associated arrays
   if (option%itranmode == EXPLICIT_ADVECTION .and. &
@@ -1142,7 +1142,7 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
   endif
 
   select case(connection%itype)
-    case(BOUNDARY_CONNECTION_TYPE)
+    case(BOUNDARY_FACE_CONNECTION_TYPE)
 
       select case(iface)
 
