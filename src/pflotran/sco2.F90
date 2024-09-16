@@ -556,27 +556,36 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
           porosity = material_auxvars(ghosted_id)%porosity
         endif
         if (iphase == option%trapped_gas_phase) then
-          ! SPE11 definition of trapped gas
+          ! SPE11 definition of "immobile gas"
           Srg = patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
                 ptr%gas_rel_perm_function%Srg
-          if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) > Srg) then
+          if (sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+              sat(option%gas_phase) <= Srg) then
             sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
-                      Srg * porosity * volume
-          else
-            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) * &
-                      porosity * volume
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      xmass(icomp,option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      den_kg(option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      sat(option%gas_phase) * porosity * volume
           endif
         else
-          sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+          if (iphase /= option%gas_phase) then
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                    xmass(icomp,iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
+                    porosity * volume
+          elseif (sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  sat(option%gas_phase) > Srg) then
+          ! SPE11 definition of "mobile gas"
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
                     porosity * volume
+          endif
         endif
       enddo
     enddo

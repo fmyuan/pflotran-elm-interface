@@ -5650,7 +5650,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
             source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
+              -1.d0 * pm_well%well%gas%Q(k) ! [kg/s]
 
             source_sink%flow_condition%sco2%liquid_pressure%aux_real(1) = &
                                                             pm_well%well%pl(k)
@@ -5791,7 +5791,7 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
             source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
+              -1.d0 * pm_well%well%gas%Q(k) ! [kg/s]
           case (H_MODE)
             source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
@@ -5905,11 +5905,6 @@ subroutine PMWellUpdateFlowRates(this,well_pert,res_pert,segment_index,ierr)
                                             this%well%liq%Q(:)! [kmol/s]
     this%srcsink_gas(well_pert,:)   = -1.d0 * &
                                             this%well%gas%Q(:)! [kmol/s]
-  else
-    this%srcsink_water(ONE_INTEGER,:) = -1.d0 * &
-                                            this%well%liq%Q(:)! [kg/s]
-    this%srcsink_gas(TWO_INTEGER,:)   = -1.d0 * &
-                                            this%well%gas%Q(:)! [kg/s]
   endif
 
 end subroutine PMWellUpdateFlowRates
