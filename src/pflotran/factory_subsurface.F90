@@ -686,7 +686,7 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   class(pm_well_type), pointer :: pm_well
-  class(pmc_base_type), pointer :: cur_pmc
+  class(pmc_base_type), pointer :: cur_pmc, cur_pmc2
   class(pm_base_type), pointer :: cur_pm, cur_pm2
   type(option_type), pointer :: option
   type(dm_ptr_type), pointer :: dm_ptr
@@ -772,29 +772,38 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
       select type (pm => cur_pm)
         class is (pm_sco2_type)
           if (.not. associated(cur_pmc%child)) exit
-          cur_pm2 => cur_pmc%child%pm_list
+          cur_pmc2 => cur_pmc%child
           do
+            cur_pm2 => cur_pmc2%pm_list
+            if (.not. associated(cur_pmc2)) exit
+            if (.not. associated(cur_pm2)) exit
             select type (pm2 => cur_pm2)
               class is (pm_well_type)
                 pm_well => pm2
                 exit
             end select
+            cur_pmc2 => cur_pmc2%peer
           enddo
         class is (pm_hydrate_type)
           if (.not. associated(cur_pmc%child)) exit
-          cur_pm2 => cur_pmc%child%pm_list
+          cur_pmc2 => cur_pmc%child
           do
+            cur_pm2 => cur_pmc2%pm_list
+            if (.not. associated(cur_pmc2)) exit
+            if (.not. associated(cur_pm2)) exit
             select type (pm2 => cur_pm2)
               class is (pm_well_type)
                 pm_well => pm2
                 exit
             end select
+            cur_pmc2 => cur_pmc2%peer
           enddo
         class default
           option%io_buffer = 'The fully implicit well model can only be run &
                                & in SCO2 or HYDRATE mode right now.'
           call PrintErrMsg(option)
       end select
+      cur_pm => cur_pm%next
     enddo
     nullify(well_cells)
     do
