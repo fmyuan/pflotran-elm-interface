@@ -389,17 +389,18 @@ subroutine CouplerComputeConnections(grid,option,coupler)
     case(INITIAL_COUPLER_TYPE)
       if (associated(coupler%flow_condition)) then
         if (associated(coupler%flow_condition%pressure)) then
-          if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
-                HYDROSTATIC_SEEPAGE_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
-                HYDROSTATIC_CONDUCTANCE_BC) then
-            select type(selector => coupler%flow_condition%pressure%dataset)
-              class is(dataset_gridded_hdf5_type)
-              class default
-                nullify_connection_set = PETSC_TRUE
-            end select
-          endif
+          ! if not hydrostatic or gridded, we nullify the connection set as
+          ! CondControlAssignFlowInitCond() will use region%cell_ids
+          select case(coupler%flow_condition%pressure%itype)
+            case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+                 HYDROSTATIC_CONDUCTANCE_BC)
+            case default
+              select type(selector => coupler%flow_condition%pressure%dataset)
+                class is(dataset_gridded_hdf5_type)
+                class default
+                  nullify_connection_set = PETSC_TRUE
+              end select
+          end select
         else if (associated(coupler%flow_condition%concentration)) then
           ! need to calculate connection set
         endif
@@ -415,13 +416,9 @@ subroutine CouplerComputeConnections(grid,option,coupler)
         nullify_connection_set = PETSC_TRUE
       endif
       connection_itype = GENERIC_CONNECTION_TYPE
-    case(SRC_SINK_COUPLER_TYPE)
-      connection_itype = GENERIC_CONNECTION_TYPE
     case(BOUNDARY_COUPLER_TYPE)
       connection_itype = BOUNDARY_FACE_CONNECTION_TYPE
-    case(WELL_COUPLER_TYPE)
-      connection_itype = GENERIC_CONNECTION_TYPE
-    case(PRESCRIBED_COUPLER_TYPE)
+    case(SRC_SINK_COUPLER_TYPE,WELL_COUPLER_TYPE,PRESCRIBED_COUPLER_TYPE)
       connection_itype = GENERIC_CONNECTION_TYPE
   end select
 
