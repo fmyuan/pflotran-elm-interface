@@ -1,0 +1,29 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   1.9273416015650E+05
+      Min:   1.8995035960472E+05
+     Mean:   1.9080435125919E+05
+        3:   1.8995035960472E+05
+        5:   1.9000000000000E+05
+        8:   1.9163277896735E+05
+-- GENERIC: Temperature --
+      Max:   2.0014323579531E+01
+      Min:   1.3000000000000E+01
+     Mean:   1.7709632410266E+01
+        3:   1.8025245708741E+01
+        5:   1.3000000000000E+01
+        8:   1.9828303355259E+01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        3:         1
+        5:         1
+        8:         1
+-- SOLUTION: Flow --
+   Time (seconds):   7.8340800000660E-03
+   Time Steps:           15
+   Newton Iterations:           31
+   Linear Solver Iterations:           31
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.0338456420162E+05
+   Residual 2-Norm:   1.7728636130445E-16

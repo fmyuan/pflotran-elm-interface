@@ -39,7 +39,8 @@ module TH_module
          THJacobianInternalConn, &
          THJacobianBoundaryConn, &
          THJacobianSourceSink, &
-         THUpdateLocalVecs
+         THUpdateLocalVecs, &
+         THApplyPrescribedConditions
 
   PetscInt, parameter :: jh2o = 1
 
@@ -86,6 +87,7 @@ subroutine THSetup(realization)
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
   use Characteristic_Curves_Thermal_module
+  use String_module, only : StringWrite
 
   class(realization_subsurface_type) :: realization
 
@@ -93,7 +95,7 @@ subroutine THSetup(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, cur_coupler
   type(TH_auxvar_type), pointer :: TH_auxvars(:), TH_auxvars_bc(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_ss(:)
   type(fluid_property_type), pointer :: cur_fluid_property
@@ -382,6 +384,33 @@ subroutine THSetup(realization)
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active,patch%aux%TH%matrix_zeroing, &
                             patch%aux%TH%inactive_cells_exist,option)
+
+  ! ensure that prescribed_conditions are solely DIRICHLET type
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    select case(cur_coupler%flow_condition%pressure%itype)
+      case(DIRICHLET_BC,HYDROSTATIC_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" PRESSURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%pressure%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    select case(cur_coupler%flow_condition%temperature%itype)
+      case(DIRICHLET_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" TEMPERATURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%temperature%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    cur_coupler => cur_coupler%next
+  enddo
 
   list => realization%output_option%output_snap_variable_list
   call THSetPlotVariables(realization,list)
@@ -3388,6 +3417,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
     return
   endif
 
+!  call THApplyPrescribedConditions(xx,realization)
   call THResidualPreliminaries(xx,r,realization,ierr)
 
   call THResidualInternalConn(r,realization,ierr)
@@ -3413,6 +3443,59 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   endif
 
 end subroutine THResidual
+
+! ************************************************************************** !
+
+subroutine THApplyPrescribedConditions(xx,realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/24
+  !
+
+  use Connection_module
+  use Coupler_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+
+  implicit none
+
+  Vec :: xx
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: local_id
+  PetscInt :: iconn, offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  option => realization%option
+
+  call VecGetArrayF90(xx,vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      offset = (local_id-1)*option%nflowdof
+      vec_ptr(offset+1) = cur_coupler%flow_aux_real_var(TH_PRESSURE_DOF,iconn)
+      vec_ptr(offset+2) = &
+        cur_coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(xx,vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine THApplyPrescribedConditions
 
 ! ************************************************************************** !
 
