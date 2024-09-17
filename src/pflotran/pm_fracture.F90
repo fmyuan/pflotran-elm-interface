@@ -854,8 +854,8 @@ if (Uninitialized(this%max_frac)) then
                              ! is never reached
 endif
 
-if (Associated(this%fracfam_list)) fracfam_given = PETSC_TRUE
-if (Associated(this%fracture_list)) frac_given = PETSC_TRUE
+if (associated(this%fracfam_list)) fracfam_given = PETSC_TRUE
+if (associated(this%fracture_list)) frac_given = PETSC_TRUE
 
 if (.not.fracfam_given .and. .not.frac_given) then
   option%io_buffer = 'At least one FRACTURE or FRACTURE_FAMILY block must &
