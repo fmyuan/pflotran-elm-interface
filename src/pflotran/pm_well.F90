@@ -2200,7 +2200,8 @@ subroutine PMWellSetup(this)
     if (well_grid%h_rank_id(k) /= option%myrank) cycle
 
     write(string,'(I0.6)') k
-    source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
+    source_sink => CouplerCreate()
+    source_sink%itype = SRC_SINK_COUPLER_TYPE
     source_sink%name = 'well_segment_' // trim(string)
 
     ! ----- flow ------------------

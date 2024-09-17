@@ -1198,47 +1198,57 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('BOUNDARY_CONDITION')
-        coupler => CouplerCreate(BOUNDARY_COUPLER_TYPE)
+        coupler => CouplerCreate()
+        coupler%itype = BOUNDARY_COUPLER_TYPE
+        coupler%ctype = 'boundary'
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Boundary Condition name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization%patch,coupler)
+        call CouplerAddToList(coupler,patch%boundary_condition_list)
         nullify(coupler)
 
 !....................
       case ('INITIAL_CONDITION')
-        coupler => CouplerCreate(INITIAL_COUPLER_TYPE)
+        coupler => CouplerCreate()
+        coupler%itype = INITIAL_COUPLER_TYPE
+        coupler%ctype = 'initial'
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Initial Condition name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization%patch,coupler)
+        call CouplerAddToList(coupler,patch%initial_condition_list)
         nullify(coupler)
 
 !....................
       case ('SOURCE_SINK')
-        coupler => CouplerCreate(SRC_SINK_COUPLER_TYPE)
+        coupler => CouplerCreate()
+        coupler%itype = SRC_SINK_COUPLER_TYPE
+        coupler%ctype = 'source/sink'
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Source Sink name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization%patch,coupler)
+        call CouplerAddToList(coupler,patch%source_sink_list)
         nullify(coupler)
 
 !....................
       case ('WELL_COUPLER')
-        coupler => CouplerCreate(WELL_COUPLER_TYPE)
+        coupler => CouplerCreate()
+        coupler%itype = SRC_SINK_COUPLER_TYPE
+        coupler%ctype = 'well'
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Well name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization%patch,coupler)
+        call CouplerAddToList(coupler,patch%well_coupler_list)
         nullify(coupler)
 
 !....................
       case ('PRESCRIBED_CONDITION')
-        coupler => CouplerCreate(PRESCRIBED_COUPLER_TYPE)
+        coupler => CouplerCreate()
+        coupler%itype = PRESCRIBED_COUPLER_TYPE
+        coupler%ctype = 'prescribed'
         call InputReadWord(input,option,coupler%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Prescribed Condition name')
         call CouplerRead(coupler,input,option)
-        call RealizationAddCoupler(realization%patch,coupler)
+        call CouplerAddToList(coupler,patch%prescribed_condition_list)
         nullify(coupler)
 
 !....................

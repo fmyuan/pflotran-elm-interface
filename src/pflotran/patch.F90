@@ -517,6 +517,16 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   ! well coupler
   coupler => patch%well_coupler_list%first
+  ! catch flow modes that do not support the well model
+  select case(option%iflowmode)
+    case(SCO2_MODE,H_MODE)
+    case default
+      if (associated(coupler)) then
+        option%io_buffer = 'The selected flow mode does not support &
+                           &using WELL_MODEL.'
+        call PrintErrMsg(option)
+      endif
+  end select
   do
     if (.not.associated(coupler)) exit
     ! pointer to flow condition
@@ -1137,32 +1147,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               end select
             endif
           endif
-        else if (coupler%itype == WELL_COUPLER_TYPE) then
-          select case (option%iflowmode)
-            case (SCO2_MODE)
-              if (associated(coupler%flow_condition%sco2)) then
-                if (associated(coupler%flow_condition%sco2%rate)) then
-                  select case(coupler%flow_condition%sco2%rate%itype)
-                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                      allocate(coupler%flow_aux_real_var(1,num_connections))
-                      coupler%flow_aux_real_var = 0.d0
-                  end select
-                endif
-              endif
-            case (H_MODE)
-              if (associated(coupler%flow_condition%hydrate)) then
-                if (associated(coupler%flow_condition%hydrate%rate)) then
-                  select case(coupler%flow_condition%hydrate%rate%itype)
-                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                      allocate(coupler%flow_aux_real_var(1,num_connections))
-                      coupler%flow_aux_real_var = 0.d0
-                  end select
-                endif
-              endif
-            case default
-              option%io_buffer = 'The selected flow mode does not support &
-                                &using WELL_COUPLERs.'
-          end select
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)

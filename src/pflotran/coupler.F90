@@ -17,8 +17,7 @@ module Coupler_module
   PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
   PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
   PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
-  PetscInt, parameter, public :: WELL_COUPLER_TYPE = 4
-  PetscInt, parameter, public :: PRESCRIBED_COUPLER_TYPE = 5
+  PetscInt, parameter, public :: PRESCRIBED_COUPLER_TYPE = 4
   PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
 
   type, public :: coupler_type
@@ -72,7 +71,6 @@ module Coupler_module
 
   interface CouplerCreate
     module procedure CouplerCreate1
-    module procedure CouplerCreate2
     module procedure CouplerCreateFromCoupler
   end interface
 
@@ -123,43 +121,6 @@ function CouplerCreate1()
   CouplerCreate1 => coupler
 
 end function CouplerCreate1
-
-! ************************************************************************** !
-
-function CouplerCreate2(itype)
-  !
-  ! Creates a coupler
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/23/07
-  !
-
-  implicit none
-
-  PetscInt :: itype
-
-  type(coupler_type), pointer :: CouplerCreate2
-
-  type(coupler_type), pointer :: coupler
-
-  coupler => CouplerCreate1()
-  coupler%itype = itype
-  select case(itype)
-    case(INITIAL_COUPLER_TYPE)
-      coupler%ctype = 'initial'
-    case(BOUNDARY_COUPLER_TYPE)
-      coupler%ctype = 'boundary'
-    case(SRC_SINK_COUPLER_TYPE)
-      coupler%ctype = 'source_sink'
-    case(WELL_COUPLER_TYPE)
-      coupler%ctype = 'well'
-    case(PRESCRIBED_COUPLER_TYPE)
-      coupler%ctype = 'prescribed'
-  end select
-
-  CouplerCreate2 => coupler
-
-end function CouplerCreate2
 
 ! ************************************************************************** !
 
@@ -418,7 +379,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       connection_itype = GENERIC_CONNECTION_TYPE
     case(BOUNDARY_COUPLER_TYPE)
       connection_itype = BOUNDARY_FACE_CONNECTION_TYPE
-    case(SRC_SINK_COUPLER_TYPE,WELL_COUPLER_TYPE,PRESCRIBED_COUPLER_TYPE)
+    case(SRC_SINK_COUPLER_TYPE,PRESCRIBED_COUPLER_TYPE)
       connection_itype = GENERIC_CONNECTION_TYPE
   end select
 

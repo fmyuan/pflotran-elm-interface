@@ -9,7 +9,6 @@ module Realization_Common_module
   implicit none
 
   public :: RealizationLocalizeRegions, &
-            RealizationAddCoupler, &
             RealizationAddStrata
 
 
@@ -74,46 +73,6 @@ subroutine RealizationLocalizeRegions(patch,region_list,option)
    endif
 
 end subroutine RealizationLocalizeRegions
-
-
-! ************************************************************************** !
-
-subroutine RealizationAddCoupler(patch,coupler)
-  !
-  ! Adds a copy of a coupler to a list
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/22/08
-  !
-
-  use Coupler_module
-
-  implicit none
-
-  type(patch_type), pointer :: patch
-  type(coupler_type), pointer :: coupler
-
-  type(coupler_type), pointer :: new_coupler
-
-  ! only add to flow list for now, since they will be split out later
-  new_coupler => CouplerCreate(coupler)
-  select case(coupler%itype)
-    case(BOUNDARY_COUPLER_TYPE)
-      call CouplerAddToList(new_coupler,patch%boundary_condition_list)
-    case(INITIAL_COUPLER_TYPE)
-      call CouplerAddToList(new_coupler,patch%initial_condition_list)
-    case(SRC_SINK_COUPLER_TYPE)
-      call CouplerAddToList(new_coupler,patch%source_sink_list)
-    case(WELL_COUPLER_TYPE)
-      call CouplerAddToList(new_coupler,patch%well_coupler_list)
-    case(PRESCRIBED_COUPLER_TYPE)
-      call CouplerAddToList(new_coupler,patch%prescribed_condition_list)
-  end select
-  nullify(new_coupler)
-
-  call CouplerDestroy(coupler)
-
-end subroutine RealizationAddCoupler
 
 ! ************************************************************************** !
 

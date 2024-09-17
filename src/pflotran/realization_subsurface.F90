@@ -1268,21 +1268,38 @@ subroutine RealizationPrintCouplers(realization)
   cur_coupler => patch%initial_condition_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Initial Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
   cur_coupler => patch%boundary_condition_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Boundary Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
   cur_coupler => patch%source_sink_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Source/Sink',cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
+
+  cur_coupler => patch%well_coupler_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler('Well Coupler',cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler('Prescribed Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
@@ -1290,7 +1307,7 @@ end subroutine RealizationPrintCouplers
 
 ! ************************************************************************** !
 
-subroutine RealizationPrintCoupler(coupler,reaction,option)
+subroutine RealizationPrintCoupler(type_string,coupler,reaction,option)
   !
   ! Prints boundary and initial condition coupler
   !
@@ -1305,11 +1322,10 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
 
   implicit none
 
+  character(len=*) :: type_string
   type(coupler_type) :: coupler
   type(option_type) :: option
   class(reaction_rt_type), pointer :: reaction
-
-  character(len=MAXSTRINGLENGTH) :: string
 
   type(flow_condition_type), pointer :: flow_condition
   type(tran_condition_type), pointer :: tran_condition
@@ -1327,20 +1343,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   write(option%fid_out,*)
   write(option%fid_out,98)
 
-
-  select case(coupler%itype)
-    case(INITIAL_COUPLER_TYPE)
-      string = 'Initial Condition'
-    case(BOUNDARY_COUPLER_TYPE)
-      string = 'Boundary Condition'
-    case(SRC_SINK_COUPLER_TYPE)
-      string = 'Source Sink'
-    case(WELL_COUPLER_TYPE)
-      string = 'Well Coupler'
-    case(PRESCRIBED_COUPLER_TYPE)
-      string = 'Prescribed Condition'
-  end select
-  write(option%fid_out,'(/,2x,a,/)') trim(string)
+  write(option%fid_out,'(/,2x,a,/)') trim(type_string)
 
   write(option%fid_out,99)
 101 format(5x,'     Flow Condition: ',2x,a)
