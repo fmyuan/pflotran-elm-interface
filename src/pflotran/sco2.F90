@@ -1673,13 +1673,13 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well
+      sum_connection = 0
       do
         if (.not. associated(cur_well)) exit
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
           call cur_well%ModifyFlowResidual(r_p)
           source_sink => patch%source_sink_list%first
-          sum_connection = 0
           do
             if (.not.associated(source_sink)) exit
             if (associated(source_sink%flow_condition%well)) then
