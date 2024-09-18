@@ -1682,7 +1682,6 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
           sum_connection = 0
           do
             if (.not.associated(source_sink)) exit
-            sum_connection = sum_connection + 1
             if (associated(source_sink%flow_condition%well)) then
               do k = 1,cur_well%well_grid%nsegments
                 if (cur_well%well_grid%h_rank_id(k) /= option%myrank) cycle
@@ -1690,6 +1689,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                 srcsink_name = trim(cur_well%name) // '_well_segment_' // &
                                trim(string)
                 if (trim(srcsink_name) == trim(source_sink%name)) then
+                  sum_connection = sum_connection + 1
                   if (associated(patch%ss_flow_vol_fluxes)) then
                     patch%ss_flow_vol_fluxes(ONE_INTEGER,sum_connection) = &
                                        -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]

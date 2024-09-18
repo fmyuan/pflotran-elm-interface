@@ -1829,6 +1829,7 @@ subroutine PMWellSetup(this)
   PetscErrorCode :: ierr
   PetscInt :: well_bottom_local, well_bottom_ghosted
   PetscInt :: iconn, sum_connection, global_ss_connections
+  PetscInt :: num_new_source_sinks, offset
   PetscInt, allocatable :: temp(:), temp2(:)
   type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
@@ -2186,8 +2187,13 @@ subroutine PMWellSetup(this)
   endif
 
   ! add a reservoir src/sink coupler for each well segment
+  num_new_source_sinks = 0
+  if (associated(realization%patch%aux%Global%auxvars_ss)) then
+    offset = realization%patch%aux%Global%num_aux_ss
+  else
+    offset = 0
+  endif
   do k = 1,well_grid%nsegments
-    if (well_grid%h_rank_id(k) /= option%myrank) cycle
 
     write(string,'(I0.6)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
@@ -2200,6 +2206,8 @@ subroutine PMWellSetup(this)
     source_sink%flow_condition%name = source_sink%flow_condition_name
     select case (option%iflowmode)
     case(WF_MODE)
+      if (well_grid%h_rank_id(k) /= option%myrank) cycle
+
       source_sink%flow_condition%general => FlowGeneralConditionCreate(option)
       string = 'RATE'
       source_sink%flow_condition%general%rate => FlowGeneralSubConditionPtr( &
@@ -2246,6 +2254,7 @@ subroutine PMWellSetup(this)
         do
           if (.not.associated(coupler)) exit
           if (StringCompare(coupler%well_name,this%name)) then
+            source_sink%well_name = coupler%well_name
             if (option%ntrandof > 0) then
               if (option%itranmode == RT_MODE) then
                 source_sink%tran_condition => coupler%tran_condition
@@ -2300,6 +2309,12 @@ subroutine PMWellSetup(this)
 
     source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = well_grid%h_local_id(k)
+    if (well_grid%h_local_id(k) < 0) then
+      source_sink%connection_set%num_connections = 0
+    else
+      num_new_source_sinks = num_new_source_sinks + 1
+      source_sink%connection_set%offset = num_new_source_sinks + offset - 1
+    endif
 
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
@@ -2324,19 +2339,10 @@ subroutine PMWellSetup(this)
 
   ! Enable allocation of mass balance array
   if (option%iflowmode /= WF_MODE) then
-    source_sink => realization%patch%source_sink_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(source_sink)) exit
-      sum_connection = sum_connection + &
-                      source_sink%connection_set%num_connections
-      source_sink => source_sink%next
-    enddo
-
     if (associated(realization%patch%aux%Global%auxvars_ss)) then
       auxvars_ss => realization%patch%aux%Global%auxvars_ss
       global_ss_connections = realization%patch%aux%Global%num_aux_ss
-      sum_connection = sum_connection + global_ss_connections
+      sum_connection = num_new_source_sinks + global_ss_connections
       allocate(auxvars_ss_temp(sum_connection))
       auxvars_ss_temp(1:global_ss_connections) = auxvars_ss(:)
       realization%patch%aux%Global%auxvars_ss => auxvars_ss_temp
@@ -2350,13 +2356,18 @@ subroutine PMWellSetup(this)
         realization%patch%aux%RT%auxvars_ss => rt_auxvars_ss_temp
         deallocate(rt_auxvars_ss)
         nullify(rt_auxvars_ss_temp)
+        realization%patch%aux%RT%num_aux_ss = &
+              realization%patch%aux%RT%num_aux_ss + num_new_source_sinks
       endif
     else
+      sum_connection = num_new_source_sinks
       global_ss_connections = 0
       allocate (auxvars_ss(sum_connection))
       realization%patch%aux%Global%auxvars_ss => auxvars_ss
       if (option%ntrandof > 0) then
         allocate(realization%patch%aux%RT%auxvars_ss(sum_connection))
+        realization%patch%aux%RT%num_aux_ss = &
+              realization%patch%aux%RT%num_aux_ss + num_new_source_sinks
       endif
     endif
     if (sum_connection > 0) then
@@ -4325,20 +4336,30 @@ subroutine PMWellInitFluidVars(well,nsegments,reference_density,option)
   allocate(well%liq%den(nsegments))
   well%liq%den(:) = well%liq%den0
   allocate(well%liq%visc(nsegments))
+  well%liq%visc = 0.d0
   allocate(well%liq%H(nsegments))
+  well%liq%H = 0.d0
   allocate(well%liq%Q(nsegments))
+  well%liq%Q = 0.d0
   allocate(well%liq%kr(nsegments))
+  well%liq%kr = 0.d0
   allocate(well%liq%xmass(nsegments,option%nflowspec))
+  well%liq%xmass = 0.d0
 
   allocate(well%gas%s(nsegments))
   well%gas%den0 = reference_density(2)
   allocate(well%gas%den(nsegments))
   well%gas%den(:) = well%gas%den0
   allocate(well%gas%visc(nsegments))
+  well%gas%visc = 0.d0
   allocate(well%gas%H(nsegments))
+  well%gas%H = 0.d0
   allocate(well%gas%Q(nsegments))
+  well%gas%Q = 0.d0
   allocate(well%gas%kr(nsegments))
+  well%gas%kr = 0.d0
   allocate(well%gas%xmass(nsegments,option%nflowspec))
+  well%gas%xmass = 0.d0
 
 end subroutine PMWellInitFluidVars
 
