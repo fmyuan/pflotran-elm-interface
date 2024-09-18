@@ -7187,14 +7187,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             if (output_option%filter_non_state_variables) then
               do local_id=1,grid%nlmax
                 ghosted_id = grid%nL2G(local_id)
-                if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    GAS_STATE) then
-                  vec_ptr(local_id) = &
-                    patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%liquid_phase)
-                else
-                  vec_ptr(local_id) = 0.d0
-                endif
+                vec_ptr(local_id) = &
+                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    pres(option%liquid_phase)
               enddo
             else
               do local_id=1,grid%nlmax
@@ -7208,14 +7203,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             if (output_option%filter_non_state_variables) then
               do local_id=1,grid%nlmax
                 ghosted_id = grid%nL2G(local_id)
-                if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    LIQUID_STATE) then
-                  vec_ptr(local_id) = &
-                    patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%gas_phase)
-                else
-                  vec_ptr(local_id) = 0.d0
-                endif
+                vec_ptr(local_id) = &
+                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    pres(option%gas_phase)
               enddo
             else
               do local_id=1,grid%nlmax
