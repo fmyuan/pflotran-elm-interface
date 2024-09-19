@@ -100,6 +100,11 @@ module Patch_module
 
   end type patch_type
 
+  interface PatchCreateZeroArray
+    module procedure PatchCreateZeroArray1
+    module procedure PatchCreateZeroArray2
+  end interface
+
   interface PatchGetVariable
     module procedure PatchGetVariable1
     module procedure PatchGetVariable2
@@ -11798,10 +11803,19 @@ subroutine PatchUnsupportedVariable4(ivar,option)
 
 end subroutine PatchUnsupportedVariable4
 
+subroutine PatchCreateZeroArray2(patch,dof_is_active,matrix_zeroing,option)
+use Matrix_Zeroing_module
+  type(patch_type) :: patch
+  PetscBool :: dof_is_active(:)
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
+  PetscBool :: inactive_cells_exist
+  type(option_type) :: option
+  call PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing,inactive_cells_exist,option)
+end subroutine
+
 ! ************************************************************************** !
 
-subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
-                                inactive_cells_exist,option)
+subroutine PatchCreateZeroArray1(patch,dof_is_active,matrix_zeroing,inactive_cells_exist,option)
   !
   ! Computes the zeroed rows for inactive grid cells
   !
@@ -11829,7 +11843,7 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
   PetscInt :: iconn
   PetscInt :: local_id, ghosted_id
   PetscInt :: ndof, n_active_dof
-  PetscInt :: n_inactive_rows
+  PetscInt :: n_zero_rows
 
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: cur_coupler
@@ -11845,15 +11859,14 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
     if (dof_is_active(idof)) n_active_dof = n_active_dof + 1
   enddo
 
-  n_inactive_rows = 0
-  inactive_cells_exist = PETSC_FALSE
+  n_zero_rows = 0
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) then
-      n_inactive_rows = n_inactive_rows + ndof
+      n_zero_rows = n_zero_rows + ndof
     else if (n_active_dof < ndof) then
-      n_inactive_rows = n_inactive_rows + (ndof-n_active_dof)
+      n_zero_rows = n_zero_rows + (ndof-n_active_dof)
     endif
   enddo
 
@@ -11865,12 +11878,12 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      n_inactive_rows = n_inactive_rows + ndof
+      n_zero_rows = n_zero_rows + ndof
     enddo
     cur_coupler => cur_coupler%next
   enddo
 
-  call MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
+  call MatrixZeroingAllocateArray(matrix_zeroing,n_zero_rows)
 
   ncount = 0
 
@@ -11880,9 +11893,9 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
       do idof = 1, ndof
         ncount = ncount + 1
         ! 1-based indexing
-        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+        matrix_zeroing%zero_rows_local_ghosted(ncount) = &
           (ghosted_id-1)*ndof+idof-1
       enddo
     else if (n_active_dof < ndof) then
@@ -11890,9 +11903,9 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
         if (dof_is_active(idof)) cycle
         ncount = ncount + 1
         ! 1-based indexing
-        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+        matrix_zeroing%zero_rows_local_ghosted(ncount) = &
           (ghosted_id-1)*ndof+idof-1
       enddo
     endif
@@ -11909,28 +11922,29 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
      do idof = 1, ndof
        ncount = ncount + 1
        ! 1-based indexing
-       matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+       matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
        ! 0-based indexing
-       matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+       matrix_zeroing%zero_rows_local_ghosted(ncount) = &
          (ghosted_id-1)*ndof+idof-1
      enddo
    enddo
    cur_coupler => cur_coupler%next
   enddo
 
-  call MPI_Allreduce(n_inactive_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+  call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   if (flag > 0) then
-    inactive_cells_exist = PETSC_TRUE
+    matrix_zeroing%zero_rows_exist = PETSC_TRUE
   endif
+  inactive_cells_exist = matrix_zeroing%zero_rows_exist
 
-  if (ncount /= n_inactive_rows) then
+  if (ncount /= n_zero_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
-      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_zero_rows))
     call PrintErrMsgByRank(option)
   endif
 
-end subroutine PatchCreateZeroArray
+end subroutine PatchCreateZeroArray1
 
 ! ************************************************************************** !
 

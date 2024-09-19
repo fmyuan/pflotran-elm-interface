@@ -2341,84 +2341,86 @@ subroutine PMWellSetup(this)
       well_bottom_ghosted = well_grid%h_ghosted_id(1)
       well_bottom_local = well_grid%h_local_id(1)
       if (well_bottom_local > 0 .and. &
-          realization%patch%aux%sco2%inactive_cells_exist) then
+          realization%patch%aux%sco2%matrix_zeroing%zero_rows_exist) then
         if (size(realization%patch%aux%sco2%matrix_zeroing% &
-            inactive_rows_local) == 1) then
+            zero_rows_local) == 1) then
           deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
+                     zero_rows_local)
           deallocate(realization%patch%aux%sco2%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%sco2%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = 0
+                     zero_rows_local_ghosted)
+          realization%patch%aux%sco2% &
+            matrix_zeroing%zero_rows_exist = PETSC_FALSE
+          realization%patch%aux%sco2%matrix_zeroing%n_zero_rows = 0
         else
           if (allocated(temp)) deallocate(temp)
           if (allocated(temp2)) deallocate(temp2)
           allocate(temp(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)))
+               matrix_zeroing%zero_rows_local)))
           allocate(temp2(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows - 1
+               matrix_zeroing%zero_rows_local)-1))
+          realization%patch%aux%sco2%matrix_zeroing%n_zero_rows = &
+               realization%patch%aux%sco2%matrix_zeroing%n_zero_rows - 1
           temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local(:)
+                    zero_rows_local(:)
           temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
           deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
+                     zero_rows_local)
           allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local(:) = &
+                   zero_rows_local(size(temp2)))
+          realization%patch%aux%sco2%matrix_zeroing%zero_rows_local(:) = &
                    temp2(:)
           temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
+                    zero_rows_local_ghosted(:)
           temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
           deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
+                     zero_rows_local_ghosted)
           allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
+                   zero_rows_local_ghosted(size(temp2)))
           realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
+                   zero_rows_local_ghosted(:) = temp2(:)
         endif
       endif
     case(H_MODE)
       well_bottom_ghosted = well_grid%h_ghosted_id(1)
       well_bottom_local = well_grid%h_local_id(1)
       if (well_bottom_local > 0 .and. &
-          realization%patch%aux%hydrate%inactive_cells_exist) then
+          realization%patch%aux%hydrate%matrix_zeroing%zero_rows_exist) then
         if (size(realization%patch%aux%hydrate%matrix_zeroing% &
-            inactive_rows_local) == 1) then
+            zero_rows_local) == 1) then
           deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
+                     zero_rows_local)
           deallocate(realization%patch%aux%hydrate%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%hydrate%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = 0
+                     zero_rows_local_ghosted)
+          realization%patch%aux%hydrate% &
+            matrix_zeroing%zero_rows_exist = PETSC_FALSE
+          realization%patch%aux%hydrate%matrix_zeroing%n_zero_rows = 0
         else
           if (allocated(temp)) deallocate(temp)
           if (allocated(temp2)) deallocate(temp2)
           allocate(temp(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)))
+               matrix_zeroing%zero_rows_local)))
           allocate(temp2(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows - 1
+               matrix_zeroing%zero_rows_local)-1))
+          realization%patch%aux%hydrate%matrix_zeroing%n_zero_rows = &
+               realization%patch%aux%hydrate%matrix_zeroing%n_zero_rows - 1
           temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local(:)
+                    zero_rows_local(:)
           temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
           deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
+                     zero_rows_local)
           allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%hydrate%matrix_zeroing%inactive_rows_local(:) = &
+                   zero_rows_local(size(temp2)))
+          realization%patch%aux%hydrate%matrix_zeroing%zero_rows_local(:) = &
                    temp2(:)
           temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
+                    zero_rows_local_ghosted(:)
           temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
           deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
+                     zero_rows_local_ghosted)
           allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
+                   zero_rows_local_ghosted(size(temp2)))
           realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
+                   zero_rows_local_ghosted(:) = temp2(:)
         endif
       endif
   end select

@@ -205,8 +205,8 @@ subroutine GeneralSetup(realization)
 
   ! create array for zeroing Jacobian entries if isothermal and/or no air
   if (general_isothermal .or. general_no_air) then
-    call MatrixZeroingInitRowZeroing(patch%aux%General%matrix_zeroing, &
-                                     grid%nlmax)
+    allocate(patch%aux%General%zero_array(grid%nlmax))
+    patch%aux%General%zero_array = UNINITIALIZED_INTEGER
   endif
 
   ! initialize parameters
@@ -252,8 +252,7 @@ subroutine GeneralSetup(realization)
   allocate(dof_is_active(option%nflowdof))
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%General%matrix_zeroing, &
-                            patch%aux%General%inactive_cells_exist,option)
+                            patch%aux%General%matrix_zeroing,option)
   deallocate(dof_is_active)
 
   call PatchSetupUpwindDirection(patch,option)
@@ -1310,6 +1309,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Material_Aux_module
   use Material_module
   use Upwind_Direction_module
+  use Matrix_Zeroing_module
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -1352,7 +1352,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt :: imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
@@ -1672,17 +1672,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%General%inactive_cells_exist) then
-    do i=1,patch%aux%General%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%General%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   if (general_high_temp_ts_cut) then
     r_p(:) = MAX_DOUBLE
   endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%General%matrix_zeroing,r)
 
   call GeneralSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                         gen_auxvars,option)
@@ -1765,6 +1761,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Material_Aux_module
   use Material_module
   use Upwind_Direction_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2085,19 +2082,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   ! zero out isothermal and inactive cells
-  if (patch%aux%General%inactive_cells_exist) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%General%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%General%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(patch%aux%General%matrix_zeroing,A)
 
   if (general_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero energy residual
+    zeros => patch%aux%General%zero_array
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
@@ -2109,8 +2099,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   if (general_no_air) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
+    zeros => patch%aux%General%zero_array
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &

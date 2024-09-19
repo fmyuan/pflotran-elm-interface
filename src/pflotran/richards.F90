@@ -357,8 +357,7 @@ subroutine RichardsSetupPatch(realization)
 
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%Richards%matrix_zeroing, &
-                            patch%aux%Richards%inactive_cells_exist,option)
+                            patch%aux%Richards%matrix_zeroing,found,option)
 
 end subroutine RichardsSetupPatch
 
@@ -1751,6 +1750,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   use Field_module
   use Debug_module
   use Utility_module, only : Smoothstep
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1767,7 +1767,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
 
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart
   PetscInt :: iconn
@@ -1949,13 +1948,10 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%Richards%inactive_cells_exist) then
-    do i=1,patch%aux%Richards%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%Richards%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%Richards%matrix_zeroing,r)
 
   call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                          global_auxvars,rich_auxvars,option)
@@ -2727,6 +2723,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   use Field_module
   use Debug_module
   use Utility_module, only : Smoothstep
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2915,12 +2912,10 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 
 #ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
+    option%io_buffer = 'Matrix zeroing in richards.F90 needs to be updated.'
+    call PrintErrMsg(option)
     if (patch%aux%Richards%inactive_cells_exist) then
-      call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
-                                patch%aux%Richards%matrix_zeroing% &
-                                  n_inactive_rows, &
-                                patch%aux%Richards%matrix_zeroing% &
-                                  inactive_rows_local_ghosted)
+      call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer,???)
     endif
     call MatrixBufferSetValues(A,patch%aux%Richards%matrix_buffer)
   endif
@@ -2933,16 +2928,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 #ifdef BUFFER_MATRIX
   if (.not.option%use_matrix_buffer) then
 #endif
-    if (patch%aux%Richards%inactive_cells_exist) then
-      qsrc = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A, &
-                            patch%aux%Richards%matrix_zeroing% &
-                              n_inactive_rows, &
-                            patch%aux%Richards%matrix_zeroing% &
-                              inactive_rows_local_ghosted, &
-                            qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
-    endif
+  call MatrixZeroingZeroMatEntries(patch%aux%Richards%matrix_zeroing,A)
 #ifdef BUFFER_MATRIX
   endif
 #endif

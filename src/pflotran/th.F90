@@ -382,8 +382,8 @@ subroutine THSetup(realization)
   enddo
 
   dof_is_active = PETSC_TRUE
-  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%TH%matrix_zeroing, &
-                            patch%aux%TH%inactive_cells_exist,option)
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%TH%matrix_zeroing,option)
 
   ! ensure that prescribed_conditions are solely DIRICHLET type
   cur_coupler => patch%prescribed_condition_list%first
@@ -3391,6 +3391,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   use Variables_module
   use Material_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -3424,6 +3425,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   call THResidualBoundaryConn(r,realization,ierr)
   call THResidualAccumulation(r,realization,ierr)
   call THResidualSourceSink(r,realization,ierr)
+  call MatrixZeroingZeroVecEntries(realization%patch%aux%TH%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'THresidual','', &
@@ -4081,7 +4083,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id
 
   PetscReal, pointer :: r_p(:)
@@ -4308,12 +4309,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  if (patch%aux%TH%inactive_cells_exist) then
-    do i=1,patch%aux%TH%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%TH%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
@@ -4335,6 +4330,7 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   use Grid_module
   use Option_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -4371,6 +4367,8 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   call THJacobianBoundaryConn(J,realization,ierr)
   call THJacobianAccumulation(J,realization,ierr)
   call THJacobianSourceSink(J,realization,ierr)
+
+  call MatrixZeroingZeroMatEntries(realization%patch%aux%TH%matrix_zeroing,J)
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'THjacobian','', &
@@ -4960,7 +4958,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: qsrc1, qsrc_kmol
   PetscInt :: local_id, ghosted_id
-  PetscReal :: f_up
   PetscReal :: Jsrc(realization%option%nflowdof,realization%option%nflowdof)
 
   PetscInt :: istart
@@ -5112,7 +5109,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5120,15 +5116,9 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
-  zero = 0.d0
-  call MatZeroRowsLocal(A,patch%aux%%matrix_zeroing%n_inactive_rows, &
-                        patch%aux%%matrix_zeroing% &
-                          inactive_rows_local_ghosted, &
-                        zero,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                        ierr);CHKERRQ(ierr)
-  do i=1, patch%aux%TH%matrix_zeroing%n_inactive_rows
-    ii = mod(patch%aux%TH%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
-    ip1 = patch%aux%TH%matrix_zeroing%inactive_rows_local_ghosted(i)
+  do i=1, patch%aux%TH%matrix_zeroing%n_zero_rows
+    ii = mod(patch%aux%TH%matrix_zeroing%zero_rows_local(i),option%nflowdof)
+    ip1 = patch%aux%TH%matrix_zeroing%zero_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     else if (ii == option%nflowdof-1) then
@@ -5142,16 +5132,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-#else
-  if (patch%aux%TH%inactive_cells_exist) then
-    f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%TH%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%TH%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          f_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
 #endif
+
 end subroutine THJacobianSourceSink
 
 ! ************************************************************************** !

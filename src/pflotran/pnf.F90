@@ -105,8 +105,7 @@ subroutine PNFSetup(realization)
 
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%PNF%matrix_zeroing, &
-                            patch%aux%PNF%inactive_cells_exist,option)
+                            patch%aux%PNF%matrix_zeroing,option)
 
   PNF_ts_count = 0
   PNF_ts_cut_count = 0

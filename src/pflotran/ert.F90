@@ -204,8 +204,8 @@ subroutine ERTSetup(realization)
   patch%aux%ERT%num_aux = grid%ngmax
 
   dof_is_active = PETSC_TRUE
-  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%ERT%matrix_zeroing, &
-                            patch%aux%ERT%inactive_cells_exist,option)
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%ERT%matrix_zeroing,option)
 
 end subroutine ERTSetup
 
@@ -227,6 +227,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   use Coupler_module
   use Connection_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -438,14 +439,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   call MatAssemblyEnd(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
     ! zero out inactive cells
-  if (patch%aux%ERT%inactive_cells_exist) then
-    coef_up = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(M,patch%aux%ERT%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%ERT%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          coef_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(patch%aux%ERT%matrix_zeroing,M)
 
   if (realization%debug%matview_Matrix) then
     string = 'ERTmatrix'

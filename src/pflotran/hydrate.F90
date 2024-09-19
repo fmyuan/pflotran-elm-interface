@@ -195,8 +195,7 @@ subroutine HydrateSetup(realization)
     dof_is_active(option%nflowdof) = PETSC_FALSE
   endif
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%Hydrate%matrix_zeroing, &
-                            patch%aux%Hydrate%inactive_cells_exist,option)
+                            patch%aux%Hydrate%matrix_zeroing,option)
   deallocate(dof_is_active)
 
   call PatchSetupUpwindDirection(patch,option)
@@ -1186,6 +1185,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   use Upwind_Direction_module
   use Hydrate_Common_module
   use PM_Well_class
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1224,7 +1224,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt :: imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
@@ -1555,17 +1555,13 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%Hydrate%inactive_cells_exist) then
-    do i=1,patch%aux%Hydrate%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%Hydrate%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   if (hydrate_high_temp_ts_cut) then
     r_p(:) = MAX_DOUBLE
   endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%Hydrate%matrix_zeroing,r)
 
   call HydrateSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                         hyd_auxvars,option)
@@ -1632,6 +1628,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,pm_well,ierr)
   use Upwind_Direction_module
   use Hydrate_Aux_module
   use PM_Well_class
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1963,37 +1960,31 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,pm_well,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   ! zero out isothermal and inactive cells
-  if (patch%aux%Hydrate%inactive_cells_exist) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%Hydrate%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%Hydrate%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-    if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
-      if (associated(pm_well)) then
-        cur_well => pm_well
-        do
-          if (.not. associated(cur_well)) exit
-          if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
-               dabs(cur_well%well%th_ql) < epsilon) then
-            ! Don't solve for BHP if there is no flow in the well.
-            deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
-                             option%nflowdof
-            deactivate_row = deactivate_row - 1
-            if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
-              call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-            else
-              call MatZeroRowsLocal(A,ZERO_INTEGER, deactivate_row, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-            endif
+  call MatrixZeroingZeroMatEntries(patch%aux%Hydrate%matrix_zeroing,A)
+  if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
+    if (associated(pm_well)) then
+      qsrc = 1.d0 ! solely a temporary variable in this conditional
+      cur_well => pm_well
+      do
+        if (.not. associated(cur_well)) exit
+        if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
+              dabs(cur_well%well%th_ql) < epsilon) then
+          ! Don't solve for BHP if there is no flow in the well.
+          deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
+                            option%nflowdof
+          deactivate_row = deactivate_row - 1
+          if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+            call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+                        qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                        ierr);CHKERRQ(ierr)
+          else
+            call MatZeroRowsLocal(A,ZERO_INTEGER, deactivate_row, &
+                        qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                        ierr);CHKERRQ(ierr)
           endif
-          cur_well => cur_well%next_well
-        enddo
-      endif
+        endif
+        cur_well => cur_well%next_well
+      enddo
     endif
   endif
 

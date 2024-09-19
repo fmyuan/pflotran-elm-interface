@@ -266,7 +266,6 @@ module Hydrate_Aux_module
 
   type, public :: hydrate_type
     PetscBool :: auxvars_up_to_date
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(hydrate_parameter_type), pointer :: hydrate_parameter
     type(hydrate_auxvar_type), pointer :: auxvars(:,:)
@@ -398,7 +397,6 @@ function HydrateAuxCreate(option)
 
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
