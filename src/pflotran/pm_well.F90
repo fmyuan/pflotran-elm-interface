@@ -43,6 +43,7 @@ module PM_Well_class
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
 
+  PetscInt, parameter :: PEACEMAN_NONE = 0
   PetscInt, parameter :: PEACEMAN_ISO = 1
   PetscInt, parameter :: PEACEMAN_2D = 2
   PetscInt, parameter :: PEACEMAN_3D = 3
@@ -3153,6 +3154,8 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 pm_well%well%WI_model = PEACEMAN_2D
               case('PEACEMAN_3D')
                 pm_well%well%WI_model = PEACEMAN_3D
+              case('PEACEMAN_NONE')
+                pm_well%well%WI_model = PEACEMAN_NONE
               case default
                 option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
                 &in the ' // trim(error_string) // ' block. Default is 3D &
@@ -9230,6 +9233,11 @@ subroutine PMWellComputeWellIndex(pm_well)
         pm_well%well%WI(k) = sqrt((wix**2) + (wiy**2) + (wiz**2))
       enddo
 
+    case(PEACEMAN_NONE)
+      do k = 1,pm_well%well_grid%nsegments
+        ! Assume a vertical well
+        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k))
+      enddo
   end select
 
   pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%casing
