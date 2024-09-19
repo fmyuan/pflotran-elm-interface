@@ -1905,7 +1905,7 @@ subroutine EOSGasSetEOSDBase(filename,option)
 
   implicit none
 
-  character(len=MAXWORDLENGTH) :: filename
+  character(len=*) :: filename
   type(option_type) :: option
 
   eos_dbase => EOSDatabaseCreate(filename,'gas_database')

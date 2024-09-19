@@ -2433,6 +2433,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
       case ('WELLBORE_MODEL')
         well => PMWellCreate()
         call InputReadWord(input,option,well%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'WELLBORE_MODEL','name')
         call PrintMsg(option,well%name)
         well%option => option
         call well%ReadPMBlock(input)

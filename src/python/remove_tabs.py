@@ -27,25 +27,25 @@ def mv_file(filename):
     os.remove(path+filename+'.tmp')
 
 def refactor_file(filename,overwrite_file):
-    white_space_removed = 0
-    lines_shortened = 0
+    tabs_removed = 0
+    lines_converted = 0
     f = open_f(filename)
     if overwrite_file:
         f2 = open_f2(filename)
     for line in f:
-        len0 = len(line)
-        line = line.rstrip()+'\n'
-        len1 = len(line)
-        if len0 > len1:
-            lines_shortened += 1
-            white_space_removed += len0-len1
+        line2 = line.replace('\t','  ')
+        if not line2 == line:
+            lines_converted += 1
+            for character in line:
+                if character == '\t':
+                    tabs_removed += 1
         if overwrite_file:
-            f2.write(line)
+            f2.write(line2)
     f.close()
     if overwrite_file:
         f2.close()
         mv_file(filename)
-    return white_space_removed, lines_shortened
+    return tabs_removed, lines_converted
 
 def get_source_files():
     # Obtain list of source files
@@ -104,9 +104,10 @@ def main():
         
     source_file_roots = get_source_files()
     file_count = 0
-    white_space_removed = 0
-    lines_shortened = 0
+    tabs_removed = 0
+    lines_converted = 0
     num_files_impacted = 0
+    refactored_files = []
     for root in source_file_roots:
         file_count += 1
         if not root.endswith('pf'):
@@ -114,22 +115,30 @@ def main():
         else:
             filename = root
         n0, n1 = refactor_file(filename,overwrite_file)
+        if n0 > 0:
+            refactored_files.append(filename)
         print('{}: {} {}'.format(filename,n0,n1))
         if n0 > 0:
             num_files_impacted += 1
-        white_space_removed += n0
-        lines_shortened += n1
+        tabs_removed += n0
+        lines_converted += n1
 
-    if white_space_removed > 0:
-        print('\n{} files impacted'.format(num_files_impacted))
-        if overwrite_file:
-            print('{} lines shortened'.format(lines_shortened))
-            print('{} trailing whitespace characters removed\n'.format(white_space_removed))
+    if tabs_removed > 0:
+        if len(refactored_files) > 1:
+            string = ', '.join(refactored_files)
+            string = 'files impacted: ' + string
         else:
-            print('{} lines impacted'.format(lines_shortened))
-            print('{} trailing whitespace characters found\n'.format(white_space_removed))
-    else: 
-        print('\nNo trailing whitespaces found.\n')
+            string = refactored_files[0]
+            string = 'file impacted: ' + string
+        print('\n{} {}'.format(num_files_impacted,string))
+        if overwrite_file:
+            print('{} lines refactored'.format(lines_converted))
+            print('{} tab characters removed\n'.format(tabs_removed))
+        else:
+            print('{} lines impacted'.format(lines_converted))
+            print('{} tab characters found\n'.format(tabs_removed))
+    else:
+        print('\nNo tab characters found.\n')
 
 if __name__ == "__main__":
     try:

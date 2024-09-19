@@ -131,7 +131,7 @@ END
 
 # All ordering begins at the bottom of the hole and goes towards 
 # the top of the hole.
-WELLBORE_MODEL
+WELLBORE_MODEL well01
   #SINGLE_PHASE
   TWO_PHASE
   #LIQUID_MOBILITY 1.0d-8     # mobility is kr/visc

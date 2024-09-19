@@ -723,7 +723,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   class(pm_well_type), pointer :: cur_well
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end
+  PetscInt :: ghosted_start, ghosted_end, well_seg
   PetscInt :: offset
   PetscInt :: istate
 
@@ -798,6 +798,34 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%well%pressure_bump = &
                                                    UNINITIALIZED_DOUBLE
       endif
+    endif
+    if (option%ntrandof > 0) then
+      global_auxvars(ghosted_id)%pres(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(lid)
+      global_auxvars(ghosted_id)%pres(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%pres(gid)
+      global_auxvars(ghosted_id)%temp = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%temp
+      global_auxvars(ghosted_id)%sat(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid)
+      global_auxvars(ghosted_id)%sat(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid)
+      global_auxvars(ghosted_id)%den(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(lid)
+      global_auxvars(ghosted_id)%den(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den(gid)
+      global_auxvars(ghosted_id)%den_kg(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid)
+      global_auxvars(ghosted_id)%den_kg(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid)
+      global_auxvars(ghosted_id)%xmass(lid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid)
+      global_auxvars(ghosted_id)%xmass(gid) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
+      !MAN: this might be better placed elsewhere.
+      global_auxvars(ghosted_id)%reaction_rate_store(:) = &
+                                    global_auxvars(ghosted_id)%reaction_rate(:)
+      global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
     endif
   enddo
 
@@ -935,6 +963,30 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             end select
         endif
       endif
+      if (option%ntrandof > 0) then
+        global_auxvars_bc(sum_connection)%pres(lid) = &
+                                sco2_auxvars_bc(sum_connection)%pres(lid)
+        global_auxvars_bc(sum_connection)%pres(gid) = &
+                                sco2_auxvars_bc(sum_connection)%pres(gid)
+        global_auxvars_bc(sum_connection)%temp = &
+                                sco2_auxvars_bc(sum_connection)%temp
+        global_auxvars_bc(sum_connection)%sat(lid) = &
+                                sco2_auxvars_bc(sum_connection)%sat(lid)
+        global_auxvars_bc(sum_connection)%sat(gid) = &
+                                sco2_auxvars_bc(sum_connection)%sat(gid)
+        global_auxvars_bc(sum_connection)%den(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den(lid)
+        global_auxvars_bc(sum_connection)%den(gid) = &
+                                sco2_auxvars_bc(sum_connection)%den(gid)
+        global_auxvars_bc(sum_connection)%den_kg(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den_kg(lid)
+        global_auxvars_bc(sum_connection)%den_kg(lid) = &
+                                sco2_auxvars_bc(sum_connection)%den_kg(lid)
+        global_auxvars_bc(sum_connection)%xmass(lid) = &
+                                sco2_auxvars_bc(sum_connection)%xmass(wid,lid)
+        global_auxvars_bc(sum_connection)%xmass(gid) = &
+                                sco2_auxvars_bc(sum_connection)%xmass(wid,gid)
+      endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -943,12 +995,11 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
-    if (associated(source_sink%flow_condition%well)) then
-      source_sink => source_sink%next
-      cycle
+
+    if (.not. associated(source_sink%flow_condition%well)) then
+      qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
     endif
 
-    qsrc = source_sink%flow_condition%sco2%rate%dataset%rarray(:)
     cur_connection_set => source_sink%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
@@ -956,6 +1007,31 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
       ghosted_id = grid%nL2G(local_id)
 
       if (patch%imat(ghosted_id) <= 0) cycle
+      if (associated(source_sink%flow_condition%well)) then
+        source_sink%flow_condition%well%aux_real(:) = 0.d0
+        if (option%coupled_well .and. associated(pm_well)) then
+          cur_well => pm_well
+          do
+            if (.not. associated(cur_well)) exit
+            do well_seg = 1,cur_well%well_grid%nsegments
+              if (cur_well%well_grid%h_ghosted_id(well_seg) == ghosted_id) then
+                if (associated(cur_well%well%liq%Q)) then
+                  source_sink%flow_condition%well%aux_real(1) = &
+                                                    -cur_well%well%liq%Q(well_seg)
+                  source_sink%flow_condition%well%aux_real(2) = 0.d0
+                endif
+                if (associated(cur_well%well%gas%Q)) then
+                  source_sink%flow_condition%well%aux_real(2) = &
+                                                  -cur_well%well%gas%Q(well_seg)
+                  source_sink%flow_condition%well%aux_real(1) = 0.d0
+                endif
+              endif
+            enddo
+            cur_well => cur_well%next_well
+          enddo
+        endif
+        cycle
+      endif
 
       flow_src_sink_type = source_sink%flow_condition%sco2%rate%itype
 
@@ -1051,7 +1127,30 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                           patch%cc_id(ghosted_id))%ptr, &
                           sco2_parameter, grid%nG2A(ghosted_id), &
                           scale, Res_dummy, PETSC_TRUE) ! aux_var_compute_only
-
+      if (option%ntrandof > 0) then
+        global_auxvars_ss(sum_connection)%pres(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(lid)
+        global_auxvars_ss(sum_connection)%pres(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(gid)
+        global_auxvars_ss(sum_connection)%temp = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
+        global_auxvars_ss(sum_connection)%sat(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(lid)
+        global_auxvars_ss(sum_connection)%sat(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%sat(gid)
+        global_auxvars_ss(sum_connection)%den(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(lid)
+        global_auxvars_ss(sum_connection)%den(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den(gid)
+        global_auxvars_ss(sum_connection)%den_kg(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(lid)
+        global_auxvars_ss(sum_connection)%den_kg(gid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%den_kg(gid)
+        global_auxvars_ss(sum_connection)%xmass(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
+        global_auxvars_ss(sum_connection)%xmass(lid) = &
+                      sco2_auxvars_ss(ZERO_INTEGER,sum_connection)%xmass(wid,lid)
+      endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -1067,8 +1166,22 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                               rarray(1)
         endif
         if (associated(well_flow_condition%sco2%rate)) then
-          cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset%rarray(1)
-          cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset%rarray(2)
+          if (any(well_flow_condition%sco2%rate%dataset%rarray(:) < 0.d0)) then
+            cur_well%well%total_rate = sum(well_flow_condition%sco2%rate%dataset% &
+                                      rarray(:))
+            if (cur_well%well%total_rate > 0.d0) then
+              option%io_buffer = "The well model does not support a concurrent &
+                                 & injection and production well."
+            endif
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+          else
+            cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset% &
+                                  rarray(1)
+            cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset% &
+                                  rarray(2)
+            cur_well%well%total_rate = 999.d0
+          endif
         endif
         if (Initialized(cur_well%well%bh_p)) then
           do idof = 1,option%nflowdof
@@ -1335,6 +1448,8 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   co2_id = option%co2_id
   sid = option%salt_id
 
+  ss_flow_vol_flux = 0.d0
+
   if (sco2_newton_iteration_number > 1 .and. &
       mod(sco2_newton_iteration_number-1, &
           upwind_dir_update_freq) == 0) then
@@ -1406,12 +1521,10 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
         if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
           ghosted_id = cur_well%well_grid%h_ghosted_id(1)
           ghosted_end = ghosted_id * option%nflowdof
-          if (dabs(cur_well%well%th_qg) > 0.d0) then
-            accum_p2(ghosted_end) = cur_well%well%th_qg
-          elseif (dabs(cur_well%well%th_ql) > 0.d0) then
-            accum_p2(ghosted_end) = cur_well%well%th_ql
+          if (cur_well%well%total_rate < 0.d0) then
+            accum_p2(ghosted_end) = cur_well%well%total_rate
           else
-            accum_p2(ghosted_end) = 0.d0
+            accum_p2(ghosted_end) = cur_well%well%th_qg + cur_well%well%th_ql
           endif
           r_p(ghosted_end) = 0.d0
         endif
@@ -2000,7 +2113,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           ! Perturb the well and well's reservoir variables.
           call cur_well%Perturb()
-
           ! Go through and update the well contributions to the Jacobian:
           ! dRi/d(P_well), dRwell/d(P_well), dRi/dxi, and dRwell,dxi
           call cur_well%ModifyFlowJacobian(A,ierr)
@@ -2038,7 +2150,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         do
           if (.not. associated(cur_well)) exit
           if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
-               dabs(cur_well%well%th_ql) < epsilon) then
+               dabs(cur_well%well%th_ql) < epsilon .and. &
+               cur_well%well%total_rate > 0.d0) then
             ! Don't solve for BHP if there is no flow in the well.
             deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
@@ -2267,10 +2380,10 @@ subroutine SCO2MapBCAuxVarsToGlobal(realization)
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
-      global_auxvars_bc(sum_connection)%sat = &
-        sco2_auxvars_bc(sum_connection)%sat
-      global_auxvars_bc(sum_connection)%den_kg = &
-        sco2_auxvars_bc(sum_connection)%den_kg
+      global_auxvars_bc(sum_connection)%sat(1:option%nphase) = &
+        sco2_auxvars_bc(sum_connection)%sat(1:option%nphase)
+      global_auxvars_bc(sum_connection)%den_kg(1:option%nphase) = &
+        sco2_auxvars_bc(sum_connection)%den_kg(1:option%nphase)
       global_auxvars_bc(sum_connection)%temp = &
         sco2_auxvars_bc(sum_connection)%temp
     enddo

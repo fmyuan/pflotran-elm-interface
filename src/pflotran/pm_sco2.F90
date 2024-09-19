@@ -334,6 +334,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
+        option%use_isothermal = PETSC_TRUE
+        option%flow%reference_temperature = tempreal
       case('UPWIND_VISCOSITY')
         sco2_harmonic_viscosity = PETSC_FALSE
       case('PHASE_PARTITIONING')
@@ -597,6 +599,7 @@ subroutine PMSCO2Setup(this)
 
   use Material_module
   use SCO2_module
+  use co2_sw_module, only : init_span_wagner
 
   implicit none
 
@@ -607,6 +610,11 @@ subroutine PMSCO2Setup(this)
          this%realization%patch%aux%Material%material_parameter, &
          this%realization%patch%material_property_array, &
          this%realization%option)
+  ! MAN: This is in here to have the S-W EOS initialized for
+  ! transport. This should be done differently.
+  if (this%realization%option%ntrandof > 0) then
+    call init_span_wagner(this%realization%option)
+  endif
   call SCO2Setup(this%realization)
   call PMSubsurfaceFlowSetup(this)
 
@@ -950,6 +958,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Global_Aux_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -1296,12 +1305,35 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
               ! endif
 
               ! MAN: this is a hack to get the well to initialize properly
-              if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
-                dX_p(well_index) = dX_p(well_index) + (sco2_auxvar%well%bh_p - &
-                                   sco2_auxvar%pres(option%gas_phase))
-              elseif (X_p(well_index) /= cur_well%well%bh_p) then
-                dX_p(well_index) = dX_p(well_index) + &
-                                   (cur_well%well%bh_p - X_p(well_index))
+              if (cur_well%well%total_rate < 0.d0) then
+                if (Equal(X_p(well_index),sco2_auxvar%pres(option%liquid_phase))) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (sco2_auxvar%well%bh_p - &
+                                     sco2_auxvar%pres(option%liquid_phase))
+                elseif (.not. Equal(X_p(well_index), cur_well%well%bh_p)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              elseif (dabs(cur_well%well%th_qg) > epsilon) then
+                if (X_p(well_index) == sco2_auxvar%pres(option%gas_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (sco2_auxvar%well%bh_p - &
+                                     sco2_auxvar%pres(option%gas_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              else
+                if (X_p(well_index) == sco2_auxvar% &
+                                       pres(option%liquid_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (sco2_auxvar%well%bh_p - &
+                                     sco2_auxvar% &
+                                     pres(option%liquid_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
               endif
               ! dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
               ! sco2_auxvar%well%pressure_bump = 0.d0

@@ -184,11 +184,11 @@ rarray = numpy.zeros((nx,ny,nz),'=f8')
 
 print("writing permeability")
 h5grp = h5file.create_group('Permeability')
-h5grp.attrs['Dimension'] = numpy.string_('XYZ')
+h5grp.attrs['Dimension'] = numpy.bytes_('XYZ')
 h5grp.attrs['Discretization'] = [dx,dy,dz]
 h5grp.attrs['Origin'] = [0.,0.,0.]
-h5grp.attrs['Space Interpolation Method'] = numpy.string_('Linear')
-h5grp.attrs['Cell Centered'] = numpy.string_('True')
+h5grp.attrs['Space Interpolation Method'] = numpy.bytes_('Linear')
+h5grp.attrs['Cell Centered'] = numpy.bytes_('True')
 
 index = 0
 z = 0.5*dz
@@ -208,11 +208,11 @@ h5dset = h5grp.create_dataset('Data', data=rarray)
 
 #print("writing porosity")
 #h5grp = h5file.create_group('Porosity')
-#h5grp.attrs['Dimension'] = numpy.string_('XYZ')
+#h5grp.attrs['Dimension'] = numpy.bytes_('XYZ')
 #h5grp.attrs['Discretization'] = [dx,dy,dz]
 #h5grp.attrs['Origin'] = [0.,0.,0.]
-#h5grp.attrs['Space Interpolation Method'] = numpy.string_('Linear')
-#h5grp.attrs['Cell Centered'] = numpy.string_('True')
+#h5grp.attrs['Space Interpolation Method'] = numpy.bytes_('Linear')
+#h5grp.attrs['Cell Centered'] = numpy.bytes_('True')
 #
 #index = 0
 #for k in range(nz):

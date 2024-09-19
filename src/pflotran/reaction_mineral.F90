@@ -1517,7 +1517,8 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
       rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
 
     ! CO2-specific
-    if (option%iflowmode == MPH_MODE) then
+    if (option%iflowmode == MPH_MODE .or. &
+        option%iflowmode == SCO2_MODE) then
       ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
       do iaqspec = 1, ncomp
         icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)

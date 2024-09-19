@@ -4158,7 +4158,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                                             flow_condition%rate%dataset, &
                                             TH_PRESSURE_DOF,option)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS,PRES_REG_MASS_RATE_SS)
         call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
                                   option)
         rate_scale_type = flow_condition%rate%isubtype
@@ -7397,6 +7397,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               else
                 vec_ptr(local_id) = 0.d0
               endif
+            enddo
+          case(SC_FUGA_COEFF)
+            if (.not.associated(patch%aux%Global%auxvars(1)%fugacoeff) .and. &
+                OptionPrintToScreen(option))then
+              call PrintErrMsg(option, "SC_FUGA_COEFF not available for &
+                            &SCO2 flow mode without use of a transport mode.")
+            endif
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Global%&
+                auxvars(grid%nL2G(local_id))%fugacoeff(1)
             enddo
           case default
             call PatchUnsupportedVariable('SCO2',ivar,option)

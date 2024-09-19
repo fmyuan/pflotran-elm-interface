@@ -107,10 +107,7 @@ REFERENCE_PRESSURE 101325.
 
 #=========================== regions ==========================================
 REGION all
-  COORDINATES
-    0.d0 0.d0 0.d0
-    5.d0 5.d0 5.d0
-  /
+  INFINITE
 END
 
 REGION top

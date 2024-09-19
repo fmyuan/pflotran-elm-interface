@@ -270,7 +270,9 @@ FLOW_CONDITION injection_well_2
     DATA_UNITS kg/y kg/y kg/y MW
     INTERPOLATION STEP
     0.d0 0.d0 5.d6 0.d0 0.d0
-    7.d-3 0.d0 0.d0 0.d0 0.d0
+    7.d-3 1.d7 0.d0 0.d0 0.d0
+    8.d-3 -1.d7 0.d0 0.d0 0.d0
+    9.d-3 0.d0 5.d6 0.d0 0.d0
   /
 END
 
