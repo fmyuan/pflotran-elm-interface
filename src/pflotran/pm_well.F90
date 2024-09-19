@@ -1948,6 +1948,21 @@ subroutine PMWellSetup(this)
   enddo
 
   allocate(this%well%r0(nsegments))
+  if (this%well%WI_model == PEACEMAN_NONE) then
+    if (.not. associated(this%well%diameter)) then
+      allocate(this%well%diameter(nsegments))
+    endif
+    if (.not. associated(this%well%friction_factor)) then
+      allocate(this%well%friction_factor(nsegments))
+    endif
+    if (.not. associated(this%well%skin)) then
+      allocate(this%well%skin(nsegments))
+    endif
+    this%well%diameter = 0.d0
+    this%well%friction_factor = 0.d0
+    this%well%skin = 0.d0
+  endif
+
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -3173,7 +3188,7 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 pm_well%well%WI_model = PEACEMAN_2D
               case('PEACEMAN_3D')
                 pm_well%well%WI_model = PEACEMAN_3D
-              case('PEACEMAN_NONE')
+              case('SCALE_BY_PERM')
                 pm_well%well%WI_model = PEACEMAN_NONE
               case default
                 option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
@@ -3191,12 +3206,14 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (.not.associated(pm_well%well%friction_factor)) then
+      if (.not.associated(pm_well%well%friction_factor) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword FRICTION_COEFFICIENT must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
       endif
-      if (.not.associated(pm_well%well%diameter)) then
+      if (.not.associated(pm_well%well%diameter) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword DIAMETER must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
