@@ -849,14 +849,18 @@ subroutine PMERTPreSolve(this)
   PetscErrorCode :: ierr
 
   option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  reaction => patch%reaction
+
+  if (associated(patch%prescribed_condition_list%first)) then
+    option%io_buffer = 'PRESCRIBED_CONDITIONs have yet to be set up for ERT.'
+    call PrintErrMsg(option)
+  endif
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
 
   option%io_buffer = ' Calculating bulk electrical conductivity'
   call PrintMsg(option)
-
-  patch => this%realization%patch
-  grid => patch%grid
-  reaction => patch%reaction
 
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
