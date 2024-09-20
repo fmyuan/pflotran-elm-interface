@@ -100,11 +100,6 @@ module Patch_module
 
   end type patch_type
 
-  interface PatchCreateZeroArray
-    module procedure PatchCreateZeroArray1
-    module procedure PatchCreateZeroArray2
-  end interface
-
   interface PatchGetVariable
     module procedure PatchGetVariable1
     module procedure PatchGetVariable2
@@ -11803,19 +11798,9 @@ subroutine PatchUnsupportedVariable4(ivar,option)
 
 end subroutine PatchUnsupportedVariable4
 
-subroutine PatchCreateZeroArray2(patch,dof_is_active,matrix_zeroing,option)
-use Matrix_Zeroing_module
-  type(patch_type) :: patch
-  PetscBool :: dof_is_active(:)
-  type(matrix_zeroing_type), pointer :: matrix_zeroing
-  PetscBool :: inactive_cells_exist
-  type(option_type) :: option
-  call PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing,inactive_cells_exist,option)
-end subroutine
-
 ! ************************************************************************** !
 
-subroutine PatchCreateZeroArray1(patch,dof_is_active,matrix_zeroing,inactive_cells_exist,option)
+subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing,option)
   !
   ! Computes the zeroed rows for inactive grid cells
   !
@@ -11836,7 +11821,6 @@ subroutine PatchCreateZeroArray1(patch,dof_is_active,matrix_zeroing,inactive_cel
   type(patch_type) :: patch
   PetscBool :: dof_is_active(:)
   type(matrix_zeroing_type), pointer :: matrix_zeroing
-  PetscBool :: inactive_cells_exist
   type(option_type) :: option
 
   PetscInt :: ncount, idof
@@ -11936,7 +11920,6 @@ subroutine PatchCreateZeroArray1(patch,dof_is_active,matrix_zeroing,inactive_cel
   if (flag > 0) then
     matrix_zeroing%zero_rows_exist = PETSC_TRUE
   endif
-  inactive_cells_exist = matrix_zeroing%zero_rows_exist
 
   if (ncount /= n_zero_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
@@ -11944,7 +11927,7 @@ subroutine PatchCreateZeroArray1(patch,dof_is_active,matrix_zeroing,inactive_cel
     call PrintErrMsgByRank(option)
   endif
 
-end subroutine PatchCreateZeroArray1
+end subroutine PatchCreateZeroArray
 
 ! ************************************************************************** !
 

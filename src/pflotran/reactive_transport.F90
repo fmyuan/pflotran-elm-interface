@@ -42,7 +42,8 @@ module Reactive_Transport_module
             RTExplicitAdvection, &
             RTClearActivityCoefficients, &
             RTZeroMassBalanceDelta, &
-            RTComputeBCMassBalanceOS
+            RTComputeBCMassBalanceOS, &
+            RTApplyPrescribedConditions
 
 contains
 
@@ -712,7 +713,6 @@ subroutine RTUpdateMassBalance(realization)
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
-  use Grid_module
 
   implicit none
 
@@ -752,6 +752,87 @@ subroutine RTUpdateMassBalance(realization)
   enddo
 
 end subroutine RTUpdateMassBalance
+
+! ************************************************************************** !
+
+subroutine RTApplyPrescribedConditions(realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/24
+
+  use Connection_module
+  use Coupler_module
+  use Patch_module
+  use Grid_module
+  use Realization_Subsurface_class
+  use Option_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(tran_constraint_rt_type), pointer :: constraint
+  class(reaction_rt_type), pointer :: reaction
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: idof
+  PetscInt :: iconn
+  PetscInt :: offset, global_offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  rt_auxvars => patch%aux%RT%auxvars
+  reaction => realization%reaction
+
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%tran_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    constraint_coupler => &
+      TranConstraintCouplerRTCast(cur_coupler%tran_condition% &
+                                  cur_constraint_coupler)
+    constraint => TranConstraintRTCast(constraint_coupler%constraint)
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2g(local_id)
+      call RTAuxVarCopy(constraint_coupler%rt_auxvar, &
+                        rt_auxvars(ghosted_id),option)
+      global_offset = (local_id-1)*option%ntrandof
+      offset = global_offset
+      do idof = 1, reaction%naqcomp
+        vec_ptr(offset+idof) = rt_auxvars(ghosted_id)%pri_molal(idof)
+      enddo
+      offset = global_offset + reaction%offset_immobile
+      do idof = 1, reaction%immobile%nimmobile
+        vec_ptr(offset+idof) = rt_auxvars(ghosted_id)%immobile(idof)
+      enddo
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(realization%field%tran_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine RTApplyPrescribedConditions
 
 ! ************************************************************************** !
 

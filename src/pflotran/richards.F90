@@ -357,7 +357,7 @@ subroutine RichardsSetupPatch(realization)
 
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%Richards%matrix_zeroing,found,option)
+                            patch%aux%Richards%matrix_zeroing,option)
 
 end subroutine RichardsSetupPatch
 

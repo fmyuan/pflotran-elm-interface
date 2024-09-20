@@ -392,8 +392,7 @@ subroutine PMTHPreSolve(this)
   class(pm_th_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
-  call THApplyPrescribedConditions(this%realization%field%flow_xx, &
-                                   this%realization)
+  call THApplyPrescribedConditions(this%realization)
 
 end subroutine PMTHPreSolve
 

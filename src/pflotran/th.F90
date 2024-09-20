@@ -3418,7 +3418,6 @@ subroutine THResidual(snes,xx,r,realization,ierr)
     return
   endif
 
-!  call THApplyPrescribedConditions(xx,realization)
   call THResidualPreliminaries(xx,r,realization,ierr)
 
   call THResidualInternalConn(r,realization,ierr)
@@ -3448,7 +3447,7 @@ end subroutine THResidual
 
 ! ************************************************************************** !
 
-subroutine THApplyPrescribedConditions(xx,realization)
+subroutine THApplyPrescribedConditions(realization)
   !
   ! Update prescribed values in solution vector
   !
@@ -3464,7 +3463,6 @@ subroutine THApplyPrescribedConditions(xx,realization)
 
   implicit none
 
-  Vec :: xx
   class(realization_subsurface_type) :: realization
 
   type(patch_type), pointer :: patch
@@ -3479,7 +3477,10 @@ subroutine THApplyPrescribedConditions(xx,realization)
   patch => realization%patch
   option => realization%option
 
-  call VecGetArrayF90(xx,vec_ptr,ierr);CHKERRQ(ierr)
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%flow_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
 
   cur_coupler => patch%prescribed_condition_list%first
   do
@@ -3495,7 +3496,8 @@ subroutine THApplyPrescribedConditions(xx,realization)
     cur_coupler => cur_coupler%next
   enddo
 
-  call VecRestoreArrayF90(xx,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(realization%field%flow_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine THApplyPrescribedConditions
 
