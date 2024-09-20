@@ -635,7 +635,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         if (.not.associated(coupler%geop_condition)) then
            option%io_buffer = 'Geophysics condition "' // &
                    trim(coupler%geop_condition_name) // &
-                   '" in boundary condition "' // &
+                   '" in prescribed condition "' // &
                    trim(coupler%name) // &
                    '" not found in prescribed condition list'
           call PrintErrMsg(option)

@@ -2912,7 +2912,8 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 
 #ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
-    option%io_buffer = 'Matrix zeroing in richards.F90 needs to be updated.'
+    option%io_buffer = 'Matrix zeroing for matrix_buffer in richards.F90 &
+                       &needs to be updated.'
     call PrintErrMsg(option)
     if (patch%aux%Richards%inactive_cells_exist) then
       call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer,???)
