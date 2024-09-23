@@ -262,8 +262,7 @@ subroutine ZFlowSetup(realization)
   allocate(dof_is_active(option%nflowdof))
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%ZFlow%matrix_zeroing, &
-                            patch%aux%ZFlow%inactive_cells_exist,option)
+                            patch%aux%ZFlow%matrix_zeroing,option)
   deallocate(dof_is_active)
 
   zflow_ts_count = 0
@@ -774,6 +773,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   use Material_Aux_module
   use Upwind_Direction_module
   use Petsc_Utility_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -805,12 +805,11 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: iconn
-  PetscReal :: scale
   PetscReal :: ss_flow_vol_flux
   PetscInt :: sum_connection
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt :: imat, imat_up, imat_dn
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -1114,13 +1113,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%ZFlow%inactive_cells_exist) then
-    do i=1,patch%aux%ZFlow%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%ZFlow%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%ZFlow%matrix_zeroing,r)
 
   if (zflow_simult_function_evals) then
 
@@ -1135,14 +1130,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                           ierr);CHKERRQ(ierr)
     endif
 
-    if (patch%aux%ZFlow%inactive_cells_exist) then
-      scale = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A,patch%aux%ZFlow%matrix_zeroing%n_inactive_rows, &
-                            patch%aux%ZFlow%matrix_zeroing% &
-                              inactive_rows_local_ghosted, &
-                            scale,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
-    endif
+    call MatrixZeroingZeroMatEntries(patch%aux%ZFlow%matrix_zeroing,A)
 
     if (realization%debug%matview_Matrix) then
       call DebugWriteFilename(realization%debug,string,'ZFjacobian','', &

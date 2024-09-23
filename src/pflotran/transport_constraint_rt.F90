@@ -215,7 +215,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   implicit none
 
   class(tran_constraint_rt_type) :: constraint
-  class(reaction_rt_type) :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -239,6 +239,12 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
   call PetscLogEventBegin(logging%event_tran_constraint_read, &
                           ierr);CHKERRQ(ierr)
+
+  if (.not.associated(reaction)) then
+    option%io_buffer = 'A transport CONSTRAINT has been read without a &
+      &CHEMISTRY block being defined in the input file.'
+    call PrintErrMsg(option)
+  endif
 
   ! read the constraint
   input%ierr = 0

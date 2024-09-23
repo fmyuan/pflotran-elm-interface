@@ -385,13 +385,14 @@ subroutine PMTHPreSolve(this)
   ! Date: 03/90/13
   !
 
-  use Global_module
+  use TH_module
 
   implicit none
 
   class(pm_th_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
+  call THApplyPrescribedConditions(this%realization)
 
 end subroutine PMTHPreSolve
 

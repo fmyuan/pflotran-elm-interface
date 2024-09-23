@@ -107,7 +107,6 @@ module Reactive_Transport_Aux_module
 
   type, public :: reactive_transport_type
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    PetscBool :: inactive_cells_exist
     type(reactive_transport_param_type), pointer :: rt_parameter
     type(reactive_transport_auxvar_type), pointer :: auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_bc(:)
@@ -153,7 +152,6 @@ function RTAuxCreate(naqcomp,nphase)
   nullify(aux%auxvars_bc)   ! rt_auxvars for boundary connections
   nullify(aux%auxvars_ss)   ! rt_auxvars for source/sinks
   nullify(aux%matrix_zeroing)
-  aux%inactive_cells_exist = PETSC_FALSE
 
   allocate(aux%rt_parameter)
   aux%rt_parameter%naqcomp = naqcomp

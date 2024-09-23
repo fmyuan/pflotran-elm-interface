@@ -368,6 +368,7 @@ ert.o : \
   field.o \
   grid.o \
   material_aux.o \
+  matrix_zeroing.o \
   option.o \
   patch.o \
   pflotran_constants.o \
@@ -1437,6 +1438,7 @@ mphase.o : \
   grid.o \
   material.o \
   material_aux.o \
+  matrix_zeroing.o \
   mphase_aux.o \
   option.o \
   output_aux.o \
@@ -2291,6 +2293,7 @@ pm_ufd_biosphere.o : \
   grid.o \
   input_aux.o \
   material_aux.o \
+  nw_transport_aux.o \
   option.o \
   output_aux.o \
   pflotran_constants.o \
@@ -2379,6 +2382,7 @@ pm_well.o : \
   hydrate_aux.o \
   input_aux.o \
   material_aux.o \
+  matrix_zeroing.o \
   nw_transport_aux.o \
   option.o \
   output_aux.o \
@@ -3116,6 +3120,7 @@ reactive_transport.o : \
   logging.o \
   material.o \
   material_aux.o \
+  matrix_zeroing.o \
   option.o \
   output_aux.o \
   output_tecplot.o \
@@ -3134,6 +3139,7 @@ reactive_transport.o : \
   srcsink_sandbox.o \
   string.o \
   transport.o \
+  transport_constraint_base.o \
   transport_constraint_rt.o \
   transport_np.o \
   utility.o \
@@ -3164,7 +3170,6 @@ realization_base.o : \
   reaction_base.o \
   waypoint.o
 realization_common.o : \
-  coupler.o \
   grid.o \
   option.o \
   patch.o \
@@ -3262,6 +3267,7 @@ richards.o : \
   material.o \
   material_aux.o \
   matrix_buffer.o \
+  matrix_zeroing.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -3636,6 +3642,7 @@ th.o : \
   logging.o \
   material.o \
   material_aux.o \
+  matrix_zeroing.o \
   option.o \
   output_aux.o \
   patch.o \
@@ -3645,6 +3652,7 @@ th.o : \
   saturation_function.o \
   secondary_continuum.o \
   secondary_continuum_aux.o \
+  string.o \
   th_aux.o \
   utility.o \
   variables.o

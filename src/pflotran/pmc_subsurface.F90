@@ -153,12 +153,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: add_pre_check, check_update, check_post_convergence
+  PetscBool :: keep_non_zero_pattern
   PetscInt :: itranmode
   PetscInt :: transport_coupling
   PetscErrorCode :: ierr
 
   option => this%option
   solver => this%timestepper%solver
+  realization => this%realization
+  keep_non_zero_pattern = &
+    associated(realization%patch%prescribed_condition_list%first)
 
   check_update = PETSC_FALSE
   itranmode = NULL_MODE
@@ -232,10 +236,11 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
         call CPRWorkersCreate(pm, solver, option)
       endif
 
-      call DiscretizationCreateMatrix(pm%realization%discretization, &
+      call DiscretizationCreateMatrix(realization%discretization, &
                                       NFLOWDOF, &
                                       solver%Mpre_mat_type, &
                                       solver%Mpre, &
+                                      keep_non_zero_pattern, &
                                       option)
 
       call MatSetOptionsPrefix(solver%Mpre,"flow_",ierr);CHKERRQ(ierr)
@@ -243,10 +248,11 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       if (solver%Mpre_mat_type == solver%M_mat_type) then
         solver%M = solver%Mpre
       else
-        call DiscretizationCreateMatrix(pm%realization%discretization, &
+        call DiscretizationCreateMatrix(realization%discretization, &
                                         NFLOWDOF, &
                                         solver%M_mat_type, &
                                         solver%M, &
+                                        keep_non_zero_pattern, &
                                         option)
 
         call MatSetOptionsPrefix(solver%M,"flow_",ierr);CHKERRQ(ierr)
@@ -254,7 +260,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
       if (solver%use_galerkin_mg) then
         call DiscretizationCreateInterpolation( &
-                       pm%realization%discretization,NFLOWDOF, &
+                       realization%discretization,NFLOWDOF, &
                        solver%interpolation, &
                        solver%galerkin_mg_levels_x, &
                        solver%galerkin_mg_levels_y, &
@@ -289,8 +295,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       ! already have been called.  I also note that this
       ! preconditioner is intended only for the flow
       ! solver.  --RTM
-      if (pm%realization%discretization%itype == STRUCTURED_GRID) then
-        call PCSetDM(solver%pc,pm%realization%discretization%dm_nflowdof%dm, &
+      if (realization%discretization%itype == STRUCTURED_GRID) then
+        call PCSetDM(solver%pc,realization%discretization%dm_nflowdof%dm, &
                      ierr);CHKERRQ(ierr)
       endif
 
@@ -402,14 +408,18 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       call DiscretizationCreateMatrix(discretization, &
                                       NTRANDOF, &
                                       solver%Mpre_mat_type, &
-                                      solver%Mpre,option)
+                                      solver%Mpre, &
+                                      keep_non_zero_pattern, &
+                                      option)
     else
       solver%M_mat_type = MATAIJ
       solver%Mpre_mat_type = MATAIJ
       call DiscretizationCreateMatrix(discretization, &
                                       ONEDOF, &
                                       solver%Mpre_mat_type, &
-                                      solver%Mpre,option)
+                                      solver%Mpre, &
+                                      keep_non_zero_pattern, &
+                                      option)
     endif
 
     call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
@@ -421,6 +431,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                                       NTRANDOF, &
                                       solver%M_mat_type, &
                                       solver%M, &
+                                      keep_non_zero_pattern, &
                                       option)
 
       call MatSetOptionsPrefix(solver%M,"tran_",ierr);CHKERRQ(ierr)
@@ -530,9 +541,12 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
+  PetscBool :: keep_non_zero_pattern
   PetscErrorCode :: ierr
 
   option => this%option
+  keep_non_zero_pattern = &
+    associated(this%realization%patch%prescribed_condition_list%first)
 
   select type(ts => this%timestepper)
     class is(timestepper_TS_type)
@@ -556,7 +570,8 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
       select case(option%iflowmode)
         case(RICHARDS_TS_MODE,TH_TS_MODE)
         case default
-          option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
+          option%io_buffer = 'Timestepper TS unsupported for mode: '// &
+                             option%flowmode
           call PrintErrMsg(option)
         end select
 
@@ -582,6 +597,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                                         NFLOWDOF, &
                                         solver%Mpre_mat_type, &
                                         solver%Mpre, &
+                                        keep_non_zero_pattern, &
                                         option)
 
         call MatSetOptionsPrefix(solver%Mpre,"flow_",ierr);CHKERRQ(ierr)
@@ -927,11 +943,13 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                   ONEDOF, &
                                   cpr_ap_mat_type, &
                                   solver%cprstash%Ap, &
+                                  PETSC_FALSE, &
                                   option)
   call DiscretizationCreateMatrix(pm%realization%discretization, &
                                   ONEDOF, &
                                   cpr_ap_mat_type, &
                                   solver%cprstash%As, &
+                                  PETSC_FALSE, &
                                   option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%T1r, &

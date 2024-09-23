@@ -42,7 +42,6 @@ module NW_Transport_Aux_module
     PetscInt :: num_aux_bc
     ! number of nwt_auxvars objects for source/sinks
     PetscInt :: num_aux_ss
-    PetscBool :: inactive_cells_exist
     PetscBool :: truncate_output
     ! nwt_auxvars for local and ghosted grid cells
     type(nw_transport_auxvar_type), pointer :: auxvars(:)
@@ -197,7 +196,6 @@ function NWTAuxCreate()
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%truncate_output = PETSC_FALSE
 
   NWTAuxCreate => aux

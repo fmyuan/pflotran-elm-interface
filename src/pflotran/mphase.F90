@@ -255,8 +255,7 @@ subroutine MphaseSetupPatch(realization)
 
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%Mphase%matrix_zeroing, &
-                            patch%aux%Mphase%inactive_cells_exist,option)
+                            patch%aux%Mphase%matrix_zeroing,option)
 
 end subroutine MphaseSetupPatch
 
@@ -2359,6 +2358,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
   use Material_Aux_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2368,7 +2368,6 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id, local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: accum_p(:)
@@ -2952,17 +2951,12 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   endif
   !call VecRestoreArrayF90(r, r_p, ierr)
 
-
-  if (mphase%inactive_cells_exist) then
-    do i=1,mphase%matrix_zeroing%n_inactive_rows
-      r_p(mphase%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
 ! call VecRestoreArrayF90(field%flow_yy, yy_p, ierr)
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(mphase%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
     string = 'MPHresidual'
@@ -3064,6 +3058,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   use Secondary_Continuum_Aux_module
   use Material_Aux_module
   use Secondary_Continuum_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -3079,7 +3074,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: xx_loc_p(:)
   PetscInt :: iphas_up,iphas_dn,icc_up,icc_dn
   PetscReal :: tsrc1,csrc1,hsrc1
-  PetscReal :: dd_up, dd_dn, f_up
+  PetscReal :: dd_up, dd_dn
   PetscReal :: perm_up, perm_dn
   PetscReal :: D_up, D_dn  ! "Diffusion" constants upstream and downstream of a face.
   PetscReal :: upweight
@@ -3588,13 +3583,13 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL
   zero = 0.d0
-  call MatZeroRowsLocal(A,mphase%matrix_zeroing%n_inactive_rows, &
-                        mphase%matrix_zeroing%inactive_rows_local_ghosted, &
+  call MatZeroRowsLocal(A,mphase%matrix_zeroing%n_zero_rows, &
+                        mphase%matrix_zeroing%zero_rows_local_ghosted, &
                         zero,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   do i=1, n_zero_rows
-    ii = mod(mphase%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
-    ip1 = mphase%matrix_zeroing%inactive_rows_local_ghosted(i)
+    ii = mod(mphase%matrix_zeroing%zero_rows_local(i),option%nflowdof)
+    ip1 = mphase%matrix_zeroing%zero_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     elseif (ii == option%nflowdof-1) then
@@ -3612,13 +3607,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 #endif
 #endif
 
-  if (mphase%inactive_cells_exist) then
-    f_up = 1.d0
-    call MatZeroRowsLocal(A,mphase%matrix_zeroing%n_inactive_rows, &
-                          mphase%matrix_zeroing%inactive_rows_local_ghosted, &
-                          f_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(mphase%matrix_zeroing,A)
 
 end subroutine MphaseJacobianPatch
 

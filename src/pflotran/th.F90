@@ -39,7 +39,8 @@ module TH_module
          THJacobianInternalConn, &
          THJacobianBoundaryConn, &
          THJacobianSourceSink, &
-         THUpdateLocalVecs
+         THUpdateLocalVecs, &
+         THApplyPrescribedConditions
 
   PetscInt, parameter :: jh2o = 1
 
@@ -77,36 +78,6 @@ subroutine THSetup(realization)
   use Realization_Subsurface_class
   use Patch_module
   use Output_Aux_module
-
-  class(realization_subsurface_type) :: realization
-
-  type(output_variable_list_type), pointer :: list
-
-  call THSetupPatch(realization)
-
-  list => realization%output_option%output_snap_variable_list
-  call THSetPlotVariables(realization,list)
-  list => realization%output_option%output_obs_variable_list
-  call THSetPlotVariables(realization,list)
-
-  TH_ts_count = 0
-  TH_ts_cut_count = 0
-  TH_ni_count = 0
-
-end subroutine THSetup
-
-! ************************************************************************** !
-
-subroutine THSetupPatch(realization)
-  !
-  ! Creates arrays for auxiliary variables
-  !
-  ! Author: ???
-  ! Date: 02/22/08
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
   use Option_module
   use Grid_module
   use Region_module
@@ -116,15 +87,15 @@ subroutine THSetupPatch(realization)
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
   use Characteristic_Curves_Thermal_module
-
-  implicit none
+  use String_module, only : StringWrite
 
   class(realization_subsurface_type) :: realization
 
+  type(output_variable_list_type), pointer :: list
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, cur_coupler
   type(TH_auxvar_type), pointer :: TH_auxvars(:), TH_auxvars_bc(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_ss(:)
   type(fluid_property_type), pointer :: cur_fluid_property
@@ -411,10 +382,46 @@ subroutine THSetupPatch(realization)
   enddo
 
   dof_is_active = PETSC_TRUE
-  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%TH%matrix_zeroing, &
-                            patch%aux%TH%inactive_cells_exist,option)
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%TH%matrix_zeroing,option)
 
-end subroutine THSetupPatch
+  ! ensure that prescribed_conditions are solely DIRICHLET type
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    select case(cur_coupler%flow_condition%pressure%itype)
+      case(DIRICHLET_BC,HYDROSTATIC_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" PRESSURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%pressure%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    select case(cur_coupler%flow_condition%temperature%itype)
+      case(DIRICHLET_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" TEMPERATURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%temperature%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    cur_coupler => cur_coupler%next
+  enddo
+
+  list => realization%output_option%output_snap_variable_list
+  call THSetPlotVariables(realization,list)
+  list => realization%output_option%output_obs_variable_list
+  call THSetPlotVariables(realization,list)
+
+  TH_ts_count = 0
+  TH_ts_cut_count = 0
+  TH_ni_count = 0
+
+end subroutine THSetup
 
 ! ************************************************************************** !
 
@@ -429,30 +436,7 @@ subroutine THComputeMassBalance(realization, mass_balance)
 
   use Realization_Subsurface_class
   use Patch_module
-
-  class(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nphase)
-
-  mass_balance = 0.d0
-
-  call THComputeMassBalancePatch(realization, mass_balance)
-
-end subroutine THComputeMassBalance
-
-! ************************************************************************** !
-
-subroutine THComputeMassBalancePatch(realization,mass_balance)
-  !
-  ! THomputeMassBalancePatch:
-  ! Adapted from RichardsComputeMassBalancePatch: need to be checked
-  !
-  ! Author: Jitendra Kumar
-  ! Date: 07/21/2010
-  !
-
-  use Realization_Subsurface_class
   use Option_module
-  use Patch_module
   use Field_module
   use Grid_module
   use Material_Aux_module, only : material_auxvar_type
@@ -482,6 +466,8 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   material_auxvars => patch%aux%Material%auxvars
   TH_auxvars => patch%aux%TH%auxvars
 
+  mass_balance = 0.d0
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
@@ -504,11 +490,11 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
 
   enddo
 
-end subroutine THComputeMassBalancePatch
+end subroutine THComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine THZeroMassBalDeltaPatch(realization)
+subroutine THZeroMassBal(realization)
   !
   ! Zeros mass balance delta array
   !
@@ -557,11 +543,11 @@ subroutine THZeroMassBalDeltaPatch(realization)
     enddo
   endif
 
-end subroutine THZeroMassBalDeltaPatch
+end subroutine THZeroMassBal
 
 ! ************************************************************************** !
 
-subroutine THUpdateMassBalancePatch(realization)
+subroutine THUpdateMassBalance(realization)
   !
   ! Updates mass balance
   !
@@ -616,31 +602,11 @@ subroutine THUpdateMassBalancePatch(realization)
   endif
 
 
-end subroutine THUpdateMassBalancePatch
+end subroutine THUpdateMassBalance
 
 ! ************************************************************************** !
 
 subroutine THUpdateAuxVars(realization)
-  !
-  ! Updates the auxiliary variables associated with
-  ! the TH problem
-  !
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateAuxVarsPatch(realization)
-
-end subroutine THUpdateAuxVars
-
-! ************************************************************************** !
-
-subroutine THUpdateAuxVarsPatch(realization)
   !
   ! Updates the auxiliary variables associated with
   ! the TH problem
@@ -872,7 +838,7 @@ subroutine THUpdateAuxVarsPatch(realization)
 
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine THUpdateAuxVarsPatch
+end subroutine THUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -899,29 +865,6 @@ end subroutine THInitializeTimestep
 subroutine THUpdateSolution(realization)
   !
   ! Updates data in module after a successful time step
-  !
-  ! Author: ???
-  ! Date: 02/13/08
-  !
-
-  use Realization_Subsurface_class
-  use Field_module
-  use Patch_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateSolutionPatch(realization)
-
-end subroutine THUpdateSolution
-
-! ************************************************************************** !
-
-subroutine THUpdateSolutionPatch(realization)
-  !
-  ! Updates data in module after a successful time
-  ! step
   !
   ! Author: Satish Karra, LANL
   ! Date: 12/13/11, 02/28/14
@@ -967,7 +910,7 @@ subroutine THUpdateSolutionPatch(realization)
   endif
 
   if (realization%option%compute_mass_balance_new) then
-    call THUpdateMassBalancePatch(realization)
+    call THUpdateMassBalance(realization)
   endif
 
   if (option%use_sc) then
@@ -994,34 +937,13 @@ subroutine THUpdateSolutionPatch(realization)
   TH_ts_cut_count = 0
   TH_ni_count = 0
 
-end subroutine THUpdateSolutionPatch
+end subroutine THUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine THUpdateFixedAccumulation(realization)
   !
-  ! Updates the fixed portion of the
-  ! accumulation term
-  !
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateFixedAccumPatch(realization)
-
-end subroutine THUpdateFixedAccumulation
-
-! ************************************************************************** !
-
-subroutine THUpdateFixedAccumPatch(realization)
-  !
-  ! Updates the fixed portion of the
-  ! accumulation term
+  ! Updates the fixed portion of the accumulation term
   !
   ! Author: ???
   ! Date: 12/10/07
@@ -1121,7 +1043,7 @@ subroutine THUpdateFixedAccumPatch(realization)
    call THNumericalJacobianTest(field%flow_xx,realization)
 #endif
 
-end subroutine THUpdateFixedAccumPatch
+end subroutine THUpdateFixedAccumulation
 
 ! ************************************************************************** !
 
@@ -3469,6 +3391,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   use Variables_module
   use Material_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -3501,6 +3424,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   call THResidualBoundaryConn(r,realization,ierr)
   call THResidualAccumulation(r,realization,ierr)
   call THResidualSourceSink(r,realization,ierr)
+  call MatrixZeroingZeroVecEntries(realization%patch%aux%TH%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'THresidual','', &
@@ -3520,6 +3444,62 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   endif
 
 end subroutine THResidual
+
+! ************************************************************************** !
+
+subroutine THApplyPrescribedConditions(realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/24
+  !
+
+  use Connection_module
+  use Coupler_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: local_id
+  PetscInt :: iconn, offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  option => realization%option
+
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%flow_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      offset = (local_id-1)*option%nflowdof
+      vec_ptr(offset+1) = cur_coupler%flow_aux_real_var(TH_PRESSURE_DOF,iconn)
+      vec_ptr(offset+2) = &
+        cur_coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(realization%field%flow_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine THApplyPrescribedConditions
 
 ! ************************************************************************** !
 
@@ -3553,12 +3533,12 @@ subroutine THResidualPreliminaries(xx,r,realization,ierr)
 
   call THUpdateLocalVecs(xx,realization,ierr)
 
-  call THUpdateAuxVarsPatch(realization)
+  call THUpdateAuxVars(realization)
   ! override flags since they will soon be out of date
   patch%aux%TH%auxvars_up_to_date = PETSC_FALSE
 
   if (option%compute_mass_balance_new) then
-    call THZeroMassBalDeltaPatch(realization)
+    call THZeroMassBal(realization)
   endif
 
 end subroutine THResidualPreliminaries
@@ -4105,7 +4085,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id
 
   PetscReal, pointer :: r_p(:)
@@ -4332,12 +4311,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  if (patch%aux%TH%inactive_cells_exist) then
-    do i=1,patch%aux%TH%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%TH%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
@@ -4359,6 +4332,7 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   use Grid_module
   use Option_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -4395,6 +4369,8 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   call THJacobianBoundaryConn(J,realization,ierr)
   call THJacobianAccumulation(J,realization,ierr)
   call THJacobianSourceSink(J,realization,ierr)
+
+  call MatrixZeroingZeroMatEntries(realization%patch%aux%TH%matrix_zeroing,J)
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'THjacobian','', &
@@ -4984,7 +4960,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: qsrc1, qsrc_kmol
   PetscInt :: local_id, ghosted_id
-  PetscReal :: f_up
   PetscReal :: Jsrc(realization%option%nflowdof,realization%option%nflowdof)
 
   PetscInt :: istart
@@ -5136,7 +5111,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5144,15 +5118,9 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
-  zero = 0.d0
-  call MatZeroRowsLocal(A,patch%aux%%matrix_zeroing%n_inactive_rows, &
-                        patch%aux%%matrix_zeroing% &
-                          inactive_rows_local_ghosted, &
-                        zero,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                        ierr);CHKERRQ(ierr)
-  do i=1, patch%aux%TH%matrix_zeroing%n_inactive_rows
-    ii = mod(patch%aux%TH%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
-    ip1 = patch%aux%TH%matrix_zeroing%inactive_rows_local_ghosted(i)
+  do i=1, patch%aux%TH%matrix_zeroing%n_zero_rows
+    ii = mod(patch%aux%TH%matrix_zeroing%zero_rows_local(i),option%nflowdof)
+    ip1 = patch%aux%TH%matrix_zeroing%zero_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     else if (ii == option%nflowdof-1) then
@@ -5166,16 +5134,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-#else
-  if (patch%aux%TH%inactive_cells_exist) then
-    f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%TH%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%TH%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          f_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
 #endif
+
 end subroutine THJacobianSourceSink
 
 ! ************************************************************************** !

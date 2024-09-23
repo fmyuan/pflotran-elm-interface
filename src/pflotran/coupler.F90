@@ -17,7 +17,7 @@ module Coupler_module
   PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
   PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
   PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
-  PetscInt, parameter, public :: WELL_COUPLER_TYPE = 4
+  PetscInt, parameter, public :: PRESCRIBED_COUPLER_TYPE = 4
   PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
 
   type, public :: coupler_type
@@ -71,7 +71,6 @@ module Coupler_module
 
   interface CouplerCreate
     module procedure CouplerCreate1
-    module procedure CouplerCreate2
     module procedure CouplerCreateFromCoupler
   end interface
 
@@ -96,7 +95,7 @@ function CouplerCreate1()
   allocate(coupler)
   coupler%id = 0
   coupler%name = ''
-  coupler%itype = BOUNDARY_COUPLER_TYPE
+  coupler%itype = UNINITIALIZED_INTEGER
   coupler%ctype = "boundary"
   coupler%flow_condition_name = ""
   coupler%tran_condition_name = ""
@@ -122,41 +121,6 @@ function CouplerCreate1()
   CouplerCreate1 => coupler
 
 end function CouplerCreate1
-
-! ************************************************************************** !
-
-function CouplerCreate2(itype)
-  !
-  ! Creates a coupler
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/23/07
-  !
-
-  implicit none
-
-  PetscInt :: itype
-
-  type(coupler_type), pointer :: CouplerCreate2
-
-  type(coupler_type), pointer :: coupler
-
-  coupler => CouplerCreate1()
-  coupler%itype = itype
-  select case(itype)
-    case(INITIAL_COUPLER_TYPE)
-      coupler%ctype = 'initial'
-    case(BOUNDARY_COUPLER_TYPE)
-      coupler%ctype = 'boundary'
-    case(SRC_SINK_COUPLER_TYPE)
-      coupler%ctype = 'source_sink'
-    case(WELL_COUPLER_TYPE)
-      coupler%ctype = 'well'
-  end select
-
-  CouplerCreate2 => coupler
-
-end function CouplerCreate2
 
 ! ************************************************************************** !
 
@@ -386,17 +350,18 @@ subroutine CouplerComputeConnections(grid,option,coupler)
     case(INITIAL_COUPLER_TYPE)
       if (associated(coupler%flow_condition)) then
         if (associated(coupler%flow_condition%pressure)) then
-          if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
-                HYDROSTATIC_SEEPAGE_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
-                HYDROSTATIC_CONDUCTANCE_BC) then
-            select type(selector => coupler%flow_condition%pressure%dataset)
-              class is(dataset_gridded_hdf5_type)
-              class default
-                nullify_connection_set = PETSC_TRUE
-            end select
-          endif
+          ! if not hydrostatic or gridded, we nullify the connection set as
+          ! CondControlAssignFlowInitCond() will use region%cell_ids
+          select case(coupler%flow_condition%pressure%itype)
+            case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+                 HYDROSTATIC_CONDUCTANCE_BC)
+            case default
+              select type(selector => coupler%flow_condition%pressure%dataset)
+                class is(dataset_gridded_hdf5_type)
+                class default
+                  nullify_connection_set = PETSC_TRUE
+              end select
+          end select
         else if (associated(coupler%flow_condition%concentration)) then
           ! need to calculate connection set
         endif
@@ -411,13 +376,11 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       else
         nullify_connection_set = PETSC_TRUE
       endif
-      connection_itype = INITIAL_CONNECTION_TYPE
-    case(SRC_SINK_COUPLER_TYPE)
-      connection_itype = SRC_SINK_CONNECTION_TYPE
+      connection_itype = GENERIC_CONNECTION_TYPE
     case(BOUNDARY_COUPLER_TYPE)
-      connection_itype = BOUNDARY_CONNECTION_TYPE
-    case(WELL_COUPLER_TYPE)
-      connection_itype = WELL_CONNECTION_TYPE
+      connection_itype = BOUNDARY_FACE_CONNECTION_TYPE
+    case(SRC_SINK_COUPLER_TYPE,PRESCRIBED_COUPLER_TYPE)
+      connection_itype = GENERIC_CONNECTION_TYPE
   end select
 
   if (nullify_connection_set) then
@@ -450,7 +413,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       ! if using higher order advection, allocate associated arrays
       if (option%itranmode == EXPLICIT_ADVECTION .and. &
           option%transport%tvd_flux_limiter /= 1 .and. &  ! 1 = upwind
-          connection_set%itype == BOUNDARY_CONNECTION_TYPE) then
+          connection_set%itype == BOUNDARY_FACE_CONNECTION_TYPE) then
         ! connections%id_up2 should remain null as it will not be used
         allocate(connection_set%id_dn2(size(connection_set%id_dn)))
         connection_set%id_dn2 = 0

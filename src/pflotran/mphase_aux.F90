@@ -74,7 +74,6 @@ module Mphase_Aux_module
 
   type, public :: mphase_type
     PetscBool :: auxvars_up_to_date
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
 
     PetscReal, pointer :: res_old_AR(:,:)
@@ -113,7 +112,6 @@ function MphaseAuxCreate()
 
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
