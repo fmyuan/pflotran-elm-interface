@@ -183,8 +183,7 @@ subroutine WIPPFloSetup(realization)
   allocate(dof_is_active(option%nflowdof))
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%WIPPFlo%matrix_zeroing, &
-                            patch%aux%WIPPFlo%inactive_cells_exist,option)
+                            patch%aux%WIPPFlo%matrix_zeroing,option)
   deallocate(dof_is_active)
 
   call PatchSetupUpwindDirection(patch,option)
@@ -855,6 +854,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   use PM_WIPP_SrcSink_class
   use PM_Well_class
   use Upwind_Direction_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -895,7 +895,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt :: imat, imat_up, imat_dn
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -1307,13 +1307,9 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
     endif
   endif
 
-  if (patch%aux%WIPPFlo%inactive_cells_exist) then
-    do i=1,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%WIPPFlo%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%WIPPFlo%matrix_zeroing,r)
 
   call WIPPFloSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                         wippflo_auxvars,option)
@@ -1384,6 +1380,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   use PM_Well_class
   use Upwind_Direction_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1401,7 +1398,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   PetscReal :: norm
 
   PetscInt :: icc_up,icc_dn
-  PetscReal :: qsrc, scale
+  PetscReal :: scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: local_id_up, local_id_dn
@@ -1743,15 +1740,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-  ! zero out inactive cells
-  if (patch%aux%WIPPFlo%inactive_cells_exist) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%WIPPFlo%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(patch%aux%WIPPFlo%matrix_zeroing,A)
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'WFjacobian','', &

@@ -106,6 +106,10 @@ subroutine InitCommonVerifyAllCouplers(realization)
                                realization%patch%boundary_condition_list)
   call InitCommonVerifyCoupler(realization, &
                                realization%patch%source_sink_list)
+  call InitCommonVerifyCoupler(realization, &
+                               realization%patch%well_coupler_list)
+  call InitCommonVerifyCoupler(realization, &
+                               realization%patch%prescribed_condition_list)
 
 end subroutine InitCommonVerifyAllCouplers
 

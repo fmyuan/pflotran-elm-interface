@@ -50,7 +50,6 @@ module Richards_Aux_module
   type, public :: richards_type
     PetscBool :: auxvars_up_to_date
     PetscBool :: auxvars_cell_pressures_up_to_date
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(richards_auxvar_type), pointer :: auxvars(:)
     type(richards_auxvar_type), pointer :: auxvars_bc(:)
@@ -91,7 +90,6 @@ function RichardsAuxCreate()
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
   aux%auxvars_cell_pressures_up_to_date = PETSC_FALSE
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0

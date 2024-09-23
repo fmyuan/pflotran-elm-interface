@@ -43,6 +43,7 @@ module PM_Well_class
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
 
+  PetscInt, parameter :: PEACEMAN_NONE = 0
   PetscInt, parameter :: PEACEMAN_ISO = 1
   PetscInt, parameter :: PEACEMAN_2D = 2
   PetscInt, parameter :: PEACEMAN_3D = 3
@@ -1796,6 +1797,7 @@ subroutine PMWellSetup(this)
   use Hydrate_Aux_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1834,6 +1836,7 @@ subroutine PMWellSetup(this)
   type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
                                                    rt_auxvars_ss_temp(:)
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
 
   call this%SetRealization()
   option => this%option
@@ -1954,6 +1957,21 @@ subroutine PMWellSetup(this)
   enddo
 
   allocate(this%well%r0(nsegments))
+  if (this%well%WI_model == PEACEMAN_NONE) then
+    if (.not. associated(this%well%diameter)) then
+      allocate(this%well%diameter(nsegments))
+    endif
+    if (.not. associated(this%well%friction_factor)) then
+      allocate(this%well%friction_factor(nsegments))
+    endif
+    if (.not. associated(this%well%skin)) then
+      allocate(this%well%skin(nsegments))
+    endif
+    this%well%diameter = 0.d0
+    this%well%friction_factor = 0.d0
+    this%well%skin = 0.d0
+  endif
+
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -2307,7 +2325,7 @@ subroutine PMWellSetup(this)
                                                    tran_constraint_coupler_nwt
     endif
 
-    source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
+    source_sink%connection_set => ConnectionCreate(1,GENERIC_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = well_grid%h_local_id(k)
     if (well_grid%h_local_id(k) < 0) then
       source_sink%connection_set%num_connections = 0
@@ -2405,92 +2423,42 @@ subroutine PMWellSetup(this)
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
   ! exclude the bottom of the well for hydrostatic well model.
 
+  well_bottom_ghosted = well_grid%h_ghosted_id(1)
+  well_bottom_local = well_grid%h_local_id(1)
+  nullify(matrix_zeroing)
   select case (option%iflowmode)
     case(SCO2_MODE)
-      well_bottom_ghosted = well_grid%h_ghosted_id(1)
-      well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_local > 0 .and. &
-          realization%patch%aux%sco2%inactive_cells_exist) then
-        if (size(realization%patch%aux%sco2%matrix_zeroing% &
-            inactive_rows_local) == 1) then
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%sco2%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = 0
-        else
-          if (allocated(temp)) deallocate(temp)
-          if (allocated(temp2)) deallocate(temp2)
-          allocate(temp(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)))
-          allocate(temp2(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows - 1
-          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
-          allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local(:) = &
-                   temp2(:)
-          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
-          allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
-          realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
-        endif
-      endif
+      matrix_zeroing => realization%patch%aux%SCO2%matrix_zeroing
     case(H_MODE)
-      well_bottom_ghosted = well_grid%h_ghosted_id(1)
-      well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_local > 0 .and. &
-          realization%patch%aux%hydrate%inactive_cells_exist) then
-        if (size(realization%patch%aux%hydrate%matrix_zeroing% &
-            inactive_rows_local) == 1) then
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%hydrate%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = 0
-        else
-          if (allocated(temp)) deallocate(temp)
-          if (allocated(temp2)) deallocate(temp2)
-          allocate(temp(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)))
-          allocate(temp2(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows - 1
-          temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
-          allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%hydrate%matrix_zeroing%inactive_rows_local(:) = &
-                   temp2(:)
-          temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
-          allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
-          realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
-        endif
-      endif
+      matrix_zeroing => realization%patch%aux%Hydrate%matrix_zeroing
   end select
+  if (associated(matrix_zeroing)) then
+    if (well_bottom_local > 0 .and. matrix_zeroing%zero_rows_exist) then
+      if (size(matrix_zeroing%zero_rows_local) == 1) then
+        deallocate(matrix_zeroing%zero_rows_local)
+        deallocate(matrix_zeroing%zero_rows_local_ghosted)
+        matrix_zeroing%zero_rows_exist = PETSC_FALSE
+        matrix_zeroing%n_zero_rows = 0
+      else
+        if (allocated(temp)) deallocate(temp)
+        if (allocated(temp2)) deallocate(temp2)
+        allocate(temp(size(matrix_zeroing%zero_rows_local)))
+        allocate(temp2(size(matrix_zeroing%zero_rows_local)-1))
+        matrix_zeroing%n_zero_rows = matrix_zeroing%n_zero_rows - 1
+        temp(:) = matrix_zeroing%zero_rows_local(:)
+        temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
+        deallocate(matrix_zeroing%zero_rows_local)
+        allocate(matrix_zeroing%zero_rows_local(size(temp2)))
+        matrix_zeroing%zero_rows_local(:) = temp2(:)
+        temp(:) = matrix_zeroing%zero_rows_local_ghosted(:)
+        temp2 = pack(temp,temp /= well_bottom_ghosted*option%nflowdof-1)
+        deallocate(matrix_zeroing%zero_rows_local_ghosted)
+        allocate(matrix_zeroing%zero_rows_local_ghosted(size(temp2)))
+        matrix_zeroing%zero_rows_local_ghosted(:) = temp2(:)
+      endif
+    endif
+  endif
+
 end subroutine PMWellSetup
 
 ! ************************************************************************** !
@@ -3258,6 +3226,8 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 pm_well%well%WI_model = PEACEMAN_2D
               case('PEACEMAN_3D')
                 pm_well%well%WI_model = PEACEMAN_3D
+              case('SCALE_BY_PERM')
+                pm_well%well%WI_model = PEACEMAN_NONE
               case default
                 option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
                 &in the ' // trim(error_string) // ' block. Default is 3D &
@@ -3274,12 +3244,14 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (.not.associated(pm_well%well%friction_factor)) then
+      if (.not.associated(pm_well%well%friction_factor) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword FRICTION_COEFFICIENT must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
       endif
-      if (.not.associated(pm_well%well%diameter)) then
+      if (.not.associated(pm_well%well%diameter) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword DIAMETER must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
@@ -9361,6 +9333,11 @@ subroutine PMWellComputeWellIndex(pm_well)
         pm_well%well%WI(k) = sqrt((wix**2) + (wiy**2) + (wiz**2))
       enddo
 
+    case(PEACEMAN_NONE)
+      do k = 1,pm_well%well_grid%nsegments
+        ! Assume a vertical well
+        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k))
+      enddo
   end select
 
   pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%casing

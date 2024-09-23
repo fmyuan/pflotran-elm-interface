@@ -88,10 +88,13 @@ subroutine PMCLinearSetupSolvers(this)
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: keep_non_zero_pattern
   PetscErrorCode :: ierr
 
   option => this%option
   solver => this%timestepper%solver
+  keep_non_zero_pattern = &
+    associated(this%realization%patch%prescribed_condition_list%first)
 
   call SolverCreateKSP(solver,option%mycomm)
 
@@ -125,6 +128,7 @@ subroutine PMCLinearSetupSolvers(this)
                                       NFLOWDOF, &
                                       solver%Mpre_mat_type, &
                                       solver%Mpre, &
+                                      keep_non_zero_pattern, &
                                       option)
 
       call MatSetOptionsPrefix(solver%Mpre,"flow_",ierr);CHKERRQ(ierr)
@@ -136,6 +140,7 @@ subroutine PMCLinearSetupSolvers(this)
                                         NFLOWDOF, &
                                         solver%M_mat_type, &
                                         solver%M, &
+                                        keep_non_zero_pattern, &
                                         option)
 
         call MatSetOptionsPrefix(solver%M,"flow_",ierr);CHKERRQ(ierr)

@@ -243,8 +243,7 @@ subroutine SCO2Setup(realization)
     dof_is_active(option%nflowdof) = PETSC_FALSE
   endif
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%SCO2%matrix_zeroing, &
-                            patch%aux%SCO2%inactive_cells_exist,option)
+                            patch%aux%SCO2%matrix_zeroing,option)
   deallocate(dof_is_active)
 
   call PatchSetupUpwindDirection(patch,option)
@@ -1386,6 +1385,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   use Material_Aux_module
   use Upwind_Direction_module
   use PM_Well_class
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1423,7 +1423,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: i, k, imat, imat_up, imat_dn
+  PetscInt :: k, imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
   PetscInt :: co2_id, sid, wid
 
@@ -1783,13 +1783,9 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%SCO2%inactive_cells_exist) then
-    do i=1,patch%aux%SCO2%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%SCO2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%SCO2%matrix_zeroing,r)
 
   ! Mass Transfer
   if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
@@ -1840,6 +1836,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   use Material_Aux_module
   use Upwind_Direction_module
   use PM_Well_class
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2170,15 +2167,11 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   ! zero out isothermal and inactive cells
-  if (patch%aux%SCO2%inactive_cells_exist) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%SCO2%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%SCO2%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
+  call MatrixZeroingZeroMatEntries(patch%aux%SCO2%matrix_zeroing,A)
+!  if (patch%aux%SCO2%inactive_cells_exist) then
     if (sco2_well_coupling == FULLY_IMPLICIT_WELL) then
       if (associated(pm_well)) then
+        qsrc = 1.d0 ! solely a temporary variable in this conditional
         cur_well => pm_well
         do
           if (.not. associated(cur_well)) exit
@@ -2203,7 +2196,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         enddo
       endif
     endif
-  endif
+!  endif
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Sjacobian','', &

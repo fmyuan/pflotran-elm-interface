@@ -1729,7 +1729,7 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
   PetscBool :: error
 
   num_connections = size(explicit_grid%connections,2)
-  connections => ConnectionCreate(num_connections,INTERNAL_CONNECTION_TYPE)
+  connections => ConnectionCreate(num_connections,INTERNAL_FACE_CONNECTION_TYPE)
 
   error = PETSC_FALSE
   do iconn = 1, num_connections
@@ -1838,7 +1838,7 @@ function UGridExplicitSetBoundaryConnect(explicit_grid,cell_ids, &
   PetscBool :: error
 
   num_connections = size(cell_ids)
-  connections => ConnectionCreate(num_connections,BOUNDARY_CONNECTION_TYPE)
+  connections => ConnectionCreate(num_connections,BOUNDARY_FACE_CONNECTION_TYPE)
 
   error = PETSC_FALSE
   do iconn = 1, num_connections

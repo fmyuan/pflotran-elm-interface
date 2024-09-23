@@ -624,7 +624,8 @@ subroutine PMRTPreSolve(this)
   ! Date: 03/14/13
   !
 
-  use Reactive_Transport_module, only : RTUpdateTransportCoefs
+  use Reactive_Transport_module, only : RTUpdateTransportCoefs, &
+                                        RTApplyPrescribedConditions
   use Global_module
   use Material_module
   use Data_Mediator_module
@@ -637,6 +638,7 @@ subroutine PMRTPreSolve(this)
 
   call PMRTWeightFlowParameters(this,TIME_TpDT)
 
+  call RTApplyPrescribedConditions(this%realization)
   call RTUpdateTransportCoefs(this%realization)
 
 #if 0

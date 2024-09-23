@@ -254,8 +254,7 @@ subroutine NWTSetup(realization)
   allocate(dof_is_active(ndof))
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(realization%patch,dof_is_active, &
-                  realization%patch%aux%NWT%matrix_zeroing, &
-                  realization%patch%aux%NWT%inactive_cells_exist,option)
+                  realization%patch%aux%NWT%matrix_zeroing,option)
   deallocate(dof_is_active)
 
 end subroutine NWTSetup
