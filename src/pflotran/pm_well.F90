@@ -2214,7 +2214,8 @@ subroutine PMWellSetup(this)
   do k = 1,well_grid%nsegments
 
     write(string,'(I0.6)') k
-    source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
+    source_sink => CouplerCreate()
+    source_sink%itype = SRC_SINK_COUPLER_TYPE
     source_sink%name = trim(this%name) // '_well_segment_' // trim(string)
 
     ! ----- flow ------------------
