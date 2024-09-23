@@ -5680,9 +5680,9 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
           case(H_MODE)
             if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
               source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
-                0.d0 ! [kmol/s]
+                                      -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
               source_sink%flow_condition%hydrate%rate%dataset%rarray(2) = &
-                0.d0 ! [kmol/s]
+                                      -1.d0 * pm_well%well%gas%Q(k) ! [kg/s]
             else
               source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
                 -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]

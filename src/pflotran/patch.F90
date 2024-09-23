@@ -6910,47 +6910,19 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                            pres(option%liquid_phase:option%gas_phase))
             enddo
           case(LIQUID_PRESSURE)
-            if (output_option%filter_non_state_variables) then
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    G_STATE) then
-                  vec_ptr(local_id) = &
-                    patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%liquid_phase)
-                else
-                  vec_ptr(local_id) = 0.d0
-                endif
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
-                  patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%liquid_phase)
-              enddo
-            endif
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%liquid_phase)
+            enddo
           case(GAS_PRESSURE)
-            if (output_option%filter_non_state_variables) then
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    L_STATE) then
-                  vec_ptr(local_id) = &
-                    patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%gas_phase)
-                else
-                  vec_ptr(local_id) = 0.d0
-                endif
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
                   patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%gas_phase)
-              enddo
-            endif
+                  pres(option%gas_phase)
+            enddo
           case(AIR_PRESSURE)
             if (output_option%filter_non_state_variables) then
               do local_id=1,grid%nlmax
@@ -7263,37 +7235,19 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                            pres(option%liquid_phase:option%gas_phase))
             enddo
           case(LIQUID_PRESSURE)
-            if (output_option%filter_non_state_variables) then
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
-                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%liquid_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
-                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%liquid_phase)
-              enddo
-            endif
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%liquid_phase)
+            enddo
           case(GAS_PRESSURE)
-            if (output_option%filter_non_state_variables) then
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
-                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%gas_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                ghosted_id = grid%nL2G(local_id)
-                vec_ptr(local_id) = &
-                  patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    pres(option%gas_phase)
-              enddo
-            endif
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%SCO2%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%gas_phase)
+            enddo
           case(CO2_PRESSURE)
             if (output_option%filter_non_state_variables) then
               do local_id=1,grid%nlmax
