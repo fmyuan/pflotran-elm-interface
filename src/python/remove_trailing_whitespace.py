@@ -83,7 +83,7 @@ def get_source_files():
 
     # Alphabetize
     source_file_roots.sort()
-    print(source_file_roots)
+    #print(source_file_roots)
     return source_file_roots
 
 def main():
@@ -120,11 +120,15 @@ def main():
         white_space_removed += n0
         lines_shortened += n1
 
-    print('\n{} files impacted'.format(num_files_impacted))
-    print('{} lines shortened'.format(lines_shortened))
-    print('{} whitespace characters removed\n'.format(white_space_removed))
-
-    if white_space_removed == 0:
+    if white_space_removed > 0:
+        print('\n{} files impacted'.format(num_files_impacted))
+        if overwrite_file:
+            print('{} lines shortened'.format(lines_shortened))
+            print('{} trailing whitespace characters removed\n'.format(white_space_removed))
+        else:
+            print('{} lines impacted'.format(lines_shortened))
+            print('{} trailing whitespace characters found\n'.format(white_space_removed))
+    else: 
         print('\nNo trailing whitespaces found.\n')
 
 if __name__ == "__main__":

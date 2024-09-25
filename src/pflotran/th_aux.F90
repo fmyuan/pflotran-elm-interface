@@ -108,7 +108,6 @@ module TH_Aux_module
 
   type, public :: TH_type
     PetscBool :: auxvars_up_to_date
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(th_parameter_type), pointer :: th_parameter
     type(TH_auxvar_type), pointer :: auxvars(:)
@@ -153,7 +152,6 @@ function THAuxCreate(option)
 
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
@@ -518,7 +516,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,dpsat_dT,aux, &
                               visl,dvis_dT,dvis_dp,ierr)
   endif
-  ! J/kmol -> whatever units
+  ! J/kmol -> whatever units (default of option%scale is 1.e-6)
   hw = hw * option%scale
   hw_dp = hw_dp * option%scale
   hw_dT = hw_dT * option%scale

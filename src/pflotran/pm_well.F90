@@ -43,6 +43,7 @@ module PM_Well_class
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
 
+  PetscInt, parameter :: PEACEMAN_NONE = 0
   PetscInt, parameter :: PEACEMAN_ISO = 1
   PetscInt, parameter :: PEACEMAN_2D = 2
   PetscInt, parameter :: PEACEMAN_3D = 3
@@ -224,6 +225,7 @@ module PM_Well_class
     ! well top of hole rate BC [kg/s]
     PetscReal :: th_ql
     PetscReal :: th_qg
+    PetscReal :: total_rate
     ! well transport constraint name
     character(len=MAXWORDLENGTH) :: tran_condition_name
     ! Link to characteristic curves
@@ -691,6 +693,7 @@ subroutine PMWellVarCreate(well)
   well%bh_qg = UNINITIALIZED_DOUBLE
   well%th_ql = 0.d0
   well%th_qg = 0.d0
+  well%total_rate = 999.d0
   well%tran_condition_name = ''
   nullify(well%ccid)
   nullify(well%permeability)
@@ -1792,6 +1795,7 @@ subroutine PMWellSetup(this)
   use NW_Transport_Aux_module
   use SCO2_Aux_module
   use Hydrate_Aux_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1825,6 +1829,7 @@ subroutine PMWellSetup(this)
   PetscErrorCode :: ierr
   PetscInt :: well_bottom_local, well_bottom_ghosted
   PetscInt, allocatable :: temp(:), temp2(:)
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
 
   call this%SetRealization()
   option => this%option
@@ -1945,6 +1950,21 @@ subroutine PMWellSetup(this)
   enddo
 
   allocate(this%well%r0(nsegments))
+  if (this%well%WI_model == PEACEMAN_NONE) then
+    if (.not. associated(this%well%diameter)) then
+      allocate(this%well%diameter(nsegments))
+    endif
+    if (.not. associated(this%well%friction_factor)) then
+      allocate(this%well%friction_factor(nsegments))
+    endif
+    if (.not. associated(this%well%skin)) then
+      allocate(this%well%skin(nsegments))
+    endif
+    this%well%diameter = 0.d0
+    this%well%friction_factor = 0.d0
+    this%well%skin = 0.d0
+  endif
+
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -2165,7 +2185,8 @@ subroutine PMWellSetup(this)
 
   this%flow_soln%ndof = this%nphase
 
-  if (option%itranmode /= NULL_MODE) then
+  if (option%itranmode /= NULL_MODE .and. &
+      option%iflowmode /= SCO2_MODE) then
     this%transport = PETSC_TRUE
     if (option%itranmode /= NWT_MODE) then
       option%io_buffer ='The only transport mode allowed with the &
@@ -2181,7 +2202,8 @@ subroutine PMWellSetup(this)
     if (well_grid%h_rank_id(k) /= option%myrank) cycle
 
     write(string,'(I0.6)') k
-    source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
+    source_sink => CouplerCreate()
+    source_sink%itype = SRC_SINK_COUPLER_TYPE
     source_sink%name = 'well_segment_' // trim(string)
 
     ! ----- flow ------------------
@@ -2231,6 +2253,22 @@ subroutine PMWellSetup(this)
       else
         source_sink%flow_condition%well%ctype = 'well'
       endif
+
+      if (this%use_well_coupler) then
+        coupler => realization%patch%well_coupler_list%first
+        do
+          if (.not.associated(coupler)) exit
+          if (StringCompare(coupler%well_name,this%name)) then
+            if (option%ntrandof > 0) then
+              if (option%itranmode == RT_MODE) then
+                source_sink%tran_condition => coupler%tran_condition
+              endif
+            endif
+          endif
+          coupler => coupler%next
+        enddo
+      endif
+
     case(H_MODE)
       source_sink%flow_condition%hydrate => FlowHydrateConditionCreate(option)
       string = 'RATE'
@@ -2273,7 +2311,7 @@ subroutine PMWellSetup(this)
                                                    tran_constraint_coupler_nwt
     endif
 
-    source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
+    source_sink%connection_set => ConnectionCreate(1,GENERIC_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = well_grid%h_local_id(k)
 
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
@@ -2300,92 +2338,42 @@ subroutine PMWellSetup(this)
   ! For fully-implicit well coupling, resize the matrix zeroing arrays to
   ! exclude the bottom of the well for hydrostatic well model.
 
+  well_bottom_ghosted = well_grid%h_ghosted_id(1)
+  well_bottom_local = well_grid%h_local_id(1)
+  nullify(matrix_zeroing)
   select case (option%iflowmode)
     case(SCO2_MODE)
-      well_bottom_ghosted = well_grid%h_ghosted_id(1)
-      well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_local > 0 .and. &
-          realization%patch%aux%sco2%inactive_cells_exist) then
-        if (size(realization%patch%aux%sco2%matrix_zeroing% &
-            inactive_rows_local) == 1) then
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%sco2%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = 0
-        else
-          if (allocated(temp)) deallocate(temp)
-          if (allocated(temp2)) deallocate(temp2)
-          allocate(temp(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)))
-          allocate(temp2(size(realization%patch%aux%sco2% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%sco2%matrix_zeroing%n_inactive_rows - 1
-          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local)
-          allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%sco2%matrix_zeroing%inactive_rows_local(:) = &
-                   temp2(:)
-          temp(:) = realization%patch%aux%sco2%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
-          deallocate(realization%patch%aux%sco2%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
-          allocate(realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
-          realization%patch%aux%sco2%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
-        endif
-      endif
+      matrix_zeroing => realization%patch%aux%SCO2%matrix_zeroing
     case(H_MODE)
-      well_bottom_ghosted = well_grid%h_ghosted_id(1)
-      well_bottom_local = well_grid%h_local_id(1)
-      if (well_bottom_local > 0 .and. &
-          realization%patch%aux%hydrate%inactive_cells_exist) then
-        if (size(realization%patch%aux%hydrate%matrix_zeroing% &
-            inactive_rows_local) == 1) then
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing%&
-                     inactive_rows_local_ghosted)
-          realization%patch%aux%hydrate%inactive_cells_exist = PETSC_FALSE
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = 0
-        else
-          if (allocated(temp)) deallocate(temp)
-          if (allocated(temp2)) deallocate(temp2)
-          allocate(temp(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)))
-          allocate(temp2(size(realization%patch%aux%hydrate% &
-               matrix_zeroing%inactive_rows_local)-1))
-          realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows = &
-               realization%patch%aux%hydrate%matrix_zeroing%n_inactive_rows - 1
-          temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local)
-          allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local(size(temp2)))
-          realization%patch%aux%hydrate%matrix_zeroing%inactive_rows_local(:) = &
-                   temp2(:)
-          temp(:) = realization%patch%aux%hydrate%matrix_zeroing% &
-                    inactive_rows_local_ghosted(:)
-          temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof-1)
-          deallocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                     inactive_rows_local_ghosted)
-          allocate(realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(size(temp2)))
-          realization%patch%aux%hydrate%matrix_zeroing% &
-                   inactive_rows_local_ghosted(:) = temp2(:)
-        endif
-      endif
+      matrix_zeroing => realization%patch%aux%Hydrate%matrix_zeroing
   end select
+  if (associated(matrix_zeroing)) then
+    if (well_bottom_local > 0 .and. matrix_zeroing%zero_rows_exist) then
+      if (size(matrix_zeroing%zero_rows_local) == 1) then
+        deallocate(matrix_zeroing%zero_rows_local)
+        deallocate(matrix_zeroing%zero_rows_local_ghosted)
+        matrix_zeroing%zero_rows_exist = PETSC_FALSE
+        matrix_zeroing%n_zero_rows = 0
+      else
+        if (allocated(temp)) deallocate(temp)
+        if (allocated(temp2)) deallocate(temp2)
+        allocate(temp(size(matrix_zeroing%zero_rows_local)))
+        allocate(temp2(size(matrix_zeroing%zero_rows_local)-1))
+        matrix_zeroing%n_zero_rows = matrix_zeroing%n_zero_rows - 1
+        temp(:) = matrix_zeroing%zero_rows_local(:)
+        temp2 = pack(temp,temp /= well_bottom_local*option%nflowdof)
+        deallocate(matrix_zeroing%zero_rows_local)
+        allocate(matrix_zeroing%zero_rows_local(size(temp2)))
+        matrix_zeroing%zero_rows_local(:) = temp2(:)
+        temp(:) = matrix_zeroing%zero_rows_local_ghosted(:)
+        temp2 = pack(temp,temp /= well_bottom_ghosted*option%nflowdof-1)
+        deallocate(matrix_zeroing%zero_rows_local_ghosted)
+        allocate(matrix_zeroing%zero_rows_local_ghosted(size(temp2)))
+        matrix_zeroing%zero_rows_local_ghosted(:) = temp2(:)
+      endif
+    endif
+  endif
+
 end subroutine PMWellSetup
 
 ! ************************************************************************** !
@@ -3153,6 +3141,8 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
                 pm_well%well%WI_model = PEACEMAN_2D
               case('PEACEMAN_3D')
                 pm_well%well%WI_model = PEACEMAN_3D
+              case('SCALE_BY_PERM')
+                pm_well%well%WI_model = PEACEMAN_NONE
               case default
                 option%io_buffer = 'Unrecognized option for WELL_INDEX_MODEL &
                 &in the ' // trim(error_string) // ' block. Default is 3D &
@@ -3169,12 +3159,14 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (.not.associated(pm_well%well%friction_factor)) then
+      if (.not.associated(pm_well%well%friction_factor) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword FRICTION_COEFFICIENT must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
       endif
-      if (.not.associated(pm_well%well%diameter)) then
+      if (.not.associated(pm_well%well%diameter) .and. &
+          pm_well%well%WI_model /= PEACEMAN_NONE) then
         option%io_buffer = 'Keyword DIAMETER must be provided in &
                            &the ' // trim(error_string) // ' block.'
         call PrintErrMsg(option)
@@ -4717,8 +4709,7 @@ subroutine PMWellSCO2Perturb(pm_well)
         well%th_qg > 0.d0) then
       ! Injection well
       pres_bump = 1.25d0 * (pres_bump + 1.d0)
-    elseif (well%th_ql < 0.d0 .or. &
-            well%th_qg < 0.d0) then
+    elseif (well%total_rate < 0.d0) then
       ! Extraction well
       pres_bump = 1.25d0 * (pres_bump - 1.d0)
     else
@@ -5703,9 +5694,9 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
               -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
           case (SCO2_MODE)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
-              -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
+              0.d0 ! [kg/s]
             source_sink%flow_condition%sco2%rate%dataset%rarray(2) = &
-              -1.d0 * pm_well%well%gas%Q(k) ! [kg/s]
+              0.d0 ! [kg/s]
           case (H_MODE)
             source_sink%flow_condition%hydrate%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
@@ -5896,12 +5887,11 @@ subroutine PMWellModifyFlowResidual(this,residual,ss_flow_vol_flux)
                 if (k == 1) then
                   ! An extra residual is required for the bottom well cell.
                   ! Residual = Q - sum(q)
-                  if (dabs(this%well%th_qg) > 0.d0) then
-                    sum_q = sum_q + sum(this%well%gas%q)
-                    Q = -1.d0 * (this%well%th_qg)
+                  sum_q = sum_q + sum(this%well%gas%q) + sum(this%well%liq%q)
+                  if (this%well%total_rate < 0.d0) then
+                    Q = -1.d0 * this%well%total_rate
                   else
-                    sum_q = sum(this%well%liq%q)
-                    Q = -1.d0 * (this%well%th_ql)
+                    Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
                 endif
@@ -6099,12 +6089,11 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           enddo
           if (k==1) then
             sum_q = 0.d0
-            if (dabs(well%th_qg) > 0.d0) then
-              sum_q = sum(well%gas%q)
-              Q = -1.d0 * (well%th_qg)
+            sum_q = sum(well%gas%q) + sum(well%liq%q)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
             else
-              sum_q = sum(well%liq%q)
-              Q = -1.d0 * (well%th_ql)
+              Q = -1.d0 * (well%th_qg + well%th_ql)
             endif
             residual(k,option%nflowdof) = Q - sum_q
           endif
@@ -6130,11 +6119,8 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
             ! well bottom.
             if (this%well_grid%h_rank_id(1) == option%myrank) then
               res_pert = 0.d0
-              if (dabs(well_pert%th_qg) > 0.d0) then
-                res_pert = well_pert%gas%q(k) - well%gas%q(k)
-              else
-                res_pert = well_pert%liq%q(k) - well%liq%q(k)
-              endif
+              res_pert = (well_pert%gas%q(k) + well_pert%liq%q(k)) - &
+                         (well%gas%q(k) + well%liq%q(k))
 
               local_row_index = this%well_grid%h_ghosted_id(1)* &
                                 option%nflowdof-1
@@ -6184,22 +6170,20 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
           ! Compute dRwell / dPwell
           if (k == 1) then
             sum_q = 0.d0
-            if (dabs(well%th_qg) > 0.d0) then
-              sum_q = sum(well%gas%q)
-              Q = -1.d0 * (well%th_qg)
+            sum_q = sum(well%gas%q) + sum(well%liq%q)
+            if (well%total_rate < 0.d0) then
+              Q = -1.d0 * well%total_rate
             else
-              sum_q = sum(well%liq%q)
-              Q = -1.d0 * (well%th_ql)
+              Q = -1.d0 * (well%th_qg + well%th_ql)
             endif
             res = Q - sum_q
 
             sum_q = 0.d0
-            if (dabs(well_pert%th_qg) > 0.d0) then
-              sum_q = sum(well_pert%gas%q)
-              Q = -1.d0 * (well_pert%th_qg)
+            sum_q = sum(well_pert%gas%q) + sum(well_pert%liq%q)
+            if (well_pert%total_rate < 0.d0) then
+              Q = -1.d0 * well_pert%total_rate
             else
-              sum_q = sum(well_pert%liq%q)
-              Q = -1.d0 * (well_pert%th_ql)
+              Q = -1.d0 * (well_pert%th_qg + well_pert%th_ql)
             endif
             res_pert = Q - sum_q
 
@@ -7727,7 +7711,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   use Grid_module
   use EOS_Water_module
   use EOS_Gas_module
-  use SCO2_Aux_module, only : fmw_comp
+  use SCO2_Aux_module, only : fmw_comp, SCO2BrineDensity
   use Hydrate_Aux_module, only : hydrate_fmw_comp
 
   implicit none
@@ -7767,6 +7751,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
   PetscReal :: aux(2)
   PetscReal :: res_pg_temp, res_pl_temp, res_z
   PetscReal :: fmw_comp_temp(3)
+  PetscReal :: mixture_ratio
   PetscReal, parameter :: threshold_p = 0.d0
   PetscReal, parameter :: epsilon = 1.d-14
 
@@ -7833,8 +7818,15 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
     !MAN: pure brine and pure gas columns for now, needs updating.
     aux(1) = well%liq%xmass(1,option%salt_id)
-    call EOSWaterDensityExt(temperature,pl, &
-                            aux,rho_kg_liq,dummy,ierr)
+    select case (option%iflowmode)
+      case (SCO2_MODE)
+        call SCO2BrineDensity(temperature, pl, &
+                              aux(1), rho_kg_liq, option)
+      case default
+        call EOSWaterDensityExt(temperature,pl, &
+                                  aux,rho_kg_liq,dummy,ierr)
+    end select
+
     pl0 = pl
 
     call EOSGasDensity(temperature,pg, &
@@ -7852,9 +7844,15 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
 
       ! Compute well cell pressures based off of bottom segment pressure
       temperature = well%temp(i)
-      aux(1) = well%liq%xmass(i,option%salt_id)
-      call EOSWaterDensityExt(temperature,pl0, &
-                              aux,rho_kg_liq,dummy,ierr)
+      aux(1) = well%liq%xmass(1,option%salt_id)
+      select case (option%iflowmode)
+        case (SCO2_MODE)
+          call SCO2BrineDensity(temperature, pl, &
+                                aux(1), rho_kg_liq, option)
+        case default
+          call EOSWaterDensityExt(temperature,pl, &
+                                    aux,rho_kg_liq,dummy,ierr)
+      end select
       call EOSGasDensity(temperature,pg0, &
                        den_mol,dummy,dummy2,ierr)
       rho_kg_gas = den_mol * fmw_comp_temp(TWO_INTEGER)
@@ -7884,7 +7882,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         num_iteration = num_iteration + 1
         if (num_iteration > 100) then
           option%io_buffer = 'Hydrostatic iteration failed to &
-                              &converge in well model'
+                              &converge in the well model'
           call PrintErrMsgByRank(option)
         endif
       enddo
@@ -7924,7 +7922,37 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
       res_z = pm_well%well_grid%res_z(i)
       delta_z = res_z - pm_well%well_grid%h(i)%z
 
-      if (well%th_qg > 0.d0) then
+      if (well%th_qg > 0.d0 .and. well%th_ql > 0.d0) then
+        ! mixture injection: assume constant mass ratio
+        mixture_ratio = well%th_ql / well%th_qg
+
+        if (reservoir%s_g(i) > epsilon) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * &
+                        delta_z
+        else
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_l(i) * gravity * &
+                        delta_z
+        endif
+        upwind = res_pg_temp > well%pg(i)
+        if (upwind) then
+          mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
+          den_ave = reservoir%den_g(i)
+          enthalpy = reservoir%H_g(i)
+        else
+          mobility = 1.d0 / well%gas%visc(i)
+          den_ave = well%gas%den(i)
+          enthalpy = well%gas%H(i)
+        endif
+
+        ! Flowrate in kg/s
+        well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                        (res_pg_temp-well%pg(i))
+
+        ! Assuming the mass ratio of water and CO2 remains the same
+        ! everywhere.
+        well%liq%Q(i) = well%gas%Q(i) * mixture_ratio
+
+      elseif (well%th_qg > 0.d0) then
         ! Rate-controlled gas injection well. Can potentially have
         ! under-pressure in some well segments.
         ! Compute reservoir pressure at well cell center
@@ -7964,37 +7992,23 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pl_temp-well%pl(i))
-      elseif (well%th_qg < 0.d0 .or. well%th_ql < 0.d0) then
+      elseif (well%total_rate < 0.d0) then
         ! Extraction well
         ! Compute reservoir pressure at well cell center
-        res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
-        upwind = res_pl_temp > well%pl(i)
-        if (upwind) then
+
+          res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
           mobility = reservoir%kr_l(i)/reservoir%visc_l(i)
           den_ave = reservoir%den_l(i)
-        else
-          mobility = dabs(well%th_ql)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%liq%visc(i)
-          den_ave = well%liq%den(i)
-        endif
-        ! Flowrate in kg/s
-        well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pl_temp-well%pl(i))
+          ! Flowrate in kg/s
+          well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pl_temp-well%pl(i))
 
-        res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
-        upwind = res_pg_temp > well%pg(i)
-        if (upwind) then
+          res_pg_temp = reservoir%p_g(i) + reservoir%den_g(i) * gravity * delta_z
           mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
           den_ave = reservoir%den_g(i)
-        else
-          mobility = dabs(well%th_qg)/ (dabs(well%th_ql + well%th_qg))/ &
-                     well%gas%visc(i)
-          den_ave = well%gas%den(i)
-        endif
-
-        ! Flowrate in kg/s
-        well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                        (res_pg_temp-well%pg(i))
+          ! Flowrate in kg/s
+          well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                          (res_pg_temp-well%pg(i))
       endif
     enddo
 
@@ -9230,6 +9244,11 @@ subroutine PMWellComputeWellIndex(pm_well)
         pm_well%well%WI(k) = sqrt((wix**2) + (wiy**2) + (wiz**2))
       enddo
 
+    case(PEACEMAN_NONE)
+      do k = 1,pm_well%well_grid%nsegments
+        ! Assume a vertical well
+        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k))
+      enddo
   end select
 
   pm_well%well%WI = pm_well%well%WI*pm_well%well_grid%casing
@@ -10294,127 +10313,138 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
 
   nsegments =pm_well%well_grid%nsegments
 
-  if (well%th_qg > 0.d0) then
-    ! CO2 Injection well. Need to update to flexibly accommodate humidity.
-    well%gas%xmass(:,:) = 0.d0
-    well%gas%xmass(:,TWO_INTEGER) = 1.d0
-  elseif (well%th_ql > 0.d0) then
-    ! Liquid Injection well: Need to update to flexibly
-    ! accommodate dissolved gas.
-    well%liq%xmass(:,:) = 0.d0
-    well%liq%xmass(:,ONE_INTEGER) = 1.d0
-  endif
-
-  do i = 1,nsegments
-
-    !Liquid Density
-    xsl = well%liq%xmass(i,option%salt_id)
-    call SCO2BrineSaturationPressure(well%temp(i), &
-                                     xsl,Ps)
-    call SCO2BrineDensity(well%temp(i), well%pg(i), &
-                          xsl, den_kg_brine, option)
-    call SCO2VaporPressureBrine(well%temp(i), Ps, &
-                                0.d0, den_kg_brine, &
-                                xsl, Prvap)
-    call SCO2WaterDensity(well%temp(i),Prvap, &
-                          TWO_INTEGER,den_kg_water, &
-                          den_kg_steam,option)
-    call SCO2DensityCompositeLiquid(well%temp(i),den_kg_brine, &
-                                  well%liq%xmass(i,option%co2_id), &
-                                  den_kg_liq)
-
-    well%liq%den(i) = den_kg_liq
-
-    call SCO2Equilibrate(well%temp(i),well%pg(i), &
-                         Pco2, Pvap, Ps, Prvap, &
-                         xco2g, xwg, xco2l, xsl, xwl, &
-                         xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
-
-    xmolco2g = (well%gas%xmass(i,co2_id)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-                (well%gas%xmass(i,wid)/fmw_comp(1)))
-    xmolwg = 1.d0 - xmolco2g
-    xmolco2l = (well%liq%xmass(i,co2_id)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
-               (well%gas%xmass(i,sid)/fmw_comp(3)))
-    xmolwl = (well%liq%xmass(i,wid)/fmw_comp(2)) / &
-               ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
-               (well%gas%xmass(i,wid)/fmw_comp(1)) + &
-               (well%gas%xmass(i,sid)/fmw_comp(3)))
-    xmolsl = 1.d0 - xmolco2l - xmolwl
-
-    !Gas Density
-    Pva = max(well%pg(i),Prvap)
-    call EOSGasDensity(well%temp(i),Pva, &
-                       den_mol_co2,drho_dT,drho_dP,ierr)
-    den_kg_co2 = den_mol_co2 * fmw_comp(2)
-    den_kg_gas = well%gas%xmass(i,option%co2_id) * &
-                 den_kg_co2 + &
-                 well%gas%xmass(i,option%water_id) * &
-                 den_kg_steam
-    well%gas%den(i) = den_kg_gas
-
-    ! Liquid Viscosity
-    call SCO2ViscosityWater(well%temp(i),well%pg(i), &
-                           den_kg_water,visc_water,option)
-    call SCO2ViscosityCO2(well%temp(i), den_kg_co2, &
-                          visc_co2)
-    call SCO2ViscosityBrine(well%temp(i), xsl, &
-                           visc_water, visc_brine)
-    call SCO2ViscosityLiquid(xmolco2l, visc_brine, &
-                             visc_co2, visc_liq)
-
-    well%liq%visc(i) = visc_liq
-
-    ! Gas Viscosity
-    call SCO2ViscosityGas(visc_water,visc_co2,xmolwg, &
-                          xmolco2g,visc_gas)
-
-    well%gas%visc(i) = visc_gas
-
-    if (sco2_thermal) then
-      ! Energy calculations
-
-      ! Brine enthalpy
-      call EOSWaterEnthalpy(well%temp(i),well%pg(i), &
-                            well%liq%H(i),ierr)
-      ! J/kmol --> J/kg
-      well%liq%H(i) = well%liq%H(i) / fmw_comp(wid)
-      call SCO2BrineEnthalpy(well%temp(i), well%liq%xmass(i,sid), &
-                             well%liq%H(i),H_temp)
-      ! CO2 density, internal energy, enthalpy
-      call EOSGasDensityEnergy(well%temp(i),well%pg(i),den_co2, &
-                               well%gas%H(i),U_temp,ierr)
-      ! J/kmol --> J/kg
-      well%gas%H(i) = well%gas%H(i) / fmw_comp(co2_id)
-
-      ! Liquid phase enthalpy
-      well%liq%H(i) = SCO2EnthalpyCompositeLiquid(well%temp(i), &
-                                     well%liq%xmass(i,sid), &
-                                     well%liq%xmass(i,co2_id), &
-                                     H_temp, well%gas%H(i))
-
-      well%liq%H(i) = well%liq%H(i) * 1.d-6 ! J/kg -> MJ/kg
-      well%gas%H(i) = well%gas%H(i)  * 1.d-6 ! MJ/kg
-      call EOSWaterSteamDensityEnthalpy(well%temp(i), &
-                                        well%pg(i), &
-                                        den_kg_steam, &
-                                        den_steam, &
-                                        H_steam,ierr)
-      ! J/kmol -> MJ/kg
-      H_steam = H_steam / fmw_comp(wid) * 1.d-6
-    else
-      den_steam = 0.d0
-      H_steam = 0.d0
+  if (well%total_rate < 0.d0) then
+    ! Extraction well: use reservoir fluid properties
+    well%liq%xmass(:,:) = well%reservoir%xmass_liq(:,:)
+    well%gas%xmass(:,:) = well%reservoir%xmass_gas(:,:)
+    well%liq%den(:) = well%reservoir%den_l(:)
+    well%gas%den(:) = well%reservoir%den_g(:)
+    well%liq%visc(:) = well%reservoir%visc_l(:)
+    well%gas%visc(:) = well%reservoir%visc_g(:)
+    well%liq%H(:) = well%reservoir%h_l(:)
+    well%gas%H(:) = well%reservoir%h_g(:)
+  else
+    if (well%th_qg > 0.d0) then
+      ! CO2 Injection well. Need to update to flexibly accommodate humidity.
+      well%gas%xmass(:,:) = 0.d0
+      well%gas%xmass(:,TWO_INTEGER) = 1.d0
+    elseif (well%th_ql > 0.d0) then
+      ! Liquid Injection well: Need to update to flexibly
+      ! accommodate dissolved gas.
+      well%liq%xmass(:,:) = 0.d0
+      well%liq%xmass(:,ONE_INTEGER) = 1.d0
     endif
 
-    ! Gas phase enthalpy
-    well%gas%H(i) = well%gas%xmass(i,wid) * H_steam + &
-                    well%gas%xmass(i,co2_id) * well%gas%H(i)
+    do i = 1,nsegments
 
-  enddo
+      !Liquid Density
+      xsl = well%liq%xmass(i,option%salt_id)
+      call SCO2BrineSaturationPressure(well%temp(i), &
+                                      xsl,Ps)
+      call SCO2BrineDensity(well%temp(i), well%pg(i), &
+                            xsl, den_kg_brine, option)
+      call SCO2VaporPressureBrine(well%temp(i), Ps, &
+                                  0.d0, den_kg_brine, &
+                                  xsl, Prvap)
+      call SCO2WaterDensity(well%temp(i),Prvap, &
+                            TWO_INTEGER,den_kg_water, &
+                            den_kg_steam,option)
+      call SCO2DensityCompositeLiquid(well%temp(i),den_kg_brine, &
+                                    well%liq%xmass(i,option%co2_id), &
+                                    den_kg_liq)
 
+      well%liq%den(i) = den_kg_liq
+
+      call SCO2Equilibrate(well%temp(i),well%pg(i), &
+                          Pco2, Pvap, Ps, Prvap, &
+                          xco2g, xwg, xco2l, xsl, xwl, &
+                          xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
+
+      xmolco2g = (well%gas%xmass(i,co2_id)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                  (well%gas%xmass(i,wid)/fmw_comp(1)))
+      xmolwg = 1.d0 - xmolco2g
+      xmolco2l = (well%liq%xmass(i,co2_id)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+                (well%gas%xmass(i,sid)/fmw_comp(3)))
+      xmolwl = (well%liq%xmass(i,wid)/fmw_comp(2)) / &
+                ((well%gas%xmass(i,co2_id)/fmw_comp(2)) + &
+                (well%gas%xmass(i,wid)/fmw_comp(1)) + &
+                (well%gas%xmass(i,sid)/fmw_comp(3)))
+      xmolsl = 1.d0 - xmolco2l - xmolwl
+
+      !Gas Density
+      Pva = max(well%pg(i),Prvap)
+      call EOSGasDensity(well%temp(i),Pva, &
+                        den_mol_co2,drho_dT,drho_dP,ierr)
+      den_kg_co2 = den_mol_co2 * fmw_comp(2)
+      den_kg_gas = well%gas%xmass(i,option%co2_id) * &
+                  den_kg_co2 + &
+                  well%gas%xmass(i,option%water_id) * &
+                  den_kg_steam
+      well%gas%den(i) = den_kg_gas
+
+      ! Liquid Viscosity
+      call SCO2ViscosityWater(well%temp(i),well%pg(i), &
+                            den_kg_water,visc_water,option)
+      call SCO2ViscosityCO2(well%temp(i), den_kg_co2, &
+                            visc_co2)
+      call SCO2ViscosityBrine(well%temp(i), xsl, &
+                            visc_water, visc_brine)
+      call SCO2ViscosityLiquid(xmolco2l, visc_brine, &
+                              visc_co2, visc_liq)
+
+      well%liq%visc(i) = visc_liq
+
+      ! Gas Viscosity
+      call SCO2ViscosityGas(visc_water,visc_co2,xmolwg, &
+                            xmolco2g,visc_gas)
+
+      well%gas%visc(i) = visc_gas
+
+      if (sco2_thermal) then
+        ! Energy calculations
+
+        ! Brine enthalpy
+        call EOSWaterEnthalpy(well%temp(i),well%pg(i), &
+                              well%liq%H(i),ierr)
+        ! J/kmol --> J/kg
+        well%liq%H(i) = well%liq%H(i) / fmw_comp(wid)
+        call SCO2BrineEnthalpy(well%temp(i), well%liq%xmass(i,sid), &
+                              well%liq%H(i),H_temp)
+        ! CO2 density, internal energy, enthalpy
+        call EOSGasDensityEnergy(well%temp(i),well%pg(i),den_co2, &
+                                well%gas%H(i),U_temp,ierr)
+        ! J/kmol --> J/kg
+        well%gas%H(i) = well%gas%H(i) / fmw_comp(co2_id)
+
+        ! Liquid phase enthalpy
+        well%liq%H(i) = SCO2EnthalpyCompositeLiquid(well%temp(i), &
+                                      well%liq%xmass(i,sid), &
+                                      well%liq%xmass(i,co2_id), &
+                                      H_temp, well%gas%H(i))
+
+        well%liq%H(i) = well%liq%H(i) * 1.d-6 ! J/kg -> MJ/kg
+        well%gas%H(i) = well%gas%H(i)  * 1.d-6 ! MJ/kg
+        call EOSWaterSteamDensityEnthalpy(well%temp(i), &
+                                          well%pg(i), &
+                                          den_kg_steam, &
+                                          den_steam, &
+                                          H_steam,ierr)
+        ! J/kmol -> MJ/kg
+        H_steam = H_steam / fmw_comp(wid) * 1.d-6
+      else
+        den_steam = 0.d0
+        H_steam = 0.d0
+      endif
+
+      ! Gas phase enthalpy
+      well%gas%H(i) = well%gas%xmass(i,wid) * H_steam + &
+                      well%gas%xmass(i,co2_id) * well%gas%H(i)
+
+    enddo
+  endif
 
 end subroutine PMWellUpdatePropertiesSCO2Flow
 
@@ -10661,6 +10691,7 @@ subroutine PMWellCopyWell(well,well_copy,transport)
   well_copy%bh_qg = well%bh_qg
   well_copy%th_ql = well%th_ql
   well_copy%th_qg = well%th_qg
+  well_copy%total_rate = well%total_rate
   well_copy%liq%visc(:) = well%liq%visc(:)
   well_copy%gas%visc(:) = well%gas%visc(:)
   well_copy%temp(:) = well%temp(:)
@@ -10779,15 +10810,18 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     enddo
   endif
 
+  select case (pm_well%option%iflowmode)
+    case (WF_MODE)
+      units = 'kmol/sec'
+    case default
+      units = 'kg/sec'
+  end select
   if (pm_well%well%liq%output_Q) then
     name = 'Well Liq. Q'
-    units = 'kmol/sec'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_LIQ_Q)
   endif
-
   if (pm_well%well%gas%output_Q) then
     name = 'Well Gas Q'
-    units = 'kmol/sec'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
   endif
 

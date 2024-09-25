@@ -235,8 +235,8 @@ module General_Aux_module
 
   type, public :: general_type
     PetscBool :: auxvars_up_to_date
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
+    PetscInt, pointer :: zero_array(:)
     type(general_parameter_type), pointer :: general_parameter
     type(general_auxvar_type), pointer :: auxvars(:,:)
     type(general_auxvar_type), pointer :: auxvars_bc(:)
@@ -328,10 +328,10 @@ function GeneralAuxCreate(option)
   endif
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
+  nullify(aux%zero_array)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
@@ -5389,6 +5389,7 @@ subroutine GeneralAuxDestroy(aux)
   call GeneralAuxVarDestroy(aux%auxvars)
   call GeneralAuxVarDestroy(aux%auxvars_bc)
   call GeneralAuxVarDestroy(aux%auxvars_ss)
+  call DeallocateArray(aux%zero_array)
 
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 

@@ -357,8 +357,7 @@ subroutine RichardsSetupPatch(realization)
 
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
-                            patch%aux%Richards%matrix_zeroing, &
-                            patch%aux%Richards%inactive_cells_exist,option)
+                            patch%aux%Richards%matrix_zeroing,option)
 
 end subroutine RichardsSetupPatch
 
@@ -1750,6 +1749,8 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1766,7 +1767,6 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
 
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart
   PetscInt :: iconn
@@ -1783,6 +1783,11 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   PetscReal :: pressure_max
   PetscReal :: pressure_min
   PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: dummy
 
   Mat, parameter :: null_mat = tMat(0)
 
@@ -1848,6 +1853,26 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                                                            ! kg/sec -> kmol/sec
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
 
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0.d0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,dummy)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+          endif
+          qsrc_mol = qsrc/FMWH2O*volume_scale*smoothstep_scale
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -1871,6 +1896,22 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
               Dq = well_factor
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
               if (dphi >= 0.D0) then ! outflow only
+                ukvr = rich_auxvars(ghosted_id)%kvr
+                if (ukvr < 1.e-20) ukvr = 0.D0
+                v_darcy = 0.D0
+                if (ukvr*Dq > floweps) then
+                  v_darcy = Dq * ukvr * dphi
+                  ! store volumetric rate for ss_fluid_fluxes()
+                  qsrc_mol = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
+                endif
+              endif
+            endif
+          ! injection well (well status = 1)
+          elseif (dabs(well_status - 1.D0) > -1.D-1) then
+            if (global_auxvars(ghosted_id)%pres(1) < pressure_max) then
+              Dq = well_factor
+              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
+              if (dphi <= 0.D0) then ! inflow only
                 ukvr = rich_auxvars(ghosted_id)%kvr
                 if (ukvr < 1.e-20) ukvr = 0.D0
                 v_darcy = 0.D0
@@ -1907,13 +1948,10 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  if (patch%aux%Richards%inactive_cells_exist) then
-    do i=1,patch%aux%Richards%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%Richards%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+
+  call MatrixZeroingZeroVecEntries(patch%aux%Richards%matrix_zeroing,r)
 
   call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                          global_auxvars,rich_auxvars,option)
@@ -2684,6 +2722,8 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2718,6 +2758,11 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   PetscReal :: ukvr, Dq, dphi, v_darcy
   Vec, parameter :: null_vec = tVec(0)
   character(len=MAXSTRINGLENGTH) :: string
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: derivative
 
   patch => realization%patch
   grid => patch%grid
@@ -2756,6 +2801,27 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
         case(HET_VOL_RATE_SS)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0.d0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,derivative)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+            derivative = -1.d0 * derivative
+          endif
+          Jup(1,1) = -qsrc/FMWH2O*volume_scale*derivative
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -2779,6 +2845,25 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
               Dq = well_factor
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
               if (dphi >= 0.D0) then ! outflow only
+                ukvr = rich_auxvars(ghosted_id)%kvr
+                if (ukvr < 1.e-20) ukvr = 0.D0
+                v_darcy = 0.D0
+                if (ukvr*Dq > floweps) then
+                  v_darcy = Dq * ukvr * dphi
+                  ! store volumetric rate for ss_fluid_fluxes()
+                  Jup(1,1) = -1.d0*(-Dq*rich_auxvars(ghosted_id)%dkvr_dp*dphi* &
+                             global_auxvars(ghosted_id)%den(1) &
+                             -Dq*ukvr*1.d0*global_auxvars(ghosted_id)%den(1) &
+                             -Dq*ukvr*dphi*rich_auxvars(ghosted_id)%dden_dp)
+                endif
+              endif
+            endif
+          ! injection well (well status = 1)
+          elseif (dabs(well_status - 1.D0) > -1.D-1) then
+            if (global_auxvars(ghosted_id)%pres(1) < pressure_max) then
+              Dq = well_factor
+              dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
+              if (dphi <= 0.D0) then ! inflow only
                 ukvr = rich_auxvars(ghosted_id)%kvr
                 if (ukvr < 1.e-20) ukvr = 0.D0
                 v_darcy = 0.D0
@@ -2827,12 +2912,11 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 
 #ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
+    option%io_buffer = 'Matrix zeroing for matrix_buffer in richards.F90 &
+                       &needs to be updated.'
+    call PrintErrMsg(option)
     if (patch%aux%Richards%inactive_cells_exist) then
-      call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
-                                patch%aux%Richards%matrix_zeroing% &
-                                  n_inactive_rows, &
-                                patch%aux%Richards%matrix_zeroing% &
-                                  inactive_rows_local_ghosted)
+      call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer,???)
     endif
     call MatrixBufferSetValues(A,patch%aux%Richards%matrix_buffer)
   endif
@@ -2845,16 +2929,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 #ifdef BUFFER_MATRIX
   if (.not.option%use_matrix_buffer) then
 #endif
-    if (patch%aux%Richards%inactive_cells_exist) then
-      qsrc = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A, &
-                            patch%aux%Richards%matrix_zeroing% &
-                              n_inactive_rows, &
-                            patch%aux%Richards%matrix_zeroing% &
-                              inactive_rows_local_ghosted, &
-                            qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
-    endif
+  call MatrixZeroingZeroMatEntries(patch%aux%Richards%matrix_zeroing,A)
 #ifdef BUFFER_MATRIX
   endif
 #endif
@@ -3022,17 +3097,17 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
       call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                         global_auxvars(ghosted_id), &
                                         rich_auxvars(ghosted_id),option)
-      call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
+      call cur_srcsink%Evaluate(res,Jac,compute_derivative, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
       if (compute_derivative) then
+#if 0
         call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
                                           global_auxvars(ghosted_id), &
                                           rich_auxvars(ghosted_id),option)
         call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
                                   material_auxvars(ghosted_id), &
                                   aux_real,option)
-#if 0
         pert = global_auxvars(ghosted_id)%pres(1)*1.d-6
         aux_real(1) = global_auxvars(ghosted_id)%pres(1)+pert
         call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &

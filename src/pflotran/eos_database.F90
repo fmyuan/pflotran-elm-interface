@@ -50,7 +50,7 @@ module EOS_Database_module
   end type
 
   type, public, extends(eos_data_base_type) :: eos_database_type
-    character(len=MAXWORDLENGTH) :: file_name
+    character(len=MAXSTRINGLENGTH) :: file_name
     PetscReal :: dp      ! uniform pressure interval
     PetscReal :: dt      ! uniform temperature interval
     class(lookup_table_uniform_type), pointer :: lookup_table_uni
@@ -603,7 +603,7 @@ function EOSDatabaseCreate(filename,dbase_name)
   implicit none
 
   class(eos_database_type), pointer :: EOSDatabaseCreate
-  character(len=MAXWORDLENGTH) :: filename
+  character(len=*) :: filename
   character(len=*) :: dbase_name
 
   allocate(EOSDatabaseCreate)

@@ -1,0 +1,41 @@
+#Description: 1D vertical extraction scenario
+# modified from Richards mode with pressure regulation pressure_regulated-np4.in
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE th_pressure_regulated.txt
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.1d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION extraction_well
+  TYPE
+    RATE PRESSURE_REGULATED_MASS_RATE VOLUME
+    TEMPERATURE DIRICHLET
+  /
+  THRESHOLD_PRESSURE 0.9d6
+  THRESHOLD_PRESSURE_SPAN -1.d4
+  RATE -4.d-4 kg/s
+  TEMPERATURE 15.d0
+END
+
+SOURCE_SINK
+  FLOW_CONDITION extraction_well
+  REGION well
+END
+
+END_SUBSURFACE

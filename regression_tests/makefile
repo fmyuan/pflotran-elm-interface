@@ -66,6 +66,8 @@ STANDARD_CFG = \
 	default/constraint/constraint.cfg \
 	default/condition/condition.cfg \
 	default/condition/dataset/dataset.cfg \
+	default/condition/prescribed/prescribed.cfg \
+	default/condition/srcsink/srcsink.cfg \
 	default/debug/debug.cfg \
 	default/discretization/discretization.cfg \
 	default/dispersion/dispersion.cfg \

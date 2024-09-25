@@ -495,6 +495,15 @@ subroutine RegionRead(region,input,option)
         region%def_type = DEFINED_BY_COORD
         call GeometryReadCoordinates(input,option,region%name, &
                                      region%coordinates)
+      case('INFINITE')
+        region%def_type = DEFINED_BY_COORD
+        allocate(region%coordinates(2))
+        region%coordinates(1)%x = -1.d20
+        region%coordinates(1)%y = -1.d20
+        region%coordinates(1)%z = -1.d20
+        region%coordinates(2)%x = 1.d20
+        region%coordinates(2)%y = 1.d20
+        region%coordinates(2)%z = 1.d20
       case('POLYGON')
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()

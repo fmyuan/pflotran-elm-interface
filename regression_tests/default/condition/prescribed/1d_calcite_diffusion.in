@@ -1,0 +1,242 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    3
+    5
+    8
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+    Ca++
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+#    CaOH+ ! requires isotherm @ 25C
+  /
+  PASSIVE_GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+  /
+  MINERAL_KINETICS
+    Calcite
+      RATE_CONSTANT 1.d-6
+    /
+  /
+  DATABASE ../../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    PH
+    TOTAL
+    FREE_ION
+    ALL
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.1 y
+    FORMAT TECPLOT POINT
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+END
+
+#=========================== observations =====================================
+OBSERVATION
+  REGION one-quarter
+END
+
+OBSERVATION
+  REGION middle
+END
+
+OBSERVATION
+  REGION three-quarter
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.3 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+REGION middle
+  COORDINATE 5.d0 0.5d0 0.5d0
+END
+
+REGION one-quarter
+  COORDINATE 2.5d0 0.5d0 0.5d0
+END
+
+REGION three-quarter
+  COORDINATE 7.5d0 0.5d0 0.5d0
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION fluctuating
+  TYPE ZERO_GRADIENT
+  TIME_UNITS y
+  CONSTRAINT_LIST
+    0.d0 initial
+    0.1d0 pH6
+    0.2d0 pH7
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 inlet
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g)
+    Ca++   5.d-4      M  Calcite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0
+  /
+END
+
+CONSTRAINT inlet
+  CONCENTRATIONS
+    H+     5.         P
+    HCO3-  1.d-3      T
+    Ca++   1.d-6      Z
+  /
+END
+
+CONSTRAINT pH6
+  CONCENTRATIONS
+    H+     6.         P
+    HCO3-  1.d-3      T
+    Ca++   1.d-6      Z
+  /
+END
+
+CONSTRAINT pH7
+  CONCENTRATIONS
+    H+     7.         P
+    HCO3-  1.d-3      T
+    Ca++   1.d-6      Z
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+INITIAL_CONDITION
+  TRANSPORT_CONDITION fluctuating
+  REGION middle
+END
+
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+PRESCRIBED_CONDITION fixed_cells
+  TRANSPORT_CONDITION fluctuating
+  REGION middle
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

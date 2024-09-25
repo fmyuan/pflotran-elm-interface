@@ -70,6 +70,7 @@ module Patch_module
     type(coupler_list_type), pointer :: initial_condition_list
     type(coupler_list_type), pointer :: source_sink_list
     type(coupler_list_type), pointer :: well_coupler_list
+    type(coupler_list_type), pointer :: prescribed_condition_list
 
     type(material_property_type), pointer :: material_properties
     type(material_property_ptr_type), pointer :: material_property_array(:)
@@ -179,6 +180,8 @@ function PatchCreate()
   call CouplerInitList(patch%source_sink_list)
   allocate(patch%well_coupler_list)
   call CouplerInitList(patch%well_coupler_list)
+  allocate(patch%prescribed_condition_list)
+  call CouplerInitList(patch%prescribed_condition_list)
 
   nullify(patch%material_properties)
   nullify(patch%material_property_array)
@@ -372,7 +375,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     coupler => coupler%next
   enddo
 
-
   ! initial conditions
   coupler => patch%initial_condition_list%first
   do
@@ -515,6 +517,22 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   ! well coupler
   coupler => patch%well_coupler_list%first
+  ! catch flow modes that do not support the well model
+  select case(option%iflowmode)
+    case(SCO2_MODE,H_MODE)
+    case(WF_MODE)
+      if (associated(coupler)) then
+        option%io_buffer = 'WIPP_FLOW has not been tested using a &
+                           &WELL_COUPLER.'
+        call PrintErrMsg(option)
+      endif
+    case default
+      if (associated(coupler)) then
+        option%io_buffer = 'The selected flow mode does not support &
+                           &using WELL_MODEL.'
+        call PrintErrMsg(option)
+      endif
+  end select
   do
     if (.not.associated(coupler)) exit
     ! pointer to flow condition
@@ -554,6 +572,83 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
       else
         option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
                            &WELL_COUPLER: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    coupler => coupler%next
+  enddo
+
+  ! prescribed conditions
+  coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(coupler)) exit
+    ! pointer to region
+    coupler%region => RegionGetPtrFromList(coupler%region_name, &
+                                           patch%region_list)
+    if (.not.associated(coupler%region)) then
+      option%io_buffer = 'Region "' // trim(coupler%region_name) // &
+                 '" in prescribed condition "' // &
+                 trim(coupler%name) // &
+                 '" not found in region list'
+      call PrintErrMsg(option)
+    endif
+    ! pointer to flow condition
+    if (option%nflowdof > 0) then
+      if (len_trim(coupler%flow_condition_name) > 0) then
+        coupler%flow_condition => &
+          FlowConditionGetPtrFromList(coupler%flow_condition_name, &
+                                      flow_conditions)
+        if (.not.associated(coupler%flow_condition)) then
+          option%io_buffer = 'Flow condition "' // &
+                   trim(coupler%flow_condition_name) // &
+                   '" in prescribed condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in flow condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A FLOW_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to transport condition
+    if (option%ntrandof > 0) then
+      if (len_trim(coupler%tran_condition_name) > 0) then
+        coupler%tran_condition => &
+          TranConditionGetPtrFromList(coupler%tran_condition_name, &
+                                      transport_conditions)
+        if (.not.associated(coupler%tran_condition)) then
+           option%io_buffer = 'Transport condition "' // &
+                   trim(coupler%tran_condition_name) // &
+                   '" in prescribed condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in transport condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to geophysics condition
+    if (option%ngeopdof > 0) then
+      if (len_trim(coupler%geop_condition_name) > 0) then
+        coupler%geop_condition => &
+          GeopConditionGetPtrFromList(coupler%geop_condition_name, &
+                                      geophysics_conditions)
+        if (.not.associated(coupler%geop_condition)) then
+           option%io_buffer = 'Geophysics condition "' // &
+                   trim(coupler%geop_condition_name) // &
+                   '" in prescribed condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in prescribed condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A GEOPHYSICS_CONDITION must be specified in &
+                           &PRESCRIBED_CONDITION: ' // trim(coupler%name) // '.'
         call PrintErrMsg(option)
       endif
     endif
@@ -610,6 +705,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                                      patch%boundary_condition_list)
   call CouplerListComputeConnections(patch%grid,option, &
                                      patch%source_sink_list)
+  call CouplerListComputeConnections(patch%grid,option, &
+                                     patch%prescribed_condition_list)
 
   ! linkage of observation to regions and couplers must take place after
   ! connection list have been created.
@@ -778,6 +875,8 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
                                option)
   call PatchInitCouplerAuxVars(patch%well_coupler_list,patch, &
                                option)
+  call PatchInitCouplerAuxVars(patch%prescribed_condition_list,patch, &
+                               option)
 
   !geh: This should not be included in PatchUpdateAllCouplerAuxVars
   ! as it will result in excessive updates to initial conditions
@@ -845,7 +944,8 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
         coupler%flow_condition%is_transient = &
           FlowConditionIsTransient(coupler%flow_condition)
         if (coupler%itype == INITIAL_COUPLER_TYPE .or. &
-            coupler%itype == BOUNDARY_COUPLER_TYPE) then
+            coupler%itype == BOUNDARY_COUPLER_TYPE .or. &
+            coupler%itype == PRESCRIBED_COUPLER_TYPE) then
 
           if (associated(coupler%flow_condition%pressure) .or. &
               associated(coupler%flow_condition%concentration) .or. &
@@ -1005,7 +1105,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             else
               select case(coupler%flow_condition%rate%itype)
                 case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
-                     VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
+                     VOLUMETRIC_RATE_SS,MASS_RATE_SS,PRES_REG_MASS_RATE_SS, &
                      HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                   select case(option%iflowmode)
                     case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
@@ -1053,32 +1153,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               end select
             endif
           endif
-        else if (coupler%itype == WELL_COUPLER_TYPE) then
-          select case (option%iflowmode)
-            case (SCO2_MODE)
-              if (associated(coupler%flow_condition%sco2)) then
-                if (associated(coupler%flow_condition%sco2%rate)) then
-                  select case(coupler%flow_condition%sco2%rate%itype)
-                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                      allocate(coupler%flow_aux_real_var(1,num_connections))
-                      coupler%flow_aux_real_var = 0.d0
-                  end select
-                endif
-              endif
-            case (H_MODE)
-              if (associated(coupler%flow_condition%hydrate)) then
-                if (associated(coupler%flow_condition%hydrate%rate)) then
-                  select case(coupler%flow_condition%hydrate%rate%itype)
-                    case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                      allocate(coupler%flow_aux_real_var(1,num_connections))
-                      coupler%flow_aux_real_var = 0.d0
-                  end select
-                endif
-              endif
-            case default
-              option%io_buffer = 'The selected flow mode does not support &
-                                &using WELL_COUPLERs.'
-          end select
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -1167,6 +1241,8 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
                                  force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%well_coupler_list, &
+                                 force_update_flag,option)
+  call PatchUpdateCouplerAuxVars(patch,patch%prescribed_condition_list, &
                                  force_update_flag,option)
 
 end subroutine PatchUpdateAllCouplerAuxVars
@@ -4158,7 +4234,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                                             flow_condition%rate%dataset, &
                                             TH_PRESSURE_DOF,option)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS,PRES_REG_MASS_RATE_SS)
         call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
                                   option)
         rate_scale_type = flow_condition%rate%isubtype
@@ -4294,7 +4370,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   endif
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+           PRES_REG_MASS_RATE_SS)
         call PatchScaleSourceSink(patch,coupler, &
                                   flow_condition%rate%isubtype,option)
       case (HET_VOL_RATE_SS,HET_MASS_RATE_SS)
@@ -5910,6 +5987,9 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
   call PatchInitCouplerConstraints(patch%well_coupler_list, &
                                    reaction_base,option)
 
+  call PatchInitCouplerConstraints(patch%prescribed_condition_list, &
+                                   reaction_base,option)
+
 end subroutine PatchInitConstraints
 
 ! ************************************************************************** !
@@ -7396,6 +7476,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               else
                 vec_ptr(local_id) = 0.d0
               endif
+            enddo
+          case(SC_FUGA_COEFF)
+            if (.not.associated(patch%aux%Global%auxvars(1)%fugacoeff) .and. &
+                OptionPrintToScreen(option))then
+              call PrintErrMsg(option, "SC_FUGA_COEFF not available for &
+                            &SCO2 flow mode without use of a transport mode.")
+            endif
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Global%&
+                auxvars(grid%nL2G(local_id))%fugacoeff(1)
             enddo
           case default
             call PatchUnsupportedVariable('SCO2',ivar,option)
@@ -11716,8 +11806,7 @@ end subroutine PatchUnsupportedVariable4
 
 ! ************************************************************************** !
 
-subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
-                                inactive_cells_exist,option)
+subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing,option)
   !
   ! Computes the zeroed rows for inactive grid cells
   !
@@ -11729,6 +11818,8 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
   use Option_module
   use String_module
   use Matrix_Zeroing_module
+  use Coupler_module, only : coupler_type
+  use Connection_module, only : connection_set_type
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -11736,15 +11827,17 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
   type(patch_type) :: patch
   PetscBool :: dof_is_active(:)
   type(matrix_zeroing_type), pointer :: matrix_zeroing
-  PetscBool :: inactive_cells_exist
   type(option_type) :: option
 
   PetscInt :: ncount, idof
+  PetscInt :: iconn
   PetscInt :: local_id, ghosted_id
   PetscInt :: ndof, n_active_dof
-  PetscInt :: n_inactive_rows
+  PetscInt :: n_zero_rows
 
   type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: flag
   PetscErrorCode :: ierr
 
@@ -11756,19 +11849,31 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
     if (dof_is_active(idof)) n_active_dof = n_active_dof + 1
   enddo
 
-  n_inactive_rows = 0
-  inactive_cells_exist = PETSC_FALSE
+  n_zero_rows = 0
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) then
-      n_inactive_rows = n_inactive_rows + ndof
+      n_zero_rows = n_zero_rows + ndof
     else if (n_active_dof < ndof) then
-      n_inactive_rows = n_inactive_rows + (ndof-n_active_dof)
+      n_zero_rows = n_zero_rows + (ndof-n_active_dof)
     endif
   enddo
 
-  call MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      n_zero_rows = n_zero_rows + ndof
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call MatrixZeroingAllocateArray(matrix_zeroing,n_zero_rows)
 
   ncount = 0
 
@@ -11778,9 +11883,9 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
       do idof = 1, ndof
         ncount = ncount + 1
         ! 1-based indexing
-        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+        matrix_zeroing%zero_rows_local_ghosted(ncount) = &
           (ghosted_id-1)*ndof+idof-1
       enddo
     else if (n_active_dof < ndof) then
@@ -11788,23 +11893,43 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
         if (dof_is_active(idof)) cycle
         ncount = ncount + 1
         ! 1-based indexing
-        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+        matrix_zeroing%zero_rows_local_ghosted(ncount) = &
           (ghosted_id-1)*ndof+idof-1
       enddo
     endif
   enddo
 
-  call MPI_Allreduce(n_inactive_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+   if (.not.associated(cur_coupler)) exit
+   cur_connection_set => cur_coupler%connection_set
+   do iconn = 1, cur_connection_set%num_connections
+     local_id = cur_connection_set%id_dn(iconn)
+     ghosted_id = grid%nL2G(local_id)
+     if (patch%imat(ghosted_id) <= 0) cycle
+     do idof = 1, ndof
+       ncount = ncount + 1
+       ! 1-based indexing
+       matrix_zeroing%zero_rows_local(ncount) = (local_id-1)*ndof+idof
+       ! 0-based indexing
+       matrix_zeroing%zero_rows_local_ghosted(ncount) = &
+         (ghosted_id-1)*ndof+idof-1
+     enddo
+   enddo
+   cur_coupler => cur_coupler%next
+  enddo
+
+  call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   if (flag > 0) then
-    inactive_cells_exist = PETSC_TRUE
+    matrix_zeroing%zero_rows_exist = PETSC_TRUE
   endif
 
-  if (ncount /= n_inactive_rows) then
+  if (ncount /= n_zero_rows) then
     option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
-      StringWrite(ncount) // ' ' // trim(StringWrite(n_inactive_rows))
+      StringWrite(ncount) // ' ' // trim(StringWrite(n_zero_rows))
     call PrintErrMsgByRank(option)
   endif
 
@@ -11880,6 +12005,7 @@ subroutine PatchDestroy(patch)
   call CouplerDestroyList(patch%initial_condition_list)
   call CouplerDestroyList(patch%source_sink_list)
   call CouplerDestroyList(patch%well_coupler_list)
+  call CouplerDestroyList(patch%prescribed_condition_list)
 
   call ObservationDestroyList(patch%observation_list)
   call IntegralFluxDestroyList(patch%integral_flux_list)

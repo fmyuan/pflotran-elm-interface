@@ -1806,7 +1806,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
     enddo
   enddo
 
-  connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
 
   allocate(ugrid%connection_to_face(nconn))
   ugrid%connection_to_face = 0
@@ -2088,7 +2088,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
   pgrid => ugrid%polyhedra_grid
 
   select case(connection%itype)
-    case(BOUNDARY_CONNECTION_TYPE)
+    case(BOUNDARY_FACE_CONNECTION_TYPE)
       if (iface_cell == 0) then
         write(word,*) ghosted_id
         option%io_buffer = 'Face id undefined for cell ' // &

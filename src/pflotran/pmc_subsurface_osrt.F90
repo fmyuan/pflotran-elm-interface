@@ -90,10 +90,13 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   type(solver_type), pointer :: solver
   character(len=MAXSTRINGLENGTH) :: string
   class(pm_rt_type), pointer :: pm_rt
+  PetscBool :: keep_non_zero_pattern
   PetscErrorCode :: ierr
 
   option => this%option
   solver => this%timestepper%solver
+  keep_non_zero_pattern = &
+    associated(this%realization%patch%prescribed_condition_list%first)
 
   select type(ts=>this%timestepper)
     class is(timestepper_KSP_type)
@@ -119,7 +122,8 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   call DiscretizationCreateMatrix(pm_rt%realization%discretization, &
                                   ONEDOF, &
                                   solver%Mpre_mat_type, &
-                                  solver%Mpre,option)
+                                  solver%Mpre,keep_non_zero_pattern, &
+                                  option)
   call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre
 

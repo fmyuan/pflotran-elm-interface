@@ -39,7 +39,8 @@ module TH_module
          THJacobianInternalConn, &
          THJacobianBoundaryConn, &
          THJacobianSourceSink, &
-         THUpdateLocalVecs
+         THUpdateLocalVecs, &
+         THApplyPrescribedConditions
 
   PetscInt, parameter :: jh2o = 1
 
@@ -77,36 +78,6 @@ subroutine THSetup(realization)
   use Realization_Subsurface_class
   use Patch_module
   use Output_Aux_module
-
-  class(realization_subsurface_type) :: realization
-
-  type(output_variable_list_type), pointer :: list
-
-  call THSetupPatch(realization)
-
-  list => realization%output_option%output_snap_variable_list
-  call THSetPlotVariables(realization,list)
-  list => realization%output_option%output_obs_variable_list
-  call THSetPlotVariables(realization,list)
-
-  TH_ts_count = 0
-  TH_ts_cut_count = 0
-  TH_ni_count = 0
-
-end subroutine THSetup
-
-! ************************************************************************** !
-
-subroutine THSetupPatch(realization)
-  !
-  ! Creates arrays for auxiliary variables
-  !
-  ! Author: ???
-  ! Date: 02/22/08
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
   use Option_module
   use Grid_module
   use Region_module
@@ -116,15 +87,15 @@ subroutine THSetupPatch(realization)
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
   use Characteristic_Curves_Thermal_module
-
-  implicit none
+  use String_module, only : StringWrite
 
   class(realization_subsurface_type) :: realization
 
+  type(output_variable_list_type), pointer :: list
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, cur_coupler
   type(TH_auxvar_type), pointer :: TH_auxvars(:), TH_auxvars_bc(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_ss(:)
   type(fluid_property_type), pointer :: cur_fluid_property
@@ -135,6 +106,7 @@ subroutine THSetupPatch(realization)
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscInt :: i, iphase, material_id, icct
+  PetscInt :: num_tcc
   PetscBool :: error_found
   PetscReal :: tempreal
   PetscBool :: dof_is_active(2)
@@ -165,19 +137,29 @@ subroutine THSetupPatch(realization)
 
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only
   !single value in the array <modified pcl 1-13-11>
-  allocate(patch%aux%TH%th_parameter%dencpr( &
-             size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           ckwet(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           ckdry(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter% &
-           alpha(size(patch%char_curves_thermal_array)))
+  num_tcc = size(patch%char_curves_thermal_array)
+  allocate(patch%aux%TH%th_parameter%dencpr(num_tcc))
+  allocate(patch%aux%TH%th_parameter%ckwet(num_tcc))
+  allocate(patch%aux%TH%th_parameter%ckdry(num_tcc))
+  allocate(patch%aux%TH%th_parameter%alpha(num_tcc))
   if (option%flow%th_freezing) then
-   allocate(patch%aux%TH%th_parameter%ckfrozen( &
-              size(patch%char_curves_thermal_array)))
-   allocate(patch%aux%TH%th_parameter%alpha_fr( &
-              size(patch%char_curves_thermal_array)))
+   allocate(patch%aux%TH%th_parameter%ckfrozen(num_tcc))
+   allocate(patch%aux%TH%th_parameter%alpha_fr(num_tcc))
+  endif
+
+  if (num_tcc == 0) then
+    call PrintErrMsg(option,'No thermal conductivities specified for TH.')
+  endif
+  do icct = 1, num_tcc
+    if (.not.associated(patch%char_curves_thermal_array(icct)%ptr)) then
+      call PrintErrMsg(option,'Unassociated thermal conductivity in TH.')
+    endif
+  enddo
+  if (num_tcc /= size(patch%material_property_array)) then
+    option%io_buffer = 'Number of thermal characteristic curves must match &
+                       &the number of materials in TH due to dencpr being &
+                       &allocated to size(patch%char_curves_thermal_array'
+    call PrintErrMsg(option)
   endif
 
   !Copy the values in the th_parameter from the global realization
@@ -186,6 +168,12 @@ subroutine THSetupPatch(realization)
     word = patch%material_property_array(i)%ptr%name
     if (Uninitialized(patch%material_property_array(i)%ptr%specific_heat)) then
       option%io_buffer = 'ERROR: Non-initialized HEAT_CAPACITY in material ' &
+                         // trim(word)
+      call PrintMsgByRank(option)
+      error_found = PETSC_TRUE
+    endif
+    if (Uninitialized(patch%material_property_array(i)%ptr%rock_density)) then
+      option%io_buffer = 'ERROR: Non-initialized ROCK_DENSITY in material ' &
                          // trim(word)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
@@ -394,10 +382,46 @@ subroutine THSetupPatch(realization)
   enddo
 
   dof_is_active = PETSC_TRUE
-  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%TH%matrix_zeroing, &
-                            patch%aux%TH%inactive_cells_exist,option)
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%TH%matrix_zeroing,option)
 
-end subroutine THSetupPatch
+  ! ensure that prescribed_conditions are solely DIRICHLET type
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    select case(cur_coupler%flow_condition%pressure%itype)
+      case(DIRICHLET_BC,HYDROSTATIC_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" PRESSURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%pressure%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    select case(cur_coupler%flow_condition%temperature%itype)
+      case(DIRICHLET_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(cur_coupler%flow_condition%name) // '" TEMPERATURE TYPE (' // &
+          StringWrite(cur_coupler%flow_condition%temperature%itype) // &
+          ') not supported in TH PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    cur_coupler => cur_coupler%next
+  enddo
+
+  list => realization%output_option%output_snap_variable_list
+  call THSetPlotVariables(realization,list)
+  list => realization%output_option%output_obs_variable_list
+  call THSetPlotVariables(realization,list)
+
+  TH_ts_count = 0
+  TH_ts_cut_count = 0
+  TH_ni_count = 0
+
+end subroutine THSetup
 
 ! ************************************************************************** !
 
@@ -412,30 +436,7 @@ subroutine THComputeMassBalance(realization, mass_balance)
 
   use Realization_Subsurface_class
   use Patch_module
-
-  class(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nphase)
-
-  mass_balance = 0.d0
-
-  call THComputeMassBalancePatch(realization, mass_balance)
-
-end subroutine THComputeMassBalance
-
-! ************************************************************************** !
-
-subroutine THComputeMassBalancePatch(realization,mass_balance)
-  !
-  ! THomputeMassBalancePatch:
-  ! Adapted from RichardsComputeMassBalancePatch: need to be checked
-  !
-  ! Author: Jitendra Kumar
-  ! Date: 07/21/2010
-  !
-
-  use Realization_Subsurface_class
   use Option_module
-  use Patch_module
   use Field_module
   use Grid_module
   use Material_Aux_module, only : material_auxvar_type
@@ -465,6 +466,8 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   material_auxvars => patch%aux%Material%auxvars
   TH_auxvars => patch%aux%TH%auxvars
 
+  mass_balance = 0.d0
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
@@ -487,11 +490,11 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
 
   enddo
 
-end subroutine THComputeMassBalancePatch
+end subroutine THComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine THZeroMassBalDeltaPatch(realization)
+subroutine THZeroMassBal(realization)
   !
   ! Zeros mass balance delta array
   !
@@ -540,11 +543,11 @@ subroutine THZeroMassBalDeltaPatch(realization)
     enddo
   endif
 
-end subroutine THZeroMassBalDeltaPatch
+end subroutine THZeroMassBal
 
 ! ************************************************************************** !
 
-subroutine THUpdateMassBalancePatch(realization)
+subroutine THUpdateMassBalance(realization)
   !
   ! Updates mass balance
   !
@@ -599,31 +602,11 @@ subroutine THUpdateMassBalancePatch(realization)
   endif
 
 
-end subroutine THUpdateMassBalancePatch
+end subroutine THUpdateMassBalance
 
 ! ************************************************************************** !
 
 subroutine THUpdateAuxVars(realization)
-  !
-  ! Updates the auxiliary variables associated with
-  ! the TH problem
-  !
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateAuxVarsPatch(realization)
-
-end subroutine THUpdateAuxVars
-
-! ************************************************************************** !
-
-subroutine THUpdateAuxVarsPatch(realization)
   !
   ! Updates the auxiliary variables associated with
   ! the TH problem
@@ -855,7 +838,7 @@ subroutine THUpdateAuxVarsPatch(realization)
 
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine THUpdateAuxVarsPatch
+end subroutine THUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -882,29 +865,6 @@ end subroutine THInitializeTimestep
 subroutine THUpdateSolution(realization)
   !
   ! Updates data in module after a successful time step
-  !
-  ! Author: ???
-  ! Date: 02/13/08
-  !
-
-  use Realization_Subsurface_class
-  use Field_module
-  use Patch_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateSolutionPatch(realization)
-
-end subroutine THUpdateSolution
-
-! ************************************************************************** !
-
-subroutine THUpdateSolutionPatch(realization)
-  !
-  ! Updates data in module after a successful time
-  ! step
   !
   ! Author: Satish Karra, LANL
   ! Date: 12/13/11, 02/28/14
@@ -950,7 +910,7 @@ subroutine THUpdateSolutionPatch(realization)
   endif
 
   if (realization%option%compute_mass_balance_new) then
-    call THUpdateMassBalancePatch(realization)
+    call THUpdateMassBalance(realization)
   endif
 
   if (option%use_sc) then
@@ -977,34 +937,13 @@ subroutine THUpdateSolutionPatch(realization)
   TH_ts_cut_count = 0
   TH_ni_count = 0
 
-end subroutine THUpdateSolutionPatch
+end subroutine THUpdateSolution
 
 ! ************************************************************************** !
 
 subroutine THUpdateFixedAccumulation(realization)
   !
-  ! Updates the fixed portion of the
-  ! accumulation term
-  !
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-
-  class(realization_subsurface_type) :: realization
-
-  call THUpdateFixedAccumPatch(realization)
-
-end subroutine THUpdateFixedAccumulation
-
-! ************************************************************************** !
-
-subroutine THUpdateFixedAccumPatch(realization)
-  !
-  ! Updates the fixed portion of the
-  ! accumulation term
+  ! Updates the fixed portion of the accumulation term
   !
   ! Author: ???
   ! Date: 12/10/07
@@ -1104,7 +1043,7 @@ subroutine THUpdateFixedAccumPatch(realization)
    call THNumericalJacobianTest(field%flow_xx,realization)
 #endif
 
-end subroutine THUpdateFixedAccumPatch
+end subroutine THUpdateFixedAccumulation
 
 ! ************************************************************************** !
 
@@ -1463,11 +1402,11 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   PetscReal ::rock_dencpr
 
   PetscReal :: vol,por
-  PetscReal :: porXvol, mol(option%nflowspec), eng
+  PetscReal :: porXvol, kmol(option%nflowspec), eng
   PetscReal :: vol_frac_prim
 
   ! ice variables
-  PetscReal :: sat_g, den_g, mol_g, u_g
+  PetscReal :: sat_g, den_g, kmol_g, u_g
   PetscReal :: sat_i, den_i, u_i
 
   vol = material_auxvar%volume
@@ -1476,11 +1415,15 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
   ! TechNotes, TH Mode: First term of Equation 8
   porXvol = por*vol
-
-  mol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*porXvol
+  ! [kmol] = [m^3 water/m^3 por] * [kmol water/m^3 water] * [m^3 pore/m^3 bulk] &
+  !           * [m^3 bulk]
+  kmol(1) = global_auxvar%sat(1)*global_auxvar%den(1)*porXvol
 
 ! TechNotes, TH Mode: First term of Equation 9
   ! rock_dencpr [MJ/m^3 rock-K]
+  ! [MJ] = [m^3 water/m^3 por] * [kmol water/m^3 water] * [MJ/m^3 water] &
+  !        * [m^3 pore/m^3 bulk] * [m^3 bulk] + [m^3 rock/m^3 bulk] * [m^3 bulk] &
+  !        * [MJ/m^3 rock-K] * [C]
   eng = global_auxvar%sat(1) * &
         global_auxvar%den(1) * &
         auxvar%u * porXvol + &
@@ -1493,13 +1436,14 @@ subroutine THAccumulation(auxvar,global_auxvar, &
      u_i   = auxvar%ice%u_ice
      den_i = auxvar%ice%den_ice
      den_g = auxvar%ice%den_gas
-     mol_g = auxvar%ice%mol_gas
+     kmol_g = auxvar%ice%mol_gas
      u_g = auxvar%ice%u_gas
-     mol(1) = mol(1) + (sat_g*den_g*mol_g + sat_i*den_i)*porXvol
+     kmol(1) = kmol(1) + (sat_g*den_g*kmol_g + sat_i*den_i)*porXvol
      eng = eng + (sat_g*den_g*u_g + sat_i*den_i*u_i)*porXvol
   endif
-
-  Res(1:option%nflowdof-1) = mol(:)/option%flow_dt
+  ! [kmol/s]
+  Res(1:option%nflowdof-1) = kmol(:)/option%flow_dt
+  ! [MJ/s]
   Res(option%nflowdof) = vol_frac_prim*eng/option%flow_dt
 
 end subroutine THAccumulation
@@ -3447,6 +3391,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   use Variables_module
   use Material_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -3479,6 +3424,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   call THResidualBoundaryConn(r,realization,ierr)
   call THResidualAccumulation(r,realization,ierr)
   call THResidualSourceSink(r,realization,ierr)
+  call MatrixZeroingZeroVecEntries(realization%patch%aux%TH%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'THresidual','', &
@@ -3498,6 +3444,62 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   endif
 
 end subroutine THResidual
+
+! ************************************************************************** !
+
+subroutine THApplyPrescribedConditions(realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/24
+  !
+
+  use Connection_module
+  use Coupler_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: local_id
+  PetscInt :: iconn, offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  option => realization%option
+
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%flow_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      offset = (local_id-1)*option%nflowdof
+      vec_ptr(offset+1) = cur_coupler%flow_aux_real_var(TH_PRESSURE_DOF,iconn)
+      vec_ptr(offset+2) = &
+        cur_coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(realization%field%flow_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine THApplyPrescribedConditions
 
 ! ************************************************************************** !
 
@@ -3531,12 +3533,12 @@ subroutine THResidualPreliminaries(xx,r,realization,ierr)
 
   call THUpdateLocalVecs(xx,realization,ierr)
 
-  call THUpdateAuxVarsPatch(realization)
+  call THUpdateAuxVars(realization)
   ! override flags since they will soon be out of date
   patch%aux%TH%auxvars_up_to_date = PETSC_FALSE
 
   if (option%compute_mass_balance_new) then
-    call THZeroMassBalDeltaPatch(realization)
+    call THZeroMassBal(realization)
   endif
 
 end subroutine THResidualPreliminaries
@@ -4075,6 +4077,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Utility_module, only : Smoothstep
 
   implicit none
 
@@ -4082,13 +4085,12 @@ subroutine THResidualSourceSink(r,realization,ierr)
   class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: i
   PetscInt :: local_id, ghosted_id
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: xx_loc_p(:), yy_p(:)
 
-  PetscReal :: qsrc1, esrc1
+  PetscReal :: qsrc1, esrc1, qsrc_kmol
 
   PetscReal :: Res_src(realization%option%nflowdof)
 
@@ -4112,6 +4114,11 @@ subroutine THResidualSourceSink(r,realization,ierr)
   PetscReal :: pressure_max
   PetscReal :: pressure_min
   PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: dummy
 
   PetscInt :: iconn, istart, iend
   PetscInt :: sum_connection
@@ -4153,6 +4160,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
+      qsrc1 = 0.d0
       if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
         source_sink%flow_condition%itype(1) /= WELL_SS) &
         qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
@@ -4160,20 +4168,41 @@ subroutine THResidualSourceSink(r,realization,ierr)
       Res_src = 0.d0
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc_kmol = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
+          qsrc_kmol = qsrc1 / FMWH2O * &
                       ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc_kmol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,dummy)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+          endif
+          !
+          qsrc_kmol = qsrc1/FMWH2O*volume_scale*smoothstep_scale
         case(WELL_SS) ! production well, Karra 11/10/2015
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -4203,7 +4232,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
                 if (ukvr*Dq > floweps) then
                   v_darcy = Dq * ukvr * dphi
                   ! store volumetric rate for ss_fluid_fluxes()
-                  qsrc1 = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
+                  qsrc_kmol = -1.d0*v_darcy*global_auxvars(ghosted_id)%den(1)
                 endif
               endif
             endif
@@ -4216,9 +4245,10 @@ subroutine THResidualSourceSink(r,realization,ierr)
             trim(adjustl(string)) // ', not implemented.'
       end select
 
-      Res_src(TH_PRESSURE_DOF) = qsrc1
+      Res_src(TH_PRESSURE_DOF) = qsrc_kmol
 
       esrc1 = 0.d0
+      ! the unit of *_RATE_SS are J/s
       select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
         case (ENERGY_RATE_SS)
           esrc1 = source_sink%flow_condition%energy_rate%dataset%rarray(1)
@@ -4234,13 +4264,13 @@ subroutine THResidualSourceSink(r,realization,ierr)
       Res_src(TH_TEMPERATURE_DOF) = esrc1*1.d6*option%scale
 
       ! Update residual term associated with T
-      if (qsrc1 > 0.d0) then ! injection
+      if (qsrc_kmol > 0.d0) then ! injection
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars_ss(sum_connection)%h
+          qsrc_kmol*auxvars_ss(sum_connection)%h
       else
         ! extraction
         Res_src(TH_TEMPERATURE_DOF) = Res_src(TH_TEMPERATURE_DOF) + &
-          qsrc1*auxvars(ghosted_id)%h
+          qsrc_kmol*auxvars(ghosted_id)%h
       endif
 
       r_p(istart:iend) = r_p(istart:iend) - Res_src
@@ -4250,13 +4280,12 @@ subroutine THResidualSourceSink(r,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - Res_src(1)
       endif
       if (associated(patch%ss_flow_vol_fluxes)) then
-        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
-        patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc1 / &
+        ! fluid flux [m^3/sec] = qsrc_kmol [kmol/sec] / den [kmol/m^3]
+        patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc_kmol / &
                                            global_auxvars(ghosted_id)%den(1)
       endif
       if (associated(patch%ss_flow_fluxes)) then
-        patch%ss_flow_fluxes(1,sum_connection) = qsrc1
-
+        patch%ss_flow_fluxes(1,sum_connection) = qsrc_kmol
       endif
 
 
@@ -4282,12 +4311,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  if (patch%aux%TH%inactive_cells_exist) then
-    do i=1,patch%aux%TH%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%TH%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
-
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
@@ -4309,6 +4332,7 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   use Grid_module
   use Option_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -4345,6 +4369,8 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   call THJacobianBoundaryConn(J,realization,ierr)
   call THJacobianAccumulation(J,realization,ierr)
   call THJacobianSourceSink(J,realization,ierr)
+
+  call MatrixZeroingZeroMatEntries(realization%patch%aux%TH%matrix_zeroing,J)
 
   if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'THjacobian','', &
@@ -4924,6 +4950,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Utility_module, only : Smoothstep
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -4931,9 +4958,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   PetscErrorCode :: ierr
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal :: qsrc1
+  PetscReal :: qsrc1, qsrc_kmol
   PetscInt :: local_id, ghosted_id
-  PetscReal :: f_up
   PetscReal :: Jsrc(realization%option%nflowdof,realization%option%nflowdof)
 
   PetscInt :: istart
@@ -4955,6 +4981,11 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   PetscViewer :: viewer
 
+  PetscReal :: threshold_pressure, pressure_span, min_pressure, max_pressure
+  PetscReal :: volume_scale, smoothstep_scale
+  PetscBool :: inhibit_flow_above_pressure
+  PetscReal :: derivative ! rename to dsss_dp smooth step scale
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -4975,6 +5006,12 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     if (.not.associated(source_sink)) exit
 
     cur_connection_set => source_sink%connection_set
+    smoothstep_scale = 1.d0
+    derivative = 0.d0
+
+    if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
+      source_sink%flow_condition%itype(1) /= WELL_SS) &
+      qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
 
     do iconn = 1, cur_connection_set%num_connections
 
@@ -4990,20 +5027,41 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc_kmol = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
+          qsrc_kmol = qsrc1 / FMWH2O * &
                ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
+          qsrc_kmol = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
                    source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc_kmol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+        case(PRES_REG_MASS_RATE_SS)
+          threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
+          inhibit_flow_above_pressure = (threshold_pressure > 0)
+          threshold_pressure = dabs(threshold_pressure)
+          pressure_span = source_sink%flow_condition%rate%aux_real(2)
+          if (inhibit_flow_above_pressure) then
+            min_pressure = threshold_pressure-pressure_span
+            max_pressure = threshold_pressure
+          else
+            min_pressure = threshold_pressure
+            max_pressure = threshold_pressure+pressure_span
+          endif
+          volume_scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          call Smoothstep(global_auxvars(ghosted_id)%pres(1), &
+                          min_pressure,max_pressure, &
+                          smoothstep_scale,derivative)
+          if (inhibit_flow_above_pressure) then
+            smoothstep_scale = 1.d0-smoothstep_scale
+            derivative = -1.d0 * derivative
+          endif
+          qsrc_kmol = qsrc1/FMWH2O*volume_scale
         case default
           write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer = &
@@ -5014,17 +5072,23 @@ subroutine THJacobianSourceSink(A,realization,ierr)
       Jsrc = 0.d0
 
       if (qsrc1 > 0.d0) then ! injection
+        Jsrc(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = -qsrc_kmol*derivative
+        !Jsrc(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = 0.d0
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars_ss(sum_connection)%dh_dp
+          - qsrc_kmol*(auxvars_ss(sum_connection)%dh_dp*smoothstep_scale + &
+                       auxvars_ss(sum_connection)%h*derivative)
         ! since tsrc1 is prescribed, there is no derivative
         ! dresT_dT = -qsrc1*hw_dT
         istart = ghosted_id*option%nflowdof
       else
         ! extraction
+        Jsrc(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = -qsrc_kmol*derivative
+        !Jsrc(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = 0.d0
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dp
+          - qsrc_kmol*(auxvars(ghosted_id)%dh_dp*smoothstep_scale + &
+                       auxvars(ghosted_id)%h*derivative)
         Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dT
+          -qsrc_kmol*auxvars(ghosted_id)%dh_dT*smoothstep_scale
         istart = ghosted_id*option%nflowdof
       endif
 
@@ -5033,7 +5097,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-
 
     enddo
     source_sink => source_sink%next
@@ -5048,7 +5111,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5056,15 +5118,9 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
-  zero = 0.d0
-  call MatZeroRowsLocal(A,patch%aux%%matrix_zeroing%n_inactive_rows, &
-                        patch%aux%%matrix_zeroing% &
-                          inactive_rows_local_ghosted, &
-                        zero,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                        ierr);CHKERRQ(ierr)
-  do i=1, patch%aux%TH%matrix_zeroing%n_inactive_rows
-    ii = mod(patch%aux%TH%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
-    ip1 = patch%aux%TH%matrix_zeroing%inactive_rows_local_ghosted(i)
+  do i=1, patch%aux%TH%matrix_zeroing%n_zero_rows
+    ii = mod(patch%aux%TH%matrix_zeroing%zero_rows_local(i),option%nflowdof)
+    ip1 = patch%aux%TH%matrix_zeroing%zero_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     else if (ii == option%nflowdof-1) then
@@ -5078,16 +5134,8 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-#else
-  if (patch%aux%TH%inactive_cells_exist) then
-    f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%TH%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%TH%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          f_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
 #endif
+
 end subroutine THJacobianSourceSink
 
 ! ************************************************************************** !

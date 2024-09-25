@@ -42,7 +42,6 @@ module NW_Transport_Aux_module
     PetscInt :: num_aux_bc
     ! number of nwt_auxvars objects for source/sinks
     PetscInt :: num_aux_ss
-    PetscBool :: inactive_cells_exist
     PetscBool :: truncate_output
     ! nwt_auxvars for local and ghosted grid cells
     type(nw_transport_auxvar_type), pointer :: auxvars(:)
@@ -160,6 +159,8 @@ module NW_Transport_Aux_module
             NWTRead, &
             NWTReadPass2, &
             NWTSetPlotVariables, &
+            NWTAuxGetSpeciesCount, &
+            NWTAuxGetSpeciesNames, &
             NWTAuxVarInit, &
             NWTAuxVarCopy, &
             NWTAuxVarCopyInitialGuess, &
@@ -195,7 +196,6 @@ function NWTAuxCreate()
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%truncate_output = PETSC_FALSE
 
   NWTAuxCreate => aux
@@ -1007,6 +1007,68 @@ function NWTSpeciesConstraintCreate(reaction_nw,option)
   NWTSpeciesConstraintCreate => constraint
 
 end function NWTSpeciesConstraintCreate
+
+! ************************************************************************** !
+
+function NWTAuxGetSpeciesCount(reaction_nw)
+  !
+  ! Returns the number of species
+  !
+  ! Author: David Fukuyama
+  ! Date: 09/06/2024
+  !
+
+  implicit none
+
+  PetscInt :: NWTAuxGetSpeciesCount
+  class(reaction_nw_type) :: reaction_nw
+
+  type(species_type), pointer :: species
+
+  NWTAuxGetSpeciesCount = 0
+  species => reaction_nw%species_list
+  do
+    if (.not.associated(species)) exit
+    NWTAuxGetSpeciesCount = NWTAuxGetSpeciesCount + 1
+    species => species%next
+  enddo
+
+end function NWTAuxGetSpeciesCount
+
+! ************************************************************************** !
+
+function NWTAuxGetSpeciesNames(reaction_nw)
+  !
+  ! Returns the names of species in an array
+  !
+  ! Author: David Fukuyama
+  ! Date: 09/06/2024
+  !
+
+  implicit none
+
+  character(len=MAXWORDLENGTH), pointer :: NWTAuxGetSpeciesNames(:)
+  class(reaction_nw_type) :: reaction_nw
+
+  PetscInt :: count
+  character(len=MAXWORDLENGTH), pointer :: names(:)
+  type(species_type), pointer :: species
+
+  count = NWTAuxGetSpeciesCount(reaction_nw)
+  allocate(names(count))
+
+  count = 1
+  species => reaction_nw%species_list
+  do
+    if (.not.associated(species)) exit
+    names(count) = species%name
+    count = count + 1
+    species => species%next
+  enddo
+
+  NWTAuxGetSpeciesNames => names
+
+end function NWTAuxGetSpeciesNames
 
 ! ************************************************************************** !
 

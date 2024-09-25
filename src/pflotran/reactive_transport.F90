@@ -42,7 +42,8 @@ module Reactive_Transport_module
             RTExplicitAdvection, &
             RTClearActivityCoefficients, &
             RTZeroMassBalanceDelta, &
-            RTComputeBCMassBalanceOS
+            RTComputeBCMassBalanceOS, &
+            RTApplyPrescribedConditions
 
 contains
 
@@ -462,8 +463,8 @@ subroutine RTSetup(realization)
   endif
   allocate(dof_is_active(ndof))
   dof_is_active = PETSC_TRUE
-  call PatchCreateZeroArray(patch,dof_is_active,patch%aux%RT%matrix_zeroing, &
-                            patch%aux%RT%inactive_cells_exist,option)
+  call PatchCreateZeroArray(patch,dof_is_active, &
+                            patch%aux%RT%matrix_zeroing,option)
   deallocate(dof_is_active)
 
 end subroutine RTSetup
@@ -712,7 +713,6 @@ subroutine RTUpdateMassBalance(realization)
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
-  use Grid_module
 
   implicit none
 
@@ -752,6 +752,87 @@ subroutine RTUpdateMassBalance(realization)
   enddo
 
 end subroutine RTUpdateMassBalance
+
+! ************************************************************************** !
+
+subroutine RTApplyPrescribedConditions(realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/16/24
+
+  use Connection_module
+  use Coupler_module
+  use Patch_module
+  use Grid_module
+  use Realization_Subsurface_class
+  use Option_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(tran_constraint_rt_type), pointer :: constraint
+  class(reaction_rt_type), pointer :: reaction
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: idof
+  PetscInt :: iconn
+  PetscInt :: offset, global_offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  rt_auxvars => patch%aux%RT%auxvars
+  reaction => realization%reaction
+
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%tran_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    constraint_coupler => &
+      TranConstraintCouplerRTCast(cur_coupler%tran_condition% &
+                                  cur_constraint_coupler)
+    constraint => TranConstraintRTCast(constraint_coupler%constraint)
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2g(local_id)
+      call RTAuxVarCopy(constraint_coupler%rt_auxvar, &
+                        rt_auxvars(ghosted_id),option)
+      global_offset = (local_id-1)*option%ntrandof
+      offset = global_offset
+      do idof = 1, reaction%naqcomp
+        vec_ptr(offset+idof) = rt_auxvars(ghosted_id)%pri_molal(idof)
+      enddo
+      offset = global_offset + reaction%offset_immobile
+      do idof = 1, reaction%immobile%nimmobile
+        vec_ptr(offset+idof) = rt_auxvars(ghosted_id)%immobile(idof)
+      enddo
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(realization%field%tran_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine RTApplyPrescribedConditions
 
 ! ************************************************************************** !
 
@@ -1441,7 +1522,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
@@ -1509,6 +1590,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   use Coupler_module
   use Connection_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -1711,14 +1793,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   call MatAssemblyBegin(T,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(T,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-  if (patch%aux%RT%inactive_cells_exist) then
-    coef = 1.d0
-    call MatZeroRowsLocal(T,patch%aux%RT%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%RT%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          coef,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(patch%aux%RT%matrix_zeroing,T)
 
   if (realization%debug%matview_Matrix) then
     string = 'Tmatrix'
@@ -2004,6 +2079,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2052,10 +2128,12 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       call RTResidualEquilibrateCO2(r,realization)
   end select
 !#endif
+
+  call MatrixZeroingZeroVecEntries(patch%aux%RT%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
     string = 'RTresidual'
@@ -2069,6 +2147,8 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
+
+  ! print *,'RT CO2 conc', realization%patch%aux%rt%auxvars(1)%pri_molal(11)
 
   call PetscLogEventEnd(logging%event_rt_residual,ierr);CHKERRQ(ierr)
 
@@ -2355,7 +2435,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal, pointer :: r_p(:), accum_p(:), vec_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: iphase
-  PetscInt :: i
   PetscInt :: istartaq, iendaq
   PetscInt :: istartall, iendall
   PetscInt :: offset
@@ -2536,6 +2615,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+      else
+        qsrc_flow = 0.d0
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
                         qsrc_flow,source_sink%tran_condition%itype, &
@@ -2578,17 +2659,40 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
 
-        select case(source_sink%flow_condition%itype(1))
-          case(MASS_RATE_SS)
-            msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
-          case default
-            msrc(:) = 0.d0
-        end select
+        cur_connection_set => source_sink%connection_set
+
+        if (associated(source_sink%flow_condition%well)) then
+          if (dabs(source_sink%flow_condition%well%aux_real(1)) < 1.d-30 .and. &
+              dabs(source_sink%flow_condition%well%aux_real(2)) < 1.d-30) then
+            source_sink => source_sink%next
+            cycle
+          else
+            select case(option%iflowmode)
+              case (SCO2_MODE)
+                msrc(1) = source_sink%flow_condition%well%aux_real(1)
+                msrc(2) = source_sink%flow_condition%well%aux_real(2)
+                msrc(3) = 0.d0
+            end select
+          endif
+        else
+          select case(source_sink%flow_condition%itype(1))
+            case(MASS_RATE_SS)
+              select case(option%iflowmode)
+                case (MPH_MODE)
+                  msrc(:) = source_sink%flow_condition%rate%dataset%rarray(:)
+                case (SCO2_MODE)
+                  msrc(:) = source_sink%flow_condition%sco2%rate%dataset% &
+                            rarray(:)
+              end select
+            case default
+              msrc(:) = 0.d0
+          end select
+        endif
 
         msrc(1) =  msrc(1) / FMWH2O*1D3
         msrc(2) =  msrc(2) / FMWCO2*1D3
@@ -2600,19 +2704,35 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
           if (patch%imat(ghosted_id) <= 0) cycle
 
-          select case(source_sink%flow_condition%itype(1))
-            case(MASS_RATE_SS)
-              do iactgas = 1, reaction%gas%nactive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
-                  icomp = reaction%gas%paseqspecid(1,iactgas)
-                  iendall = local_id*reaction%ncomp
-                  istartall = iendall-reaction%ncomp
-                  Res(icomp) = -msrc(2)
-                  r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', iactgas,icomp, res(icomp)
-                endif
-              enddo
-          end select
+          if (associated(source_sink%flow_condition%well)) then
+            select case(option%iflowmode)
+              case (SCO2_MODE)
+                do iactgas = 1, reaction%gas%nactive_gas
+                  if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                    icomp = reaction%gas%paseqspecid(1,iactgas)
+                    iendall = local_id*reaction%ncomp
+                    istartall = iendall-reaction%ncomp
+                    Res(icomp) = -msrc(2)
+                    r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
+                  endif
+                enddo
+            end select
+          else
+            select case(source_sink%flow_condition%itype(1))
+              case(MASS_RATE_SS)
+                do iactgas = 1, reaction%gas%nactive_gas
+                  if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                    icomp = reaction%gas%paseqspecid(1,iactgas)
+                    iendall = local_id*reaction%ncomp
+                    istartall = iendall-reaction%ncomp
+                    Res(icomp) = -msrc(2)
+                    r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
+                  ! print *,'RT SC source', iactgas,icomp, res(icomp)
+                  endif
+                enddo
+            end select
+          endif
         enddo
         source_sink => source_sink%next
       enddo
@@ -2652,12 +2772,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
     call PetscLogEventEnd(logging%event_rt_res_reaction,ierr);CHKERRQ(ierr)
   endif
 #endif
-
-  if (patch%aux%RT%inactive_cells_exist) then
-    do i=1,patch%aux%RT%matrix_zeroing%n_inactive_rows
-      r_p(patch%aux%RT%matrix_zeroing%inactive_rows_local(i)) = 0.d0
-    enddo
-  endif
 
   ! Restore vectors
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
@@ -2808,6 +2922,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Logging_module
   use Debug_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -2821,7 +2936,6 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   MatType :: mat_type
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal :: rdum
 
   call PetscLogEventBegin(logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -2855,24 +2969,12 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE)
+    case(MPH_MODE, SCO2_MODE)
     call RTJacobianEquilibrateCO2(J,realization)
   end select
 !#endif
 
-  if (realization%patch%aux%RT%inactive_cells_exist) then
-    call PetscLogEventBegin(logging%event_rt_jacobian_zero, &
-                            ierr);CHKERRQ(ierr)
-    rdum = 1.d0
-    call MatZeroRowsLocal(J, &
-                          realization%patch%aux%RT%matrix_zeroing% &
-                            n_inactive_rows, &
-                          realization%patch%aux%RT%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          rdum,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-    call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
-  endif
+  call MatrixZeroingZeroMatEntries(realization%patch%aux%RT%matrix_zeroing,J)
 
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
 
@@ -3236,6 +3338,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         qsrc_flow(1:nphase) = patch%ss_flow_vol_fluxes(1:nphase,sum_connection)
+      else
+        qsrc_flow = 0.d0
       endif
       call TSrcSinkCoef(rt_parameter,global_auxvars(ghosted_id), &
                         qsrc_flow,source_sink%tran_condition%itype, &
@@ -3465,7 +3569,8 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
       call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
-      if (option%iflowmode == MPH_MODE) then
+      if (option%iflowmode == MPH_MODE .or. &
+          option%iflowmode == SCO2_MODE) then
         call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
@@ -3490,7 +3595,8 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                    patch%aux%Global% &
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE) then
+        if (option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == SCO2_MODE) then
           call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
                              patch%aux%Global%auxvars_bc(sum_connection), &
                              reaction,option)
@@ -3629,7 +3735,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         call RActivityCoefficients(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE) then
+        if (option%iflowmode == MPH_MODE .or. &
+            option%iflowmode == SCO2_MODE) then
           call CO2AqActCoeff(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
@@ -3710,7 +3817,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 #endif
 
         equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
-        if (option%iflowmode /= MPH_MODE) then
+        if (option%iflowmode /= MPH_MODE .and. &
+            option%iflowmode /= SCO2_MODE) then
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! since basis_molarity is in molarity, must convert to molality

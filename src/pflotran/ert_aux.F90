@@ -18,7 +18,6 @@ module ERT_Aux_module
   end type ert_auxvar_type
 
   type, public :: ert_type
-    PetscBool :: inactive_cells_exist
     PetscInt :: num_aux
     ! ert auxvars for local and ghosted cells
     type(ert_auxvar_type), pointer :: auxvars(:)
@@ -55,7 +54,6 @@ function ERTAuxCreate()
   type(ert_type), pointer :: aux
 
   allocate(aux)
-  aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
 
   nullify(aux%auxvars)

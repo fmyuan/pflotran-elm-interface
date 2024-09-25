@@ -901,7 +901,7 @@ end function DiscretizationGetDMCPtrFromIndex
 ! ************************************************************************** !
 
 subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
-                                      Matrix,option)
+                                      Matrix,keep_non_zero_pattern,option)
   !
   ! Creates a matrix associated with discretization
   !
@@ -917,11 +917,12 @@ subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
   PetscErrorCode :: ierr
   MatType :: mat_type
   Mat :: Matrix
+  PetscBool :: keep_non_zero_pattern
   type(option_type) :: option
+
   type(dm_ptr_type), pointer :: dm_ptr
 
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
-
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -929,9 +930,9 @@ subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
       call DMCreateMatrix(dm_ptr%dm,Matrix,ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
       call UGridDMCreateMatrix(discretization%grid%unstructured_grid, &
-                                 dm_ptr%ugdm,mat_type,Matrix,option)
+                               dm_ptr%ugdm,mat_type,Matrix,option)
   end select
-  call MatSetOption(Matrix,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
+  call MatSetOption(Matrix,MAT_KEEP_NONZERO_PATTERN,keep_non_zero_pattern, &
                     ierr);CHKERRQ(ierr)
   call MatSetOption(Matrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
   call MatSetOption(Matrix,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE, &

@@ -697,6 +697,30 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         patch%material_property_array(i)%ptr%thermal_conductivity_wet
     endif
   enddo
+  select case(option%iflowmode)
+    case(TH_MODE,TH_TS_MODE,G_MODE,SCO2_MODE,H_MODE)
+      if (associated(realization%characteristic_curves_thermal)) then
+        if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+          option%io_buffer = 'Mixed thermal characteristic curves and &
+            &legacy thermal conductivity in input deck. Please use one &
+            &or the other.'
+          call PrintErrMsg(option)
+        endif
+      else
+        !geh: dislike the logic here, but i have to follow what was here
+        if (.not.(maxval(check_thermal_conductivity(:,:)) >= 0.d0)) then
+          option%io_buffer = 'No thermal conductivities included in input &
+                             &deck for a flow mode that includes the energy &
+                             &conservation equation.'
+          call PrintErrMsg(option)
+        else if (minval(check_thermal_conductivity(:,:)) < 0.d0) then
+          option%io_buffer = 'Missing thermal conductivities in input &
+                             &deck for a flow mode that includes the energy &
+                             &conservation equation.'
+          call PrintErrMsg(option)
+        endif
+      endif
+  end select
   if (associated(realization%characteristic_curves_thermal)) then
     if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
       option%io_buffer = 'Cannot combine material-based thermal conductivity'//&
@@ -1244,21 +1268,38 @@ subroutine RealizationPrintCouplers(realization)
   cur_coupler => patch%initial_condition_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Initial Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
   cur_coupler => patch%boundary_condition_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Boundary Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
   cur_coupler => patch%source_sink_list%first
   do
     if (.not.associated(cur_coupler)) exit
-    call RealizationPrintCoupler(cur_coupler,reaction,option)
+    call RealizationPrintCoupler('Source/Sink',cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
+
+  cur_coupler => patch%well_coupler_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler('Well Coupler',cur_coupler,reaction,option)
+    cur_coupler => cur_coupler%next
+  enddo
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    call RealizationPrintCoupler('Prescribed Condition',cur_coupler, &
+                                 reaction,option)
     cur_coupler => cur_coupler%next
   enddo
 
@@ -1266,7 +1307,7 @@ end subroutine RealizationPrintCouplers
 
 ! ************************************************************************** !
 
-subroutine RealizationPrintCoupler(coupler,reaction,option)
+subroutine RealizationPrintCoupler(type_string,coupler,reaction,option)
   !
   ! Prints boundary and initial condition coupler
   !
@@ -1281,11 +1322,10 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
 
   implicit none
 
+  character(len=*) :: type_string
   type(coupler_type) :: coupler
   type(option_type) :: option
   class(reaction_rt_type), pointer :: reaction
-
-  character(len=MAXSTRINGLENGTH) :: string
 
   type(flow_condition_type), pointer :: flow_condition
   type(tran_condition_type), pointer :: tran_condition
@@ -1303,18 +1343,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   write(option%fid_out,*)
   write(option%fid_out,98)
 
-
-  select case(coupler%itype)
-    case(INITIAL_COUPLER_TYPE)
-      string = 'Initial Condition'
-    case(BOUNDARY_COUPLER_TYPE)
-      string = 'Boundary Condition'
-    case(SRC_SINK_COUPLER_TYPE)
-      string = 'Source Sink'
-    case(WELL_COUPLER_TYPE)
-      string = 'Well Coupler'
-  end select
-  write(option%fid_out,'(/,2x,a,/)') trim(string)
+  write(option%fid_out,'(/,2x,a,/)') trim(type_string)
 
   write(option%fid_out,99)
 101 format(5x,'     Flow Condition: ',2x,a)

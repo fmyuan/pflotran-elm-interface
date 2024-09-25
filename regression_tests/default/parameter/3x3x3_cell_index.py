@@ -40,7 +40,7 @@ nz = 4
 
 x = [0.,1.,2.,3.]
 
-h5grp.attrs['Dimension'] = np.string_('XYZ')
+h5grp.attrs['Dimension'] = np.bytes_('XYZ')
 h5grp.attrs['Discretization'] = [1.,1.,1.]
 h5grp.attrs['Origin'] = [0.,0.]
 
