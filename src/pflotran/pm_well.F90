@@ -7985,11 +7985,11 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
       pl0 = pl
       pg0 = pg
 
-      if (pg < 0.d0) then
+      if (pg < 0.d0 .and. well%th_qg > 0.d0) then
         option%io_buffer = 'BHP cannot support the gas column: &
                             &hydrostatic well pressure calcuation &
                             &results in negative gas pressure.'
-        call PrintErrMsgByRank(option)
+        call PrintErrMsg(option)
       endif
     enddo
 
@@ -8065,6 +8065,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pg_temp-well%pg(i))
+        ! if (well%gas%Q(i) < 0.d0) well%gas%Q(i) = 0.d0
       elseif (well%th_ql > 0.d0) then
         ! Rate-controlled water injection well
         ! Compute reservoir pressure at well cell center
@@ -8082,6 +8083,7 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
         ! Flowrate in kg/s
         well%liq%Q(i) = den_ave*mobility*well%WI(i)* &
                         (res_pl_temp-well%pl(i))
+        ! if (well%liq%Q(i) > 0.d0) well%liq%Q(i) = 0.d0
       elseif (well%total_rate < 0.d0) then
         ! Extraction well
         ! Compute reservoir pressure at well cell center
@@ -8099,6 +8101,9 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
           ! Flowrate in kg/s
           well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
                           (res_pg_temp-well%pg(i))
+
+          if (well%gas%Q(i) < 0.d0 .and. &
+              well%liq%Q(i) > -1.d0 * epsilon) well%gas%Q(i) = 0.d0
       endif
     enddo
 
