@@ -570,7 +570,7 @@ subroutine FactorySubsurfReadFracturePM(input,option,pm)
 
   error_string = 'SIMULATION,PROCESS_MODELS,FRACTURE_MODEL'
 
-  pm => PMFracCreate()
+  pm => PMFractureCreate()
   pm%option => option
 
   word = ''

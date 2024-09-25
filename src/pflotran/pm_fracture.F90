@@ -55,7 +55,7 @@ module PM_Fracture_class
     ! order to mark the cell as being fractured # [m]
     PetscReal :: max_distance
     ! linked list next object
-    class(fracture_type), pointer :: next
+    type(fracture_type), pointer :: next
   end type fracture_type
 
   type :: fracfam_type
@@ -97,15 +97,15 @@ module PM_Fracture_class
     ! order to mark the cell as being fractured # [m]
     PetscReal :: max_distance
     ! list of fractures in this family
-    class(fracture_type), pointer :: fracture_list
+    type(fracture_type), pointer :: fracture_list
     ! linked list next object
-    class(fracfam_type), pointer :: next
+    type(fracfam_type), pointer :: next
   end type fracfam_type
 
   type, public, extends(pm_base_type) :: pm_fracture_type
     class(realization_subsurface_type), pointer :: realization
-    class(fracture_type), pointer :: fracture_list
-    class(fracfam_type), pointer :: fracfam_list
+    type(fracture_type), pointer :: fracture_list
+    type(fracfam_type), pointer :: fracfam_list
     ! list of all global cell ids that contain fractures (some repeated)
     PetscInt, pointer :: allfrac_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
@@ -133,8 +133,9 @@ module PM_Fracture_class
     procedure, public :: Destroy => PMFracDestroy
   end type pm_fracture_type
 
-  public :: PMFracCreate, &
-            PMFracFamCreate, &
+  public :: PMFractureCreate, &
+            FractureCreate, &
+            FractureFamCreate, &
             PMFracReadPMBlock, &
             PMFracReadPass2
 
@@ -142,7 +143,7 @@ module PM_Fracture_class
 
 ! ************************************************************************** !
 
-function PMFracCreate()
+function PMFractureCreate()
   !
   ! Creates the fracture process model.
   !
@@ -151,7 +152,7 @@ function PMFracCreate()
 
   implicit none
 
-  class(pm_fracture_type), pointer :: PMFracCreate
+  class(pm_fracture_type), pointer :: PMFractureCreate
   class(pm_fracture_type), pointer :: this
 
   allocate(this)
@@ -169,13 +170,13 @@ function PMFracCreate()
   this%t_coeff = UNINITIALIZED_DOUBLE ! 40.d-6 is value for granite
   this%update_material_auxvar_perm = PETSC_FALSE
 
-  PMFracCreate => this
+  PMFractureCreate => this
 
-end function PMFracCreate
+end function PMFractureCreate
 
 ! ************************************************************************** !
 
-function PMFractureCreate()
+function FractureCreate()
   !
   ! Creates a fracture object.
   !
@@ -184,16 +185,16 @@ function PMFractureCreate()
 
   implicit none
 
-  class(fracture_type), pointer :: PMFractureCreate
+  type(fracture_type), pointer :: FractureCreate
 
-  allocate(PMFractureCreate)
-  call PMFractureInit(PMFractureCreate)
+  allocate(FractureCreate)
+  call FractureInit(FractureCreate)
 
-end function PMFractureCreate
+end function FractureCreate
 
 ! ************************************************************************** !
 
-function PMFracFamCreate()
+function FractureFamCreate()
   !
   ! Creates a fracture family object.
   !
@@ -202,16 +203,16 @@ function PMFracFamCreate()
 
   implicit none
 
-  class(fracfam_type), pointer :: PMFracFamCreate
+  type(fracfam_type), pointer :: FractureFamCreate
 
-  allocate(PMFracFamCreate)
-  call PMFractureFamInit(PMFracFamCreate)
+  allocate(FractureFamCreate)
+  call FractureFamInit(FractureFamCreate)
 
-end function PMFracFamCreate
+end function FractureFamCreate
 
 ! ************************************************************************** !
 
-subroutine PMFractureInit(this)
+subroutine FractureInit(this)
   !
   ! Initializes variables associated with a fracture object.
   !
@@ -220,7 +221,7 @@ subroutine PMFractureInit(this)
   !
   implicit none
 
-  class(fracture_type) :: this
+  type(fracture_type) :: this
 
   nullify(this%next)
   nullify(this%cell_ids)
@@ -246,11 +247,11 @@ subroutine PMFractureInit(this)
   this%parallel%y = UNINITIALIZED_DOUBLE
   this%parallel%z = UNINITIALIZED_DOUBLE
 
-end subroutine PMFractureInit
+end subroutine FractureInit
 
 ! ************************************************************************** !
 
-subroutine PMFractureFamInit(this)
+subroutine FractureFamInit(this)
   !
   ! Initializes variables associated with a fracture family object.
   !
@@ -259,7 +260,7 @@ subroutine PMFractureFamInit(this)
   !
   implicit none
 
-  class(fracfam_type) :: this
+  type(fracfam_type) :: this
 
   nullify(this%next)
   nullify(this%fracture_list)
@@ -294,7 +295,7 @@ subroutine PMFractureFamInit(this)
   this%radius_stdev%z = UNINITIALIZED_DOUBLE
   this%radius_seed = 30
 
-end subroutine PMFractureFamInit
+end subroutine FractureFamInit
 
 ! ************************************************************************** !
 
@@ -886,7 +887,7 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
   PetscBool :: found
 
   character(len=MAXWORDLENGTH) :: word
-  class(fracture_type), pointer :: new_fracture,cur_fracture
+  type(fracture_type), pointer :: new_fracture,cur_fracture
   PetscReal :: vmag
   PetscInt :: num_errors
   PetscBool :: added
@@ -900,7 +901,7 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
   !-------------------------------------
     case('FRACTURE')
       allocate(new_fracture)
-      new_fracture => PMFractureCreate()
+      new_fracture => FractureCreate()
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -1060,7 +1061,7 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
-  class(fracfam_type), pointer :: new_fracfam, cur_fracfam
+  type(fracfam_type), pointer :: new_fracfam, cur_fracfam
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: added
   PetscInt :: num_errors
@@ -1074,7 +1075,7 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
   !-------------------------------------
     case('FRACTURE_FAMILY')
       allocate(new_fracfam)
-      new_fracfam => PMFracFamCreate()
+      new_fracfam => FractureFamCreate()
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -1460,16 +1461,16 @@ subroutine PMFracGenerateFracFam(fracfam)
 
   implicit none
 
-  class(fracfam_type) :: fracfam
+  type(fracfam_type) :: fracfam
 
-  class(fracture_type), pointer :: new_fracture,cur_fracture
+  type(fracture_type), pointer :: new_fracture,cur_fracture
   PetscBool :: added
 
   do while (fracfam%nfrac_in_fam < fracfam%intensity_fracfam)
     added = PETSC_FALSE
     allocate(new_fracture)
     fracfam%nfrac_in_fam = fracfam%nfrac_in_fam + 1
-    new_fracture => PMFractureCreate()
+    new_fracture => FractureCreate()
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
     new_fracture%max_distance = fracfam%max_distance
 
