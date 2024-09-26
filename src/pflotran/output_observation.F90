@@ -2815,7 +2815,8 @@ subroutine OutputMassBalance(realization_base)
         enddo
       endif
 
-      ! Print the water mass [kg] and species mass [mol] in the specified regions (header)
+      ! Print the water mass [kg] and species mass [mol] in the specified
+      ! regions (header)
       if (associated(output_option%mass_balance_region_list)) then
         cur_mbr => output_option%mass_balance_region_list
         do
@@ -3708,7 +3709,8 @@ subroutine OutputMassBalance(realization_base)
         endif
 
         int_mpi = nmobilecomp * option%transport%nphase
-        call MPI_Reduce(sum_mol_delta,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+        call MPI_Reduce(sum_mol_delta,sum_mol_global,int_mpi, &
+                        MPI_DOUBLE_PRECISION, &
                         MPI_SUM,option%comm%io_rank,option%mycomm, &
                         ierr);CHKERRQ(ierr)
 
@@ -3751,26 +3753,30 @@ subroutine OutputMassBalance(realization_base)
 
             select case(option%iflowmode)
               case(G_MODE)
-                call GeneralComputeMassBalance(realization_base,cur_mbr%region_cell_ids, &
-                                               total_mass(:,:))
+                call GeneralComputeMassBalance(realization_base,cur_mbr% &
+                                               region_cell_ids,total_mass(:,:))
 
               case(SCO2_MODE)
                 deallocate(total_mass,global_total_mass)
                 allocate(total_mass(option%nflowspec,option%trapped_gas_phase))
                 total_mass = 0.d0
-                allocate(global_total_mass(option%nflowspec,option%trapped_gas_phase))
+                allocate(global_total_mass(option%nflowspec,option% &
+                                           trapped_gas_phase))
                 call SCO2ComputeComponentMassBalance(realization_base, &
-                                                     cur_mbr%num_cells,option%nflowspec, &
-                                                     option%trapped_gas_phase,total_mass, &
-                                                     cur_mbr%region_cell_ids)
+                                                    cur_mbr%num_cells, &
+                                                    option%nflowspec, &
+                                                    option%trapped_gas_phase, &
+                                                    total_mass, &
+                                                    cur_mbr%region_cell_ids)
 
               case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE)
                 call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
                                                cur_mbr%num_cells,patch,option, &
                                                total_mass(1,1))
               case default
-                option%io_buffer = 'Calculation of water mass in TOTAL_MASS_REGIONS &
-                                   &not supported for specified flow mode.'
+                option%io_buffer = 'Calculation of water mass in &
+                                   &TOTAL_MASS_REGIONS not supported for &
+                                   &the specified flow mode.'
                 call PrintErrMsg(option)
             end select
 
@@ -3781,10 +3787,12 @@ subroutine OutputMassBalance(realization_base)
         end select
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE, &
+               G_MODE)
             int_mpi = option%nflowspec * option%nphase
             call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%comm%io_rank, &
                             option%mycomm,ierr);CHKERRQ(ierr)
             if (OptionIsIORank(option)) then
               do i =1,option%nflowspec
@@ -3813,7 +3821,8 @@ subroutine OutputMassBalance(realization_base)
         select case(option%itranmode)
           case(RT_MODE)
             max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
-                              reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+                                reaction%immobile%nimmobile,reaction%gas% &
+                                nactive_gas)
             ! see RTComputeMassBalance for indexing used below
             allocate(total_mass(max_tran_size,8))
             allocate(global_total_mass(max_tran_size,8))
@@ -3823,7 +3832,8 @@ subroutine OutputMassBalance(realization_base)
                 call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
                      max_tran_size,total_mass,cur_mbr%region_cell_ids)
               class default
-                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                option%io_buffer = 'Unrecognized realization class in &
+                                   &MassBalance().'
                 call PrintErrMsg(option)
             end select
             int_mpi = max_tran_size*8
@@ -3832,7 +3842,8 @@ subroutine OutputMassBalance(realization_base)
                             option%mycomm,ierr);CHKERRQ(ierr)
             global_total_mass_sum = 0.d0
             do i =1, size(global_total_mass(:,1))
-                global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+                global_total_mass_sum = global_total_mass_sum + &
+                                        global_total_mass(i,1)
             enddo
             if (OptionIsIORank(option)) then
               write(fid,110,advance="no") global_total_mass_sum
@@ -3871,19 +3882,24 @@ subroutine OutputMassBalance(realization_base)
             select type(realization_base)
               class is(realization_subsurface_type)
                 ! computes the global mass balance
-                call NWTComputeMassBalance(realization_base,cur_mbr%num_cells, &
-                                           max_tran_size,total_mass,cur_mbr%region_cell_ids)
+                call NWTComputeMassBalance(realization_base, &
+                                           cur_mbr%num_cells, &
+                                           max_tran_size,total_mass, &
+                                           cur_mbr%region_cell_ids)
               class default
-                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                option%io_buffer = 'Unrecognized realization class in &
+                                    &MassBalance().'
                 call PrintErrMsg(option)
             end select
             int_mpi = max_tran_size*4
-            call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION, &
                             MPI_SUM,option%comm%io_rank,option%mycomm, &
                             ierr);CHKERRQ(ierr)
             global_total_mass_sum = 0.d0
             do i = 1, size(global_total_mass(:,1))
-              global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+              global_total_mass_sum = global_total_mass_sum + &
+                                      global_total_mass(i,1)
             enddo
             if (OptionIsIORank(option)) then
               write(fid,110,advance="no") global_total_mass_sum

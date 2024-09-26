@@ -42,7 +42,6 @@ module PM_Well_class
   PetscBool, public :: well_output = PETSC_FALSE
   PetscBool :: initialize_well_tran = PETSC_TRUE
   PetscReal :: min_flow_dt_scale = 1.d-3
-  PetscBool :: save_well_segment_list = PETSC_FALSE
 
   PetscInt, parameter :: PEACEMAN_NONE = 0
   PetscInt, parameter :: PEACEMAN_ISO = 1
@@ -856,6 +855,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
   PetscReal, allocatable :: temp_x(:), temp_y(:), temp_z(:)
   PetscReal :: circle_center(3), surface_origin(3)
   type(deviated_well_type), pointer :: well_segment
+  PetscReal, allocatable :: segment_coordinates(:,:), segment_dxyz(:,:)
   PetscReal :: progress, well_length
   PetscErrorCode :: ierr
   PetscBool :: find_segments
@@ -884,47 +884,31 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       if (Initialized(well_segment%surface_origin(1))) then
         cur_location = well_segment%surface_origin
         surface_origin = well_segment%surface_origin
-      elseif (allocated(well_segment%segment_list)) then
+      elseif (allocated(well_segment%segment_coordinates)) then
         find_segments = PETSC_FALSE
-        temp_segments = size(well_segment%segment_list(:,1))
-        total_segments = nsegments + temp_segments
-        allocate(temp_trajectory(total_segments,dims))
-        allocate(temp_casing(total_segments))
-        if (nsegments > 0) then
-          temp_trajectory(1:nsegments,:) = well_trajectory(1:nsegments,:)
-          temp_casing(1:nsegments) = well_casing(1:nsegments)
-          deallocate(well_trajectory)
-          deallocate(well_casing)
-        endif
-        allocate(well_trajectory(total_segments,dims))
-        allocate(well_casing(total_segments))
-        k = 0
-        do i = nsegments + 1, nsegments + temp_segments
-          k = k + 1
-          temp_trajectory(i,1) = well_segment%segment_list(k,1)
-          temp_trajectory(i,2) = well_segment%segment_list(k,2)
-          temp_trajectory(i,3) = well_segment%segment_list(k,3)
-          temp_casing(i) = well_segment%cased
-          well_length = well_length + sqrt(well_segment%segment_list(k,1)**2 +&
-                                           well_segment%segment_list(k,2)**2 +&
-                                           well_segment%segment_list(k,3)**2)
-        enddo
-        nsegments = nsegments + temp_segments
-        well_trajectory(:,:) = temp_trajectory(:,:)
-        well_casing(:) = temp_casing(:)
-        deallocate(temp_trajectory)
-        deallocate(temp_casing)
-        proj = sqrt((cur_location(1) - surface_origin(1)) **2 + &
-                    (cur_location(2) - surface_origin(2)) **2)
-        dz = cur_location(3) - surface_origin(3)
-        angle = atan(proj,-dz)
+        well_grid%save_well_segment_list = PETSC_FALSE
+        nsegments = size(well_segment%segment_coordinates(:,1))
+        allocate(segment_coordinates(nsegments,dims))
+        allocate(well_casing(nsegments))
+        allocate(segment_dxyz(nsegments,dims))
+        segment_coordinates(:,:) = well_segment%segment_coordinates(:,:)
+        segment_dxyz(:,:) = well_segment%segment_dxyz(:,:)
+        well_casing(:) = well_segment%casing(:)
+        allocate(well_trajectory(nsegments,dims))
+        well_trajectory(nsegments,1) = segment_coordinates(nsegments,1) + &
+                  sign(segment_dxyz(nsegments,1), &
+                  segment_coordinates(nsegments,1) - &
+                  segment_coordinates(nsegments-1,1)) / 2.d0
+        well_trajectory(nsegments,2) = segment_coordinates(nsegments,2) + &
+                  sign(segment_dxyz(nsegments,2), &
+                  segment_coordinates(nsegments,2) - &
+                  segment_coordinates(nsegments-1,2)) / 2.d0
+        well_trajectory(nsegments,3) = segment_coordinates(nsegments,3) + &
+                  sign(segment_dxyz(nsegments,3), &
+                  segment_coordinates(nsegments,3) - &
+                  segment_coordinates(nsegments-1,3)) / 2.d0
 
-      elseif (Initialized(well_segment%dxyz(1))) then
-        if (.not. find_segments) then
-          option%io_buffer = "Cannot use both a SEGMENT_LIST and &
-                              &SEGMENT_DXYZ."
-          call PrintErrMsg(option)
-        endif
+      elseif (Initialized(well_segment%dxyz(1)) .and. find_segments) then
         delta_segment = sqrt(well_segment%dxyz(1)**2 + &
                              well_segment%dxyz(2)**2 + &
                              well_segment%dxyz(3)**2)
@@ -963,12 +947,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         dz = cur_location(3) - surface_origin(3)
         angle = atan(proj,-dz)
 
-      elseif (Initialized(well_segment%radius_to_horizontal_x)) then
-        if (.not. find_segments) then
-          option%io_buffer = "Cannot use both a SEGMENT_LIST and &
-                              &RADIUS_TO_HORIZONTAL."
-          call PrintErrMsg(option)
-        endif
+      elseif (Initialized(well_segment%radius_to_horizontal_x) .and. &
+              find_segments) then
         r = well_segment%radius_to_horizontal_x
         circle_center(:) = cur_location(:)
         circle_center(1) = circle_center(1) + r
@@ -1007,12 +987,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         deallocate(temp_trajectory)
         deallocate(temp_casing)
 
-      elseif (Initialized(well_segment%radius_to_horizontal_y)) then
-        if (.not. find_segments) then
-          option%io_buffer = "Cannot use both a SEGMENT_LIST and &
-                              &RADIUS_TO_HORIZONTAL."
-          call PrintErrMsg(option)
-        endif
+      elseif (Initialized(well_segment%radius_to_horizontal_y) .and. &
+              find_segments) then
         r = well_segment%radius_to_horizontal_y
         circle_center(:) = cur_location(:)
         circle_center(2) = circle_center(2) + r
@@ -1051,12 +1027,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         deallocate(temp_trajectory)
         deallocate(temp_casing)
 
-      elseif (Initialized(well_segment%radius_to_horizontal_angle(1))) then
-        if (.not. find_segments) then
-          option%io_buffer = "Cannot use both a SEGMENT_LIST and &
-                              &RADIUS_TO_HORIZONTAL."
-          call PrintErrMsg(option)
-        endif
+      elseif (Initialized(well_segment%radius_to_horizontal_angle(1)) .and. &
+              find_segments) then
         r = well_segment%radius_to_horizontal_angle(1)
         angle_to_horiz = well_segment%radius_to_horizontal_angle(2)
         circle_center(:) = cur_location(:)
@@ -1108,9 +1080,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         call PrintErrMsg(option)
       else
         option%io_buffer = "Error in constructing well grid using &
-           &WELL_TRAJECTORY: please specify either a &
-           &SURFACE_ORIGIN, DXYZ, RADIUS_TO_HORIZONTAL, or &
-           &RADIUS_TO_VERTICAL."
+           &WELL_TRAJECTORY: please specify a SURFACE_ORIGIN and &
+           &{SEGMENT_LIST or [DXYZ, RADIUS_TO_HORIZONTAL, &
+           &RADIUS_TO_VERTICAL]}."
         call PrintErrMsg(option)
       endif
       well_segment => well_segment%next
@@ -1145,15 +1117,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     ! search procedure for finding reservoir cell list within well
     ! MAN: This needs to be tested for a case where well goes from
     ! on-process to off-process and then back on-process.
-    write(string2,'(1pe12.4)') well_length
-    option%io_buffer = 'Well Length: ' // trim(string2) // 'm'
-    call PrintMsg(option)
 
     if (find_segments) then
+      write(string2,'(1pe12.4)') well_length
+      option%io_buffer = 'Well Length: ' // trim(string2) // 'm'
+      call PrintMsg(option)
       option%io_buffer = 'WELL_TRAJECTORY can take a long time on large &
                           &grids. Try specifying SEGMENT_LIST &
                           &to reduce time spent constructing the well. &
-                          &Current progress: '
+                          &Current progress (roughly): '
       call PrintMsg(option)
       do j = 1, nsegments
         dummy_h%x = well_trajectory(j,1)
@@ -1163,11 +1135,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
         progress = j/nsegments * well_length
         if (option%comm%io_rank == option%myrank) then
-          if (nsegments < 5) then
-            call PrintProgressBarInt(well_length,20,j)
-          else
-            call PrintProgressBarInt(well_length,5,j)
-          endif
+          call PrintProgressBarInt(nsegments+1.d-10,5,j)
         endif
 
         if (k == 0 .and. Initialized(local_id)) then
@@ -1221,71 +1189,38 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
         endif
       enddo
 
-      well_grid%nsegments = k
     else
-      dummy_h%x = surface_origin(1) + well_trajectory(1,1) / 2.d0
-      dummy_h%y = surface_origin(2) + well_trajectory(1,2) / 2.d0
-      dummy_h%z = surface_origin(3) + well_trajectory(1,3)  / 2.d0
-      dh_x = well_trajectory(1,1)
-      dh_y = well_trajectory(1,2)
-      dh_z = well_trajectory(1,3)
+      k = 0
       do j = 1, nsegments
 
-        if (j > 1) then
-          dummy_h%x = dummy_h%x + well_trajectory(j,1) / 2.d0
-          dummy_h%y = dummy_h%y + well_trajectory(j,2) / 2.d0
-          dummy_h%z = dummy_h%z + well_trajectory(j,3) / 2.d0
-          dh_x = well_trajectory(j,1)
-          dh_y = well_trajectory(j,2)
-          dh_z = well_trajectory(j,3)
-        endif
+        dummy_h%x = segment_coordinates(j,1)
+        dummy_h%y = segment_coordinates(j,2)
+        dummy_h%z = segment_coordinates(j,3)
 
         call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
 
-        if (k == 0 .and. Initialized(local_id)) then
-          cur_id = local_id
-          k = 1
-          temp_id_list(k) = local_id
-          temp_casing(k) = well_casing(j)
-          temp_dx(k) = dh_x
-          temp_dy(k) = dh_y
-          temp_dz(k) = dh_z
-          temp_x(k) = dummy_h%x
-          temp_y(k) = dummy_h%y
-          temp_z(k) = dummy_h%z
-        endif
 
-        if (local_id /= cur_id) then
+        dh_x = segment_dxyz(j,1)
+        dh_y = segment_dxyz(j,2)
+        dh_z = segment_dxyz(j,3)
+
+        if (Initialized(local_id)) then
           k = k + 1
-          if (k > nsegments) then
-            option%io_buffer = 'The well intersects a lot of reservoir cells, &
-                              &exceeding the current buffer size.'
-            call PrintErrMsgToDev(option, &
-                            'if coarsening resolution is not an option.')
-          endif
-          temp_id_list(k) = local_id
-          cur_id = local_id
+          temp_casing(k) = well_casing(j)
           temp_dx(k) = dh_x
           temp_dy(k) = dh_y
           temp_dz(k) = dh_z
           temp_x(k) = dummy_h%x
           temp_y(k) = dummy_h%y
           temp_z(k) = dummy_h%z
-          temp_casing(k) = well_casing(j)
-          ! Don't count off-process cell ID's, but still compute
-          ! where the change from on- to off- process occurs.
-          if (Uninitialized(local_id)) k = k - 1
+          temp_id_list(k) = local_id
         endif
-
-        dummy_h%x = dummy_h%x + dh_x / 2.d0
-        dummy_h%y = dummy_h%y + dh_y / 2.d0
-        dummy_h%z = dummy_h%z + dh_z / 2.d0
 
       enddo
 
-      well_grid%nsegments = k
-
     endif
+
+    well_grid%nsegments = k
 
     ! Num local number of segments across processes,
     ! sorted well nodes by z-location in ascending order.
@@ -1409,13 +1344,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
                 allocate(face_centroids(size(res_grid%unstructured_grid% &
                        cell_to_face_ghosted(:,ghosted_id))))
                 do j = 1,size(face_centroids)
-                  face_centroids(j) = res_grid%unstructured_grid%face_centroid(res_grid% &
-                                      unstructured_grid%cell_to_face_ghosted(j, &
-                                      ghosted_id))
+                  face_centroids(j) = res_grid%unstructured_grid% &
+                                      face_centroid(res_grid% &
+                                      unstructured_grid% &
+                                      cell_to_face_ghosted(j,ghosted_id))
                 enddo
                 dim = 'z'
                 call UtilitySortArray(face_centroids,dim)
-                well_grid%res_dz(index) = dabs(face_centroids(size(face_centroids))%z - &
+                well_grid%res_dz(index) = dabs(face_centroids(size( &
+                                               face_centroids))%z - &
                                                face_centroids(1)%z)
                 deallocate(face_centroids)
               endif
@@ -1432,22 +1369,21 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
       endif
     enddo
 
-
-    deallocate(well_trajectory)
-    deallocate(well_casing)
-    deallocate(temp_id_list)
-    deallocate(collect_x_temp)
-    deallocate(collect_y_temp)
-    deallocate(collect_z_temp)
-    deallocate(temp_dx)
-    deallocate(temp_dy)
-    deallocate(temp_dz)
-    deallocate(temp_x)
-    deallocate(temp_y)
-    deallocate(temp_z)
-    deallocate(temp_casing)
-    deallocate(well_nodes)
-    deallocate(collect_rank)
+    if (allocated(well_trajectory)) deallocate(well_trajectory)
+    if (allocated(well_casing)) deallocate(well_casing)
+    if (allocated(temp_id_list)) deallocate(temp_id_list)
+    if (allocated(collect_x_temp)) deallocate(collect_x_temp)
+    if (allocated(collect_y_temp)) deallocate(collect_y_temp)
+    if (allocated(collect_z_temp)) deallocate(collect_z_temp)
+    if (allocated(temp_dx)) deallocate(temp_dx)
+    if (allocated(temp_dy)) deallocate(temp_dy)
+    if (allocated(temp_dz)) deallocate(temp_dz)
+    if (allocated(temp_x)) deallocate(temp_x)
+    if (allocated(temp_y)) deallocate(temp_y)
+    if (allocated(temp_z)) deallocate(temp_z)
+    if (allocated(temp_casing)) deallocate(temp_casing)
+    if (allocated(well_nodes)) deallocate(well_nodes)
+    if (allocated(collect_rank)) deallocate(collect_rank)
 
   else
   top_of_reservoir = res_grid%z_max_global
@@ -1981,7 +1917,6 @@ subroutine PMWellSetup(this)
   PetscInt :: iconn, sum_connection, global_ss_connections
   PetscInt :: num_new_source_sinks, offset
   PetscInt, allocatable :: temp(:), temp2(:)
-  PetscReal :: cur_location(3)
   PetscInt :: fid = 86
   type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
@@ -2276,8 +2211,9 @@ subroutine PMWellSetup(this)
   ! All of the MPI processes need to sum up their counts and place the
   ! total in count2_global.
   if (this%well_comm%comm /= MPI_COMM_NULL) then
-    call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
-                       MPI_SUM,this%well_comm%comm,ierr);CHKERRQ(ierr)
+    call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI, &
+                       MPI_INTEGER, MPI_SUM,this%well_comm%comm,ierr); &
+                       CHKERRQ(ierr)
   endif
   call MPI_Bcast(count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
                  this%well_comm%petsc_rank_list(1),option%mycomm, &
@@ -2342,29 +2278,25 @@ subroutine PMWellSetup(this)
 
   this%flow_soln%ndof = this%nphase
 
-  if (save_well_segment_list) then
+  if (this%well_grid%save_well_segment_list) then
 110 format(100es16.8)
     filename = trim(this%name) // '_well-segments.dat'
     if (OptionIsIORank(option)) then
       open(unit=fid,file=filename,action="write",status="replace")
-      cur_location(:) = this%well_grid%tophole(:)
       do i = 1,this%well_grid%nsegments
         index = this%well_grid%nsegments - i + 1
-        if (this%well_grid%casing(index) < 1.d0) then
+        if (this%well_grid%casing(index) < 5.d-1) then
           string = 'CASED'
         else
           string = 'UNCASED'
         endif
         write(fid,'(a)',advance="no") trim(string)
-        write(fid,110,advance="no") sign(this%well_grid%dx(index), &
-                        this%well_grid%h(index)%x - cur_location(1))
-        write(fid,110,advance="no") sign(this%well_grid%dy(index), &
-                        this%well_grid%h(index)%y - cur_location(2))
-        write(fid,110,advance="yes") sign(this%well_grid%dz(index), &
-                        this%well_grid%h(index)%z - cur_location(3))
-        cur_location(1) = this%well_grid%h(index)%x
-        cur_location(2) = this%well_grid%h(index)%y
-        cur_location(3) = this%well_grid%h(index)%z
+        write(fid,110,advance="no") this%well_grid%h(index)%x
+        write(fid,110,advance="no") this%well_grid%h(index)%y
+        write(fid,110,advance="no") this%well_grid%h(index)%z
+        write(fid,110,advance="no") this%well_grid%dx(index)
+        write(fid,110,advance="no") this%well_grid%dy(index)
+        write(fid,110,advance="yes") this%well_grid%dz(index)
       enddo
       close(fid)
     endif
@@ -2874,6 +2806,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
   !
   use Input_Aux_module
   use String_module
+  use Utility_module
 
   implicit none
 
@@ -2896,9 +2829,11 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
   type(deviated_well_type), pointer :: deviated_well_segment
   type(point3d_type) :: temp_coordinate
   PetscReal, allocatable :: temp_segment_list(:,:)
+  PetscBool, allocatable :: temp_casing(:)
   type(input_type), pointer :: input2
   character(len=MAXSTRINGLENGTH) :: filename
   PetscBool :: data_file_read
+  PetscReal :: epsilon = 1.d-7
 
   allocate(temp_well_index(read_max))
   temp_well_index(:) = UNINITIALIZED_DOUBLE
@@ -3036,7 +2971,6 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
             well_grid%casing(1:num_read) = 1.d0 - temp_well_index(1:num_read)
           !-----------------------------
           case('WELL_TRAJECTORY')
-            save_well_segment_list = PETSC_TRUE
             call InputPushBlock(input,option)
             do
               call InputReadPFLOTRANString(input,option)
@@ -3102,32 +3036,61 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                     call InputReadPFLOTRANString(input2,option)
                     if (input2%ierr /= 0) exit
                     if (InputCheckExit(input2,option)) exit
+                    nsegments = nsegments + 1
                     call InputReadWord(input2,option,word,PETSC_TRUE)
+                    allocate(temp_casing(nsegments))
+                    allocate(temp_segment_list(nsegments,3))
+                    if (allocated(deviated_well_segment &
+                                  %segment_coordinates)) then
+                      temp_segment_list(1:nsegments-1,:) = &
+                                  deviated_well_segment% &
+                                  segment_coordinates(:,:)
+                      deallocate(deviated_well_segment%segment_coordinates)
+                    endif
+                    if (allocated(deviated_well_segment%casing)) then
+                      temp_casing(1:nsegments-1) = &
+                                      deviated_well_segment%casing(:)
+                      deallocate(deviated_well_segment%casing)
+                    endif
                     select case(word)
                       case('CASED')
-                        deviated_well_segment%cased = PETSC_TRUE
+                        temp_casing(nsegments) = PETSC_TRUE
                       case('UNCASED')
-                        deviated_well_segment%cased = PETSC_FALSE
+                        temp_casing(nsegments) = PETSC_FALSE
                       case default
                         option%io_buffer = "Error in constructing &
                             &WELL_TRAJECTORY: please specify &
                             &whether each segment is CASED or UNCASED."
                         call PrintErrMsg(option)
                     end select
-                    call GeometryReadCoordinate(input2,option,temp_coordinate, &
-                                'WELL_TRAJECTORY: SEGMENT_LIST')
-                    nsegments = nsegments + 1
-                    allocate(temp_segment_list(nsegments,3))
-                    if (allocated(deviated_well_segment%segment_list)) then
-                      temp_segment_list(1:nsegments-1,:) = &
-                                      deviated_well_segment%segment_list(:,:)
-                      deallocate(deviated_well_segment%segment_list)
-                    endif
+                    allocate(deviated_well_segment%casing(nsegments))
+                    deviated_well_segment%casing(:) = temp_casing(:)
+                    deallocate(temp_casing)
+                    call GeometryReadCoordinate(input2,option, &
+                                              temp_coordinate, &
+                                              'WELL_TRAJECTORY: SEGMENT_LIST')
                     temp_segment_list(nsegments,1) = temp_coordinate%x
                     temp_segment_list(nsegments,2) = temp_coordinate%y
                     temp_segment_list(nsegments,3) = temp_coordinate%z
-                    allocate(deviated_well_segment%segment_list(nsegments,3))
-                    deviated_well_segment%segment_list(:,:) = &
+                    allocate(deviated_well_segment% &
+                             segment_coordinates(nsegments,3))
+                    deviated_well_segment%segment_coordinates(:,:) = &
+                                      temp_segment_list(:,:)
+                    deallocate(temp_segment_list)
+                    allocate(temp_segment_list(nsegments,3))
+                    if (allocated(deviated_well_segment%segment_dxyz)) then
+                      temp_segment_list(1:nsegments-1,:) = &
+                                      deviated_well_segment%segment_dxyz(:,:)
+                      deallocate(deviated_well_segment%segment_dxyz)
+                    endif
+                    call GeometryReadCoordinate(input2,option, &
+                                               temp_coordinate, &
+                                               'WELL_TRAJECTORY: SEGMENT_LIST')
+                    temp_segment_list(nsegments,1) = temp_coordinate%x
+                    temp_segment_list(nsegments,2) = temp_coordinate%y
+                    temp_segment_list(nsegments,3) = temp_coordinate%z
+                    allocate(deviated_well_segment%segment_dxyz(nsegments,3))
+                    deviated_well_segment%segment_dxyz(:,:) = &
                                       temp_segment_list(:,:)
                     deallocate(temp_segment_list)
                   enddo
@@ -3172,6 +3135,9 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                                      error_string)
                   call InputReadDouble(input,option,deviated_well_segment% &
                                        dxyz(3))
+                  if (Equal(deviated_well_segment%dxyz(3),0.d0)) then
+                    deviated_well_segment%dxyz(3) = -1.d0 * epsilon
+                  endif
                   call InputErrorMsg(input,option, &
                                      'SEGMENT_DXYZ z-coordinate', &
                                      error_string)

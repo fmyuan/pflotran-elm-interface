@@ -808,7 +808,6 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
     nullify(well_cells)
     do
       if (.not. associated(pm_well)) exit
-      num_well_cells = pm_well%well_grid%nsegments
       call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
       pm_well%well_comm%petsc_rank = option%myrank
       allocate(h_all_global_id(pm_well%well_grid%nsegments))
@@ -816,6 +815,7 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
                          pm_well%well_grid%nsegments, &
                          MPI_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
       pm_well%well_grid%h_global_id = h_all_global_id
+      num_well_cells = pm_well%well_grid%nsegments
       allocate(well_cells(num_well_cells))
       well_cells(:) = pm_well%well_grid%h_global_id(:)
 

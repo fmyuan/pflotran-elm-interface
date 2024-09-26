@@ -33,6 +33,7 @@ WELLBORE_MODEL well1
     WELL_TRAJECTORY
       SURFACE_ORIGIN 15.d0 5.d0 200.d0
       SEGMENT_LIST FILE well_segments.dat
+      #SEGMENT_DXYZ UNCASED 0.d0 0.d0 -200.d0
     /
   END
 
