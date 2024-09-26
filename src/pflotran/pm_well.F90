@@ -8345,7 +8345,8 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
       elseif (well%total_rate < 0.d0) then
         ! Extraction well
         ! Compute reservoir pressure at well cell center
-
+          well%liq%Q(i) = 0.d0
+          well%gas%Q(i) = 0.d0
           res_pl_temp = reservoir%p_l(i) + reservoir%den_l(i) * gravity * delta_z
           mobility = reservoir%kr_l(i)/reservoir%visc_l(i)
           den_ave = reservoir%den_l(i)
@@ -8364,10 +8365,10 @@ subroutine PMWellSolveFlow(pm_well,perturbation_index,ierr)
           den_ave = reservoir%den_g(i)
           ! Flowrate in kg/s
           if (res_pg_temp > well%pg(i)) then
-            well%liq%Q(i) = den_ave*mobility*well%WI(i) * &
+            well%liq%Q(i) = well%liq%Q(i) + den_ave*mobility*well%WI(i) * &
                             (res_pg_temp-well%pg(i)) * &
                             reservoir%xmass_gas(i,ONE_INTEGER)
-            well%gas%Q(i) = den_ave*mobility*well%WI(i) * &
+            well%gas%Q(i) = well%gas%Q(i) + den_ave*mobility*well%WI(i) * &
                             (res_pg_temp-well%pg(i)) * &
                             reservoir%xmass_gas(i,TWO_INTEGER)
           endif
