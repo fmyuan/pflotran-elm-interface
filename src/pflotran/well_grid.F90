@@ -69,6 +69,7 @@ type, public :: deviated_well_type
     PetscReal :: radius_to_horizontal_y
     PetscReal :: radius_to_horizontal_angle(2)
     PetscReal :: radius_to_vertical
+    PetscReal, allocatable :: segment_list(:,:)
     PetscBool :: cased
     type(deviated_well_type), pointer :: next
 end type deviated_well_type

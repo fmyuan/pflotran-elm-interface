@@ -29,14 +29,12 @@ END
 # the top of the hole.
 WELLBORE_MODEL well1
 
-
   WELL_GRID
-    NUMBER_OF_SEGMENTS 4
-    TOP_OF_HOLE    15.d0 5.d0   200.0d0   # [x,y,z] in meters
-    BOTTOM_OF_HOLE 15.d0 5.d0  0.0d0   # [x,y,z] in meters
-    CASING 0.d0 0.d0 0.d0 0.d0
-  /
-
+    WELL_TRAJECTORY
+      SURFACE_ORIGIN 15.d0 5.d0 200.d0
+      SEGMENT_LIST FILE well_segments.dat
+    /
+  END
 
   WELL
     DIAMETER 0.16d0
@@ -52,12 +50,13 @@ END
 WELLBORE_MODEL well2
 
   WELL_GRID
-    NUMBER_OF_SEGMENTS 4
-    TOP_OF_HOLE    35.d0 5.d0   200.0d0   # [x,y,z] in meters
-    BOTTOM_OF_HOLE 35.d0 5.d0  0.0d0   # [x,y,z] in meters
-    CASING 1.d0 0.d0 0.d0 1.d0
-  /
-
+    WELL_TRAJECTORY
+      SURFACE_ORIGIN 35.d0 5.d0 200.d0
+      SEGMENT_DXYZ CASED 0.d0 0.d0 -50.d0
+      SEGMENT_DXYZ UNCASED 0.d0 0.d0 -100.d0
+      SEGMENT_DXYZ CASED 0.d0 0.d0 -50.d0
+    /
+  END
   WELL
     DIAMETER 0.16d0
     FRICTION_COEFFICIENT 1.d0

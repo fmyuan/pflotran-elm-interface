@@ -670,7 +670,7 @@ subroutine SCO2UpdateMassBalance(realization)
       global_auxvars_bc(iconn)%mass_balance(icomp,:) = &
         global_auxvars_bc(iconn)%mass_balance(icomp,:) + &
         global_auxvars_bc(iconn)%mass_balance_delta(icomp,:)* &
-        fmw_comp(icomp)*option%flow_dt
+        option%flow_dt
     enddo
   enddo
   do iconn = 1, patch%aux%SCO2%num_aux_ss
@@ -678,7 +678,7 @@ subroutine SCO2UpdateMassBalance(realization)
       global_auxvars_ss(iconn)%mass_balance(icomp,:) = &
         global_auxvars_ss(iconn)%mass_balance(icomp,:) + &
         global_auxvars_ss(iconn)%mass_balance_delta(icomp,:)* &
-        fmw_comp(icomp)*option%flow_dt
+        option%flow_dt
     enddo
   enddo
 
@@ -1695,6 +1695,12 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                                        -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
                     patch%ss_flow_vol_fluxes(TWO_INTEGER,sum_connection) = &
                                        -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                  endif
+                  if (option%compute_mass_balance_new) then
+                    global_auxvars_ss(sum_connection)%mass_balance_delta(wid,1) = &
+                                     -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                    global_auxvars_ss(sum_connection)%mass_balance_delta(co2_id,1) = &
+                                     -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
                   endif
                   exit
                 endif
