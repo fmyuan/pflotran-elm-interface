@@ -62,6 +62,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
   use PM_Well_class
+  use PM_Fracture_class
   use PM_Material_Transform_class
   use PM_Parameter_class
   use Factory_Subsurface_Linkage_module
@@ -83,6 +84,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
+  class(pm_fracture_type), pointer :: pm_fracture
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(realization_subsurface_type), pointer :: realization
 
@@ -95,6 +97,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_ufd_biosphere)
   nullify(pm_geop)
   nullify(pm_auxiliary)
+  nullify(pm_fracture)
   nullify(pm_well_list)
   nullify(pm_parameter_list)
 
@@ -103,7 +106,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                        pm_ufd_biosphere,pm_geop, &
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
-                                       pm_parameter_list)
+                                       pm_parameter_list,pm_fracture)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
@@ -117,7 +120,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                    pm_waste_form,pm_ufd_decay, &
                                    pm_ufd_biosphere,pm_geop,pm_auxiliary, &
                                    pm_well_list,pm_material_transform, &
-                                   pm_parameter_list)
+                                   pm_parameter_list,pm_fracture)
 
   call FactSubLinkAddPMCEvolvingStrata(simulation)
   call FactSubLinkAddPMCInversion(simulation)
