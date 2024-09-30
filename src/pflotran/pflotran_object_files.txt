@@ -58,6 +58,7 @@ mode_process_model_obj = \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
+	${common_src}pm_fracture.o \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
 	${common_src}pm_inversion.o \
