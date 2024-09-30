@@ -9456,7 +9456,7 @@ subroutine PMWellComputeWellIndex(pm_well)
           cycle
         endif
         temp_real = log(2.079d-1*reservoir%dx(k)/ &
-                        (pm_well%well%diameter(k)/2.d0))
+                        (pm_well%well%diameter(k)/2.d0)) + pm_well%well%skin(k)
 
         if (temp_real <= 0.d0) then
           write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
@@ -9484,7 +9484,8 @@ subroutine PMWellComputeWellIndex(pm_well)
              ((reservoir%ky(k)/reservoir%kx(k))**2.5d-1 + &
              (reservoir%kx(k)/reservoir%ky(k))**2.5d-1))
 
-        temp_real = log(r0/(pm_well%well%diameter(k)/2.d0))
+        temp_real = log(r0/(pm_well%well%diameter(k)/2.d0)) + &
+                    pm_well%well%skin(k)
 
         if (temp_real <= 0.d0) then
           write(diameter_string,'(F7.4)') pm_well%well%diameter(k)
