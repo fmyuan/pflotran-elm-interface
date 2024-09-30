@@ -2278,7 +2278,8 @@ subroutine PMWellSetup(this)
 
   this%flow_soln%ndof = this%nphase
 
-  if (this%well_grid%save_well_segment_list) then
+  if (this%well_grid%save_well_segment_list .and. &
+      associated(well_grid%deviated_well_segment_list)) then
 110 format(100es16.8)
     filename = trim(this%name) // '_well-segments.dat'
     if (OptionIsIORank(option)) then
