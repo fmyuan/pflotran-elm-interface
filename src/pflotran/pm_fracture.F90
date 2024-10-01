@@ -110,6 +110,16 @@ module PM_Fracture_class
     PetscInt, pointer :: allfrac_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
     PetscInt, pointer :: frac_common_cell_ids(:)
+    ! maximum fracture perm at global cell ids
+    PetscReal, pointer :: max_frac_kx(:)
+    PetscReal, pointer :: max_frac_ky(:)
+    PetscReal, pointer :: max_frac_kz(:)
+    ! sum of fracture perm at global cell ids
+    PetscReal, pointer :: sum_frac_kx(:)
+    PetscReal, pointer :: sum_frac_ky(:)
+    PetscReal, pointer :: sum_frac_kz(:)
+    ! behavior at fracture intersections (1=sum,2=max)
+    PetscInt :: frac_intersection_type
     ! thermal expansion coefficient # [1/C]
     PetscReal :: t_coeff
     ! number of fractures in the domain
@@ -165,6 +175,13 @@ function PMFractureCreate()
   nullify(this%fracfam_list)
   nullify(this%allfrac_cell_ids)
   nullify(this%frac_common_cell_ids)
+  nullify(this%max_frac_kx)
+  nullify(this%max_frac_ky)
+  nullify(this%max_frac_kz)
+  nullify(this%sum_frac_kx)
+  nullify(this%sum_frac_ky)
+  nullify(this%sum_frac_kz)
+  this%frac_intersection_type = 1  ! (1=sum;2=max)
   this%nfrac = 0
   this%max_frac = UNINITIALIZED_INTEGER
   this%t_coeff = UNINITIALIZED_DOUBLE ! 40.d-6 is value for granite
@@ -561,6 +578,16 @@ subroutine PMFracSetup(this)
     endif
   endif
 
+  allocate(this%max_frac_kx(res_grid%nmax))
+  allocate(this%max_frac_ky(res_grid%nmax))
+  allocate(this%max_frac_kz(res_grid%nmax))
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+
+  allocate(this%sum_frac_kx(res_grid%nmax))
+  allocate(this%sum_frac_ky(res_grid%nmax))
+  allocate(this%sum_frac_kz(res_grid%nmax))
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
+
   deallocate(temp_cell_ids)
   deallocate(temp_allfrac_cell_ids)
 
@@ -821,6 +848,20 @@ subroutine PMFracReadPMBlock(this,input)
         call InputReadInt(input,option,this%max_frac)
         call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_FRACTURES', &
                          error_string)
+        cycle
+    !-------------------------------------
+      case('FRACTURE_INTERSECTION_PERM')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,word,error_string)
+        call StringToUpper(word)
+        select case (trim(word))
+          case('MAX','MAXIMUM')
+            this%frac_intersection_type = 2
+          case('SUM','SUMMATION')
+            this%frac_intersection_type = 1
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
         cycle
     !-------------------------------------
 
@@ -1640,6 +1681,8 @@ subroutine PMFracSolve(this,time,ierr)
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
   cur_fracture => this%fracture_list
   do
@@ -1683,10 +1726,15 @@ subroutine PMFracSolve(this,time,ierr)
       ! get anisotropic domain permeability from rotation transformation
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
 
-      ! update domain material permeability of cells with fractures
-      perm0_xx_p(icell) = perm0_xx_p(icell) + kx
-      perm0_yy_p(icell) = perm0_yy_p(icell) + ky
-      perm0_zz_p(icell) = perm0_zz_p(icell) + kz
+      ! record the maximum permeability encountered so far
+      this%max_frac_kx(icell) = max(kx,this%max_frac_kx(icell))
+      this%max_frac_ky(icell) = max(ky,this%max_frac_ky(icell))
+      this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
+
+      ! record the sum of permeability encountered so far
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx 
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky 
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz 
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -1694,6 +1742,23 @@ subroutine PMFracSolve(this,time,ierr)
 
     cur_fracture => cur_fracture%next
   enddo
+
+  ! update domain material permeability of cells with fractures
+  if (associated(this%allfrac_cell_ids)) then
+    do k = 1,size(this%allfrac_cell_ids)
+      icell = this%allfrac_cell_ids(k)
+      if (this%frac_intersection_type == 2) then ! maximum
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
+      endif 
+      if (this%frac_intersection_type == 1) then ! summation
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
+      endif 
+    enddo
+  endif
 
   if (this%update_material_auxvar_perm) then
     if (associated(this%allfrac_cell_ids)) then
@@ -1738,6 +1803,24 @@ subroutine PMFracDestroy(this)
   endif
   if (associated(this%frac_common_cell_ids)) then
     call DeallocateArray(this%frac_common_cell_ids)
+  endif
+  if (associated(this%max_frac_kx)) then
+    call DeallocateArray(this%max_frac_kx)
+  endif
+  if (associated(this%max_frac_ky)) then
+    call DeallocateArray(this%max_frac_ky)
+  endif
+  if (associated(this%max_frac_ky)) then
+    call DeallocateArray(this%max_frac_kz)
+  endif
+  if (associated(this%sum_frac_kx)) then
+    call DeallocateArray(this%sum_frac_kx)
+  endif
+  if (associated(this%sum_frac_ky)) then
+    call DeallocateArray(this%sum_frac_ky)
+  endif
+  if (associated(this%sum_frac_ky)) then
+    call DeallocateArray(this%sum_frac_kz)
   endif
 
   cur_fracture => this%fracture_list
