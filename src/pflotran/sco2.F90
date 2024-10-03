@@ -1386,6 +1386,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   use Upwind_Direction_module
   use PM_Well_class
   use Matrix_Zeroing_module
+  use String_module
 
   implicit none
 
@@ -1415,6 +1416,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: iconn
   PetscReal :: scale
@@ -1432,7 +1434,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
 
   PetscReal :: qsrc(realization%option%nflowdof)
 
-  character(len=MAXSTRINGLENGTH) :: string, srcsink_name
+  character(len=MAXSTRINGLENGTH) :: srcsink_name
 
   PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1685,9 +1687,8 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
             if (associated(source_sink%flow_condition%well)) then
               do k = 1,cur_well%well_grid%nsegments
                 if (cur_well%well_grid%h_rank_id(k) /= option%myrank) cycle
-                write(string,'(I0.6)') k
                 srcsink_name = trim(cur_well%name) // '_well_segment_' // &
-                               trim(string)
+                               StringWrite(k)
                 if (trim(srcsink_name) == trim(source_sink%name)) then
                   sum_connection = sum_connection + 1
                   if (associated(patch%ss_flow_vol_fluxes)) then

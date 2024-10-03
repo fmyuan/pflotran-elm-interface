@@ -819,7 +819,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
   type(point3d_type) :: dummy_h
   type(point3d_type), allocatable :: well_nodes(:), face_centroids(:)
-  character(len=MAXSTRINGLENGTH) :: string, string2, dim
+  character(len=MAXSTRINGLENGTH) :: dim
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -1119,8 +1119,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     ! on-process to off-process and then back on-process.
 
     if (find_segments) then
-      write(string2,'(1pe12.4)') well_length
-      option%io_buffer = 'Well Length: ' // trim(string2) // 'm'
+      option%io_buffer = 'Well Length: ' // StringWrite(well_length) // 'm'
       call PrintMsg(option)
       option%io_buffer = 'WELL_TRAJECTORY can take a long time on large &
                           &grids. Try specifying SEGMENT_LIST &
@@ -1650,17 +1649,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     temp_real = SUM(well_grid%dh)
     total_length = sqrt((diff_x*diff_x)+(diff_y*diff_y)+(diff_z*diff_z))
-    write(string,'(1pe12.4)') temp_real
-    write(string2,'(1pe12.4)') total_length
     if (temp_real /= total_length) then
       temp_real2 = abs(temp_real - total_length)
       !write(*,*) temp_real2
       if (temp_real2 > 1.d-2) then
         option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES &
-          &(' // trim(string) // ' m) does not match the total length of the &
-          &well according to the coordinates provided by WELLBORE_MODEL,&
-          &TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE (' // trim(string2) // &
-          ' m).'
+          &(' // StringWrite(temp_real) // ' m) does not match the total &
+          &length of the well according to the coordinates provided by &
+          &WELLBORE_MODEL, TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE &
+          &(' // StringWrite(total_length) // ' m).'
         call PrintErrMsg(option)
       endif
     endif
@@ -1895,7 +1892,7 @@ subroutine PMWellSetup(this)
   class(realization_subsurface_type), pointer :: realization
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer ::tran_constraint_coupler_nwt
-  character(len=MAXSTRINGLENGTH) :: string, string2, filename
+  character(len=MAXSTRINGLENGTH) :: string, filename
   PetscInt, allocatable :: h_global_id_unique(:)
   PetscInt, allocatable :: h_rank_id_unique(:)
   PetscInt, allocatable :: h_all_rank_id(:)
@@ -1944,8 +1941,8 @@ subroutine PMWellSetup(this)
 
   call PMWellSetupGrid(well_grid,res_grid,option)
 
-  write(string,'(I0.5)') well_grid%nsegments
-  option%io_buffer = 'WELLBORE_MODEL: Grid created with ' // trim(string) // &
+  option%io_buffer = 'WELLBORE_MODEL: Grid created with ' // &
+                      StringWrite(well_grid%nsegments)// &
                      ' segments. '
   call PrintMsg(option)
 
@@ -2154,7 +2151,6 @@ subroutine PMWellSetup(this)
       count1 = count1 + 1
     endif
   enddo
-  write(string,'(I0.5)') count1
 
   deallocate(h_global_id_unique)
   deallocate(h_rank_id_unique)
@@ -2218,7 +2214,6 @@ subroutine PMWellSetup(this)
   call MPI_Bcast(count2_global,ONE_INTEGER_MPI,MPI_INTEGER, &
                  this%well_comm%petsc_rank_list(1),option%mycomm, &
                  ierr);CHKERRQ(ierr)
-  write(string2,'(I0.5)') count2_global
 
   ! The only way we can ensure that the well discretization did not skip a
   ! reservoir cell, is if the number of unique global_id's that the well
@@ -2240,9 +2235,9 @@ subroutine PMWellSetup(this)
   if (.not.well_grid_res_is_OK) then
     option%io_buffer = 'ERROR:  &
       &The number of reservoir grid cells that are occupied by the well &
-      &(' // trim(string2) // ') is larger than the number of unique &
-      &reservoir grid cells that have a connection to the well (' // &
-      trim(string) // '). Therefore, some of the reservoir grid cells &
+      &(' // StringWrite(count2_global) // ') is larger than the number of &
+      &unique reservoir grid cells that have a connection to the well (' // &
+      StringWrite(count1) // '). Therefore, some of the reservoir grid cells &
       &have been skipped and have no connection to the well. You must &
       &increase the resolution of the WELLBORE_MODEL grid. '
     call PrintMsg(option)
@@ -2324,14 +2319,13 @@ subroutine PMWellSetup(this)
   endif
   do k = 1,well_grid%nsegments
 
-    write(string,'(I0.6)') k
     source_sink => CouplerCreate()
     source_sink%itype = SRC_SINK_COUPLER_TYPE
-    source_sink%name = trim(this%name) // '_well_segment_' // trim(string)
+    source_sink%name = trim(this%name) // '_well_segment_' // StringWrite(k)
 
     ! ----- flow ------------------
     source_sink%flow_condition_name = trim(this%name) // '_well_segment_' // &
-                                      trim(string) // '_flow_srcsink'
+                                      StringWrite(k) // '_flow_srcsink'
     source_sink%flow_condition => FlowConditionCreate(option)
     source_sink%flow_condition%name = source_sink%flow_condition_name
     select case (option%iflowmode)
@@ -2421,9 +2415,8 @@ subroutine PMWellSetup(this)
 
     ! ----- transport -------------
     if (this%transport) then
-      write(string,'(I0.6)') k
       source_sink%tran_condition_name = trim(this%name) // &
-                            '_well_segment_' // trim(string) // '_tran_srcsink'
+                          '_well_segment_' // StringWrite(k) // '_tran_srcsink'
       source_sink%tran_condition => TranConditionCreate(option)
       source_sink%tran_condition%name = source_sink%tran_condition_name
       source_sink%tran_condition%itype = WELL_SS
@@ -2432,7 +2425,7 @@ subroutine PMWellSetup(this)
       call NWTAuxVarInit(tran_constraint_coupler_nwt%nwt_auxvar,&
                          this%realization%reaction_nw,option)
       tran_constraint_coupler_nwt%constraint_name = trim(this%name) //  &
-                                               '_well_segment_' // trim(string)
+                                            '_well_segment_' // StringWrite(k)
       source_sink%tran_condition%cur_constraint_coupler => &
                                                    tran_constraint_coupler_nwt
     endif
@@ -5786,6 +5779,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
   use NW_Transport_Aux_module
   use Transport_Constraint_NWT_module
   use Option_module
+  use String_module
   use Hydrate_Aux_module, only: hydrate_well_coupling, &
                              HYDRATE_FULLY_IMPLICIT_WELL
 
@@ -5794,7 +5788,6 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
   class(pm_well_type) :: pm_well
 
   type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
   type(coupler_type), pointer :: source_sink
   PetscInt :: k, ghosted_id
@@ -5807,9 +5800,7 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
 
   do k = 1,pm_well%well_grid%nsegments
     if (pm_well%well_grid%h_rank_id(k) /= option%myrank) cycle
-
-    write(string,'(I0.6)') k
-    srcsink_name = trim(pm_well%name) // '_well_segment_' // trim(string)
+    srcsink_name = trim(pm_well%name) // '_well_segment_' // StringWrite(k)
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 
@@ -5964,13 +5955,13 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
   use NW_Transport_Aux_module
   use Transport_Constraint_NWT_module
   use Option_module
+  use String_module
 
   implicit none
 
   class(pm_well_type) :: pm_well
 
   type(option_type), pointer :: option
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: srcsink_name
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
@@ -5986,8 +5977,7 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
   do k = 1,pm_well%well_grid%nsegments
     if (pm_well%well_grid%h_rank_id(k) /= pm_well%option%myrank) cycle
 
-    write(string,'(I0.6)') k
-    srcsink_name = trim(pm_well%name) // '_well_segment_' // trim(string)
+    srcsink_name = trim(pm_well%name) // '_well_segment_' // StringWrite(k)
 
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
 

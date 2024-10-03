@@ -1090,6 +1090,7 @@ hydrate.o : \
   srcsink_sandbox_base.o \
   srcsink_sandbox_wipp_gas.o \
   srcsink_sandbox_wipp_well.o \
+  string.o \
   upwind_direction.o \
   variables.o
 hydrate_aux.o : \
@@ -1912,7 +1913,13 @@ pm_ert.o : \
   waypoint.o \
   zflow_aux.o
 pm_fracture.o : \
+  field.o \
+  general_aux.o \
+  geometry.o \
+  global_aux.o \
+  grid.o \
   input_aux.o \
+  material_aux.o \
   option.o \
   pflotran_constants.o \
   pm_base.o \
@@ -3345,6 +3352,7 @@ sco2.o : \
   saturation_function.o \
   sco2_aux.o \
   sco2_common.o \
+  string.o \
   upwind_direction.o \
   variables.o
 sco2_aux.o : \
