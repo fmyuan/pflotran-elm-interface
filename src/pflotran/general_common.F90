@@ -2716,7 +2716,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
 
         if (bc_type == DIRICHLET_SEEPAGE_BC) then
-          if (delta_pressure < 0.d0) then
+          if (delta_pressure > 0.d0) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'DIRCHLET_SEEPAGE_BC &
