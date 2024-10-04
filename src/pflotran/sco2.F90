@@ -555,27 +555,36 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
           porosity = material_auxvars(ghosted_id)%porosity
         endif
         if (iphase == option%trapped_gas_phase) then
-          ! SPE11 definition of trapped gas
+          ! SPE11 definition of "immobile gas"
           Srg = patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
                 ptr%gas_rel_perm_function%Srg
-          if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) > Srg) then
+          if (sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+              sat(option%gas_phase) <= Srg) then
             sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
-                      Srg * porosity * volume
-          else
-            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(option%gas_phase) * &
-                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase) * &
-                      porosity * volume
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      xmass(icomp,option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      den_kg(option%gas_phase) * &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                      sat(option%gas_phase) * porosity * volume
           endif
         else
-          sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+          if (iphase /= option%gas_phase) then
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                    xmass(icomp,iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
+                    porosity * volume
+          elseif (sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  sat(option%gas_phase) > Srg) then
+          ! SPE11 definition of "mobile gas"
+            sum_kg(icomp,iphase) = sum_kg(icomp,iphase) + &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(icomp,iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(iphase) * &
                     sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase) * &
                     porosity * volume
+          endif
         endif
       enddo
     enddo
@@ -661,7 +670,7 @@ subroutine SCO2UpdateMassBalance(realization)
       global_auxvars_bc(iconn)%mass_balance(icomp,:) = &
         global_auxvars_bc(iconn)%mass_balance(icomp,:) + &
         global_auxvars_bc(iconn)%mass_balance_delta(icomp,:)* &
-        fmw_comp(icomp)*option%flow_dt
+        option%flow_dt
     enddo
   enddo
   do iconn = 1, patch%aux%SCO2%num_aux_ss
@@ -669,7 +678,7 @@ subroutine SCO2UpdateMassBalance(realization)
       global_auxvars_ss(iconn)%mass_balance(icomp,:) = &
         global_auxvars_ss(iconn)%mass_balance(icomp,:) + &
         global_auxvars_ss(iconn)%mass_balance_delta(icomp,:)* &
-        fmw_comp(icomp)*option%flow_dt
+        option%flow_dt
     enddo
   enddo
 
@@ -1377,6 +1386,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   use Upwind_Direction_module
   use PM_Well_class
   use Matrix_Zeroing_module
+  use String_module
 
   implicit none
 
@@ -1406,6 +1416,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: iconn
   PetscReal :: scale
@@ -1414,7 +1425,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: imat, imat_up, imat_dn
+  PetscInt :: k, imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
   PetscInt :: co2_id, sid, wid
 
@@ -1423,7 +1434,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
 
   PetscReal :: qsrc(realization%option%nflowdof)
 
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: srcsink_name
 
   PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1664,11 +1675,40 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   if (sco2_well_coupling == SCO2_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well
+      sum_connection = 0
       do
         if (.not. associated(cur_well)) exit
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-          call cur_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+          call cur_well%ModifyFlowResidual(r_p)
+          source_sink => patch%source_sink_list%first
+          do
+            if (.not.associated(source_sink)) exit
+            if (associated(source_sink%flow_condition%well)) then
+              do k = 1,cur_well%well_grid%nsegments
+                if (cur_well%well_grid%h_rank_id(k) /= option%myrank) cycle
+                srcsink_name = trim(cur_well%name) // '_well_segment_' // &
+                               StringWrite(k)
+                if (trim(srcsink_name) == trim(source_sink%name)) then
+                  sum_connection = sum_connection + 1
+                  if (associated(patch%ss_flow_vol_fluxes)) then
+                    patch%ss_flow_vol_fluxes(ONE_INTEGER,sum_connection) = &
+                                       -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                    patch%ss_flow_vol_fluxes(TWO_INTEGER,sum_connection) = &
+                                       -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                  endif
+                  if (option%compute_mass_balance_new) then
+                    global_auxvars_ss(sum_connection)%mass_balance_delta(wid,1) = &
+                                     -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                    global_auxvars_ss(sum_connection)%mass_balance_delta(co2_id,1) = &
+                                     -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                  endif
+                  exit
+                endif
+              enddo
+            endif
+            source_sink => source_sink%next
+          enddo
         endif
         cur_well => cur_well%next_well
       enddo

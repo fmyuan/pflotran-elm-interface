@@ -2338,6 +2338,7 @@ subroutine OutputMassBalance(realization_base)
   use Coupler_module
   use Utility_module
   use Output_Aux_module
+  use String_module
 
   use Richards_module, only : RichardsComputeMassBalance
   use Mphase_module, only : MphaseComputeMassBalance
@@ -2367,7 +2368,7 @@ subroutine OutputMassBalance(realization_base)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(output_option_type), pointer :: output_option
-  type(coupler_type), pointer :: coupler
+  type(coupler_type), pointer :: coupler, source_sink
   type(mass_balance_region_type), pointer :: cur_mbr
   type(global_auxvar_type), pointer :: global_auxvars_bc_or_ss(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc_or_ss(:)
@@ -2393,7 +2394,8 @@ subroutine OutputMassBalance(realization_base)
                realization_base%option%nphase)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
-  PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
+  PetscReal, allocatable :: sum_mol(:,:), sum_mol_delta(:,:), &
+                            sum_mol_global(:,:)
   PetscReal, allocatable :: global_total_mass(:,:), total_mass(:,:)
   PetscReal :: global_total_mass_sum
 
@@ -2757,7 +2759,64 @@ subroutine OutputMassBalance(realization_base)
 
       enddo
 
-      ! Print the water mass [kg] and species mass [mol] in the specified regions (header)
+      ! Print the cumulative mass fluxes through coupled wells (header)
+      if (associated(patch%well_coupler_list)) then
+        coupler => patch%well_coupler_list%first
+        do
+          if (.not. associated(coupler)) exit
+          string = 'Well ' // trim(coupler%well_name) // ' Total Water Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+          string = 'Well ' // trim(coupler%well_name) // ' Total Gas Mass'
+                call OutputWriteToHeader(fid,string,'kg','',icol)
+          if (option%ntrandof > 0) then
+            ! Total mass through a given well
+            do i=1,reaction%naqcomp
+              if (reaction%primary_species_print(i)) then
+                string = 'Well ' // trim(coupler%well_name) // ' Total ' // &
+                        trim(reaction%primary_species_names(i))
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+            enddo
+
+            ! header for gas contributions to cumulative flux
+            if (reaction%gas%nactive_gas > 0) then
+              do i=1,reaction%naqcomp
+                if (reaction%primary_species_print(i)) then
+                  string = 'Well ' // trim(coupler%well_name) // ' Total ' // &
+                          trim(reaction%primary_species_names(i)) // &
+                          ' (gas phase)'
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
+              enddo
+            endif
+
+            units = 'mol/' // trim(output_option%tunit) // ''
+            do i=1,reaction%naqcomp
+              if (reaction%primary_species_print(i)) then
+                string = 'Well ' // trim(coupler%well_name) // ' Total ' // &
+                        trim(reaction%primary_species_names(i))
+                call OutputWriteToHeader(fid,string,units,'',icol)
+              endif
+            enddo
+
+            ! header for gas contributions to flux
+            if (reaction%gas%nactive_gas > 0) then
+              do i=1,reaction%naqcomp
+                if (reaction%primary_species_print(i)) then
+                  string = 'Well ' // trim(coupler%well_name) // ' Total ' // &
+                          trim(reaction%primary_species_names(i)) // &
+                          ' (gas phase)'
+                  call OutputWriteToHeader(fid,string,units,'',icol)
+                endif
+              enddo
+            endif
+          endif
+          coupler => coupler%next
+        enddo
+      endif
+
+      ! Print the water mass [kg] and species mass [mol] in the specified
+      ! regions (header)
       if (associated(output_option%mass_balance_region_list)) then
         cur_mbr => output_option%mass_balance_region_list
         do
@@ -3136,6 +3195,7 @@ subroutine OutputMassBalance(realization_base)
     end select
   endif
   bcs_done = PETSC_FALSE
+
   do
     if (.not.associated(coupler)) then
       if (bcs_done) then
@@ -3556,6 +3616,129 @@ subroutine OutputMassBalance(realization_base)
     coupler => coupler%next
   enddo
 
+  ! Print the cumulative mass fluxes through coupled wells
+  if (associated(patch%well_coupler_list)) then
+    coupler => patch%well_coupler_list%first
+    global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
+    if (option%ntrandof > 0) then
+      rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_ss
+      nmobilecomp = reaction%naqcomp
+      allocate(sum_mol(nmobilecomp,option%transport%nphase))
+      allocate(sum_mol_delta(nmobilecomp,option%transport%nphase))
+      allocate(sum_mol_global(nmobilecomp,option%transport%nphase))
+    endif
+    do
+      if (.not. associated(coupler)) exit
+      ! Total mass through a given well
+      if (option%ntrandof > 0) then
+        sum_mol = 0.d0
+        sum_mol_delta = 0.d0
+      endif
+      sum_kg = 0.d0
+      sum_kg_global = 0.d0
+      source_sink => patch%source_sink_list%first
+      do
+        if (.not. associated(source_sink)) exit
+        if (.not. StringCompare(coupler% &
+            well_name,source_sink%well_name)) then
+          source_sink => source_sink%next
+          cycle
+        endif
+        offset = source_sink%connection_set%offset
+
+      ! print out H2O & CO2 total mass in kg
+        do icomp = 1, option%nflowspec-1
+          do iconn = 1, source_sink%connection_set%num_connections
+            sum_kg(icomp,1) = sum_kg(icomp,1) + &
+              sum(global_auxvars_bc_or_ss(offset+iconn)% &
+              mass_balance(icomp,:))
+          enddo
+        enddo
+
+        if (option%ntrandof > 0) then
+          do iconn = 1, source_sink%connection_set%num_connections
+            if (option%ntrandof > 0) then
+              sum_mol = sum_mol + &
+                        rt_auxvars_bc_or_ss(offset+iconn)% &
+                        mass_balance(1:nmobilecomp,:)
+              sum_mol_delta = sum_mol_delta + &
+                              rt_auxvars_bc_or_ss(offset+iconn)% &
+                              mass_balance_delta(1:nmobilecomp,:)
+            endif
+          enddo
+        endif
+        source_sink => source_sink%next
+      enddo
+
+      int_mpi = 1
+      do icomp = 1, option%nflowspec-1
+        call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1),int_mpi, &
+                        MPI_DOUBLE_PRECISION,MPI_SUM, &
+                        option%comm%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
+
+        if (OptionIsIORank(option)) then
+        ! change sign for positive in / negative out
+          write(fid,110,advance="no") sum_kg_global(icomp,1)
+        endif
+      enddo
+
+      if (option%ntrandof > 0) then
+        int_mpi = nmobilecomp * option%transport%nphase
+        call MPI_Reduce(sum_mol,sum_mol_global,int_mpi,MPI_DOUBLE_PRECISION, &
+                        MPI_SUM,option%comm%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
+
+        if (OptionIsIORank(option)) then
+          ! change sign for positive in / negative out
+          do icomp = 1, reaction%naqcomp
+            if (reaction%primary_species_print(icomp)) then
+              write(fid,110,advance="no") -sum_mol_global(icomp,1)
+            endif
+          enddo
+          ! this block prints out the contribution to the total
+          ! component flux in the gas phase. it must be aligned with
+          ! the aqueous components, not gases
+          if (reaction%gas%nactive_gas > 0) then
+            do icomp = 1, reaction%naqcomp
+              if (reaction%primary_species_print(icomp)) then
+                write(fid,110,advance="no") -sum_mol_global(icomp,2)
+              endif
+            enddo
+          endif
+        endif
+
+        int_mpi = nmobilecomp * option%transport%nphase
+        call MPI_Reduce(sum_mol_delta,sum_mol_global,int_mpi, &
+                        MPI_DOUBLE_PRECISION, &
+                        MPI_SUM,option%comm%io_rank,option%mycomm, &
+                        ierr);CHKERRQ(ierr)
+
+        if (OptionIsIORank(option)) then
+          ! change sign for positive in / negative out
+          do icomp = 1, reaction%naqcomp
+            if (reaction%primary_species_print(icomp)) then
+              write(fid,110,advance="no") -sum_mol_global(icomp,1)* &
+                                            output_option%tconv
+            endif
+          enddo
+          ! this block prints out the contribution to the total
+          ! component flux in the gas phase. it must be aligned with
+          ! the aqueous components, not gases
+          if (reaction%gas%nactive_gas > 0) then
+            do icomp = 1, reaction%naqcomp
+              if (reaction%primary_species_print(icomp)) then
+                write(fid,110,advance="no") -sum_mol_global(icomp,2)* &
+                                              output_option%tconv
+              endif
+            enddo
+          endif
+        endif
+      endif
+      coupler => coupler%next
+    enddo
+  endif
+
   ! Print the total water and component mass in the specified regions (data)
   if (associated(output_option%mass_balance_region_list)) then
     cur_mbr => output_option%mass_balance_region_list
@@ -3570,26 +3753,30 @@ subroutine OutputMassBalance(realization_base)
 
             select case(option%iflowmode)
               case(G_MODE)
-                call GeneralComputeMassBalance(realization_base,cur_mbr%region_cell_ids, &
-                                               total_mass(:,:))
+                call GeneralComputeMassBalance(realization_base,cur_mbr% &
+                                               region_cell_ids,total_mass(:,:))
 
               case(SCO2_MODE)
                 deallocate(total_mass,global_total_mass)
                 allocate(total_mass(option%nflowspec,option%trapped_gas_phase))
                 total_mass = 0.d0
-                allocate(global_total_mass(option%nflowspec,option%trapped_gas_phase))
+                allocate(global_total_mass(option%nflowspec,option% &
+                                           trapped_gas_phase))
                 call SCO2ComputeComponentMassBalance(realization_base, &
-                                                     cur_mbr%num_cells,option%nflowspec, &
-                                                     option%trapped_gas_phase,total_mass, &
-                                                     cur_mbr%region_cell_ids)
+                                                    cur_mbr%num_cells, &
+                                                    option%nflowspec, &
+                                                    option%trapped_gas_phase, &
+                                                    total_mass, &
+                                                    cur_mbr%region_cell_ids)
 
               case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE)
                 call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
                                                cur_mbr%num_cells,patch,option, &
                                                total_mass(1,1))
               case default
-                option%io_buffer = 'Calculation of water mass in TOTAL_MASS_REGIONS &
-                                   &not supported for specified flow mode.'
+                option%io_buffer = 'Calculation of water mass in &
+                                   &TOTAL_MASS_REGIONS not supported for &
+                                   &the specified flow mode.'
                 call PrintErrMsg(option)
             end select
 
@@ -3600,10 +3787,12 @@ subroutine OutputMassBalance(realization_base)
         end select
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE,G_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE,TH_MODE,TH_TS_MODE, &
+               G_MODE)
             int_mpi = option%nflowspec * option%nphase
             call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
-                            MPI_DOUBLE_PRECISION,MPI_SUM,option%comm%io_rank, &
+                            MPI_DOUBLE_PRECISION,MPI_SUM, &
+                            option%comm%io_rank, &
                             option%mycomm,ierr);CHKERRQ(ierr)
             if (OptionIsIORank(option)) then
               do i =1,option%nflowspec
@@ -3632,7 +3821,8 @@ subroutine OutputMassBalance(realization_base)
         select case(option%itranmode)
           case(RT_MODE)
             max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
-                              reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+                                reaction%immobile%nimmobile,reaction%gas% &
+                                nactive_gas)
             ! see RTComputeMassBalance for indexing used below
             allocate(total_mass(max_tran_size,8))
             allocate(global_total_mass(max_tran_size,8))
@@ -3642,7 +3832,8 @@ subroutine OutputMassBalance(realization_base)
                 call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
                      max_tran_size,total_mass,cur_mbr%region_cell_ids)
               class default
-                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                option%io_buffer = 'Unrecognized realization class in &
+                                   &MassBalance().'
                 call PrintErrMsg(option)
             end select
             int_mpi = max_tran_size*8
@@ -3651,7 +3842,8 @@ subroutine OutputMassBalance(realization_base)
                             option%mycomm,ierr);CHKERRQ(ierr)
             global_total_mass_sum = 0.d0
             do i =1, size(global_total_mass(:,1))
-                global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+                global_total_mass_sum = global_total_mass_sum + &
+                                        global_total_mass(i,1)
             enddo
             if (OptionIsIORank(option)) then
               write(fid,110,advance="no") global_total_mass_sum
@@ -3690,19 +3882,24 @@ subroutine OutputMassBalance(realization_base)
             select type(realization_base)
               class is(realization_subsurface_type)
                 ! computes the global mass balance
-                call NWTComputeMassBalance(realization_base,cur_mbr%num_cells, &
-                                           max_tran_size,total_mass,cur_mbr%region_cell_ids)
+                call NWTComputeMassBalance(realization_base, &
+                                           cur_mbr%num_cells, &
+                                           max_tran_size,total_mass, &
+                                           cur_mbr%region_cell_ids)
               class default
-                option%io_buffer = 'Unrecognized realization class in MassBalance().'
+                option%io_buffer = 'Unrecognized realization class in &
+                                    &MassBalance().'
                 call PrintErrMsg(option)
             end select
             int_mpi = max_tran_size*4
-            call MPI_Reduce(total_mass,global_total_mass,int_mpi,MPI_DOUBLE_PRECISION, &
+            call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                            MPI_DOUBLE_PRECISION, &
                             MPI_SUM,option%comm%io_rank,option%mycomm, &
                             ierr);CHKERRQ(ierr)
             global_total_mass_sum = 0.d0
             do i = 1, size(global_total_mass(:,1))
-              global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+              global_total_mass_sum = global_total_mass_sum + &
+                                      global_total_mass(i,1)
             enddo
             if (OptionIsIORank(option)) then
               write(fid,110,advance="no") global_total_mass_sum

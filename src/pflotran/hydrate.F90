@@ -1176,7 +1176,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   use Patch_module
   use Discretization_module
   use Option_module
-
+  use String_module
   use Connection_module
   use Grid_module
   use Coupler_module
@@ -1216,6 +1216,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: iconn
   PetscReal :: scale
@@ -1224,7 +1225,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id, ghosted_end
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
-  PetscInt :: imat, imat_up, imat_dn
+  PetscInt :: k, imat, imat_up, imat_dn
   PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
@@ -1232,7 +1233,7 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
 
   PetscReal :: qsrc(realization%option%nflowdof)
 
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: srcsink_name
 
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
@@ -1482,11 +1483,34 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
   if (hydrate_well_coupling == HYDRATE_FULLY_IMPLICIT_WELL) then
     if (associated(pm_well)) then
       cur_well => pm_well
+      sum_connection = 0
       do
         if (.not. associated(cur_well)) exit
         if (any(cur_well%well_grid%h_rank_id == option%myrank)) then
           call cur_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-          call cur_well%ModifyFlowResidual(r_p,ss_flow_vol_flux)
+          call cur_well%ModifyFlowResidual(r_p)
+          source_sink => patch%source_sink_list%first
+          do
+            if (.not.associated(source_sink)) exit
+            if (associated(source_sink%flow_condition%well)) then
+              do k = 1,cur_well%well_grid%nsegments
+                if (cur_well%well_grid%h_rank_id(k) /= option%myrank) cycle
+                srcsink_name = trim(cur_well%name) // '_well_segment_' // &
+                               StringWrite(k)
+                if (trim(srcsink_name) == trim(source_sink%name)) then
+                  sum_connection = sum_connection + 1
+                  if (associated(patch%ss_flow_vol_fluxes)) then
+                    patch%ss_flow_vol_fluxes(ONE_INTEGER,sum_connection) = &
+                                       -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                    patch%ss_flow_vol_fluxes(TWO_INTEGER,sum_connection) = &
+                                       -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                  endif
+                  exit
+                endif
+              enddo
+            endif
+            source_sink => source_sink%next
+          enddo
         endif
         cur_well => cur_well%next_well
       enddo
