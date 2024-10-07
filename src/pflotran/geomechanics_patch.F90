@@ -555,6 +555,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   use Option_module
   use Output_Aux_module
   use Geomechanics_Field_module
+  use Geomechanics_Global_Aux_module
   use Variables_module
 
   implicit none
@@ -570,12 +571,14 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   PetscInt, optional :: isubvar1
   PetscInt :: iphase
 
-  PetscInt :: local_id
+  PetscInt :: local_id, ghosted_id
   type(geomech_grid_type), pointer :: grid
+  type(geomech_global_auxvar_type), pointer :: geom_gl_auxvars(:)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
   grid => patch%geomech_grid
+  geom_gl_auxvars => patch%geomech_aux%GeomechGlobal%aux_vars
 
   call GeomechGridVecGetArrayF90(grid,vec,vec_ptr,ierr)
 
@@ -585,92 +588,85 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
     case(GEOMECH_DISP_X)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-          grid%nL2G(local_id))%disp_vector(1)
+          geom_gl_auxvars(grid%nL2G(local_id))%disp_vector(1)
       enddo
     case(GEOMECH_DISP_Y)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%disp_vector(2)
+          geom_gl_auxvars(grid%nL2G(local_id))%disp_vector(2)
       enddo
     case(GEOMECH_DISP_Z)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%disp_vector(3)
+          geom_gl_auxvars(grid%nL2G(local_id))%disp_vector(3)
+      enddo
+    case(GEOMECH_VOLUMETRIC_STRAIN)
+      do local_id=1,grid%nlmax_node
+        ghosted_id = grid%nL2G(local_id)
+        vec_ptr(local_id) = &
+          geom_gl_auxvars(ghosted_id)%strain(1) + &
+          geom_gl_auxvars(ghosted_id)%strain(2) + &
+          geom_gl_auxvars(ghosted_id)%strain(3)
       enddo
     case(STRAIN_XX)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(1)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(1)
       enddo
     case(STRAIN_YY)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(2)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(2)
       enddo
     case(STRAIN_ZZ)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(3)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(3)
       enddo
     case(STRAIN_XY)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(4)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(4)
       enddo
     case(STRAIN_YZ)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(5)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(5)
       enddo
     case(STRAIN_ZX)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%strain(6)
+          geom_gl_auxvars(grid%nL2G(local_id))%strain(6)
       enddo
     case(STRESS_XX)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(1)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(1)
       enddo
     case(STRESS_YY)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(2)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(2)
       enddo
     case(STRESS_ZZ)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(3)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(3)
       enddo
     case(STRESS_XY)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(4)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(4)
       enddo
     case(STRESS_YZ)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(5)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(5)
       enddo
     case(STRESS_ZX)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%stress(6)
+          geom_gl_auxvars(grid%nL2G(local_id))%stress(6)
       enddo
     case(GEOMECH_MATERIAL_ID)
       do local_id=1,grid%nlmax_node
@@ -679,20 +675,17 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
     case(GEOMECH_REL_DISP_X)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%rel_disp_vector(1)
+          geom_gl_auxvars(grid%nL2G(local_id))%rel_disp_vector(1)
       enddo
     case(GEOMECH_REL_DISP_Y)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%rel_disp_vector(2)
+          geom_gl_auxvars(grid%nL2G(local_id))%rel_disp_vector(2)
       enddo
     case(GEOMECH_REL_DISP_Z)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
-          patch%geomech_aux%GeomechGlobal%aux_vars(&
-            grid%nL2G(local_id))%rel_disp_vector(3)
+          geom_gl_auxvars(grid%nL2G(local_id))%rel_disp_vector(3)
       enddo
     case default
       write(option%io_buffer, &

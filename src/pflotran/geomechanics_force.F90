@@ -157,6 +157,11 @@ subroutine GeomechForceSetPlotVariables(list)
   output_variable%iformat = 1 ! integer
   call OutputVariableAddToList(list,output_variable)
 
+  name = 'volumetric strain'
+  units = ''
+  call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
+                               GEOMECH_VOLUMETRIC_STRAIN)
+
   name = 'strain_xx'
   units = ''
   call OutputVariableAddToList(list,name,OUTPUT_STRAIN,units, &
