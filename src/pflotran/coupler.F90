@@ -392,6 +392,16 @@ subroutine CouplerComputeConnections(grid,option,coupler)
 
   select case(grid%itype)
     case(EXPLICIT_UNSTRUCTURED_GRID)
+      ! this check must come before
+      if (connection_itype == BOUNDARY_FACE_CONNECTION_TYPE .and. &
+          region%def_type /= DEFINED_BY_FACE_UGRID_EXP) then
+        option%io_buffer = 'For an UNSTRUCTURED_EXPLICIT GRID, REGION "' // &
+          trim(coupler%region%name) // &
+          '" associated with BOUNDARY_CONDITION "' // trim(coupler%name) // &
+          '" must include face distance and area information &
+          &(e.g., through a .ex file).'
+        call PrintErrMsg(option)
+      endif
       if (associated(region%explicit_faceset)) then
         connection_set => &
           UGridExplicitSetBoundaryConnect(grid%unstructured_grid% &
@@ -408,7 +418,8 @@ subroutine CouplerComputeConnections(grid,option,coupler)
                                       connection_itype,option)
       endif
     case default
-      connection_set => ConnectionCreate(region%num_cells,connection_itype)
+      connection_set => ConnectionCreate(region%num_cells,connection_itype, &
+                                         grid%itype)
 
       ! if using higher order advection, allocate associated arrays
       if (option%itranmode == EXPLICIT_ADVECTION .and. &

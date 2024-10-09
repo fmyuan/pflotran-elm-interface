@@ -824,7 +824,7 @@ end function StructGridGetGhostedIDFromIJK
 
 ! ************************************************************************** !
 
-function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
+function StructGridComputeInternConnect(struct_grid, xc, yc, zc, option)
   !
   ! computes internal connectivity of a
   ! structured grid
@@ -840,7 +840,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
   type(connection_set_type), pointer :: StructGridComputeInternConnect
   type(option_type) :: option
-  type(grid_structured_type) :: structured_grid
+  type(grid_structured_type) :: struct_grid
   PetscReal, pointer :: xc(:),yc(:),zc(:)
 
   PetscReal, parameter :: Pi=3.141592653590d0
@@ -857,19 +857,21 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
   radius => xc
 
-  ! the adjustments in the case of AMR are based on the PIMS code adjustments by LC
-  nconn = (structured_grid%ngx-1)*structured_grid%nly*structured_grid%nlz+ &
-          structured_grid%nlx*(structured_grid%ngy-1)*structured_grid%nlz+ &
-          structured_grid%nlx*structured_grid%nly*(structured_grid%ngz-1)
+  ! the adjustments in the case of AMR are based on the PIMS code
+  ! adjustments by LC
+  nconn = (struct_grid%ngx-1)*struct_grid%nly*struct_grid%nlz+ &
+          struct_grid%nlx*(struct_grid%ngy-1)*struct_grid%nlz+ &
+          struct_grid%nlx*struct_grid%nly*(struct_grid%ngz-1)
 
-  structured_grid%nlmax_faces = 0
-  structured_grid%ngmax_faces = 0
+  struct_grid%nlmax_faces = 0
+  struct_grid%ngmax_faces = 0
 
-  lenx = structured_grid%ngx - 1
-  leny = structured_grid%ngy - 1
-  lenz = structured_grid%ngz - 1
+  lenx = struct_grid%ngx - 1
+  leny = struct_grid%ngy - 1
+  lenz = struct_grid%ngz - 1
 
-  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
+  connections => &
+    ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE,STRUCTURED_GRID)
 
   ! if using higher order advection, allocate associated arrays
   if (option%itranmode == EXPLICIT_ADVECTION .and. &
@@ -884,14 +886,14 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   tvd_ghost_offset = 0
   ghost_count = 0
   ! x-connections
-  if (structured_grid%ngx > 1) then
-    select case(structured_grid%itype)
+  if (struct_grid%ngx > 1) then
+    select case(struct_grid%itype)
       case(CARTESIAN_GRID)
-        do k = structured_grid%kstart, structured_grid%kend
-          do j = structured_grid%jstart, structured_grid%jend
+        do k = struct_grid%kstart, struct_grid%kend
+          do j = struct_grid%jstart, struct_grid%jend
             do i = 1, lenx
               iconn = iconn+1
-              id_up = i + j * structured_grid%ngx + k * structured_grid%ngxy
+              id_up = i + j * struct_grid%ngx + k * struct_grid%ngxy
               id_dn = id_up + 1
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
@@ -899,7 +901,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               if (associated(connections%id_up2)) then
                 if (i == 1) then
                   ! id_up indexes tvd_ghost_vec, see StructGridCreateTVDGhosts()
-!                  id_up2 = 1 + j + k*structured_grid%nly
+!                  id_up2 = 1 + j + k*struct_grid%nly
                   ghost_count = ghost_count + 1
                   id_up2 = ghost_count
                   connections%id_up2(iconn) = -id_up2
@@ -908,8 +910,8 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
                 endif
                 if (i == lenx) then
                   ! id_dn indexes tvd_ghost_vec, see StructGridCreateTVDGhosts()
-!                  id_dn2 = 1 + j + k*structured_grid%nly + structured_grid%nlyz
-                  id_dn2 = ghost_count + structured_grid%nlyz
+!                  id_dn2 = 1 + j + k*struct_grid%nly + struct_grid%nlyz
+                  id_dn2 = ghost_count + struct_grid%nlyz
                   connections%id_dn2(iconn) = -id_dn2
                 else
                   connections%id_dn2(iconn) = id_dn + 1
@@ -917,54 +919,56 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               endif
 
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dx(id_up)
-              dist_dn = 0.5d0*structured_grid%dx(id_dn)
+              dist_up = 0.5d0*struct_grid%dx(id_up)
+              dist_dn = 0.5d0*struct_grid%dx(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
-              connections%area(iconn) = structured_grid%dy(id_up)* &
-                                        structured_grid%dz(id_up)
+              connections%area(iconn) = struct_grid%dy(id_up)* &
+                                        struct_grid%dz(id_up)
             enddo
           enddo
         enddo
-        tvd_ghost_offset = 2*structured_grid%nlyz ! west & east
+        tvd_ghost_offset = 2*struct_grid%nlyz ! west & east
         ghost_count = tvd_ghost_offset
       case(CYLINDRICAL_GRID)
-        do k = structured_grid%kstart, structured_grid%kend
-          do j = structured_grid%jstart, structured_grid%jend
+        do k = struct_grid%kstart, struct_grid%kend
+          do j = struct_grid%jstart, struct_grid%jend
             do i = 1, lenx
               iconn = iconn+1
-              id_up = i + j * structured_grid%ngx + k * structured_grid%ngxy
+              id_up = i + j * struct_grid%ngx + k * struct_grid%ngxy
               id_dn = id_up + 1
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dx(id_up)
-              dist_dn = 0.5d0*structured_grid%dx(id_dn)
+              dist_up = 0.5d0*struct_grid%dx(id_up)
+              dist_dn = 0.5d0*struct_grid%dx(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
-              connections%area(iconn) = 2.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))* &
-                                        structured_grid%dz(id_up)
+              connections%area(iconn) = 2.d0 * pi * &
+                (radius(id_up)+0.5d0*struct_grid%dx(id_up))* &
+                struct_grid%dz(id_up)
             enddo
           enddo
         enddo
       case(SPHERICAL_GRID)
-        do k = structured_grid%kstart, structured_grid%kend
-          do j = structured_grid%jstart, structured_grid%jend
+        do k = struct_grid%kstart, struct_grid%kend
+          do j = struct_grid%jstart, struct_grid%jend
             do i = 1, lenx
               iconn = iconn+1
-              id_up = i + j * structured_grid%ngx + k * structured_grid%ngxy
+              id_up = i + j * struct_grid%ngx + k * struct_grid%ngxy
               id_dn = id_up + 1
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dx(id_up)
-              dist_dn = 0.5d0*structured_grid%dx(id_dn)
+              dist_up = 0.5d0*struct_grid%dx(id_up)
+              dist_dn = 0.5d0*struct_grid%dx(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
-              connections%area(iconn) = 4.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))**2
+              connections%area(iconn) = 4.d0 * pi * &
+                (radius(id_up)+0.5d0*struct_grid%dx(id_up))**2
             enddo
           enddo
         enddo
@@ -972,53 +976,53 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   endif
 
   ! y-connections
-  if (structured_grid%ngy > 1) then
-    select case(structured_grid%itype)
+  if (struct_grid%ngy > 1) then
+    select case(struct_grid%itype)
       case(CARTESIAN_GRID)
-        do k = structured_grid%kstart, structured_grid%kend
-          do i = structured_grid%istart, structured_grid%iend
+        do k = struct_grid%kstart, struct_grid%kend
+          do i = struct_grid%istart, struct_grid%iend
             do j = 1, leny
               iconn = iconn+1
 
-              id_up = i + 1 + (j-1) * structured_grid%ngx + k * structured_grid%ngxy
-              id_dn = id_up + structured_grid%ngx
+              id_up = i + 1 + (j-1) * struct_grid%ngx + k * struct_grid%ngxy
+              id_dn = id_up + struct_grid%ngx
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
 
               if (associated(connections%id_up2)) then
                 if (j == 1) then
                   ! id_up indexes tvd_ghost_vec, see StructGridCreateTVDGhosts()
-!                  id_up2 = 1 + i + k*structured_grid%nlx + tvd_ghost_offset
+!                  id_up2 = 1 + i + k*struct_grid%nlx + tvd_ghost_offset
                   ghost_count = ghost_count + 1
                   id_up2 = ghost_count
                   connections%id_up2(iconn) = -id_up2
                 else
-                  connections%id_up2(iconn) = id_up - structured_grid%ngx
+                  connections%id_up2(iconn) = id_up - struct_grid%ngx
                 endif
                 if (j == leny) then
                   ! id_dn indexes tvd_ghost_vec, see StructGridCreateTVDGhosts()
-!                  id_dn2 = 1 + i + k*structured_grid%nlx + &
-!                           structured_grid%nlxz + tvd_ghost_offset
-                  id_dn2 = ghost_count + structured_grid%nlxz
+!                  id_dn2 = 1 + i + k*struct_grid%nlx + &
+!                           struct_grid%nlxz + tvd_ghost_offset
+                  id_dn2 = ghost_count + struct_grid%nlxz
                   connections%id_dn2(iconn) = -id_dn2
                 else
-                  connections%id_dn2(iconn) = id_dn + structured_grid%ngx
+                  connections%id_dn2(iconn) = id_dn + struct_grid%ngx
                 endif
               endif
 
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dy(id_up)
-              dist_dn = 0.5d0*structured_grid%dy(id_dn)
+              dist_up = 0.5d0*struct_grid%dy(id_up)
+              dist_dn = 0.5d0*struct_grid%dy(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(2,iconn) = 1.d0  ! y component of unit vector
-              connections%area(iconn) = structured_grid%dx(id_up)* &
-                                    structured_grid%dz(id_up)
+              connections%area(iconn) = struct_grid%dx(id_up)* &
+                                    struct_grid%dz(id_up)
             enddo
           enddo
         enddo
         tvd_ghost_offset = tvd_ghost_offset + &
-          2*structured_grid%nlxz ! south & north
+          2*struct_grid%nlxz ! south & north
         ghost_count = tvd_ghost_offset
       case(CYLINDRICAL_GRID)
         option%io_buffer = 'For cylindrical coordinates, NY must be equal to 1.'
@@ -1030,70 +1034,70 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   endif
 
   ! z-connections
-  if (structured_grid%ngz > 1) then
-    select case(structured_grid%itype)
+  if (struct_grid%ngz > 1) then
+    select case(struct_grid%itype)
       case(CARTESIAN_GRID)
-        do j = structured_grid%jstart, structured_grid%jend
-          do i = structured_grid%istart, structured_grid%iend
+        do j = struct_grid%jstart, struct_grid%jend
+          do i = struct_grid%istart, struct_grid%iend
             do k = 1, lenz
               iconn = iconn+1
 
-              id_up = i + 1 + j * structured_grid%ngx + (k-1) * &
-                  structured_grid%ngxy
-              id_dn = id_up + structured_grid%ngxy
+              id_up = i + 1 + j * struct_grid%ngx + (k-1) * &
+                  struct_grid%ngxy
+              id_dn = id_up + struct_grid%ngxy
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
 
               if (associated(connections%id_up2)) then
                 if (k == 1) then
-!                  id_up2 = 1 + i + j*structured_grid%nlx + tvd_ghost_offset
+!                  id_up2 = 1 + i + j*struct_grid%nlx + tvd_ghost_offset
                   ghost_count = ghost_count + 1
                   id_up2 = ghost_count
                   connections%id_up2(iconn) = -id_up2
                 else
-                  connections%id_up2(iconn) = id_up - structured_grid%ngxy
+                  connections%id_up2(iconn) = id_up - struct_grid%ngxy
                 endif
                 if (k == lenz) then
                   ! id_dn indexes tvd_ghost_vec, see StructGridCreateTVDGhosts()
-!                  id_dn2 = 1 + i + j*structured_grid%nlx + &
-!                           structured_grid%nlxy + tvd_ghost_offset
-                  id_dn2 = ghost_count + structured_grid%nlxy
+!                  id_dn2 = 1 + i + j*struct_grid%nlx + &
+!                           struct_grid%nlxy + tvd_ghost_offset
+                  id_dn2 = ghost_count + struct_grid%nlxy
                   connections%id_dn2(iconn) = -id_dn2
                 else
-                  connections%id_dn2(iconn) = id_dn + structured_grid%ngxy
+                  connections%id_dn2(iconn) = id_dn + struct_grid%ngxy
                 endif
               endif
 
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dz(id_up)
-              dist_dn = 0.5d0*structured_grid%dz(id_dn)
+              dist_up = 0.5d0*struct_grid%dz(id_up)
+              dist_dn = 0.5d0*struct_grid%dz(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(3,iconn) = 1.d0  ! z component of unit vector
-              connections%area(iconn) = structured_grid%dx(id_up) * &
-                                        structured_grid%dy(id_up)
+              connections%area(iconn) = struct_grid%dx(id_up) * &
+                                        struct_grid%dy(id_up)
             enddo
           enddo
         enddo
       case(CYLINDRICAL_GRID)
-        do j = structured_grid%jstart, structured_grid%jend
-          do i = structured_grid%istart, structured_grid%iend
+        do j = struct_grid%jstart, struct_grid%jend
+          do i = struct_grid%istart, struct_grid%iend
             do k = 1, lenz
               iconn = iconn+1
-              id_up = i + 1 + j * structured_grid%ngx + (k-1) * &
-                  structured_grid%ngxy
-              id_dn = id_up + structured_grid%ngxy
+              id_up = i + 1 + j * struct_grid%ngx + (k-1) * &
+                  struct_grid%ngxy
+              id_dn = id_up + struct_grid%ngxy
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
               connections%dist(-1:3,iconn) = 0.d0
-              dist_up = 0.5d0*structured_grid%dz(id_up)
-              dist_dn = 0.5d0*structured_grid%dz(id_dn)
+              dist_up = 0.5d0*struct_grid%dz(id_up)
+              dist_dn = 0.5d0*struct_grid%dz(id_dn)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(3,iconn) = 1.d0  ! z component of unit vector
               ! pi*(r2^2-r1^2)
-              r2 = xc(id_up) + 0.5d0*structured_grid%dx(id_up)
-              r1 = xc(id_up) - 0.5d0*structured_grid%dx(id_up)
+              r2 = xc(id_up) + 0.5d0*struct_grid%dx(id_up)
+              r1 = xc(id_up) - 0.5d0*struct_grid%dx(id_up)
               connections%area(iconn) = pi * dabs(r2*r2 - r1*r1)
             enddo
           enddo

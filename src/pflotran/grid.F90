@@ -248,7 +248,8 @@ end subroutine GridComputeInternalConnect
 
 ! ************************************************************************** !
 
-function ConnectionSetIntersectRegion(connection_set,region) result(reg_connection_set)
+function ConnectionSetIntersectRegion(connection_set,region,grid_itype) &
+  result(reg_connection_set)
   !
   ! Returns a pointer to a new connection set created from the input
   ! set, where cell ids belong to the input region. Important: the
@@ -263,6 +264,7 @@ function ConnectionSetIntersectRegion(connection_set,region) result(reg_connecti
   implicit none
   type(connection_set_type), pointer :: connection_set,reg_connection_set
   type(region_type),         pointer :: region
+  PetscInt :: grid_itype
 
   PetscInt, allocatable :: ids(:,:)
   PetscInt              :: i,j,up,dn,nconn
@@ -289,16 +291,19 @@ function ConnectionSetIntersectRegion(connection_set,region) result(reg_connecti
   ! second pass to load the information
   nullify(reg_connection_set)
   if (nconn > 0) then
-     reg_connection_set => ConnectionCreate(nconn,connection_set%itype)
-     do i = 1,nconn
-        j = ids(i,1)
-        reg_connection_set%id_up  (  i) = ids(i,2)
-        reg_connection_set%id_dn  (  i) = ids(i,3)
-        reg_connection_set%dist   (:,i) = connection_set%dist   (:,j)
+    reg_connection_set => &
+      ConnectionCreate(nconn,connection_set%itype,grid_itype)
+    do i = 1,nconn
+      j = ids(i,1)
+      reg_connection_set%id_up  (  i) = ids(i,2)
+      reg_connection_set%id_dn  (  i) = ids(i,3)
+      reg_connection_set%dist   (:,i) = connection_set%dist   (:,j)
+      reg_connection_set%area   (  i) = connection_set%area   (  j)
+      if (associated(connection_set%intercp)) then
         reg_connection_set%intercp(:,i) = connection_set%intercp(:,j)
-        reg_connection_set%area   (  i) = connection_set%area   (  j)
         reg_connection_set%face_id(  i) = connection_set%face_id(  j)
-     enddo
+      endif
+    enddo
   endif
 
   ! cleanup and return
@@ -334,9 +339,11 @@ subroutine GridRestrictRegionalConnect(grid,region)
   cur_connection_set => grid%internal_connection_set_list%first
   do
      if (.not.associated(cur_connection_set)) exit
-     reg_connection_set => ConnectionSetIntersectRegion(cur_connection_set,region)
+     reg_connection_set => &
+       ConnectionSetIntersectRegion(cur_connection_set,region,grid%itype)
      if (associated(reg_connection_set)) then
-        call ConnectionAddToList(reg_connection_set,grid%reg_internal_connection_set_list)
+        call ConnectionAddToList(reg_connection_set, &
+                                 grid%reg_internal_connection_set_list)
      endif
      cur_connection_set => cur_connection_set%next
   enddo
@@ -376,13 +383,15 @@ subroutine GridPopulateConnection(grid,connection,iface,iconn,cell_id_local, &
 
   select case(grid%itype)
     case(STRUCTURED_GRID)
-      call StructGridPopulateConnection(grid%x,grid%structured_grid,connection, &
-                                        iface,iconn,cell_id_ghosted,option)
+      call StructGridPopulateConnection(grid%x,grid%structured_grid, &
+                                        connection,iface,iconn, &
+                                        cell_id_ghosted,option)
     case(IMPLICIT_UNSTRUCTURED_GRID)
-      call UGridPopulateConnection(grid%unstructured_grid,connection,iface,&
+      call UGridPopulateConnection(grid%unstructured_grid,connection,iface, &
                                    iconn,cell_id_ghosted,option)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
-      call UGridPolyhedraPopulateConnection(grid%unstructured_grid,connection,iface, &
+      call UGridPolyhedraPopulateConnection(grid%unstructured_grid, &
+                                            connection,iface, &
                                             iconn,cell_id_ghosted,option)
   end select
 
