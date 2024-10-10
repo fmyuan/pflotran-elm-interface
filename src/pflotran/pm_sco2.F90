@@ -1052,10 +1052,12 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) < 0.d0) &
              dX_p(co2_frac_index) = - X_p(co2_frac_index)
+          if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) > 1.d0) &
+             dX_p(co2_frac_index) = 1.d0 - X_p(co2_frac_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif
@@ -1153,7 +1155,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif
@@ -1218,7 +1220,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif

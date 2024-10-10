@@ -1708,6 +1708,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                             sco2_auxvar%sat(lid) * &
                             sco2_auxvar%effective_porosity
   endif
+  sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0)
 
   ! Permeability and porosity reduction with salt precipitate effects
   call SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, option)
@@ -3124,6 +3125,7 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
   PetscReal :: theta
   PetscReal :: tao, omega
   PetscInt :: pid
+  PetscReal :: epsilon = 1.d-20
 
   pid = option%precipitate_phase
 
@@ -3155,6 +3157,9 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
                           (1.d0 - f + f * (theta / (theta + omega - 1.d0)) ** 2)
 
   end select
+
+  sco2_auxvar%effective_permeability = max(epsilon, &
+                                       sco2_auxvar%effective_permeability)
 
 end subroutine SCO2ScalePermPhi
 
@@ -3213,6 +3218,7 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
 
   PetscInt :: lid, gid, wid, co2_id, sid, tgid
   PetscReal :: T_scaled
+  PetscReal :: epsilon = 1.d-20
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -3244,7 +3250,6 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
                  sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity * &
                  sco2_parameter%diffusion_coefficient(sid,lid)
 
-
   end select
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = &
@@ -3257,6 +3262,13 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
                  (sco2_auxvar%sat(gid) - sco2_auxvar%sat(tgid)) * &
                  sco2_auxvar%effective_porosity * &
                  sco2_parameter%diffusion_coefficient(wid,gid)
+
+  sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(co2_id,lid),epsilon)
+  sco2_auxvar%effective_diffusion_coeff(wid,gid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(wid,gid),epsilon)
+  sco2_auxvar%effective_diffusion_coeff(sid,lid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(sid,lid),epsilon)
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,gid) = &
                                sco2_auxvar%effective_diffusion_coeff(wid,gid)
