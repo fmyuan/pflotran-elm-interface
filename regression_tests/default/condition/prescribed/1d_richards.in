@@ -1,0 +1,195 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    3
+    5
+    8
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.1 y
+    FORMAT TECPLOT POINT
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
+#=========================== observations =====================================
+OBSERVATION
+  REGION one-quarter
+END
+
+OBSERVATION
+  REGION middle
+END
+
+OBSERVATION
+  REGION three-quarter
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.3 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+REGION middle
+  COORDINATE 5.d0 0.5d0 0.5d0
+END
+
+REGION one-quarter
+  COORDINATE 2.5d0 0.5d0 0.5d0
+END
+
+REGION three-quarter
+  COORDINATE 7.5d0 0.5d0 0.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  DATUM 0. 0. 10.
+  LIQUID_PRESSURE 1.d5
+END
+
+FLOW_CONDITION inlet
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.9d5
+END
+
+FLOW_CONDITION fixed
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE LIST
+    TIME_UNITS y
+    0. 2.1d5
+    0.1 1.9d5
+    0.3 1.9d6
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION fixed
+  REGION middle
+END
+
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet
+  REGION west
+END
+
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial
+  REGION east
+END
+
+PRESCRIBED_CONDITION fixed_cells
+  FLOW_CONDITION fixed
+  REGION middle
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE
