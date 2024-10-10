@@ -1806,7 +1806,8 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
     enddo
   enddo
 
-  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE, &
+                                  POLYHEDRA_UNSTRUCTURED_GRID)
 
   allocate(ugrid%connection_to_face(nconn))
   ugrid%connection_to_face = 0
