@@ -298,11 +298,14 @@ subroutine PMRichardsPreSolve(this)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
 
+  use Richards_module
+
   implicit none
 
   class(pm_richards_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
+  call RichApplyPrescribedConditions(this%realization)
 
 end subroutine PMRichardsPreSolve
 

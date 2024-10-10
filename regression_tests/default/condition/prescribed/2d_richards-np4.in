@@ -1,0 +1,218 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+#    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    28
+    48
+    78
+  /
+END
+
+#=========================== fluid properties =================================
+EOS WATER
+  DENSITY IF97
+  VISCOSITY DEFAULT
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 10
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 10.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY  soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  PERMEABILITY
+    PERM_X 1.1d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+/
+
+MATERIAL_PROPERTY  impermeable
+  ID 2
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.15
+  PERMEABILITY
+    PERM_X 1.d-15
+    PERM_Y 1.1d-15
+    PERM_Z 1.1d-15
+  /
+/
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 0.3 y
+  INITIAL_TIMESTEP_SIZE 1.d0 d
+  MAXIMUM_TIMESTEP_SIZE 0.05 y
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 0.05 y
+    FORMAT HDF5
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+    TEMPERATURE
+  /
+END
+noskip
+
+#=========================== observations =====================================
+OBSERVATION
+  REGION one-quarter
+END
+
+OBSERVATION
+  REGION middle
+END
+
+OBSERVATION
+  REGION three-quarter
+END
+
+#=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 10.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 10.d0
+  /
+END
+
+REGION impermeable_zone
+  COORDINATES
+    3.d0 0.d0 3.d0
+    6.d0 1.d0 6.d0
+  /
+/
+
+REGION well
+  COORDINATE 4.5d0 0.5d0 4.5d0
+/
+
+REGION one-quarter
+  COORDINATE 7.5d0 0.5d0 2.5d0
+END
+
+REGION middle
+  COORDINATE 7.5d0 0.5d0 5.d0
+END
+
+REGION three-quarter
+  COORDINATE 7.5d0 0.5d0 7.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  DATUM LIST
+    TIME_UNITS y
+    0. 0. 0. 10.
+    0.25 0. 0. 12.
+  /
+  LIQUID_PRESSURE 2.d5
+END
+
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/d
+    0. 50.
+    0.25 0.
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+PRESCRIBED_CONDITION fixed_cells
+  FLOW_CONDITION initial
+  REGION east
+END
+
+SOURCE_SINK injection
+  FLOW_CONDITION injection
+  REGION well
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+STRATA
+  MATERIAL impermeable
+  REGION impermeable_zone
+/
+
+END_SUBSURFACE
