@@ -2430,7 +2430,8 @@ subroutine PMWellSetup(this)
                                                    tran_constraint_coupler_nwt
     endif
 
-    source_sink%connection_set => ConnectionCreate(1,GENERIC_CONNECTION_TYPE)
+    source_sink%connection_set => &
+      ConnectionCreate(1,GENERIC_CONNECTION_TYPE,res_grid%itype)
     source_sink%connection_set%id_dn = well_grid%h_local_id(k)
     if (well_grid%h_local_id(k) < 0) then
       source_sink%connection_set%num_connections = 0

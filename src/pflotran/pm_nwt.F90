@@ -246,6 +246,9 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
 !      case('TEMPERATURE_DEPENDENT_DIFFUSION')
 !        this%temperature_dependent_diffusion = PETSC_TRUE
     !-----------------------------------------------------------
+      case('BACKGROUND_CONCENTRATION')
+        call InputReadDouble(input,option,nwt_background_conc)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     !-----------------------------------------------------------

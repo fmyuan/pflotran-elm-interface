@@ -60,7 +60,7 @@ contains
 
 ! ************************************************************************** !
 
-function ConnectionCreate(num_connections,connection_itype)
+function ConnectionCreate(num_connections,connection_itype,grid_itype)
   !
   ! Allocates and initializes a new connection
   !
@@ -72,6 +72,7 @@ function ConnectionCreate(num_connections,connection_itype)
 
   PetscInt :: num_connections
   PetscInt :: connection_itype
+  PetscInt :: grid_itype
 
   type(connection_set_type), pointer :: ConnectionCreate
 
@@ -97,25 +98,32 @@ function ConnectionCreate(num_connections,connection_itype)
       allocate(connection%id_up(num_connections))
       allocate(connection%id_dn(num_connections))
       allocate(connection%dist(-1:3,num_connections))
-      allocate(connection%intercp(1:3,num_connections))
       allocate(connection%area(num_connections))
-      allocate(connection%face_id(num_connections))
       connection%id_up = 0
       connection%id_dn = 0
-      connection%face_id = 0
       connection%dist = 0.d0
-      connection%intercp = 0.d0
       connection%area = 0.d0
+      select case(grid_itype)
+        case(IMPLICIT_UNSTRUCTURED_GRID,POLYHEDRA_UNSTRUCTURED_GRID)
+          allocate(connection%intercp(1:3,num_connections))
+          allocate(connection%face_id(num_connections))
+          connection%intercp = 0.d0
+          connection%face_id = 0
+      end select
     case(BOUNDARY_FACE_CONNECTION_TYPE)
       allocate(connection%id_dn(num_connections))
       allocate(connection%dist(-1:3,num_connections))
-      allocate(connection%intercp(1:3,num_connections))
       allocate(connection%area(num_connections))
-      allocate(connection%face_id(num_connections))
       connection%id_dn = 0
       connection%dist = 0.d0
-      connection%intercp = 0.d0
       connection%area = 0.d0
+      select case(grid_itype)
+        case(IMPLICIT_UNSTRUCTURED_GRID,POLYHEDRA_UNSTRUCTURED_GRID)
+          allocate(connection%intercp(1:3,num_connections))
+          allocate(connection%face_id(num_connections))
+          connection%intercp = 0.d0
+          connection%face_id = 0.d0
+      end select
     case(GENERIC_CONNECTION_TYPE)
       allocate(connection%id_dn(num_connections))
       connection%id_dn = 0
