@@ -209,4 +209,6 @@ module Variables_module
   PetscInt, parameter, public :: LOCAL_CELL_ID = 168
   PetscInt, parameter, public :: GHOSTED_CELL_ID = 169
 
+  PetscInt, parameter, public :: GEOMECH_VOLUMETRIC_STRAIN = 170
+
 end module Variables_module
