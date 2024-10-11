@@ -390,7 +390,8 @@ subroutine THSetup(realization)
   do
     if (.not.associated(cur_coupler)) exit
     select case(cur_coupler%flow_condition%pressure%itype)
-      case(DIRICHLET_BC,HYDROSTATIC_BC)
+      case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
       case default
         option%io_buffer = 'FLOW_CONDITION "' // &
           trim(cur_coupler%flow_condition%name) // '" PRESSURE TYPE (' // &
