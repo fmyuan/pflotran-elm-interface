@@ -6026,10 +6026,17 @@ subroutine PMWellUpdateReservoirSrcSinkTran(pm_well)
       if (trim(srcsink_name) == trim(source_sink%name)) then
         select case(option%iflowmode)
           case (WF_MODE)
-            source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-              -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
-            source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-              -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
+            if (wippflo_well_quasi_imp_coupled) then
+              source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+                0.d0 ! [kmol/s]
+              source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+                0.d0 ! [kmol/s]
+            else
+              source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
+              source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
+            endif
           case (SCO2_MODE)
             source_sink%flow_condition%sco2%rate%dataset%rarray(1) = &
               -1.d0 * pm_well%well%liq%Q(k) ! [kg/s]
@@ -6405,6 +6412,7 @@ subroutine PMWellModifyFlowJacobian(this,Jac,ierr)
         call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
+      deallocate(J_block)
     case(SCO2_MODE)
 
       allocate(J_block(option%nflowdof,option%nflowdof))
