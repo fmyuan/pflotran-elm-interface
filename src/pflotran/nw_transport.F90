@@ -762,11 +762,11 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   !WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
 
 #if 1
-  !DF: the time conditional was always true since tran_time is not yet set at this point.
-  pmwell_ptr%tran_soln%tran_time = pmwell_ptr%option%time + pmwell_ptr%cumulative_dt_tran
   !== Well Model ==============================================
   if (associated(pmwell_ptr)) then
     if (pmwell_ptr%well_on) then
+      !DF: the time conditional was always true since tran_time is not yet set at this point.
+      pmwell_ptr%tran_soln%tran_time = pmwell_ptr%option%time + pmwell_ptr%cumulative_dt_tran
       if (pmwell_ptr%tran_soln%tran_time <= option%time) then
         ! loads the source_sink object with well model transport sol'n
         ! this should only be done during the first petsc residual call,
