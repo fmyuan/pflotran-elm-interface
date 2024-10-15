@@ -3498,8 +3498,6 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
 
   deallocate(temp_friction)
   deallocate(temp_diameter)
-  deallocate(temp_well_phi)
-  deallocate(temp_well_perm)
   deallocate(temp)
   end subroutine PMWellReadWell
 
