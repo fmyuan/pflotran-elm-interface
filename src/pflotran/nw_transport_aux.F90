@@ -1371,6 +1371,7 @@ subroutine NWTAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sorb_eq_conc)
   call DeallocateArray(auxvar%mnrl_eq_conc)
   call DeallocateArray(auxvar%mnrl_vol_frac)
+  call DeallocateArray(auxvar%constraint_type)
 
   if (associated(auxvar%auxiliary_data)) &
     call DeallocateArray(auxvar%auxiliary_data)
