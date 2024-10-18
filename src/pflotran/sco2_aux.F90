@@ -34,7 +34,7 @@ module SCO2_Aux_module
   ! PetscBool, public :: sco2_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: sco2_allow_state_change = PETSC_TRUE
   PetscBool, public :: sco2_state_changed = PETSC_FALSE
-  PetscBool, public :: sco2_force_iteration = PETSC_FALSE
+  PetscBool, public :: sco2_force_ts_cut = PETSC_FALSE
   PetscBool, public :: sco2_newtontrdc_hold_inner = PETSC_FALSE
   PetscInt, public :: sco2_newton_iteration_number = 0
   PetscInt, public :: sco2_sub_newton_iter_num = 0
@@ -652,7 +652,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     if (sco2_central_diff_jacobian) then
       x_pert_minus = x
       if (idof == SCO2_SALT_MASS_FRAC_DOF .and. &
-         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < epsilon) then
+         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < pert(idof)) then
         x_pert_minus(idof) = x(idof)
         pert(idof) = pert(idof) / 2.d0
       else

@@ -1918,7 +1918,6 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   sco2_newton_iteration_number = sco2_newton_iteration_number + 1
 
   sco2_sub_newton_iter_num = 0
-  sco2_force_iteration = PETSC_FALSE
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
@@ -2180,10 +2179,12 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
         cur_well => pm_well
         do
           if (.not. associated(cur_well)) exit
-          if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
-               dabs(cur_well%well%th_ql) < epsilon .and. &
-               cur_well%well%total_rate > 0.d0) then
-            ! Don't solve for BHP if there is no flow in the well.
+          if (((dabs(cur_well%well%th_qg) < epsilon) .and. &
+              (dabs(cur_well%well%th_ql) < epsilon) .and. &
+              (cur_well%well%total_rate > 0.d0)) .or. &
+              cur_well%pressure_controlled) then
+            ! Don't solve for BHP if there is no flow in the well, or
+            ! if the well is pressure-controlled.
             deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                              option%nflowdof
             deactivate_row = deactivate_row - 1

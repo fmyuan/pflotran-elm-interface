@@ -378,6 +378,9 @@ module PM_Well_class
     PetscBool :: print_well
     PetscBool :: print_output
     PetscBool :: use_well_coupler
+    PetscBool :: pressure_controlled
+    PetscReal :: pressure_threshold_min
+    PetscReal :: pressure_threshold_max
     class(pm_well_type), pointer :: next_well
   contains
     procedure, public :: Setup => PMWellSetup
@@ -480,6 +483,9 @@ function PMWellCreate()
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
   this%use_well_coupler = PETSC_FALSE
+  this%pressure_controlled = PETSC_FALSE
+  this%pressure_threshold_min = 0.d0
+  this%pressure_threshold_max = 1.d20
 
   nullify(this%next_well)
 
@@ -3710,6 +3716,10 @@ subroutine PMWellReadWellBCs(pm_well,input,option,keyword,error_string,found)
   !-------------------------------------
     case ('USE_WELL_COUPLER')
       pm_well%use_well_coupler = PETSC_TRUE
+    case ('FRACTURE_PRESSURE')
+      call InputReadDouble(input,option,pm_well%pressure_threshold_max)
+    case ('MINIMUM_PRESSURE')
+      call InputReadDouble(input,option,pm_well%pressure_threshold_min)
     case default
       found = PETSC_FALSE
   !-------------------------------------
@@ -5509,6 +5519,7 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   type(well_comm_type), pointer :: well_comm
   PetscInt :: k, indx
   PetscInt :: ghosted_id
+  PetscInt :: TAG
   PetscErrorCode :: ierr
 
   option => pm_well%option
@@ -5588,9 +5599,19 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   enddo
 
   if (update_index < 0 .or. initialize_well_flow) then
-    call MPI_Allreduce(MPI_IN_PLACE,pm_well%well%bh_p,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr); &
-                     CHKERRQ(ierr)
+    TAG = 0
+    do k = 2,pm_well%well_grid%nsegments
+      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+        if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
+        call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(k),TAG,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+      elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
+        call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(1),TAG,option%mycomm, &
+                      MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
+      endif
+    enddo
   endif
 
 end subroutine PMWellUpdateReservoirSCO2
@@ -6200,6 +6221,7 @@ subroutine PMWellModifyFlowResidual(this,residual)
                     Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
+                  if (this%pressure_controlled) residual(local_end) = 0.d0
                 endif
                 do j = 0,2
                   ! Compontent j+1 residual at well segment k
