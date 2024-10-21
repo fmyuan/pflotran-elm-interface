@@ -241,7 +241,13 @@ subroutine SCO2Setup(realization)
   dof_is_active = PETSC_TRUE
   if (option%coupled_well) then
     dof_is_active(option%nflowdof) = PETSC_FALSE
+    if (sco2_isothermal_gradient) then
+      dof_is_active(option%nflowdof-1) = PETSC_FALSE
+    endif
+  elseif (sco2_isothermal_gradient) then
+    dof_is_active(option%nflowdof) = PETSC_FALSE
   endif
+
   call PatchCreateZeroArray(patch,dof_is_active, &
                             patch%aux%SCO2%matrix_zeroing,option)
   deallocate(dof_is_active)

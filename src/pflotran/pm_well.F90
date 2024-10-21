@@ -8007,11 +8007,7 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  elseif (this%flow_coupling == FULLY_IMPLICIT_WELL) then
-    write(out_string,'(" FLOW Step          Fully-implicit wellbore flow &
-                      &coupling is being used.")')
-    call PrintMsg(this%option,out_string)
-  else
+  elseif (this%flow_coupling /= FULLY_IMPLICIT_WELL) then
     call PMWellSolveFlow(this,UNINITIALIZED_INTEGER,ierr)
   endif
 

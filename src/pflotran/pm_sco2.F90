@@ -336,6 +336,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         sco2_isothermal_temperature = tempreal
         option%use_isothermal = PETSC_TRUE
         option%flow%reference_temperature = tempreal
+      case('ISOTHERMAL_GRADIENT')
+        sco2_isothermal_gradient = PETSC_TRUE
       case('UPWIND_VISCOSITY')
         sco2_harmonic_viscosity = PETSC_FALSE
       case('PHASE_PARTITIONING')

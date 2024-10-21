@@ -43,6 +43,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_truncate_updates = PETSC_TRUE
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
+  PetscBool, public :: sco2_isothermal_gradient = PETSC_FALSE
   PetscBool, public :: sco2_stomp_fluxes = PETSC_TRUE
 
   ! Output Control
