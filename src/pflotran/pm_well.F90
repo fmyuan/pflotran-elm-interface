@@ -378,6 +378,9 @@ module PM_Well_class
     PetscBool :: print_well
     PetscBool :: print_output
     PetscBool :: use_well_coupler
+    PetscBool :: pressure_controlled
+    PetscReal :: pressure_threshold_min
+    PetscReal :: pressure_threshold_max
     class(pm_well_type), pointer :: next_well
   contains
     procedure, public :: Setup => PMWellSetup
@@ -480,6 +483,9 @@ function PMWellCreate()
   this%print_well = PETSC_FALSE
   this%print_output = PETSC_FALSE
   this%use_well_coupler = PETSC_FALSE
+  this%pressure_controlled = PETSC_FALSE
+  this%pressure_threshold_min = 0.d0
+  this%pressure_threshold_max = 1.d20
 
   nullify(this%next_well)
 
@@ -3710,6 +3716,10 @@ subroutine PMWellReadWellBCs(pm_well,input,option,keyword,error_string,found)
   !-------------------------------------
     case ('USE_WELL_COUPLER')
       pm_well%use_well_coupler = PETSC_TRUE
+    case ('FRACTURE_PRESSURE')
+      call InputReadDouble(input,option,pm_well%pressure_threshold_max)
+    case ('MINIMUM_PRESSURE')
+      call InputReadDouble(input,option,pm_well%pressure_threshold_min)
     case default
       found = PETSC_FALSE
   !-------------------------------------
@@ -5509,6 +5519,7 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   type(well_comm_type), pointer :: well_comm
   PetscInt :: k, indx
   PetscInt :: ghosted_id
+  PetscInt :: tag
   PetscErrorCode :: ierr
 
   option => pm_well%option
@@ -5588,9 +5599,19 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   enddo
 
   if (update_index < 0 .or. initialize_well_flow) then
-    call MPI_Allreduce(MPI_IN_PLACE,pm_well%well%bh_p,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr); &
-                     CHKERRQ(ierr)
+    tag = 0
+    do k = 2,pm_well%well_grid%nsegments
+      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+        if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
+        call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(k),tag,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+      elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
+        call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(1),tag,option%mycomm, &
+                      MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
+      endif
+    enddo
   endif
 
 end subroutine PMWellUpdateReservoirSCO2
@@ -6200,6 +6221,7 @@ subroutine PMWellModifyFlowResidual(this,residual)
                     Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
+                  if (this%pressure_controlled) residual(local_end) = 0.d0
                 endif
                 do j = 0,2
                   ! Compontent j+1 residual at well segment k
@@ -9161,7 +9183,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   PetscReal :: max_update
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
   PetscInt :: loc_max_update
-  PetscInt :: k,n,j,S,TAG,last_rank,first_rank
+  PetscInt :: k,n,j,S,tag,last_rank,first_rank
   PetscInt :: isegment, ispecies
   PetscErrorCode :: ierr
 
@@ -9235,24 +9257,24 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   first_rank = pm_well%well_comm%well_rank_list(1)
   last_rank = pm_well%well_comm%well_rank_list(pm_well%well_comm%commsize)
   if (pm_well%well_comm%commsize > 1) then
-    TAG = 0
+    tag = 0
     if (pm_well%well_comm%rank == last_rank) then
-      call MPI_Send(cnvgd_due_to_abs_res,S,MPI_LOGICAL,0,TAG, &
+      call MPI_Send(cnvgd_due_to_abs_res,S,MPI_LOGICAL,0,tag, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
-      call MPI_Send(cnvgd_due_to_scaled_res,S,MPI_LOGICAL,0,TAG+1, &
+      call MPI_Send(cnvgd_due_to_scaled_res,S,MPI_LOGICAL,0,tag+1, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
-      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+2, &
+      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,tag+2, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
     if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_abs_res,S,MPI_LOGICAL, &
-                    last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
       call MPI_Recv(cnvgd_due_to_scaled_res,S,MPI_LOGICAL, &
-                    last_rank,TAG+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
       call MPI_Recv(cnvgd_due_to_update,S,MPI_LOGICAL, &
-                    last_rank,TAG+2,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag+2,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
     endif
   endif
@@ -9269,24 +9291,24 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   endif
 
   if (pm_well%well_comm%commsize > 1) then
-    TAG = 0
+    tag = 0
     if (pm_well%well_comm%rank == last_rank) then
-      call MPI_Send(max_update,1,MPI_DOUBLE_PRECISION,0,TAG, &
+      call MPI_Send(max_update,1,MPI_DOUBLE_PRECISION,0,tag, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
-      call MPI_Send(max_absolute_residual,1,MPI_DOUBLE_PRECISION,0,TAG+1, &
+      call MPI_Send(max_absolute_residual,1,MPI_DOUBLE_PRECISION,0,tag+1, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
-      call MPI_Send(max_scaled_residual,1,MPI_DOUBLE_PRECISION,0,TAG+2, &
+      call MPI_Send(max_scaled_residual,1,MPI_DOUBLE_PRECISION,0,tag+2, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
     if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(max_update,1,MPI_DOUBLE_PRECISION, &
-                    last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
       call MPI_Recv(max_absolute_residual,1,MPI_DOUBLE_PRECISION, &
-                    last_rank,TAG+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
       call MPI_Recv(max_scaled_residual,1,MPI_DOUBLE_PRECISION, &
-                    last_rank,TAG+2,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag+2,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
     endif
   endif
@@ -9298,19 +9320,19 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   call PrintMsg(pm_well%option,out_string)
 
   if (pm_well%well_comm%commsize > 1) then
-    TAG = 0
+    tag = 0
     if (pm_well%well_comm%rank == last_rank) then
-      call MPI_Send(cnvgd_due_to_residual,S,MPI_LOGICAL,0,TAG, &
+      call MPI_Send(cnvgd_due_to_residual,S,MPI_LOGICAL,0,tag, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
-      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,TAG+1, &
+      call MPI_Send(cnvgd_due_to_update,S,MPI_LOGICAL,0,tag+1, &
                     pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
     endif
     if (pm_well%well_comm%rank == first_rank) then
       call MPI_Recv(cnvgd_due_to_residual,S,MPI_LOGICAL, &
-                    last_rank,TAG,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
       call MPI_Recv(cnvgd_due_to_update,S,MPI_LOGICAL, &
-                    last_rank,TAG+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
+                    last_rank,tag+1,pm_well%well_comm%comm,MPI_STATUS_IGNORE, &
                     ierr);CHKERRQ(ierr)
     endif
   endif
