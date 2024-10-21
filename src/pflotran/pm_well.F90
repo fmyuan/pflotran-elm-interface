@@ -6221,7 +6221,7 @@ subroutine PMWellModifyFlowResidual(this,residual)
                     Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
-                  if (this%pressure_controlled) residual(local_end) = 0.d0
+                  ! if (this%pressure_controlled) residual(local_end) = 0.d0
                 endif
                 do j = 0,2
                   ! Compontent j+1 residual at well segment k
@@ -11164,12 +11164,18 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     name = 'Well Gas Q'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
   endif
+  select case (pm_well%option%iflowmode)
+    case (SCO2_MODE)
+      name = 'Well BHP'
+      units = 'Pa'
+      call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units,WELL_BHP)
+  end select
 
 end subroutine PMWellSetPlotVariables
 
 ! ************************************************************************** !
 
-function PMWellOutputFilename(option)
+function PMWellOutputFilename(name,option)
   !
   ! Generates a filename for wellbore model output
   !
@@ -11179,12 +11185,12 @@ function PMWellOutputFilename(option)
 
   implicit none
 
+  character(len=MAXWORDLENGTH) :: name
   type(option_type), pointer :: option
 
   character(len=MAXSTRINGLENGTH) :: PMWellOutputFilename
 
-  PMWellOutputFilename = trim(option%global_prefix) // &
-                         trim(option%group_prefix) // '.well'
+  PMWellOutputFilename = trim(name) // '.well'
 
 end function PMWellOutputFilename
 
@@ -11215,6 +11221,8 @@ subroutine PMWellOutputHeader(pm_well)
   PetscInt :: icolumn
   PetscInt :: k, j
 
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+
   output_option => pm_well%realization%output_option
 
   if (output_option%print_column_ids) then
@@ -11224,7 +11232,7 @@ subroutine PMWellOutputHeader(pm_well)
   endif
 
   fid = 555
-  filename = PMWellOutputFilename(pm_well%option)
+  filename = PMWellOutputFilename(pm_well%name,pm_well%option)
   exist = FileExists(trim(filename))
   if (pm_well%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
@@ -11265,6 +11273,14 @@ subroutine PMWellOutputHeader(pm_well)
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
+
+  select case (pm_well%option%iflowmode)
+  case (SCO2_MODE)
+    variable_string = 'Well BHP'
+    units_string = 'Pa'
+    call OutputWriteToHeader(fid,variable_string,units_string, &
+                             cell_string,icolumn)
+end select
 
   do k = 1,pm_well%well_grid%nsegments
     variable_string = 'Seg.#'
@@ -11387,16 +11403,23 @@ subroutine PMWellOutput(pm_well)
 100 format(100es18.8)
 101 format(1I6.1)
 
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option
 
   fid = 555
-  filename = PMWellOutputFilename(option)
+  filename = PMWellOutputFilename(pm_well%name,option)
   open(unit=fid,file=filename,action="write",status="old", &
        position="append")
 
   ! pm_well time is set at the end of the wellbore step????
   write(fid,100,advance="no") option%time / output_option%tconv
+
+  select case (pm_well%option%iflowmode)
+    case (SCO2_MODE)
+      write(fid,100,advance="no") pm_well%well%bh_p
+  end select
 
   do k = 1,pm_well%well_grid%nsegments
     write(fid,101,advance="no") k

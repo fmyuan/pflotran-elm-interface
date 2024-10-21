@@ -35,6 +35,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_allow_state_change = PETSC_TRUE
   PetscBool, public :: sco2_state_changed = PETSC_FALSE
   PetscBool, public :: sco2_force_ts_cut = PETSC_FALSE
+  PetscBool, public :: sco2_pressure_controlled_well = PETSC_FALSE
   PetscBool, public :: sco2_newtontrdc_hold_inner = PETSC_FALSE
   PetscInt, public :: sco2_newton_iteration_number = 0
   PetscInt, public :: sco2_sub_newton_iter_num = 0

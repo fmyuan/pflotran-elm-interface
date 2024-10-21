@@ -8052,7 +8052,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
     ! PM WELL (wellbore model)
     case(WELL_LIQ_PRESSURE,WELL_GAS_PRESSURE,WELL_LIQ_SATURATION, &
          WELL_GAS_SATURATION,WELL_AQ_CONC,WELL_AQ_MASS, &
-         WELL_LIQ_Q,WELL_GAS_Q)
+         WELL_LIQ_Q,WELL_GAS_Q,WELL_BHP)
       select case(option%iflowmode)
         case(WF_MODE)
           select case(ivar)
@@ -8140,6 +8140,12 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                 vec_ptr(local_id) = &
                   patch%aux%sco2%auxvars(ZERO_INTEGER, &
                                             grid%nL2G(local_id))%well%Qg
+              enddo
+            case(WELL_BHP)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%sco2%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%well%bh_p
               enddo
           end select
         case(H_MODE)

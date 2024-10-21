@@ -211,4 +211,6 @@ module Variables_module
 
   PetscInt, parameter, public :: GEOMECH_VOLUMETRIC_STRAIN = 170
 
+  PetscInt, parameter, public :: WELL_BHP = 171
+
 end module Variables_module

@@ -1343,6 +1343,21 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
               ! Check whether the well should be pressure- or rate-controlled
               ! Check to see if we flip from pressure to rate-controlled
+              if ((X_p(well_index) + dX_p(well_index)) > &
+                    cur_well%pressure_threshold_max) then
+                ! Hit the fracture pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_max - &
+                                    X_p(well_index)
+                !sco2_force_ts_cut = PETSC_TRUE
+              elseif ((X_p(well_index) + dX_p(well_index)) < &
+                      cur_well%pressure_threshold_min) then
+                ! Hit the min pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_min - &
+                                    X_p(well_index)
+                !sco2_force_ts_cut = PETSC_TRUE
+              endif
               if (cur_well%pressure_controlled) then
                 if (cur_well%well%total_rate < 0.d0) then
                   ! production well
@@ -1352,7 +1367,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                     ! Pressure is too low, switch to rate-controlled and force
                     ! a timestep cut
                     cur_well%pressure_controlled = PETSC_FALSE
-                    sco2_force_ts_cut = PETSC_TRUE
+                    ! sco2_force_ts_cut = PETSC_TRUE
                   endif
                 elseif (cur_well%well%th_qg > 0.d0) then
                   if (dabs(sum(cur_well%well%liq%Q(:)) + &
@@ -1361,7 +1376,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                     ! Pressure is too high, switch to rate-controlled and force
                     ! a timestep cut
                     cur_well%pressure_controlled = PETSC_FALSE
-                    sco2_force_ts_cut = PETSC_TRUE
+                    !sco2_force_ts_cut = PETSC_TRUE
                   endif
                 elseif (cur_well%well%th_ql > 0.d0) then
                   if (dabs(sum(cur_well%well%liq%Q(:)) + &
@@ -1370,24 +1385,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                     ! Pressure is too high, switch to rate-controlled and force
                     ! a timestep cut
                     cur_well%pressure_controlled = PETSC_FALSE
-                    sco2_force_ts_cut = PETSC_TRUE
+                    !sco2_force_ts_cut = PETSC_TRUE
                   endif
-                endif
-              else
-                if ((X_p(well_index) + dX_p(well_index)) > &
-                    cur_well%pressure_threshold_max) then
-                  ! Hit the fracture pressure threshold
-                  cur_well%pressure_controlled = PETSC_TRUE
-                  dX_p(well_index) = cur_well%pressure_threshold_max - &
-                                     X_p(well_index)
-                  sco2_force_ts_cut = PETSC_TRUE
-                elseif ((X_p(well_index) + dX_p(well_index)) < &
-                        cur_well%pressure_threshold_min) then
-                  ! Hit the min pressure threshold
-                  cur_well%pressure_controlled = PETSC_TRUE
-                  dX_p(well_index) = cur_well%pressure_threshold_min - &
-                                     X_p(well_index)
-                  sco2_force_ts_cut = PETSC_TRUE
                 endif
               endif
 
@@ -1856,7 +1855,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               if (dabs(update) > 0.d0) then
                 update = update - sco2_auxvar%well%pressure_bump
               endif
-              if (sco2_well_residual_convergence) then
+              if (sco2_well_residual_convergence .and. .not. &
+                  sco2_pressure_controlled_well) then
                 !Converge on well residual
                 res_scaled = dabs(residual/(accumulation + epsilon))
               else
@@ -1877,7 +1877,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
               !Converge on well residual
               update = update - sco2_auxvar%well%pressure_bump
             endif
-            if (sco2_well_residual_convergence) then
+            if (sco2_well_residual_convergence .and. .not. &
+                sco2_pressure_controlled_well) then
               !Converge on well BHP update
               res_scaled = dabs(residual/(accumulation + epsilon))
             else
@@ -2295,19 +2296,20 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     !   option%convergence = CONVERGENCE_CUT_TIMESTEP
     ! endif
 
-    if (sco2_force_ts_cut) then
-      if (associated(this%pmwell_ptr)) then
-        cur_well => this%pmwell_ptr
-        do
-          if (.not. associated(cur_well)) exit
-          call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
-                         cur_well%well_grid%h_rank_id(1),cur_well%option%mycomm, &
-                         ierr); CHKERRQ(ierr)
-          cur_well => cur_well%next_well
-        enddo
-      endif
-      option%convergence = CONVERGENCE_CUT_TIMESTEP
-      sco2_force_ts_cut = PETSC_FALSE
+    ! For now, since convergence isn't determined well-by-well.
+    sco2_pressure_controlled_well = PETSC_FALSE
+    if (associated(this%pmwell_ptr)) then
+      cur_well => this%pmwell_ptr
+      do
+        if (.not. associated(cur_well)) exit
+        call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
+                        cur_well%well_grid%h_rank_id(1), &
+                        cur_well%option%mycomm, &
+                        ierr); CHKERRQ(ierr)
+        if (cur_well%pressure_controlled) &
+            sco2_pressure_controlled_well = PETSC_TRUE
+        cur_well => cur_well%next_well
+      enddo
     endif
 
     if (sco2_sub_newton_iter_num > 20) then
