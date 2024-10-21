@@ -1837,7 +1837,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           accumulation = accum2_p(ival)
           update = dX_p(ival)
 
-          if (sco2_thermal) then
+          if (sco2_thermal .and. sco2_isothermal_gradient) then
+            res_scaled = 0.d0
+          elseif (sco2_thermal) then
             if (idof == FOUR_INTEGER) then
               res_scaled = 1.d-1 * min(dabs(update) / &
                            (sco2_auxvar%temp + 237.15d0), &
