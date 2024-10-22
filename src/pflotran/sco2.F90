@@ -1029,15 +1029,19 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             if (.not. associated(cur_well)) exit
             do well_seg = 1,cur_well%well_grid%nsegments
               if (cur_well%well_grid%h_ghosted_id(well_seg) == ghosted_id) then
-                if (associated(cur_well%well%liq%Q)) then
-                  source_sink%flow_condition%well%aux_real(1) = &
-                                                    -cur_well%well%liq%Q(well_seg)
-                  source_sink%flow_condition%well%aux_real(2) = 0.d0
-                endif
                 if (associated(cur_well%well%gas%Q)) then
-                  source_sink%flow_condition%well%aux_real(2) = &
-                                                  -cur_well%well%gas%Q(well_seg)
-                  source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  ! MAN: This is for RT coupling. I think we only need a source
+                  ! term if no free gas phase is present. Otherwise, RT computes
+                  ! equilibrium dissolved gas concentration.
+                  if (global_auxvars(ghosted_id)%istate == &
+                      SCO2_LIQUID_STATE) then
+                    source_sink%flow_condition%well%aux_real(2) = -cur_well% &
+                                                           well%gas%Q(well_seg)
+                    source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  else
+                    source_sink%flow_condition%well%aux_real(2) = 0.d0
+                    source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  endif
                 endif
               endif
             enddo
