@@ -1111,9 +1111,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_dx = UNINITIALIZED_DOUBLE
     temp_dy = UNINITIALIZED_DOUBLE
     temp_dz = UNINITIALIZED_DOUBLE
-    temp_x = UNINITIALIZED_DOUBLE
-    temp_y = UNINITIALIZED_DOUBLE
-    temp_z = UNINITIALIZED_DOUBLE
+    temp_x = -1.d20
+    temp_y =-1.d20
+    temp_z = -1.d20
 
     k = 0
     j = 0
@@ -1236,13 +1236,13 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(collect_y_temp(nsegments*option%comm%size))
     allocate(collect_z_temp(nsegments*option%comm%size))
     allocate(collect_rank(nsegments*option%comm%size))
-    collect_x_temp = UNINITIALIZED_DOUBLE
+    collect_x_temp = -1.d20
     collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_x(1:well_grid%nsegments)
-    collect_y_temp = UNINITIALIZED_DOUBLE
+    collect_y_temp = -1.d20
     collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_y(1:well_grid%nsegments)
-    collect_z_temp = UNINITIALIZED_DOUBLE
+    collect_z_temp = -1.d20
     collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_z(1:well_grid%nsegments)
     collect_rank = UNINITIALIZED_INTEGER
@@ -1268,7 +1268,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     well_nodes(:)%y = UNINITIALIZED_DOUBLE
     well_nodes(:)%z = UNINITIALIZED_DOUBLE
     do j = 1,nsegments*option%comm%size
-      if (Initialized(collect_z_temp(j))) then
+      if (collect_z_temp(j) > -1.d19) then
         k = k + 1
         well_nodes(k)%id = collect_rank(j)
         well_nodes(k)%x = collect_x_temp(j)
