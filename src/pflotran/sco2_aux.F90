@@ -1327,6 +1327,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmol(sid,lid) = sco2_auxvar%xmass(sid,lid)* &
                                   mw_mix/fmw_comp(3)
 
+      sco2_auxvar%sl_min = 1.d0
+
     case (SCO2_GAS_STATE)
       ! Fully unsaturated system with or without trapped gas.
       ! Primary Variables:
@@ -1435,7 +1437,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       !               Liquid Pressure, Trapped Gas Saturation,
       !               total NaCl brine fraction (kg NaCl/kg brine), Temperature
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
-      sco2_auxvar%sat(gid) = x(SCO2_GAS_SATURATION_DOF)
+      sco2_auxvar%sat(tgid) = x(SCO2_GAS_SATURATION_DOF)
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
       if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
@@ -1484,7 +1486,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
 
       ! Update trapped gas
-      sco2_auxvar%sat(tgid) = sco2_auxvar%sat(gid)
+      sco2_auxvar%sat(gid) = sco2_auxvar%sat(tgid)
 
       ! Update mass fractions
       sco2_auxvar%xmass(co2_id,lid) = xco2l
@@ -1631,7 +1633,27 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                  sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
-  if (global_auxvar%istate /= SCO2_GAS_STATE) then
+  if (global_auxvar%istate == SCO2_TRAPPED_GAS_STATE) then
+    if (Initialized(characteristic_curves%saturation_function%Sgt_max)) then
+      ! Move the reversal point as a function of trapped gas saturation
+      if (characteristic_curves%saturation_function%Sgt_max - &
+          sco2_auxvar%sat(tgid) > epsilon) then
+        sco2_auxvar%sl_min = (characteristic_curves%saturation_function% &
+                              Sgt_max - sco2_auxvar%sat(tgid)) / &
+                              (characteristic_curves%saturation_function% &
+                              Sgt_max + characteristic_curves% &
+                              saturation_function%Sgt_max * &
+                              sco2_auxvar%sat(tgid) - sco2_auxvar%sat(tgid))
+      else
+        sco2_auxvar%sl_min = 0.d0
+      endif
+    else
+      option%io_buffer = 'Modeling gas trapping requires defining &
+                          &MAX_TRAPPED_GAS_SAT with a supported &
+                          &CHARACTERISTIC_CURVE.'
+      call PrintErrMsg(option)
+    endif
+  elseif (global_auxvar%istate /= SCO2_GAS_STATE) then
     select type(sf => characteristic_curves%saturation_function)
       class is (sat_func_vg_stomp_type)
         capillary_head = max(beta_gl * sco2_auxvar%pres(cpid) / &

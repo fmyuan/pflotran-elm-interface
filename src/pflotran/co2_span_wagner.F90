@@ -1463,7 +1463,7 @@ subroutine vappr(tm,ps,dertp,derpt,ifl1)
           f = log(ps/pc)-(ps1/(1.d0-nu))
           df=-(ps1+(ps2*(1.d0-nu)))/((1.d0-nu)**2)
           dnu=f/df
-          nu=nu-dnu
+          nu=max(0.d0,nu-dnu)
           if (dabs(dnu).lt.xacc) goto 10
         enddo
  10     continue

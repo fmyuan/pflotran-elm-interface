@@ -95,15 +95,7 @@ recursive subroutine PMCThirdPartyRunToTime(this,sync_time,stop_flag)
 
   if (stop_flag == TS_STOP_FAILURE) return
 
-  if (StringCompare(this%name,'PMCWell')) then
-    ! If well is fully implicitly coupled, it does not
-    ! take its own time step.
-    if (.not. this%option%coupled_well) then
-      call this%PrintHeader()
-      this%option%io_buffer = trim(this%name)
-      call PrintVerboseMsg(this%option)
-    endif
-  else
+  if (this%print_header) then
     call this%PrintHeader()
     this%option%io_buffer = trim(this%name)
     call PrintVerboseMsg(this%option)

@@ -2290,7 +2290,7 @@ subroutine PMWellSetup(this)
         if (this%well_grid%casing(index) < 5.d-1) then
           string = 'CASED'
         else
-          string = 'UNCASED'
+          string = 'SCREENED'
         endif
         write(fid,'(a)',advance="no") trim(string)
         write(fid,110,advance="no") this%well_grid%h(index)%x
@@ -3056,12 +3056,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                     select case(word)
                       case('CASED')
                         temp_casing(nsegments) = PETSC_TRUE
-                      case('UNCASED')
+                      case('UNCASED','SCREENED','PERFORATED')
                         temp_casing(nsegments) = PETSC_FALSE
                       case default
                         option%io_buffer = "Error in constructing &
                             &WELL_TRAJECTORY: please specify &
-                            &whether each segment is CASED or UNCASED."
+                            &whether each segment is CASED or SCREENED/UNCASED."
                         call PrintErrMsg(option)
                     end select
                     allocate(deviated_well_segment%casing(nsegments))
@@ -3116,12 +3116,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3156,12 +3156,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3183,12 +3183,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3211,12 +3211,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3243,12 +3243,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -9587,7 +9587,10 @@ subroutine PMWellComputeWellIndex(pm_well)
     case(PEACEMAN_NONE)
       do k = 1,pm_well%well_grid%nsegments
         ! Assume a vertical well
-        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k))
+        ! Assume connection between segment and reservoir has height
+        ! this%well_grid%dh(k)
+        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k)) * &
+                             pm_well%well_grid%dh(k)
       enddo
   end select
 

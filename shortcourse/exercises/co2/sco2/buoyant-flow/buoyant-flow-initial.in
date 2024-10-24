@@ -1,0 +1,206 @@
+# 1D buoyant flow CO2 short course example, 
+# based off of STOMP CO2 Example Problem CO2-2.
+# Initial run.
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+    /
+  /
+
+CHECKPOINT
+  FORMAT HDF5
+/
+
+END
+
+SUBSURFACE
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+  END
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  END
+
+  TIMESTEPPER flow
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
+  END
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED CARTESIAN
+  GRAVITY 0.d0 0.d0 -9.81d0
+  NXYZ 1 1 100
+  DXYZ  
+    25.d0
+    1@1.d0
+    100@5.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE ../../../../../database/co2_sw.dat
+  HENRYS_CONSTANT DEFAULT
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.35 
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 
+  THERMAL_CONDUCTIVITY_WET 2.18d0 
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VG_STOMP
+    ALPHA 5.d-1
+    N 1.84162
+    OVEN_DRIED_CAP_HEAD 102108.2d0
+    LIQUID_RESIDUAL_SATURATION 0.d0 
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.457
+    LIQUID_RESIDUAL_SATURATION 0.3
+  /
+  PERMEABILITY_FUNCTION MODIFIED_COREY_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.3
+    GAS_RESIDUAL_SATURATION 0.05
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 3.d3 y
+  INITIAL_TIMESTEP_SIZE 1.d3 s 
+  MAXIMUM_TIMESTEP_SIZE 1.d3 y
+END
+
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d5 1.d5 1.d5
+  /
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0  500.d0 
+    25.d0 1.d0 500.d0 
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0  0.d0
+    25.d0 1.d0 0.d0 
+  /
+END
+
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0.d0 0.d0 500.d0
+  LIQUID_PRESSURE 1.d7
+  GRADIENT
+    TEMPERATURE 0.d0 0.d0 -0.02
+  /
+  TEMPERATURE 45.d0
+  CO2_MASS_FRACTION 0.d0 
+  SALT_MASS_FRACTION 0.d0
+END
+
+FLOW_CONDITION bottom
+  TYPE
+    LIQUID_FLUX NEUMANN
+    GAS_FLUX NEUMANN
+    SALT_MASS DIRICHLET
+    ENERGY_FLUX NEUMANN
+  /
+  LIQUID_FLUX 0.d0
+  GAS_FLUX 0.d0
+  SALT_MASS 0.d0
+  ENERGY_FLUX 0.02 W/m^2
+END
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION bottom
+  REGION bottom
+END
+
+BOUNDARY_CONDITION top 
+  FLOW_CONDITION initial
+  REGION top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE

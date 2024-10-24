@@ -750,6 +750,8 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   PetscReal :: cell_pressure, scale
 
   PetscReal :: Res_dummy(realization%option%nflowdof)
+
+  PetscReal :: liquid_rate, gas_rate, co2_fraction
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -881,10 +883,17 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                   xxbc(idof) = boundary_condition% &
                         flow_aux_real_var(real_index,iconn)
                 case(DIRICHLET_BC)
+                  if (idof == SCO2_SALT_MASS_FRAC_DOF) then
+                    real_index = boundary_condition% &
+                      flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition% &
+                      flow_aux_real_var(real_index,iconn)
+                  else
                     option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" not fully supported yet for SCO2 Mode.'
                     call PrintErrMsg(option)
+                  endif
                 case(NEUMANN_BC)
                 case default
                   option%io_buffer = 'Unknown BC type in SCO2UpdateAuxVars().'
@@ -1205,10 +1214,35 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             cur_well%well%th_ql = 0.d0
             cur_well%well%th_qg = 0.d0
           else
-            cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset% &
-                                  rarray(1)
-            cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset% &
-                                  rarray(2)
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+            if (associated(well_flow_condition%sco2%co2_mass_fraction)) then
+              liquid_rate = well_flow_condition%sco2%rate%dataset%rarray(1)
+              co2_fraction = well_flow_condition%sco2%co2_mass_fraction% &
+                             dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    liquid_rate  * (1.d0 - co2_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    liquid_rate  * co2_fraction
+            else
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    well_flow_condition%sco2%rate%dataset% &
+                                    rarray(1)
+            endif
+            if (associated(well_flow_condition%sco2%relative_humidity)) then
+              gas_rate = well_flow_condition%sco2%rate%dataset% &
+                         rarray(2)
+              co2_fraction = 1.d0 - well_flow_condition%sco2% &
+                             relative_humidity%dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    gas_rate  * (1.d0 - co2_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    gas_rate  * co2_fraction
+            else
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    well_flow_condition%sco2%rate%dataset% &
+                                    rarray(2)
+            endif
             cur_well%well%total_rate = 999.d0
           endif
         endif

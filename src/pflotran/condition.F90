@@ -95,6 +95,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_saturation
     type(flow_sub_condition_type), pointer :: gas_saturation
     type(flow_sub_condition_type), pointer :: co2_mass_fraction
+    type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: salt_mass
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: rate
@@ -419,6 +420,7 @@ function FlowSCO2ConditionCreate(option)
   nullify(sco2_condition%liquid_saturation)
   nullify(sco2_condition%gas_saturation)
   nullify(sco2_condition%co2_mass_fraction)
+  nullify(sco2_condition%relative_humidity)
   nullify(sco2_condition%salt_mass)
   nullify(sco2_condition%temperature)
   nullify(sco2_condition%liquid_flux)
@@ -731,7 +733,7 @@ function FlowSCO2SubConditionPtr(input,sub_condition_name,sco2, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         sco2%gas_saturation => sub_condition_ptr
       endif
-    case('CO2_PRESSURE')
+    case('CO2_PRESSURE','CO2_PARTIAL_PRESSURE')
       if (associated(sco2%co2_pressure)) then
          sub_condition_ptr => sco2%co2_pressure
       else
@@ -751,6 +753,13 @@ function FlowSCO2SubConditionPtr(input,sub_condition_name,sco2, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         sco2%co2_mass_fraction => sub_condition_ptr
+      endif
+    case('RELATIVE_HUMIDITY')
+      if (associated(sco2%relative_humidity)) then
+        sub_condition_ptr => sco2%relative_humidity
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        sco2%relative_humidity => sub_condition_ptr
       endif
     case('SALT_MASS_FRACTION','SALT_MASS')
       if (associated(sco2%salt_mass)) then
@@ -2801,7 +2810,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('LIQUID_PRESSURE','GAS_PRESSURE', 'CO2_PRESSURE', &
-           'CO2_PARTIAL_PRESSURE','LIQUID_SATURATION', &
+           'CO2_PARTIAL_PRESSURE','RELATIVE_HUMIDITY','LIQUID_SATURATION', &
            'GAS_SATURATION','CO2_MASS_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX', &
            'SALT_MASS_FRACTION','SALT_MASS', 'TEMPERATURE', &
@@ -2814,7 +2823,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
                'CO2_PARTIAL_PRESSURE')
             internal_units = 'Pa'
           case('LIQUID_SATURATION','GAS_SATURATION','SALT_MASS_FRACTION', &
-                'CO2_MASS_FRACTION','SALT_MOLE_FRACTION')
+                'CO2_MASS_FRACTION','SALT_MOLE_FRACTION','RELATIVE_HUMIDITY')
             internal_units = 'unitless'
           case('TEMPERATURE')
             internal_units = 'C'
@@ -2888,9 +2897,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
             &gas pressure, or gas/liquid saturation.'
         call PrintErrMsg(option)
       endif
-      if (sco2_thermal .and. .not.associated(sco2%temperature)) then
+      if (sco2_thermal .and. (.not.associated(sco2%temperature) .and. &
+          .not.associated(sco2%energy_flux))) then
           option%io_buffer = 'SCO2 Mode non-rate condition must include &
-            &a temperature'
+            &a temperature or energy flux'
         call PrintErrMsg(option)
       endif
       if (.not.associated(sco2%salt_mass)) then
@@ -2959,6 +2969,11 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,sco2%co2_mass_fraction, &
                               default_time_storage, &
                               PETSC_TRUE)
+  word = 'relative humidity'
+  call FlowSubConditionVerify(option,condition,word,sco2%relative_humidity, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+
   word = 'salt mass'
   call FlowSubConditionVerify(option,condition,word,sco2%salt_mass, &
                               default_time_storage, &
@@ -2995,6 +3010,8 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   if (associated(sco2%gas_saturation)) &
     i = i + 1
   if (associated(sco2%co2_mass_fraction)) &
+    i = i + 1
+  if (associated(sco2%relative_humidity)) &
     i = i + 1
   if (associated(sco2%salt_mass)) &
     i = i + 1
@@ -3033,6 +3050,10 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   if (associated(sco2%co2_mass_fraction)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => sco2%co2_mass_fraction
+  endif
+  if (associated(sco2%relative_humidity)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => sco2%relative_humidity
   endif
   if (associated(sco2%salt_mass)) then
     i = i + 1
