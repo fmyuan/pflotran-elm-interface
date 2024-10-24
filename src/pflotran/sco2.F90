@@ -1029,18 +1029,29 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             if (.not. associated(cur_well)) exit
             do well_seg = 1,cur_well%well_grid%nsegments
               if (cur_well%well_grid%h_ghosted_id(well_seg) == ghosted_id) then
+                ! if (associated(cur_well%well%liq%Q)) then
+                !   source_sink%flow_condition%well%aux_real(1) = -1.d0 * &
+                !                                     cur_well%well%liq%Q(well_seg)
+                !   source_sink%flow_condition%well%aux_real(2) = 0.d0
+                ! endif
                 if (associated(cur_well%well%gas%Q)) then
                   ! MAN: This is for RT coupling. I think we only need a source
                   ! term if no free gas phase is present. Otherwise, RT computes
                   ! equilibrium dissolved gas concentration.
                   if (global_auxvars(ghosted_id)%istate == &
-                      SCO2_LIQUID_STATE) then
-                    source_sink%flow_condition%well%aux_real(2) = -cur_well% &
-                                                           well%gas%Q(well_seg)
+                      SCO2_LIQUID_STATE .and. &
+                      cur_well%well%gas%Q(well_seg) < 0.d0) then
+                    source_sink%flow_condition%well%aux_real(2) = -1.d0 * &
+                                                  cur_well%well%gas%Q(well_seg)
                     source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  ! elseif (cur_well%well%liq%Q(well_seg) > 0.d0) then
+                  !   ! Extracting and two-phase
+                  !   source_sink%flow_condition%well%aux_real(2) = &
+                  !          -1.d0 *cur_well%well%liq%Q(well_seg) * &
+                  !          sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(gid,lid)
+                  !   source_sink%flow_condition%well%aux_real(1) = 0.d0
                   else
-                    source_sink%flow_condition%well%aux_real(2) = 0.d0
-                    source_sink%flow_condition%well%aux_real(1) = 0.d0
+                    source_sink%flow_condition%well%aux_real(:) = 0.d0
                   endif
                 endif
               endif
@@ -1701,10 +1712,15 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                 if (trim(srcsink_name) == trim(source_sink%name)) then
                   sum_connection = sum_connection + 1
                   if (associated(patch%ss_flow_vol_fluxes)) then
+                    ! MAN: This isn't quite right for production wells, which
+                    ! are component source/sinks. Injection is fine for now,
+                    ! since injecting pure phase.
                     patch%ss_flow_vol_fluxes(ONE_INTEGER,sum_connection) = &
-                                       -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                                    -1.d0 * cur_well%well%liq%Q(k) / &
+                                    cur_well%well%liq%den(k) ! [m^3/s]
                     patch%ss_flow_vol_fluxes(TWO_INTEGER,sum_connection) = &
-                                       -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                                    -1.d0 * cur_well%well%gas%Q(k) / &
+                                    cur_well%well%gas%den(k) ! [m^3/s]
                   endif
                   if (option%compute_mass_balance_new) then
                     global_auxvars_ss(sum_connection)%mass_balance_delta(wid,1) = &
