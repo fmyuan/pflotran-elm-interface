@@ -108,6 +108,8 @@ module PM_Fracture_class
     type(fracfam_type), pointer :: fracfam_list
     ! list of all global cell ids that contain fractures (some repeated)
     PetscInt, pointer :: allfrac_cell_ids(:)
+    ! list of all global cell ids that contain fractures (unique)
+    PetscInt, pointer :: allfrac_unique_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
     PetscInt, pointer :: frac_common_cell_ids(:)
     ! maximum fracture perm at global cell ids
@@ -174,6 +176,7 @@ function PMFractureCreate()
   nullify(this%fracture_list)
   nullify(this%fracfam_list)
   nullify(this%allfrac_cell_ids)
+  nullify(this%allfrac_unique_cell_ids)
   nullify(this%frac_common_cell_ids)
   nullify(this%max_frac_kx)
   nullify(this%max_frac_ky)
@@ -337,8 +340,9 @@ subroutine PMFracSetup(this)
   character(len=MAXWORDLENGTH) :: word
   PetscInt, pointer :: temp_cell_ids(:)
   PetscInt, pointer :: temp_allfrac_cell_ids(:)
+  PetscInt, pointer :: temp_allfrac_unique_cell_ids(:)
   PetscInt, pointer :: temp_frac_common_cell_ids(:)
-  PetscInt :: k,j
+  PetscInt :: k,j,i
   PetscInt :: nf,tfc,read_max
   PetscReal :: D,distance
   PetscReal :: min_x,max_x,min_y,max_y,min_z,max_z
@@ -567,7 +571,24 @@ subroutine PMFracSetup(this)
     enddo
     allocate(this%frac_common_cell_ids(j))
     this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
-  deallocate(temp_frac_common_cell_ids)
+    deallocate(temp_frac_common_cell_ids)
+
+    allocate(temp_allfrac_unique_cell_ids(tfc))
+    temp_allfrac_unique_cell_ids(:) = 0
+    j = 1 
+    temp_allfrac_unique_cell_ids(1) = this%allfrac_cell_ids(1)
+    do i=2,tfc 
+        ! if the number already exists in temp check next
+        if (any( temp_allfrac_unique_cell_ids == &
+                 this%allfrac_cell_ids(i) )) cycle
+        ! No match found so add it to the output
+        j = j + 1
+        temp_allfrac_unique_cell_ids(j) = this%allfrac_cell_ids(i)
+    enddo
+    allocate(this%allfrac_unique_cell_ids(j))
+    this%allfrac_unique_cell_ids(1:j) = temp_allfrac_unique_cell_ids(1:j)
+    deallocate(temp_allfrac_unique_cell_ids)
+
   endif
 
   if (.not.associated(this%realization%reaction)) then
@@ -691,9 +712,9 @@ subroutine PMFracInitializeRun(this)
     cur_fracture => cur_fracture%next
   enddo
 
-  if (associated(this%allfrac_cell_ids)) then
-    do k = 1,size(this%allfrac_cell_ids)
-      icell = this%allfrac_cell_ids(k)
+  if (associated(this%allfrac_unique_cell_ids)) then
+    do k = 1,size(this%allfrac_unique_cell_ids)
+      icell = this%allfrac_unique_cell_ids(k)
       material_auxvar => &
           this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
       perm0_xx_p(icell) = material_auxvar%permeability(1)
@@ -1491,6 +1512,120 @@ end subroutine PMFracReadPass2
 
 ! ************************************************************************** !
 
+subroutine GetRndNumFromNormalDist_N(mean,st_dev,number,fracfamnum,seed)
+  !
+  ! Based on the routine of the same name in utility.F90.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 10/24/2024
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: mean, st_dev, number
+  PetscInt :: fracfamnum, seed, f
+
+  PetscBool :: switch
+  PetscReal, save :: n0, n1
+  PetscReal :: nu1, nu2
+  PetscReal :: TWO_PI
+
+  switch = mod(fracfamnum, 2) == 0 
+  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
+
+  if (.not.switch) then
+    ! Generate two random numbers between (0,1)
+    do f=1,seed
+      nu1 = rnd()
+      nu2 = rnd()
+    enddo
+    n0 = sqrt(-2.0*log(nu1)) * cos(TWO_PI*nu2)
+    n1 = sqrt(-2.0*log(nu1)) * sin(TWO_PI*nu2)
+    number = n0*st_dev + mean
+  else
+    number = n1*st_dev + mean
+  endif
+
+end subroutine GetRndNumFromNormalDist_N
+
+! ************************************************************************** !
+
+subroutine GetRndNumFromNormalDist_C(mean,st_dev,number,seed)
+  !
+  ! Based on the routine of the same name in utility.F90.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 10/24/2024
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: mean, st_dev, number
+  PetscInt :: seed, f
+
+  PetscBool, save :: switch
+  PetscReal, save :: z0, z1
+  PetscReal :: u1, u2
+  PetscReal :: TWO_PI
+
+  switch = .not.switch
+  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
+
+  if (.not.switch) then
+    ! Generate two random numbers between (0,1)
+    do f=1,seed
+      u1 = rnd()
+      u2 = rnd()
+    enddo
+    z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
+    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2)
+    number = z0*st_dev + mean
+  else
+    number = z1*st_dev + mean
+  endif
+
+end subroutine GetRndNumFromNormalDist_C
+
+! ************************************************************************** !
+
+subroutine GetRndNumFromNormalDist_R(mean,st_dev,number,seed)
+  !
+  ! Based on the routine of the same name in utility.F90.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 10/24/2024
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: mean, st_dev, number
+  PetscInt :: seed, f
+
+  PetscBool, save :: switch
+  PetscReal, save :: z0, z1
+  PetscReal :: u1, u2
+  PetscReal :: TWO_PI
+
+  switch = .not.switch
+  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
+
+  if (.not.switch) then
+    ! Generate two random numbers between (0,1)
+    do f=1,seed
+      u1 = rnd()
+      u2 = rnd()
+    enddo
+    z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
+    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2)
+    number = z0*st_dev + mean
+  else
+    number = z1*st_dev + mean
+  endif
+
+end subroutine GetRndNumFromNormalDist_R
+
+! ************************************************************************** !
+
 subroutine PMFracGenerateFracFam(fracfam)
   !
   ! Generates fractures based on the information about a fracture family.
@@ -1515,25 +1650,25 @@ subroutine PMFracGenerateFracFam(fracfam)
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
     new_fracture%max_distance = fracfam%max_distance
 
-    call GetRndNumFromNormalDist(fracfam%center%x,fracfam%center_stdev%x, &
+    call GetRndNumFromNormalDist_C(fracfam%center%x,fracfam%center_stdev%x, &
       new_fracture%center%x,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%center%y,fracfam%center_stdev%y, &
+    call GetRndNumFromNormalDist_C(fracfam%center%y,fracfam%center_stdev%y, &
       new_fracture%center%y,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%center%z,fracfam%center_stdev%z, &
+    call GetRndNumFromNormalDist_C(fracfam%center%z,fracfam%center_stdev%z, &
       new_fracture%center%z,(fracfam%center_seed + fracfam%nfrac_in_fam))
 
-    call GetRndNumFromNormalDist(fracfam%normal%x,fracfam%normal_stdev%x, &
-      new_fracture%normal%x,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%normal%y,fracfam%normal_stdev%y, &
-      new_fracture%normal%y,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%normal%z,fracfam%normal_stdev%z, &
-      new_fracture%normal%z,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    call GetRndNumFromNormalDist_N(fracfam%normal%x,fracfam%normal_stdev%x, &
+      new_fracture%normal%x,fracfam%nfrac_in_fam,fracfam%normal_seed)
+    call GetRndNumFromNormalDist_N(fracfam%normal%y,fracfam%normal_stdev%y, &
+      new_fracture%normal%y,fracfam%nfrac_in_fam,fracfam%normal_seed)
+    call GetRndNumFromNormalDist_N(fracfam%normal%z,fracfam%normal_stdev%z, &
+      new_fracture%normal%z,fracfam%nfrac_in_fam,fracfam%normal_seed)
 
-    call GetRndNumFromNormalDist(fracfam%radius%x,fracfam%radius_stdev%x, &
+    call GetRndNumFromNormalDist_R(fracfam%radius%x,fracfam%radius_stdev%x, &
       new_fracture%radx,(fracfam%radius_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%radius%y,fracfam%radius_stdev%y, &
+    call GetRndNumFromNormalDist_R(fracfam%radius%y,fracfam%radius_stdev%y, &
       new_fracture%rady,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%radius%z,fracfam%radius_stdev%z, &
+    call GetRndNumFromNormalDist_R(fracfam%radius%z,fracfam%radius_stdev%z, &
       new_fracture%radz,(fracfam%normal_seed + fracfam%nfrac_in_fam))
     new_fracture%radx = abs(new_fracture%radx)  ! ensures radius is positive
     new_fracture%rady = abs(new_fracture%rady)  ! ensures radius is positive
@@ -1543,6 +1678,14 @@ subroutine PMFracGenerateFracFam(fracfam)
       new_fracture%hap0,(fracfam%hap0_seed + fracfam%nfrac_in_fam))
     new_fracture%hap0 = abs(new_fracture%hap0)  ! ensures hap0 is positive
     new_fracture%hap0 = min(new_fracture%hap0,fracfam%hap0_max)
+
+    write(*,*) 'Fracture ID', new_fracture%id
+    write(*,*) 'fracture family normal%x =', fracfam%normal%x
+    write(*,*) '   new fracture normal%x =', new_fracture%normal%x 
+    write(*,*) 'fracture family normal%y =', fracfam%normal%y
+    write(*,*) '   new fracture normal%y =', new_fracture%normal%y 
+    write(*,*) 'fracture family normal%z =', fracfam%normal%z 
+    write(*,*) '   new fracture normal%z =', new_fracture%normal%z 
 
     !------ add fracture to list -------------------------
     if (.not.associated(fracfam%fracture_list)) then
@@ -1744,9 +1887,9 @@ subroutine PMFracSolve(this,time,ierr)
   enddo
 
   ! update domain material permeability of cells with fractures
-  if (associated(this%allfrac_cell_ids)) then
-    do k = 1,size(this%allfrac_cell_ids)
-      icell = this%allfrac_cell_ids(k)
+  if (associated(this%allfrac_unique_cell_ids)) then
+    do k = 1,size(this%allfrac_unique_cell_ids)
+      icell = this%allfrac_unique_cell_ids(k)
       if (this%frac_intersection_type == 2) then ! maximum
         perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
         perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
@@ -1761,9 +1904,9 @@ subroutine PMFracSolve(this,time,ierr)
   endif
 
   if (this%update_material_auxvar_perm) then
-    if (associated(this%allfrac_cell_ids)) then
-      do k = 1,size(this%allfrac_cell_ids)
-        icell = this%allfrac_cell_ids(k)
+    if (associated(this%allfrac_unique_cell_ids)) then
+      do k = 1,size(this%allfrac_unique_cell_ids)
+        icell = this%allfrac_unique_cell_ids(k)
         material_auxvar => &
           this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
         material_auxvar%permeability(1) = perm0_xx_p(icell)
@@ -1800,6 +1943,9 @@ subroutine PMFracDestroy(this)
 
   if (associated(this%allfrac_cell_ids)) then
     call DeallocateArray(this%allfrac_cell_ids)
+  endif
+  if (associated(this%allfrac_unique_cell_ids)) then
+    call DeallocateArray(this%allfrac_unique_cell_ids)
   endif
   if (associated(this%frac_common_cell_ids)) then
     call DeallocateArray(this%frac_common_cell_ids)
