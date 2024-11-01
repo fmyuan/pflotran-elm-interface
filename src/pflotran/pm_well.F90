@@ -9591,7 +9591,10 @@ subroutine PMWellComputeWellIndex(pm_well)
     case(PEACEMAN_NONE)
       do k = 1,pm_well%well_grid%nsegments
         ! Assume a vertical well
-        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k))
+        ! Assume connection between segment and reservoir has height
+        ! this%well_grid%dh(k)
+        pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k)) * &
+                             pm_well%well_grid%dh(k)
       enddo
   end select
 
