@@ -9594,7 +9594,7 @@ subroutine PMWellComputeWellIndex(pm_well)
         ! Assume connection between segment and reservoir has height
         ! this%well_grid%dh(k)
         pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k)) * &
-                             this%well_grid%dh(k)
+                             pm_well%well_grid%dh(k)
       enddo
   end select
 
