@@ -988,6 +988,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: dP, dsg, Pc_max, Psb, Pvb, rho_b, Pc, Pc_entry
   PetscReal :: xsl
   PetscReal, parameter :: epsilon = 1.d-14
+  PetscReal, parameter :: delta = 1.d-5
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
   field => this%realization%field
@@ -1052,10 +1053,12 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           endif
           if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) < 0.d0) &
              dX_p(co2_frac_index) = - X_p(co2_frac_index)
+          if ((X_p(co2_frac_index) + dX_p(co2_frac_index)) > 1.d0) &
+             dX_p(co2_frac_index) = 1.d0 - X_p(co2_frac_index)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif
@@ -1153,7 +1156,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif
@@ -1218,7 +1221,7 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
           ! Limit salt mass fraction changes to 0.25 of max
           call SCO2SaltSolubility(sco2_auxvar%temp,xsl)
-          if (X_p(salt_index) < xsl ) THEN
+          if (X_p(salt_index) < xsl ) then
             dX_p(salt_index) = sign(min(dabs(2.5d-1*xsl), &
                                dabs(dX_p(salt_index))), dX_p(salt_index))
           endif
@@ -1335,6 +1338,57 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                     (cur_well%well%bh_p - X_p(well_index))
                 endif
               endif
+
+              ! Check whether the well should be pressure- or rate-controlled
+              ! Check to see if we flip from pressure to rate-controlled
+              if (cur_well%pressure_controlled) then
+                if (cur_well%well%total_rate < 0.d0) then
+                  ! production well
+                  if ((sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       dabs(cur_well%well%total_rate) * (1.d0 + delta)) then
+                    ! Pressure is too low, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                    sco2_force_ts_cut = PETSC_TRUE
+                  endif
+                elseif (cur_well%well%th_qg > 0.d0) then
+                  if (dabs(sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       cur_well%well%th_qg * (1.d0 + delta)) then
+                    ! Pressure is too high, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                    sco2_force_ts_cut = PETSC_TRUE
+                  endif
+                elseif (cur_well%well%th_ql > 0.d0) then
+                  if (dabs(sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       cur_well%well%th_ql * (1.d0 + delta)) then
+                    ! Pressure is too high, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                    sco2_force_ts_cut = PETSC_TRUE
+                  endif
+                endif
+              else
+                if ((X_p(well_index) + dX_p(well_index)) > &
+                    cur_well%pressure_threshold_max) then
+                  ! Hit the fracture pressure threshold
+                  cur_well%pressure_controlled = PETSC_TRUE
+                  dX_p(well_index) = cur_well%pressure_threshold_max - &
+                                     X_p(well_index)
+                  sco2_force_ts_cut = PETSC_TRUE
+                elseif ((X_p(well_index) + dX_p(well_index)) < &
+                        cur_well%pressure_threshold_min) then
+                  ! Hit the min pressure threshold
+                  cur_well%pressure_controlled = PETSC_TRUE
+                  dX_p(well_index) = cur_well%pressure_threshold_min - &
+                                     X_p(well_index)
+                  sco2_force_ts_cut = PETSC_TRUE
+                endif
+              endif
+
               ! dX_p(well_index) = dX_p(well_index) + sco2_auxvar%well%pressure_bump
               ! sco2_auxvar%well%pressure_bump = 0.d0
             endif
@@ -1649,6 +1703,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   use Patch_module
   use Option_module
   use String_module
+  use PM_Well_class
 
   implicit none
 
@@ -1668,6 +1723,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
   type(sco2_auxvar_type) :: sco2_auxvar
+  class(pm_well_type), pointer :: cur_well
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscReal, pointer :: dX_p(:)
@@ -2115,6 +2171,9 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr);CHKERRQ(ierr)
 
+    call MPI_Allreduce(MPI_IN_PLACE,sco2_force_ts_cut,ONE_INTEGER, &
+                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
+
     this%converged_flag = reshape(flags(1:MAX_DOF*sco2_max_states* &
                                   MAX_INDEX),(/MAX_DOF, &
                                   sco2_max_states,MAX_INDEX/))
@@ -2231,6 +2290,22 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     !   call PrintMsg(option,string)
     !   option%convergence = CONVERGENCE_CUT_TIMESTEP
     ! endif
+
+    if (sco2_force_ts_cut) then
+      if (associated(this%pmwell_ptr)) then
+        cur_well => this%pmwell_ptr
+        do
+          if (.not. associated(cur_well)) exit
+          call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
+                         cur_well%well_grid%h_rank_id(1),cur_well%option%mycomm, &
+                         ierr); CHKERRQ(ierr)
+          cur_well => cur_well%next_well
+        enddo
+      endif
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
+      sco2_force_ts_cut = PETSC_FALSE
+    endif
+
     if (sco2_sub_newton_iter_num > 20) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
