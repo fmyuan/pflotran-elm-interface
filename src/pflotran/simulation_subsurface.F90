@@ -113,12 +113,12 @@ subroutine SimSubsurfInit(this,driver,option)
   class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
+  this%option => option
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfInit()')
 #endif
 
   call SimulationBaseInit(this,driver)
-  this%option => option
   this%output_option => OutputOptionCreate()
   nullify(this%process_model_coupler_list)
   nullify(this%process_model_list)

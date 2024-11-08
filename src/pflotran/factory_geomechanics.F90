@@ -201,7 +201,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
                       PETSC_TRUE,ierr);CHKERRQ(ierr)
     nullify(simulation%process_model_coupler_list)
   endif
-
   ! sim_aux: Create PETSc Vectors and VectorScatters
   if (option%ngeomechdof > 0) then
 
