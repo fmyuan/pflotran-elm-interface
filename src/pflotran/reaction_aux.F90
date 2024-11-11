@@ -36,6 +36,7 @@ module Reaction_Aux_module
     PetscInt :: h_ion_id
     PetscInt :: na_ion_id
     PetscInt :: cl_ion_id
+    PetscInt :: pri_co2_id
     PetscInt :: co2_aq_id
     PetscInt :: tracer_aq_id
     PetscInt :: co2_gas_id
@@ -591,6 +592,7 @@ function ReactionAuxCreateAqSpeciesIndex()
   species_idx%h_ion_id = 0
   species_idx%na_ion_id = 0
   species_idx%cl_ion_id = 0
+  species_idx%pri_co2_id = 0
   species_idx%co2_aq_id = 0
   species_idx%tracer_aq_id = 0
   species_idx%co2_gas_id = 0

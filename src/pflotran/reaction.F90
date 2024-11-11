@@ -69,7 +69,8 @@ module Reaction_module
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
             RTotalSorb, &
-            RCO2MoleFraction
+            RCO2MoleFraction, &
+            RCalculateSCO2Solubility
 
 contains
 
@@ -870,6 +871,8 @@ subroutine ReactionReadPass1(reaction,input,option)
         reaction%stop_on_rreact_failure = PETSC_FALSE
       case('USE_TOTAL_CONCENTRATION_AS_GUESS')
         reaction%use_total_as_guess = PETSC_TRUE
+      case('DECOUPLE_CO2')
+        option%transport%force_decouple_co2 = PETSC_TRUE
 
       case default
         call InputKeywordUnrecognized(input,word,'CHEMISTRY',option)
@@ -1070,7 +1073,8 @@ subroutine ReactionReadPass2(reaction,input,option)
       case('MOLAL','MOLALITY', &
             'UPDATE_POROSITY','UPDATE_TORTUOSITY', &
             'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA', &
-            'NO_RESTART_MINERAL_VOL_FRAC','USE_FULL_GEOCHEMISTRY')
+            'NO_RESTART_MINERAL_VOL_FRAC','USE_FULL_GEOCHEMISTRY', &
+           'DECOUPLE_CO2')
         ! dummy placeholder
     end select
   enddo
@@ -1349,16 +1353,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! Date: 10/22/08
   !
   use Option_module
+  use Option_Transport_module
   use Input_Aux_module
   use String_module
   use Utility_module
   use Transport_Constraint_RT_module
   use EOS_Water_module
   use Material_Aux_module
-
-  ! CO2-specific
-  use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
 
   implicit none
 
@@ -1402,7 +1403,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: constraint_id(reaction%naqcomp)
   PetscReal :: lnQK, QK
   PetscReal :: tempreal
-  PetscReal :: pres, tc, xphico2, henry, m_na, m_cl, xmass
+  PetscReal :: xmass
   PetscInt :: comp_id
   PetscReal :: convert_molal_to_molar
   PetscReal :: convert_molar_to_molal
@@ -1411,6 +1412,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscBool :: use_log_formulation
   PetscInt :: io2gas
   PetscReal :: eh, pe
+  PetscReal :: gas_solubility
   PetscBool :: flag
 
   PetscInt :: iphase
@@ -1419,12 +1421,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: irate
 
   PetscInt :: num_it_act_coef_turned_on
-
-  ! CO2-specific
-  PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
-               yco2,pco2,sat_pressure,lngamco2
-  PetscInt :: iflag, ierror
-  PetscErrorCode :: ierr
+  PetscInt :: ierror
 
   if (.not.associated(constraint%aqueous_species)) return
 
@@ -1616,8 +1613,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == SCO2_MODE) then
+      if (option%transport%couple_co2) then
         call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
       endif
     endif
@@ -1833,79 +1829,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           ! compute secondary species concentration
           if (abs(reaction%species_idx%co2_gas_id) == igas) then
 
-!           pres = global_auxvar%pres(2)
-            pres = conc(icomp)*1.D5
-            global_auxvar%pres(2) = pres
+            global_auxvar%pres(2) = conc(icomp)*1.d5
+            call RCalculateSCO2Solubility(rt_auxvar,global_auxvar,reaction, &
+                                          gas_solubility,option)
 
-            tc = global_auxvar%temp
-
-            call EOSWaterSaturationPressure(tc, sat_pressure, ierr)
-
-            pco2 = conc(icomp)*1.e5
-!           pco2 = pres - sat_pressure
-
-            pres = pco2 + sat_pressure
-            yco2 = pco2/pres
-
-            iflag = 1
-            call co2_span_wagner(pres*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
-
-!            call co2_span_wagner(pco2*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-!              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,co2_sw_itable)
-
-            global_auxvar%den_kg(2) = dg
-
-            !compute fugacity coefficient
-            fg = fg*1.D6
-            xphico2 = fg / pres
-            global_auxvar%fugacoeff(1) = xphico2
-
-            m_na = 0.d0
-            m_cl = 0.d0
-            if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
-              m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
-              m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
-!              call Henry_duan_sun(tc,pco2*1D-5,henry,lngamco2,m_na,m_cl)
-              call Henry_duan_sun(tc,pres*1D-5,henry,lngamco2,m_na,m_cl)
-            else
-              call Henry_duan_sun(tc,pres*1D-5,henry,lngamco2, &
-                option%m_nacl,option%m_nacl)
-             !   print *, 'SC: mnacl=', option%m_nacl,'stioh2o=',reaction%gas%paseqh2ostoich(igas)
-            endif
-
-            lnQk = -log(xphico2*henry)-lngamco2
-
-            reaction%gas%paseqlogK(igas) = -lnQK*LN_TO_LOG
-!           reaction%scco2_eq_logK = -lnQK*LN_TO_LOG
-!geh: scco2_eq_logK is only used in one location.  Why add to global_auxvar???
-!geh            global_auxvar%scco2_eq_logK = -lnQK*LN_TO_LOG
-
-            ! activity of water
-            if (reaction%gas%paseqh2oid(igas) > 0) then
-              lnQK = lnQK + reaction%gas%paseqh2ostoich(igas)*rt_auxvar%ln_act_h2o
-            endif
-            do jcomp = 1, reaction%gas%paseqspecid(0,igas)
-              comp_id = reaction%gas%paseqspecid(jcomp,igas)
-              lnQK = lnQK + reaction%gas%paseqstoich(jcomp,igas)* &
-!                log(rt_auxvar%pri_molal(comp_id))
-               log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
-!                print *,'SC: ',rt_auxvar%pri_molal(comp_id), &
-!                  rt_auxvar%pri_act_coef(comp_id),exp(lngamco2)
-            enddo
-
-!           QK = exp(lnQK)
-
-            Res(icomp) = lnQK - log(pco2*1D-5) ! gas pressure bars
+            Res(icomp) = rt_auxvar%pri_molal(icomp) - gas_solubility
             Jac(icomp,:) = 0.d0
-            do jcomp = 1,reaction%gas%paseqspecid(0,igas)
-              comp_id = reaction%gas%paseqspecid(jcomp,igas)
-!             Jac(icomp,comp_id) = QK/auxvar%primary_spec(comp_id)* &
-!                                reaction%gas%paseqstoich(jcomp,igas)
-              Jac(icomp,comp_id) = reaction%gas%paseqstoich(jcomp,igas)/ &
-                rt_auxvar%pri_molal(comp_id)
-
-            enddo
+            Jac(icomp,icomp) = 1.d0
          endif
         ! end CO2-specific
       end select
@@ -2140,6 +2070,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
   ! Date: 10/28/08
   !
   use Option_module
+  use Option_Transport_module
   use Input_Aux_module
   use String_module
   use Transport_Constraint_RT_module
@@ -2262,8 +2193,7 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
     if (associated(aq_species_constraint)) then
       ! CO2-specific
       if (.not.option%use_isothermal .and.  &
-          (option%iflowmode == MPH_MODE .or. &
-           option%iflowmode == SCO2_MODE) ) then
+          option%transport%couple_co2) then
         if (associated(reaction%gas%paseqlogKcoef)) then
           do i = 1, reaction%naqcomp
             if (aq_species_constraint%constraint_type(i) == &
@@ -2342,18 +2272,29 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
       mass_fraction_h2o,' [---]'
 
     ! CO2-specific
-    if (option%iflowmode == MPH_MODE) then
+    if (option%transport%couple_co2) then
       if (global_auxvar%den_kg(2) > 0.d0) then
         write(option%fid_out,'(a20,f8.2,a9)') '     density CO2: ', &
           global_auxvar%den_kg(2),' [kg/m^3]'
         write(option%fid_out,'(a20,es12.4,a9)') '            xphi: ', &
           global_auxvar%fugacoeff(1)
 
-        if (reaction%species_idx%co2_aq_id /= 0) then
-          icomp = reaction%species_idx%co2_aq_id
-          mass_fraction_co2 = reaction%primary_spec_molar_wt(icomp)*rt_auxvar%pri_molal(icomp)* &
-            mass_fraction_h2o*1.d-3
-          mole_fraction_co2 = rt_auxvar%pri_molal(icomp)*FMWH2O*mole_fraction_h2o*1.e-3
+        icomp = reaction%species_idx%co2_aq_id
+        if (icomp /= 0) then
+          if (icomp > 0) then
+            mass_fraction_co2 = reaction%primary_spec_molar_wt(icomp)* &
+                                rt_auxvar%pri_molal(icomp)* &
+                                mass_fraction_h2o*1.d-3
+            mole_fraction_co2 = rt_auxvar%pri_molal(icomp)* &
+                                FMWH2O*mole_fraction_h2o*1.e-3
+          else
+            icomp = abs(icomp)
+            mass_fraction_co2 = reaction%eqcplx_molar_wt(icomp)* &
+                                rt_auxvar%sec_molal(icomp)* &
+                                mass_fraction_h2o*1.d-3
+            mole_fraction_co2 = rt_auxvar%sec_molal(icomp)* &
+                                FMWH2O*mole_fraction_h2o*1.e-3
+          endif
           write(option%fid_out,'(a20,es12.4,a9)') 'mole fraction CO2: ', &
             mole_fraction_co2
           write(option%fid_out,'(a20,es12.4,a9)') 'mass fraction CO2: ', &
@@ -4240,6 +4181,7 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
   !
 
   use Option_module
+  use Option_Transport_module
   use co2eos_module
 
   implicit none
@@ -4259,16 +4201,18 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
   sat_pressure =0D0
 
   m_na = option%m_nacl; m_cl = m_na
-  if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
-     m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
-     m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
+  if (option%transport%couple_co2_salinity) then
+    m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
+    m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
   endif
 
   call Henry_duan_sun(tc,pco2*1D-5,henry,lngamco2, &
-         m_na,m_cl,co2aqact)
+                      m_na,m_cl,co2aqact)
 
-  if (reaction%species_idx%co2_aq_id /= 0) then
+  if (reaction%species_idx%co2_aq_id > 0) then
     rt_auxvar%pri_act_coef(reaction%species_idx%co2_aq_id) = co2aqact
+  elseif (reaction%species_idx%co2_aq_id < 0) then
+    rt_auxvar%sec_act_coef(-reaction%species_idx%co2_aq_id) = co2aqact
   else
     co2aqact = 1.d0
   endif
@@ -4343,7 +4287,11 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
     call PrintErrMsg(option)
   endif
 
-  sum_co2 = rt_auxvar%pri_molal(ico2)
+  if (ico2 > 0) then
+    sum_co2 = rt_auxvar%pri_molal(ico2)
+  else
+    sum_co2 = rt_auxvar%sec_molal(-ico2)
+  endif
   sum_mol = RSumMoles(rt_auxvar,reaction,option)
   ! sum_co2 and sum_mol are both in units mol/kg water
   ! FMWH2O is in units g/mol
@@ -4616,6 +4564,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   !
 
   use Option_module
+  use Option_Transport_module
 
   implicit none
 
@@ -4633,8 +4582,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,reaction%isotherm%isotherm_rxn,option)
   endif
-  if (option%iflowmode == MPH_MODE .or. &
-      option%iflowmode == SCO2_MODE) then
+  if (option%transport%couple_co2) then
     call ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
@@ -6010,6 +5958,102 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
   endif
 
 end subroutine RUpdateTempDependentCoefs
+
+! ************************************************************************** !
+
+subroutine RCalculateSCO2Solubility(rt_auxvar,global_auxvar,reaction, &
+                                    gas_solubility,option)
+
+  ! RCalculateSCO2Solubility: Calculates the solubility of supercritical CO2
+  ! in water
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/12/24
+
+  use Global_Aux_module
+  use Material_Aux_module
+  use Option_module
+
+  use co2eos_module, only: Henry_duan_sun
+  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
+
+  implicit none
+
+  class(reaction_rt_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  PetscReal :: gas_solubility
+  type(option_type) :: option
+
+  PetscReal :: temperature_C
+  PetscReal :: temperature_K
+  PetscReal :: gas_pressure_Pa
+  PetscReal :: gas_pressure_MPa
+  PetscReal :: gas_pressure_bar
+  PetscReal :: Henrys_constant
+  PetscReal :: fugacity_MPa
+  PetscReal :: na_molality, cl_molality
+  PetscReal :: lngamco2
+#if 0
+  PetscReal :: fugacity_coefficient
+  PetscReal :: saturation_pressure_Pa
+  PetscReal :: saturation_pressure_MPa
+  PetscReal :: co2_molality
+  PetscReal :: co2_partial_pressure_bar
+  PetscReal :: effective_Henrys_constant
+  PetscReal :: mole_fraction_co2
+  PetscErrorCode :: ierr
+#endif
+  PetscReal :: dummy
+  PetscInt :: iflag
+
+  temperature_C = global_auxvar%temp
+  temperature_K = temperature_C + T273K
+  gas_pressure_Pa = global_auxvar%pres(2)
+  gas_pressure_MPa = gas_pressure_Pa*1.d-6
+  gas_pressure_bar = gas_pressure_Pa*1.d-5
+  if (option%transport%couple_co2_salinity) then
+    na_molality = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
+    cl_molality = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
+  else
+    na_molality = option%m_nacl
+    cl_molality = option%m_nacl
+  endif
+
+  call Henry_duan_sun(temperature_C,gas_pressure_bar,Henrys_constant, &
+                      lngamco2,na_molality,cl_molality)
+  iflag = 1
+  call co2_span_wagner(gas_pressure_MPa,temperature_K,dummy,dummy,dummy, &
+                       fugacity_MPa,dummy,dummy,dummy,dummy,dummy,dummy, &
+                       dummy,dummy,dummy,iflag,co2_sw_itable)
+
+#if 0
+  call EOSWaterSaturationPressure(temperature_C,saturation_pressure_Pa,ierr)
+
+  ! yco2 in Duan and Sun, 2003
+  mole_fraction_co2 = 1.d0-saturation_pressure_Pa/gas_pressure_Pa
+  !
+  fugacity_coefficient = fugacity_MPa/gas_pressure_MPa/mole_fraction_co2
+  effective_Henrys_constant = Henrys_constant*fugacity_coefficient
+
+!     sat_pressure = sat_pressure * 1.D5
+  co2_partial_pressure_bar = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5
+  co2_molality = co2_partial_pressure_bar * effective_Henrys_constant
+
+
+  co2_molality = co2_partial_pressure_bar * effective_Henrys_constant
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_coefficient
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa*(1.d0-saturation_pressure_Pa/gas_pressure_Pa ))
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa-saturation_pressure_MPa)
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/((gas_pressure_Pa-saturation_pressure_Pa)*1.d-6)
+  co2_molality = 1.d-5 * Henrys_constant*fugacity_MPa/(1.d-6)
+  co2_molality = Henrys_constant*fugacity_MPa*10
+#endif
+
+  ! based on comments in co2eos.F90, Henry's constant has lngamco2 built in.
+  gas_solubility = fugacity_MPa*10.d0*Henrys_constant
+
+end subroutine RCalculateSCO2Solubility
 
 ! ************************************************************************** !
 

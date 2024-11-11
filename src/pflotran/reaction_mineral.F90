@@ -1491,6 +1491,7 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
   PetscBool :: kinetic_state_updated
   type(option_type) :: option
 
+  PetscInt, save :: icount = 0
   PetscInt :: imnrl, iaqspec, ncomp, icomp
   PetscReal :: delta_volfrac
   PetscReal :: res(reaction%ncomp) ! has to be sized accurately
@@ -1517,12 +1518,17 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
       rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
 
     ! CO2-specific
-    if (option%iflowmode == MPH_MODE .or. &
-        option%iflowmode == SCO2_MODE) then
+    if (option%transport%couple_co2) then
       ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
       do iaqspec = 1, ncomp
         icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)
-        if (icomp == reaction%species_idx%co2_aq_id) then
+        !geh: this is problematic. once back to the flow side, the co2 src/sink
+        !     rate depends on the previous flow time step size
+        if (icomp == reaction%species_idx%pri_co2_id) then
+          if (icount < 20) then
+            icount = icount + 1
+            call PrintMsg(option,'problematic mineral rate for co2 coupling')
+          endif
           global_auxvar%reaction_rate(2) = &
             global_auxvar%reaction_rate(2) + &
             rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
