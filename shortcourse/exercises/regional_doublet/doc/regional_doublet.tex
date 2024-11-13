@@ -691,14 +691,16 @@ END
 \newpage
 FLOW_CONDITION injection
   TYPE                           \bluecomment{! volumetric flow}
-    RATE SCALED_VOLUMETRIC_RATE  \bluecomment{!   rate scaled by}
-  /                              \bluecomment{!   f(permeability)}
+                                 \bluecomment{!   rate scaled by}
+                                 \bluecomment{!   f(permeability)}
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM  
+  /
   RATE 1.d5 m^3/day  \bluecomment{! flow rate 100,000 [m^3/day]}
 END
 
 FLOW_CONDITION extraction
   TYPE
-    RATE SCALED_VOLUMETRIC_RATE
+    RATE SCALED_VOLUMETRIC_RATE NEIGHBOR_PERM
   /
   RATE -1.d5 m^3/day  \bluecomment{! flow rate -100,000 [m^3/day]}
 END                   \bluecomment{! negative rate = extraction}
