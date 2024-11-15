@@ -1095,12 +1095,14 @@ subroutine ReactionSetupSpeciesSummary(reaction,option)
     do imnrl = 1, mineral%nkinmnrl
       write(86,'(a," = ")',advance='no') trim(mineral%kinmnrl_names(imnrl))
       if (mineral%kinmnrlh2oid(imnrl) > 0) then
-        write(86,'(f6.2," H2O ")',advance='no') mineral%kinmnrlh2ostoich(imnrl)
+        write(86,'(f6.2," H2O ")',advance='no') &
+          mineral%kinmnrlh2ostoich(imnrl)
       endif
       do i = 1, mineral%kinmnrlspecid(0,imnrl)
         temp_tin = mineral%kinmnrlspecid(i,imnrl)
-        write(86,'(f6.2,x,a,x)',advance='no') mineral%kinmnrlstoich(i,imnrl), &
-                                 trim(reaction%primary_species_names(temp_int))
+        write(86,'(f6.2,x,a,x)',advance='no') &
+          mineral%kinmnrlstoich(i,imnrl), &
+          trim(reaction%primary_species_names(temp_int))
       enddo
       !molar volume has been converted to m^3/mol!
       write(86,'(4(" ; ",1es13.5))') mineral%kinmnrl_logK(imnrl), &

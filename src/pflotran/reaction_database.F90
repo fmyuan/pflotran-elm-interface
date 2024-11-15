@@ -1866,6 +1866,16 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_names = ''
       allocate(mineral%kinmnrl_print(mineral%nkinmnrl))
       mineral%kinmnrl_print = PETSC_FALSE
+      allocate(mineral%kinmnrlspecid_in_residual(0:max_aq_species, &
+                                                 mineral%nkinmnrl))
+      mineral%kinmnrlspecid_in_residual = 0
+      allocate(mineral%kinmnrlstoich_in_residual(max_aq_species, &
+                                                 mineral%nkinmnrl))
+      mineral%kinmnrlstoich_in_residual = 0.d0
+      allocate(mineral%kinmnrlh2oid_in_residual(mineral%nkinmnrl))
+      mineral%kinmnrlh2oid_in_residual = 0
+      allocate(mineral%kinmnrlh2ostoich_in_residual(mineral%nkinmnrl))
+      mineral%kinmnrlh2ostoich_in_residual = 0.d0
       allocate(mineral%kinmnrlspecid(0:max_aq_species,mineral%nkinmnrl))
       mineral%kinmnrlspecid = 0
       allocate(mineral%kinmnrlstoich(max_aq_species,mineral%nkinmnrl))
@@ -2114,6 +2124,47 @@ subroutine ReactionDBInitBasis(reaction,option)
       enddo
       mineral%mnrlspecid(0,imnrl) = ispec
 
+      ! store original mass action for residual equations
+      if (cur_mineral%itype == MINERAL_KINETIC) then
+        mineral%kinmnrlspecid_in_residual(:,ikinmnrl) =  &
+          mineral%mnrlspecid(:,imnrl)
+        mineral%kinmnrlstoich_in_residual(:,ikinmnrl) =  &
+          mineral%mnrlstoich(:,imnrl)
+        mineral%kinmnrlh2oid_in_residual(ikinmnrl) = mineral%mnrlh2oid(imnrl)
+        mineral%kinmnrlh2ostoich_in_residual(ikinmnrl) =  &
+          mineral%mnrlh2ostoich(imnrl)
+      endif
+
+      ! check for overriding of mass action
+      if (len_trim(cur_mineral%override_mass_action_string) > 0) then
+        call ReactionDBDestroyRxn(dbaserxn)
+        dbaserxn => &
+          ReactionDBOverrideSpecies(cur_mineral%override_mass_action_string, &
+                                    option)
+        mineral%mnrlspecid(:,imnrl) = 0 
+        mineral%mnrlstoich(:,imnrl) = 0.d0 
+        mineral%mnrlh2oid(imnrl) = 0 
+        mineral%mnrlh2ostoich(imnrl) = 0.d0
+        ispec = 0
+        do i = 1, dbaserxn%reaction_equation%nspec
+          species_name = dbaserxn%reaction_equation%spec_name(i)
+          if (StringCompare(species_name,h2oname)) then
+            ! fill in h2o id and stoich
+            mineral%mnrlh2oid(imnrl) = h2o_id
+            mineral%mnrlh2ostoich(imnrl) = &
+              dbaserxn%reaction_equation%stoich(i)
+          else
+            ispec = ispec + 1
+            mineral%mnrlspecid(ispec,imnrl) = &
+              ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
+            mineral%mnrlstoich(ispec,imnrl) = &
+              dbaserxn%reaction_equation%stoich(i)
+          endif
+        enddo
+        mineral%mnrlspecid(0,imnrl) = ispec
+        call ReactionDBDestroyRxn(dbaserxn)
+      endif
+
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
@@ -2146,6 +2197,12 @@ subroutine ReactionDBInitBasis(reaction,option)
         mineral%kinmnrl_names(ikinmnrl) = mineral%mineral_names(imnrl)
         mineral%kinmnrl_print(ikinmnrl) = cur_mineral%print_me .or. &
                                            reaction%mineral%print_all
+
+        mineral%kinmnrlspecid(:,ikinmnrl) = mineral%mnrlspecid(:,imnrl)
+        mineral%kinmnrlstoich(:,ikinmnrl) = mineral%mnrlstoich(:,imnrl)
+        mineral%kinmnrlh2oid(ikinmnrl) = mineral%mnrlh2oid(imnrl)
+        mineral%kinmnrlh2ostoich(ikinmnrl) = mineral%mnrlh2ostoich(imnrl)
+
         mineral%kinmnrlspecid(:,ikinmnrl) = mineral%mnrlspecid(:,imnrl)
         mineral%kinmnrlstoich(:,ikinmnrl) = mineral%mnrlstoich(:,imnrl)
         mineral%kinmnrlh2oid(ikinmnrl) = mineral%mnrlh2oid(imnrl)

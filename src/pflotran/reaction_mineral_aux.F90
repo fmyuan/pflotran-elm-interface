@@ -27,6 +27,7 @@ module Reaction_Mineral_Aux_module
     PetscReal :: molar_weight
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn
+    character(len=MAXSTRINGLENGTH) :: override_mass_action_string
     type(transition_state_rxn_type), pointer :: tstrxn
     type(mineral_rxn_type), pointer :: next
   end type mineral_rxn_type
@@ -100,6 +101,10 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: mnrlstoich(:,:)
     PetscInt, pointer :: mnrlh2oid(:)
     PetscReal, pointer :: mnrlh2ostoich(:)
+    PetscInt, pointer :: mnrlspecid_in_residual(:,:)
+    PetscReal, pointer :: mnrlstoich_in_residual(:,:)
+    PetscInt, pointer :: mnrlh2oid_in_residual(:)
+    PetscReal, pointer :: mnrlh2ostoich_in_residual(:)
     PetscReal, pointer :: mnrl_logK(:)
     PetscReal, pointer :: mnrl_logKcoef(:,:)
     PetscBool, pointer :: mnrl_print(:)
@@ -113,6 +118,10 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrlstoich(:,:)
     PetscInt, pointer :: kinmnrlh2oid(:)
     PetscReal, pointer :: kinmnrlh2ostoich(:)
+    PetscInt, pointer :: kinmnrlspecid_in_residual(:,:)
+    PetscReal, pointer :: kinmnrlstoich_in_residual(:,:)
+    PetscInt, pointer :: kinmnrlh2oid_in_residual(:)
+    PetscReal, pointer :: kinmnrlh2ostoich_in_residual(:)
     PetscReal, pointer :: kinmnrl_logK(:)
     PetscReal, pointer :: kinmnrl_logKcoef(:,:)
     PetscReal, pointer :: kinmnrl_rate_constant(:)
@@ -196,6 +205,10 @@ function ReactionMnrlCreateAux()
   nullify(mineral%mnrlh2oid)
   nullify(mineral%mnrlstoich)
   nullify(mineral%mnrlh2ostoich)
+  nullify(mineral%mnrlspecid_in_residual)
+  nullify(mineral%mnrlh2oid_in_residual)
+  nullify(mineral%mnrlstoich_in_residual)
+  nullify(mineral%mnrlh2ostoich_in_residual)
   nullify(mineral%mnrl_logK)
   nullify(mineral%mnrl_logKcoef)
 
@@ -207,6 +220,10 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrlstoich)
   nullify(mineral%kinmnrlh2oid)
   nullify(mineral%kinmnrlh2ostoich)
+  nullify(mineral%kinmnrlspecid_in_residual)
+  nullify(mineral%kinmnrlstoich_in_residual)
+  nullify(mineral%kinmnrlh2oid_in_residual)
+  nullify(mineral%kinmnrlh2ostoich_in_residual)
   nullify(mineral%kinmnrl_logK)
   nullify(mineral%kinmnrl_logKcoef)
   nullify(mineral%kinmnrl_rate_constant)
@@ -264,6 +281,7 @@ function ReactionMnrlCreateMineralRxn()
   mineral%molar_volume = 0.d0
   mineral%molar_weight = 0.d0
   mineral%print_me = PETSC_FALSE
+  mineral%override_mass_action_string = ''
   nullify(mineral%dbaserxn)
   nullify(mineral%tstrxn)
   nullify(mineral%next)
@@ -783,6 +801,10 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%mnrlstoich)
   call DeallocateArray(mineral%mnrlh2oid)
   call DeallocateArray(mineral%mnrlh2ostoich)
+  call DeallocateArray(mineral%mnrlspecid_in_residual)
+  call DeallocateArray(mineral%mnrlstoich_in_residual)
+  call DeallocateArray(mineral%mnrlh2oid_in_residual)
+  call DeallocateArray(mineral%mnrlh2ostoich_in_residual)
   call DeallocateArray(mineral%mnrl_logK)
   call DeallocateArray(mineral%mnrl_logKcoef)
 
@@ -790,6 +812,10 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrlstoich)
   call DeallocateArray(mineral%kinmnrlh2oid)
   call DeallocateArray(mineral%kinmnrlh2ostoich)
+  call DeallocateArray(mineral%kinmnrlspecid_in_residual)
+  call DeallocateArray(mineral%kinmnrlstoich_in_residual)
+  call DeallocateArray(mineral%kinmnrlh2oid_in_residual)
+  call DeallocateArray(mineral%kinmnrlh2ostoich_in_residual)
   call DeallocateArray(mineral%kinmnrl_logK)
   call DeallocateArray(mineral%kinmnrl_logKcoef)
   call DeallocateArray(mineral%kinmnrl_rate_constant)

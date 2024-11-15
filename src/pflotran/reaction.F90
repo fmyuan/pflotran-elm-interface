@@ -1769,7 +1769,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
           ! activity of water
           if (mineral_reaction%mnrlh2oid(imnrl) > 0) then
-            lnQK = lnQK + mineral_reaction%mnrlh2ostoich(imnrl)*rt_auxvar%ln_act_h2o
+            lnQK = lnQK + mineral_reaction%mnrlh2ostoich(imnrl)* &
+                          rt_auxvar%ln_act_h2o
           endif
 
           ! compute ion activity product
@@ -2641,12 +2642,15 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
       ! compute saturation
       lnQK(imnrl) = -mineral_reaction%mnrl_logK(imnrl)*LOG_TO_LN
       if (mineral_reaction%mnrlh2oid(imnrl) > 0) then
-        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlh2ostoich(imnrl)*rt_auxvar%ln_act_h2o
+        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlh2ostoich(imnrl)* &
+                                    rt_auxvar%ln_act_h2o
       endif
       do jcomp = 1, mineral_reaction%mnrlspecid(0,imnrl)
         comp_id = mineral_reaction%mnrlspecid(jcomp,imnrl)
-        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlstoich(jcomp,imnrl)* &
-                      log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
+        lnQK(imnrl) = lnQK(imnrl) + &
+                      mineral_reaction%mnrlstoich(jcomp,imnrl)* &
+                      log(rt_auxvar%pri_molal(comp_id)* &
+                      rt_auxvar%pri_act_coef(comp_id))
       enddo
       QK(imnrl) = exp(lnQK(imnrl))
     enddo

@@ -346,6 +346,12 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                 enddo
               endif
               error_string = 'CHEMISTRY,MINERAL_KINETICS'
+            case('OVERRIDE_MASS_ACTION')
+              if (len_trim(input%buf) < 1) then
+                input%ierr = 1
+                call InputErrorMsg(input,option,word,error_string)
+              endif
+              cur_mineral%override_mass_action_string = trim(input%buf)
             case default
               call InputKeywordUnrecognized(input,word, &
                       'CHEMISTRY,MINERAL_KINETICS',option)
@@ -911,10 +917,10 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     ! units: mol/sec
     Im = Im*material_auxvar%volume
 
-    ncomp = mineral%kinmnrlspecid(0,imnrl)
+    ncomp = mineral%kinmnrlspecid_in_residual(0,imnrl)
     do i = 1, ncomp
-      icomp = mineral%kinmnrlspecid(i,imnrl)
-      Res(icomp) = Res(icomp) + mineral%kinmnrlstoich(i,imnrl)*Im
+      icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+      Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
     enddo
 
     if (.not. compute_derivative) cycle
@@ -1530,7 +1536,7 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
     if (option%transport%couple_co2) then
       ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
       do iaqspec = 1, ncomp
-        icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)
+        icomp = reaction%mineral%kinmnrlspecid_in_residual(iaqspec,imnrl)
         !geh: this is problematic. once back to the flow side, the co2 src/sink
         !     rate depends on the previous flow time step size
         if (icomp == reaction%species_idx%pri_co2_id) then
@@ -1541,16 +1547,17 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
           global_auxvar%reaction_rate(2) = &
             global_auxvar%reaction_rate(2) + &
             rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
-            reaction%mineral%kinmnrlstoich(iaqspec,imnrl)/option%flow_dt
+            reaction%mineral%kinmnrlstoich_in_residual(iaqspec,imnrl)/ &
+            option%flow_dt
           cycle
         endif
       enddo
       ! water rate
-      if (reaction%mineral%kinmnrlh2ostoich(imnrl) /= 0) then
+      if (reaction%mineral%kinmnrlh2ostoich_in_residual(imnrl) /= 0) then
         global_auxvar%reaction_rate(1) = &
           global_auxvar%reaction_rate(1) + &
           rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
-          reaction%mineral%kinmnrlh2ostoich(imnrl)/option%flow_dt
+          reaction%mineral%kinmnrlh2ostoich_in_residual(imnrl)/option%flow_dt
       endif
     endif
   enddo

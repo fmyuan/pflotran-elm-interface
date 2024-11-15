@@ -25,6 +25,7 @@ module Reaction_Database_Aux_module
             ReactionDBSubSpecInRxn, &
             ReactionDBCreateRxn, &
             ReactionDBCheckLegitLogKs, &
+            ReactionDBOverrideSpecies, &
             ReactionDBDestroyRxn
 
 contains
@@ -241,6 +242,62 @@ function ReactionDBCheckLegitLogKs(dbaserxn,species_name,temperatures, &
   endif
 
 end function ReactionDBCheckLegitLogKs
+
+! ************************************************************************** !
+
+function ReactionDBOverrideSpecies(reaction_string,option)
+  !
+  ! Allocate and initialize an equilibrium reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/24
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: reaction_string
+  type(option_type) :: option
+
+  type(database_rxn_type), pointer :: ReactionDBOverrideSpecies
+
+  type(database_rxn_type), pointer :: dbaserxn
+  PetscInt :: num_species_in_rxn
+  PetscInt :: ispec
+  PetscErrorCode :: ierr
+
+  ierr = 0
+
+  ! read the number of aqueous species in mineral rxn
+  call InputReadInt(reaction_string,option,num_species_in_rxn,ierr)
+  if (ierr /= 0) then
+    option%io_buffer = 'ReactionDBOverrideMassActionQ::num_species'
+    call PrintErrMsg(option)
+  endif
+  dbaserxn => ReactionDBCreateRxn(num_species_in_rxn,0)
+  ! read in species and stoichiometries
+  do ispec = 1, dbaserxn%reaction_equation%nspec
+    call InputReadDouble(reaction_string,option,dbaserxn% &
+                           reaction_equation%stoich(ispec),ierr)
+    if (ierr /= 0) then
+      option%io_buffer = 'ReactionDBOverrideMassActionQ::stoich ' // &
+                         StringWrite(ispec)
+      call PrintErrMsg(option)
+    endif
+    call InputReadWord(reaction_string,dbaserxn% &
+                         reaction_equation%spec_name(ispec),PETSC_TRUE,ierr)
+    if (ierr /= 0) then
+      option%io_buffer = 'ReactionDBOverrideMassActionQ::species name ' // &
+                         StringWrite(ispec)
+      call PrintErrMsg(option)
+    endif
+  enddo
+
+  ReactionDBOverrideSpecies => dbaserxn
+
+end function ReactionDBOverrideSpecies
 
 ! ************************************************************************** !
 
