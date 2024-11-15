@@ -62,6 +62,7 @@ subroutine ReactionDBReadDatabase(reaction,option)
 
   PetscBool :: flag, found, logK_error_flag
   PetscInt :: ispec, itemp, i
+  PetscInt :: num_species_in_rxn
   PetscReal :: stoich
   PetscReal :: temp_real
   type(input_type), pointer :: input
@@ -258,12 +259,13 @@ subroutine ReactionDBReadDatabase(reaction,option)
         if (num_nulls > 0) then ! secondary species in database
           ! create aqueous equilibrium reaction
           ! read the number of primary species in secondary rxn
-          call InputReadInt(input,option,itemp)
+          call InputReadInt(input,option,num_species_in_rxn)
           call InputErrorMsg(input,option,'Number of species in aqueous ', &
                           'complex DATABASE')
           if (.not.associated(cur_aq_spec%dbaserxn)) &
-            cur_aq_spec%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
-          cur_aq_spec%dbaserxn%reaction_equation%nspec = itemp
+            cur_aq_spec%dbaserxn => &
+              ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
+          cur_aq_spec%dbaserxn%reaction_equation%nspec = num_species_in_rxn
           ! read in species and stoichiometries
           do ispec = 1, cur_aq_spec%dbaserxn%reaction_equation%nspec
             call InputReadDouble(input,option,cur_aq_spec%dbaserxn% &
@@ -320,12 +322,13 @@ subroutine ReactionDBReadDatabase(reaction,option)
         cur_gas_spec%molar_volume = cur_gas_spec%molar_volume*1.d-6
         ! create aqueous equilibrium reaction
         ! read the number of aqueous species in secondary rxn
-        call InputReadInt(input,option,itemp)
+        call InputReadInt(input,option,num_species_in_rxn)
         call InputErrorMsg(input,option,'Number of species in gas reaction', &
                         'DATABASE')
         if (.not.associated(cur_gas_spec%dbaserxn)) &
-          cur_gas_spec%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
-        cur_gas_spec%dbaserxn%reaction_equation%nspec = itemp
+          cur_gas_spec%dbaserxn => &
+            ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
+        cur_gas_spec%dbaserxn%reaction_equation%nspec = num_species_in_rxn
         ! read in species and stoichiometries
         do ispec = 1, cur_gas_spec%dbaserxn%reaction_equation%nspec
           call InputReadDouble(input,option,cur_gas_spec%dbaserxn% &
@@ -382,14 +385,15 @@ subroutine ReactionDBReadDatabase(reaction,option)
 
         if (.not.found) cycle ! go to next line in database
         ! read the number of aqueous species in surface complexation rxn
-        call InputReadInt(input,option,itemp)
+        call InputReadInt(input,option,num_species_in_rxn)
         call InputErrorMsg(input,option, &
                      'Number of species in surface complexation reaction', &
                      'DATABASE')
         ! decrement number of species since free site will not be included
-        itemp = itemp - 1
+        num_species_in_rxn = num_species_in_rxn - 1
         if (.not.associated(cur_srfcplx%dbaserxn)) &
-          cur_srfcplx%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
+          cur_srfcplx%dbaserxn => &
+            ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
         ! read in species and stoichiometries
         ispec = 0
                                       ! recall that nspec was decremented above
@@ -827,11 +831,13 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(transition_state_prefactor_type), pointer :: cur_prefactor
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
+  type(database_rxn_type), pointer :: dbaserxn
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
   character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
+  character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, parameter :: h2o_id = 1
@@ -1890,8 +1896,8 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_affinity_threshold = 0.d0
       allocate(mineral%kinmnrl_rate_limiter(mineral%nkinmnrl))
       mineral%kinmnrl_rate_limiter = 0.d0
-      allocate(mineral%kinmnrl_irreversible(mineral%nkinmnrl))
-      mineral%kinmnrl_irreversible = 0
+      allocate(mineral%kinmnrl_rate_direction(mineral%nkinmnrl))
+      mineral%kinmnrl_rate_direction = MINERAL_RATE_REVERSIBLE
       allocate(mineral%kinmnrl_rate_constant(mineral%nkinmnrl))
       mineral%kinmnrl_rate_constant = 0.d0
       allocate(mineral%kinmnrl_activation_energy(mineral%nkinmnrl))
@@ -2239,7 +2245,7 @@ subroutine ReactionDBInitBasis(reaction,option)
           mineral%kinmnrl_affinity_threshold(ikinmnrl) = &
             tstrxn%affinity_threshold
           mineral%kinmnrl_rate_limiter(ikinmnrl) = tstrxn%rate_limiter
-          mineral%kinmnrl_irreversible(ikinmnrl) = tstrxn%irreversible
+          mineral%kinmnrl_rate_direction(ikinmnrl) = tstrxn%rate_direction
 
           mineral%kinmnrl_armor_min_names(ikinmnrl) = tstrxn%armor_min_name
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr

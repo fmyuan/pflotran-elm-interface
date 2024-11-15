@@ -208,13 +208,10 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
 !             read rate limiter for precipitation
               call InputReadDouble(input,option,tstrxn%rate_limiter)
               call InputErrorMsg(input,option,'rate_limiter',error_string)
-            case('IRREVERSIBLE')
-!             read flag for irreversible reaction
-!              option%io_buffer = 'IRREVERSIBLE mineral precipitation/' // &
-!                'dissolution no longer supported.  The code is commented out.'
-!              call PrintErrMsg(option)
-              tstrxn%irreversible = 1
-              call InputErrorMsg(input,option,'irreversible',error_string)
+            case('PRECIPITATION_ONLY')
+              tstrxn%rate_direction = MINERAL_RATE_PRECIPITATION_ONLY
+            case('DISSOLUTION_ONLY')
+              tstrxn%rate_direction = MINERAL_RATE_DISSOLUTION_ONLY
             case('ARMOR_MINERAL')
                     ! read mineral name
               call InputReadWord(input,option,tstrxn%armor_min_name,PETSC_TRUE)
@@ -452,6 +449,7 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
 
   PetscInt :: ispec
   PetscInt :: itemp
+  PetscInt :: num_species_in_rxn
 
   ! read the molar volume
   call InputReadDouble(input,option,mineral%molar_volume)
@@ -463,10 +461,11 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
     mineral%tstrxn => ReactionMnrlCreateTSTRxn()
   endif
   ! read the number of aqueous species in mineral rxn
-  call InputReadInt(input,option,itemp)
+  call InputReadInt(input,option,num_species_in_rxn)
   call InputErrorMsg(input,option,'Number of species in mineral reaction', &
                   'DATABASE')
-  mineral%dbaserxn => ReactionDBCreateRxn(itemp,num_dbase_temperatures)
+  mineral%dbaserxn => &
+    ReactionDBCreateRxn(num_species_in_rxn,num_dbase_temperatures)
   ! read in species and stoichiometries
   do ispec = 1, mineral%dbaserxn%reaction_equation%nspec
     call InputReadDouble(input,option,mineral%dbaserxn% &
@@ -694,6 +693,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt ::  icplx
   PetscReal :: ln_gam_m_beta
   PetscReal :: TREF = 25.d0
+  PetscInt :: rate_direction
 
 #ifdef SOLID_SOLUTION
   PetscBool :: cycle_
@@ -797,14 +797,19 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       affinity_factor = 1.d0-QK
     endif
 
-    sign_ = sign(1.d0,affinity_factor)
+    sign_ = sign(1.d0,affinity_factor) ! sign_ > 0 = dissolution
 
     if (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0) then
-      if (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0) cycle
 
-!    if ((mineral%kinmnrl_irreversible(imnrl) == 0 &
-!      .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0)) &
-!      .or. (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0)) then
+      rate_direction = mineral%kinmnrl_rate_direction(imnrl)
+      if (rate_direction /= MINERAL_RATE_REVERSIBLE) then
+        if ((rate_direction == MINERAL_RATE_PRECIPITATION_ONLY .and. &
+             sign_ > 0.d0) .or. & ! sign_ > 0 = dissolution
+            (rate_direction == MINERAL_RATE_DISSOLUTION_ONLY .and. &
+             sign_ < 0.d0)) then  ! sign_ < 0 = precipitation
+          cycle
+        endif
+      endif
 
 !     check for supersaturation threshold for precipitation
 !     if (associated(mineral%kinmnrl_affinity_threshold)) then
@@ -1128,6 +1133,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
 
   PetscReal :: lnQK
   PetscInt :: i, imnrl, icomp, ncomp, ipref, ipref_species
+  PetscInt :: rate_direction
   PetscReal :: sign_
 
   PetscReal :: ln_spec_act
@@ -1169,14 +1175,17 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
   sign_ = sign(1.d0,affinity_factor)
 
   if (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0) then
-    if (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0) then
-      cycle_ = PETSC_TRUE
-      return
-    endif
 
-!  if ((mineral%kinmnrl_irreversible(imnrl) == 0 &
-!    .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0)) &
-!    .or. (mineral%kinmnrl_irreversible(imnrl) == 1 .and. sign_ < 0.d0)) then
+    rate_direction = mineral%kinmnrl_rate_direction(imnrl)
+    if (rate_direction /= MINERAL_RATE_REVERSIBLE) then
+      if ((rate_direction == MINERAL_RATE_PRECIPITATION_ONLY .and. &
+           sign_ > 0.d0) .or. & ! sign_ > 0 = dissolution
+          (rate_direction == MINERAL_RATE_DISSOLUTION_ONLY .and. &
+           sign_ < 0.d0)) then  ! sign_ < 0 = precipitation
+        cycle_ = PETSC_TRUE
+        return
+      endif
+    endif
 
 !     check for supersaturation threshold for precipitation
 !     if (associated(mineral%kinmnrl_affinity_threshold)) then

@@ -15,6 +15,10 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_KINETIC = 2
   PetscInt, parameter, public :: MINERAL_EQUILIBRIUM = 3
 
+  PetscInt, parameter, public :: MINERAL_RATE_REVERSIBLE = 0
+  PetscInt, parameter, public :: MINERAL_RATE_DISSOLUTION_ONLY = 1
+  PetscInt, parameter, public :: MINERAL_RATE_PRECIPITATION_ONLY = 2
+
   type, public :: mineral_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -35,7 +39,7 @@ module Reaction_Mineral_Aux_module
     PetscReal :: rate_limiter
     PetscReal :: surf_area_vol_frac_pwr
     PetscReal :: surf_area_porosity_pwr
-    PetscInt :: irreversible
+    PetscInt :: rate_direction
     PetscReal :: rate
     PetscReal :: activation_energy
     character(len=MAXWORDLENGTH) :: armor_min_name
@@ -133,7 +137,7 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_armor_pwr(:)
     PetscReal, pointer :: kinmnrl_surf_area_epsilon(:)
     PetscReal, pointer :: kinmnrl_vol_frac_epsilon(:)
-    PetscInt, pointer :: kinmnrl_irreversible(:)
+    PetscInt, pointer :: kinmnrl_rate_direction(:)
 
   end type mineral_type
 
@@ -222,7 +226,7 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
-  nullify(mineral%kinmnrl_irreversible)
+  nullify(mineral%kinmnrl_rate_direction)
   nullify(mineral%kinmnrl_rate_limiter)
   nullify(mineral%kinmnrl_surf_area_vol_frac_pwr)
   nullify(mineral%kinmnrl_surf_area_porosity_pwr)
@@ -260,6 +264,7 @@ function ReactionMnrlCreateMineralRxn()
   mineral%molar_volume = 0.d0
   mineral%molar_weight = 0.d0
   mineral%print_me = PETSC_FALSE
+  nullify(mineral%dbaserxn)
   nullify(mineral%tstrxn)
   nullify(mineral%next)
 
@@ -292,7 +297,7 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%surf_area_vol_frac_pwr = 0.d0
   tstrxn%surf_area_porosity_pwr = 0.d0
   tstrxn%rate_limiter = 0.d0
-  tstrxn%irreversible = 0
+  tstrxn%rate_direction = MINERAL_RATE_REVERSIBLE
   tstrxn%activation_energy = 0.d0
   tstrxn%armor_min_name = ''
   tstrxn%armor_pwr = 0.d0
@@ -810,7 +815,7 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_armor_min_names)
   call DeallocateArray(mineral%kinmnrl_armor_pwr)
   call DeallocateArray(mineral%kinmnrl_armor_crit_vol_frac)
-  call DeallocateArray(mineral%kinmnrl_irreversible)
+  call DeallocateArray(mineral%kinmnrl_rate_direction)
 
   call DeallocateArray(mineral%kinmnrl_surf_area_epsilon)
   call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)
