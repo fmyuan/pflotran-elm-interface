@@ -1,0 +1,29 @@
+  PRIMARY_SPECIES
+    H+
+    HCO3-
+    Ca++
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+    CaOH+
+  /
+  PASSIVE_GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+#  OPERATOR_SPLITTING
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    PH
+    FREE_ION
+    ALL
+    MINERAL_SATURATION_INDEX
+  /
