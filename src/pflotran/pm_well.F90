@@ -1111,9 +1111,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_dx = UNINITIALIZED_DOUBLE
     temp_dy = UNINITIALIZED_DOUBLE
     temp_dz = UNINITIALIZED_DOUBLE
-    temp_x = UNINITIALIZED_DOUBLE
-    temp_y = UNINITIALIZED_DOUBLE
-    temp_z = UNINITIALIZED_DOUBLE
+    temp_x = -1.d20
+    temp_y =-1.d20
+    temp_z = -1.d20
 
     k = 0
     j = 0
@@ -1236,13 +1236,13 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(collect_y_temp(nsegments*option%comm%size))
     allocate(collect_z_temp(nsegments*option%comm%size))
     allocate(collect_rank(nsegments*option%comm%size))
-    collect_x_temp = UNINITIALIZED_DOUBLE
+    collect_x_temp = -1.d20
     collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_x(1:well_grid%nsegments)
-    collect_y_temp = UNINITIALIZED_DOUBLE
+    collect_y_temp = -1.d20
     collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_y(1:well_grid%nsegments)
-    collect_z_temp = UNINITIALIZED_DOUBLE
+    collect_z_temp = -1.d20
     collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_z(1:well_grid%nsegments)
     collect_rank = UNINITIALIZED_INTEGER
@@ -1268,7 +1268,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     well_nodes(:)%y = UNINITIALIZED_DOUBLE
     well_nodes(:)%z = UNINITIALIZED_DOUBLE
     do j = 1,nsegments*option%comm%size
-      if (Initialized(collect_z_temp(j))) then
+      if (collect_z_temp(j) > -1.d19) then
         k = k + 1
         well_nodes(k)%id = collect_rank(j)
         well_nodes(k)%x = collect_x_temp(j)
@@ -2290,7 +2290,7 @@ subroutine PMWellSetup(this)
         if (this%well_grid%casing(index) < 5.d-1) then
           string = 'CASED'
         else
-          string = 'UNCASED'
+          string = 'SCREENED'
         endif
         write(fid,'(a)',advance="no") trim(string)
         write(fid,110,advance="no") this%well_grid%h(index)%x
@@ -3056,12 +3056,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                     select case(word)
                       case('CASED')
                         temp_casing(nsegments) = PETSC_TRUE
-                      case('UNCASED')
+                      case('UNCASED','SCREENED','PERFORATED')
                         temp_casing(nsegments) = PETSC_FALSE
                       case default
                         option%io_buffer = "Error in constructing &
                             &WELL_TRAJECTORY: please specify &
-                            &whether each segment is CASED or UNCASED."
+                            &whether each segment is CASED or SCREENED/UNCASED."
                         call PrintErrMsg(option)
                     end select
                     allocate(deviated_well_segment%casing(nsegments))
@@ -3116,12 +3116,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3156,12 +3156,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3183,12 +3183,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3211,12 +3211,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -3243,12 +3243,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   select case(word)
                     case('CASED')
                       deviated_well_segment%cased = PETSC_TRUE
-                    case('UNCASED')
+                    case('UNCASED','SCREENED','PERFORATED')
                       deviated_well_segment%cased = PETSC_FALSE
                     case default
                       option%io_buffer = "Error in constructing &
                           &WELL_TRAJECTORY: please specify &
-                          &whether each segment is CASED or UNCASED."
+                          &whether each segment is CASED or SCREENED/UNCASED."
                       call PrintErrMsg(option)
                   end select
                   call InputReadDouble(input,option,deviated_well_segment% &
@@ -6221,7 +6221,7 @@ subroutine PMWellModifyFlowResidual(this,residual)
                     Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
-                  if (this%pressure_controlled) residual(local_end) = 0.d0
+                  ! if (this%pressure_controlled) residual(local_end) = 0.d0
                 endif
                 do j = 0,2
                   ! Compontent j+1 residual at well segment k
@@ -8007,11 +8007,7 @@ subroutine PMWellSolve(this,time,ierr)
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
     this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  elseif (this%flow_coupling == FULLY_IMPLICIT_WELL) then
-    write(out_string,'(" FLOW Step          Fully-implicit wellbore flow &
-                      &coupling is being used.")')
-    call PrintMsg(this%option,out_string)
-  else
+  elseif (this%flow_coupling /= FULLY_IMPLICIT_WELL) then
     call PMWellSolveFlow(this,UNINITIALIZED_INTEGER,ierr)
   endif
 
@@ -11171,12 +11167,18 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     name = 'Well Gas Q'
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
   endif
+  select case (pm_well%option%iflowmode)
+    case (SCO2_MODE)
+      name = 'Well BHP'
+      units = 'Pa'
+      call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units,WELL_BHP)
+  end select
 
 end subroutine PMWellSetPlotVariables
 
 ! ************************************************************************** !
 
-function PMWellOutputFilename(option)
+function PMWellOutputFilename(name,option)
   !
   ! Generates a filename for wellbore model output
   !
@@ -11186,12 +11188,12 @@ function PMWellOutputFilename(option)
 
   implicit none
 
+  character(len=MAXWORDLENGTH) :: name
   type(option_type), pointer :: option
 
   character(len=MAXSTRINGLENGTH) :: PMWellOutputFilename
 
-  PMWellOutputFilename = trim(option%global_prefix) // &
-                         trim(option%group_prefix) // '.well'
+  PMWellOutputFilename = trim(name) // '.well'
 
 end function PMWellOutputFilename
 
@@ -11222,6 +11224,8 @@ subroutine PMWellOutputHeader(pm_well)
   PetscInt :: icolumn
   PetscInt :: k, j
 
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+
   output_option => pm_well%realization%output_option
 
   if (output_option%print_column_ids) then
@@ -11231,7 +11235,7 @@ subroutine PMWellOutputHeader(pm_well)
   endif
 
   fid = 555
-  filename = PMWellOutputFilename(pm_well%option)
+  filename = PMWellOutputFilename(pm_well%name,pm_well%option)
   exist = FileExists(trim(filename))
   if (pm_well%option%restart_flag .and. exist) return
   open(unit=fid,file=filename,action="write",status="replace")
@@ -11272,6 +11276,14 @@ subroutine PMWellOutputHeader(pm_well)
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
+
+  select case (pm_well%option%iflowmode)
+  case (SCO2_MODE)
+    variable_string = 'Well BHP'
+    units_string = 'Pa'
+    call OutputWriteToHeader(fid,variable_string,units_string, &
+                             cell_string,icolumn)
+end select
 
   do k = 1,pm_well%well_grid%nsegments
     variable_string = 'Seg.#'
@@ -11394,16 +11406,23 @@ subroutine PMWellOutput(pm_well)
 100 format(100es18.8)
 101 format(1I6.1)
 
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option
 
   fid = 555
-  filename = PMWellOutputFilename(option)
+  filename = PMWellOutputFilename(pm_well%name,option)
   open(unit=fid,file=filename,action="write",status="old", &
        position="append")
 
   ! pm_well time is set at the end of the wellbore step????
   write(fid,100,advance="no") option%time / output_option%tconv
+
+  select case (pm_well%option%iflowmode)
+    case (SCO2_MODE)
+      write(fid,100,advance="no") pm_well%well%bh_p
+  end select
 
   do k = 1,pm_well%well_grid%nsegments
     write(fid,101,advance="no") k

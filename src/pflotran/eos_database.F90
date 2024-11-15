@@ -665,7 +665,7 @@ subroutine EOSDatabaseRead(this,option)
   PetscInt :: prop_idx, prop_count, i_idx, j_idx
   PetscInt :: data_size
   PetscReal :: tempreal
-  PetscReal, parameter :: val_eps = 1.0d-10
+  PetscReal, parameter :: val_eps = 1.0d-8
   PetscBool :: pres_present, temp_present
   PetscBool :: set_visc_lin_log
   PetscBool, allocatable :: AxisIsSMInc(:)

@@ -241,7 +241,13 @@ subroutine SCO2Setup(realization)
   dof_is_active = PETSC_TRUE
   if (option%coupled_well) then
     dof_is_active(option%nflowdof) = PETSC_FALSE
+    if (sco2_isothermal_gradient) then
+      dof_is_active(option%nflowdof-1) = PETSC_FALSE
+    endif
+  elseif (sco2_isothermal_gradient) then
+    dof_is_active(option%nflowdof) = PETSC_FALSE
   endif
+
   call PatchCreateZeroArray(patch,dof_is_active, &
                             patch%aux%SCO2%matrix_zeroing,option)
   deallocate(dof_is_active)
@@ -744,6 +750,8 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   PetscReal :: cell_pressure, scale
 
   PetscReal :: Res_dummy(realization%option%nflowdof)
+
+  PetscReal :: liquid_rate, gas_rate, co2_fraction
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -875,10 +883,17 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                   xxbc(idof) = boundary_condition% &
                         flow_aux_real_var(real_index,iconn)
                 case(DIRICHLET_BC)
+                  if (idof == SCO2_SALT_MASS_FRAC_DOF) then
+                    real_index = boundary_condition% &
+                      flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                    xxbc(idof) = boundary_condition% &
+                      flow_aux_real_var(real_index,iconn)
+                  else
                     option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" not fully supported yet for SCO2 Mode.'
                     call PrintErrMsg(option)
+                  endif
                 case(NEUMANN_BC)
                 case default
                   option%io_buffer = 'Unknown BC type in SCO2UpdateAuxVars().'
@@ -1023,15 +1038,30 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             if (.not. associated(cur_well)) exit
             do well_seg = 1,cur_well%well_grid%nsegments
               if (cur_well%well_grid%h_ghosted_id(well_seg) == ghosted_id) then
-                if (associated(cur_well%well%liq%Q)) then
-                  source_sink%flow_condition%well%aux_real(1) = &
-                                                    -cur_well%well%liq%Q(well_seg)
-                  source_sink%flow_condition%well%aux_real(2) = 0.d0
-                endif
+                ! if (associated(cur_well%well%liq%Q)) then
+                !   source_sink%flow_condition%well%aux_real(1) = -1.d0 * &
+                !                                     cur_well%well%liq%Q(well_seg)
+                !   source_sink%flow_condition%well%aux_real(2) = 0.d0
+                ! endif
                 if (associated(cur_well%well%gas%Q)) then
-                  source_sink%flow_condition%well%aux_real(2) = &
-                                                  -cur_well%well%gas%Q(well_seg)
-                  source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  ! MAN: This is for RT coupling. I think we only need a source
+                  ! term if no free gas phase is present. Otherwise, RT computes
+                  ! equilibrium dissolved gas concentration.
+                  if (global_auxvars(ghosted_id)%istate == &
+                      SCO2_LIQUID_STATE .and. &
+                      cur_well%well%gas%Q(well_seg) < 0.d0) then
+                    source_sink%flow_condition%well%aux_real(2) = -1.d0 * &
+                                                  cur_well%well%gas%Q(well_seg)
+                    source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  ! elseif (cur_well%well%liq%Q(well_seg) > 0.d0) then
+                  !   ! Extracting and two-phase
+                  !   source_sink%flow_condition%well%aux_real(2) = &
+                  !          -1.d0 *cur_well%well%liq%Q(well_seg) * &
+                  !          sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(gid,lid)
+                  !   source_sink%flow_condition%well%aux_real(1) = 0.d0
+                  else
+                    source_sink%flow_condition%well%aux_real(:) = 0.d0
+                  endif
                 endif
               endif
             enddo
@@ -1184,10 +1214,35 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
             cur_well%well%th_ql = 0.d0
             cur_well%well%th_qg = 0.d0
           else
-            cur_well%well%th_ql = well_flow_condition%sco2%rate%dataset% &
-                                  rarray(1)
-            cur_well%well%th_qg = well_flow_condition%sco2%rate%dataset% &
-                                  rarray(2)
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+            if (associated(well_flow_condition%sco2%co2_mass_fraction)) then
+              liquid_rate = well_flow_condition%sco2%rate%dataset%rarray(1)
+              co2_fraction = well_flow_condition%sco2%co2_mass_fraction% &
+                             dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    liquid_rate  * (1.d0 - co2_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    liquid_rate  * co2_fraction
+            else
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    well_flow_condition%sco2%rate%dataset% &
+                                    rarray(1)
+            endif
+            if (associated(well_flow_condition%sco2%relative_humidity)) then
+              gas_rate = well_flow_condition%sco2%rate%dataset% &
+                         rarray(2)
+              co2_fraction = 1.d0 - well_flow_condition%sco2% &
+                             relative_humidity%dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    gas_rate  * (1.d0 - co2_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    gas_rate  * co2_fraction
+            else
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    well_flow_condition%sco2%rate%dataset% &
+                                    rarray(2)
+            endif
             cur_well%well%total_rate = 999.d0
           endif
         endif
@@ -1691,10 +1746,15 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                 if (trim(srcsink_name) == trim(source_sink%name)) then
                   sum_connection = sum_connection + 1
                   if (associated(patch%ss_flow_vol_fluxes)) then
+                    ! MAN: This isn't quite right for production wells, which
+                    ! are component source/sinks. Injection is fine for now,
+                    ! since injecting pure phase.
                     patch%ss_flow_vol_fluxes(ONE_INTEGER,sum_connection) = &
-                                       -1.d0 * cur_well%well%liq%Q(k) ! [kg/s]
+                                    -1.d0 * cur_well%well%liq%Q(k) / &
+                                    cur_well%well%liq%den(k) ! [m^3/s]
                     patch%ss_flow_vol_fluxes(TWO_INTEGER,sum_connection) = &
-                                       -1.d0 * cur_well%well%gas%Q(k) ! [kg/s]
+                                    -1.d0 * cur_well%well%gas%Q(k) / &
+                                    cur_well%well%gas%den(k) ! [m^3/s]
                   endif
                   if (option%compute_mass_balance_new) then
                     global_auxvars_ss(sum_connection)%mass_balance_delta(wid,1) = &

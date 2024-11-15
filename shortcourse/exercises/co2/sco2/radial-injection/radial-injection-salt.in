@@ -1,0 +1,303 @@
+# Radial CO2 injection short course problem, based off of
+# STOMP CO2 Example Problem CO2-1
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+      OPTIONS
+        ISOTHERMAL_TEMPERATURE 45.d0
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+  END
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  END
+
+  TIMESTEPPER FLOW
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.15
+  END
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED CYLINDRICAL
+  ORIGIN 0.3d0 0.d0 0.d0
+  NXYZ 100 1 1
+  DXYZ
+    0.04068267\
+    0.046199602\
+    0.052464679\
+    0.059579357\
+    0.0676588480000001\
+    0.0768339889999999\
+    0.0872533630000001\	
+    0.099085695\
+    0.112522597\
+    0.127781662\	
+    0.145109993\
+    0.1647882\	
+    0.187134946\	
+    0.212512111\
+    0.241330644\	
+    0.274057227\
+    0.311221826\
+    0.353426275\
+    0.401354024\
+    0.455781202\	
+    0.517589188\
+    0.58777889\
+    0.667486937000001\
+    0.758004107\	
+    0.86079621\
+    0.977527836999999\
+    1.110089312\
+    1.260627299\
+    1.43157959\
+    1.62571451\
+    1.84617587\
+    2.09653376\
+    2.38084238\
+    2.70370581\
+    3.07035237\
+    3.48671948\
+    3.95954967\
+    4.49649985\
+    5.10626525\
+    5.79872025\
+    6.58507834\
+    7.47807355\
+    8.49216689000001\
+    9.6437803\
+    10.95156273\
+    12.43669211\
+    14.1232182\
+    16.0384524\
+    18.2134092\
+    20.6833096\	
+    23.4881504\	
+    26.6733527\	
+    30.2904967\	
+    34.3981576\	
+    39.062854\	
+    44.3601245\
+    50.3757523\
+    57.2071526\
+    64.9649517\
+    73.7747773\
+    83.7792936\
+    95.1405115\
+    108.0424116\
+    122.6939237\
+    139.332313\
+    158.227013\
+    179.684006\
+    204.050755\
+    231.721854\
+    263.145399\
+    298.830257\
+    339.3543\
+    385.373763\
+    437.633876\
+    496.980923\
+    564.37596\
+    640.910363\
+    727.823512\
+    826.522858\
+    938.606713\	
+    1065.890137\
+    1210.434327\
+    1374.57999\
+    1560.98528\
+    1772.66876\
+    2013.05843\
+    2286.04707\
+    2596.0554\
+    2948.10362\
+    3347.8927\
+    3801.89675\
+    4317.46778\
+    4902.95484\
+    5567.83915\
+    6322.88769\
+    7180.32753\
+    8154.04386000001\
+    9259.80477\
+    10515.5167\
+    11941.51436
+
+    1@1.d0
+    1@12.5d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE ../../../../../database/co2_sw.dat
+  HENRYS_CONSTANT DEFAULT
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.12 
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0
+  THERMAL_CONDUCTIVITY_WET 2.18d0
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VG_STOMP
+    ALPHA 5.d-1
+    N 1.84162
+    OVEN_DRIED_CAP_HEAD 102108.2d0
+    LIQUID_RESIDUAL_SATURATION 0.d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.457
+    LIQUID_RESIDUAL_SATURATION 0.3
+  /
+  PERMEABILITY_FUNCTION MODIFIED_COREY_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.3
+    GAS_RESIDUAL_SATURATION 0.05
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    TIMES y 3.d-2 3.d-1 3.d0 3.d1 3.d2
+    FORMAT TECPLOT POINT
+  /
+
+  UNFILTER_NON_STATE_VARIABLES
+  
+  VARIABLES
+   TEMPERATURE
+   GAS_SATURATION
+   PRECIPITATE_SATURATION
+   LIQUID_MASS_FRACTIONS
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 300 y
+  INITIAL_TIMESTEP_SIZE 1.d-8 y 
+  MAXIMUM_TIMESTEP_SIZE 1.d1 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d5 1.d0 100.d0
+  /
+END
+
+REGION edge
+  FACE EAST
+  COORDINATES
+    1.d5 0.d0  0.d0 
+    1.d5 1.d0  100.d0 
+  /
+END
+
+REGION center
+  COORDINATE 0.301d0 0.d0 0.d0
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0
+  SALT_MASS_FRACTION 1.5d-1
+END
+
+FLOW_CONDITION center
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 0.d0 12.5d0 0.d0 kg/s kg/s kg/s
+END
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+SOURCE_SINK center
+  FLOW_CONDITION center
+  REGION center
+END
+
+BOUNDARY_CONDITION edge
+  FLOW_CONDITION initial
+  REGION edge
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE

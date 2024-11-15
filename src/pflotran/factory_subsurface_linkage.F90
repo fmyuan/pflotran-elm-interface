@@ -1045,6 +1045,10 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
     pmc_well%pm_ptr%pm => pm_well
     pmc_well%realization => realization
 
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      pmc_well%print_header = PETSC_FALSE
+    endif
+
     ! set up logging stage
     string = 'WELLBORE_MODEL'
     call LoggingCreateStage(string,pmc_well%stage)

@@ -2632,6 +2632,7 @@ pmc_third_party.o : \
   pflotran_constants.o \
   pmc_base.o \
   realization_subsurface.o \
+  string.o \
   timestepper_base.o \
   utility.o
 pnf.o : \
@@ -3300,6 +3301,7 @@ richards.o : \
   srcsink_sandbox_base.o \
   srcsink_sandbox_downreg.o \
   srcsink_sandbox_pressure.o \
+  string.o \
   utility.o \
   variables.o
 richards_aux.o : \
