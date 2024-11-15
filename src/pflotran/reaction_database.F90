@@ -831,13 +831,11 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(transition_state_prefactor_type), pointer :: cur_prefactor
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
-  type(database_rxn_type), pointer :: dbaserxn
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
   character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
-  character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, parameter :: h2o_id = 1
