@@ -160,8 +160,14 @@
      Mean:  -1.5854896410466E-04
         2:  -1.5854896410466E-03
         8:   0.0000000000000E+00
+-- PRESSURE: Well BHP --
+      Max:   1.5965401190292E+07
+      Min:   1.5965401190292E+07
+     Mean:   1.5965401190292E+07
+        2:   1.5965401190292E+07
+        8:   1.5965401190292E+07
 -- SOLUTION: Flow --
-   Time (seconds):   2.0851382900003E-01
+   Time (seconds):   1.9872380599986E-01
    Time Steps:           17
    Newton Iterations:          137
    Linear Solver Iterations:          137

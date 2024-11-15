@@ -676,6 +676,7 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
   PetscReal :: xxbc(realization%option%nflowdof), &
                xxss(realization%option%nflowdof)
   PetscReal :: cell_pressure,qsrc_vol(2),scale
+  PetscReal :: liquid_rate, gas_rate, air_fraction
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1047,10 +1048,51 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
                                dataset%rarray(1)
         endif
         if (associated(well_flow_condition%hydrate%rate)) then
-          cur_well%well%th_ql = well_flow_condition%hydrate%rate%dataset% &
-                                rarray(1)
-          cur_well%well%th_qg = well_flow_condition%hydrate%rate%dataset% &
-                                rarray(2)
+          if (any(well_flow_condition%hydrate%rate%dataset%rarray(:) < 0.d0)) then
+            cur_well%well%total_rate = sum(well_flow_condition%hydrate%rate%dataset% &
+                                      rarray(:))
+            if (cur_well%well%total_rate > 0.d0) then
+              option%io_buffer = "The well model does not support a concurrent &
+                                 & injection and production well."
+            endif
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+          else
+            cur_well%well%th_ql = well_flow_condition%hydrate%rate%dataset% &
+                                  rarray(1)
+            cur_well%well%th_qg = well_flow_condition%hydrate%rate%dataset% &
+                                  rarray(2)
+            cur_well%well%th_ql = 0.d0
+            cur_well%well%th_qg = 0.d0
+            if (associated(well_flow_condition%hydrate%mass_fraction)) then
+              liquid_rate = well_flow_condition%hydrate%rate%dataset%rarray(1)
+              air_fraction = well_flow_condition%hydrate%mass_fraction% &
+                             dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    liquid_rate  * (1.d0 - air_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    liquid_rate  * air_fraction
+            else
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    well_flow_condition%hydrate%rate%dataset% &
+                                    rarray(1)
+            endif
+            if (associated(well_flow_condition%hydrate%relative_humidity)) then
+              gas_rate = well_flow_condition%hydrate%rate%dataset% &
+                         rarray(2)
+              air_fraction = 1.d0 - well_flow_condition%hydrate% &
+                             relative_humidity%dataset%rarray(1)
+              cur_well%well%th_ql = cur_well%well%th_ql + &
+                                    gas_rate  * (1.d0 - air_fraction)
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    gas_rate  * air_fraction
+            else
+              cur_well%well%th_qg = cur_well%well%th_qg + &
+                                    well_flow_condition%hydrate%rate%dataset% &
+                                    rarray(2)
+            endif
+            cur_well%well%total_rate = 999.d0
+          endif
         endif
         if (Initialized(cur_well%well%bh_p)) then
           do idof = 1,option%nflowdof
@@ -1991,9 +2033,12 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,pm_well,ierr)
       cur_well => pm_well
       do
         if (.not. associated(cur_well)) exit
-        if ((dabs(cur_well%well%th_qg) < epsilon) .and. &
-              dabs(cur_well%well%th_ql) < epsilon) then
-          ! Don't solve for BHP if there is no flow in the well.
+        if (((dabs(cur_well%well%th_qg) < epsilon) .and. &
+              (dabs(cur_well%well%th_ql) < epsilon) .and. &
+              (cur_well%well%total_rate > 0.d0)) .or. &
+              cur_well%pressure_controlled) then
+          ! Don't solve for BHP if there is no flow in the well, or
+          ! if the well is pressure-controlled.
           deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
                             option%nflowdof
           deactivate_row = deactivate_row - 1
