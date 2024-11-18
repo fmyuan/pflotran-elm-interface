@@ -27,7 +27,7 @@ module Reaction_Mineral_Aux_module
     PetscReal :: molar_weight
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn
-    character(len=MAXSTRINGLENGTH) :: override_mass_action_string
+    type(mass_action_override_type), pointer :: mass_action_override
     type(transition_state_rxn_type), pointer :: tstrxn
     type(mineral_rxn_type), pointer :: next
   end type mineral_rxn_type
@@ -281,8 +281,8 @@ function ReactionMnrlCreateMineralRxn()
   mineral%molar_volume = 0.d0
   mineral%molar_weight = 0.d0
   mineral%print_me = PETSC_FALSE
-  mineral%override_mass_action_string = ''
   nullify(mineral%dbaserxn)
+  nullify(mineral%mass_action_override)
   nullify(mineral%tstrxn)
   nullify(mineral%next)
 
@@ -648,10 +648,9 @@ subroutine ReactionMnrlDestroyMineralRxn(mineral)
 
   type(mineral_rxn_type), pointer :: mineral
 
-  if (associated(mineral%dbaserxn)) &
-    call ReactionDBDestroyRxn(mineral%dbaserxn)
-  if (associated(mineral%tstrxn)) &
-    call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
+  call ReactionDBDestroyRxn(mineral%dbaserxn)
+  call ReactionDBDestroyMassActOverride(mineral%mass_action_override)
+  call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
 
   deallocate(mineral)
   nullify(mineral)

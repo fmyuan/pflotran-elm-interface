@@ -16,6 +16,12 @@ module Reaction_Database_Aux_module
     PetscReal, pointer :: logKCoeff_hpt(:)
   end type database_rxn_type
 
+  type, public :: mass_action_override_type
+    character(len=MAXSTRINGLENGTH) :: reaction_string
+    type(reaction_equation_type), pointer :: reaction_equation
+    PetscReal, pointer :: logK(:)
+  end type mass_action_override_type
+
   interface ReactionDBCreateRxn
     module procedure ReactionDBCreateRxn1
     module procedure ReactionDBCreateRxn2
@@ -26,7 +32,9 @@ module Reaction_Database_Aux_module
             ReactionDBCreateRxn, &
             ReactionDBCheckLegitLogKs, &
             ReactionDBOverrideSpecies, &
-            ReactionDBDestroyRxn
+            ReactionDBDestroyRxn, &
+            ReactionDBCreateMassActOverride, &
+            ReactionDBDestroyMassActOverride
 
 contains
 
@@ -82,6 +90,31 @@ function ReactionDBCreateRxn2(num_species,num_logKs)
   ReactionDBCreateRxn2 => dbaserxn
 
 end function ReactionDBCreateRxn2
+
+! ************************************************************************** !
+
+function ReactionDBCreateMassActOverride()
+  !
+  ! Allocate and initialize a mass action override object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+
+  implicit none
+
+  type(mass_action_override_type), pointer :: ReactionDBCreateMassActOverride
+
+  type(mass_action_override_type), pointer :: mass_action_override
+
+  allocate(mass_action_override)
+  mass_action_override%reaction_string = ''
+  nullify(mass_action_override%reaction_equation)
+  nullify(mass_action_override%logK)
+
+  ReactionDBCreateMassActOverride => mass_action_override
+
+end function ReactionDBCreateMassActOverride
 
 ! ************************************************************************** !
 
@@ -245,7 +278,7 @@ end function ReactionDBCheckLegitLogKs
 
 ! ************************************************************************** !
 
-function ReactionDBOverrideSpecies(reaction_string,option)
+function ReactionDBOverrideSpecies(mass_action_override,option)
   !
   ! Allocate and initialize an equilibrium reaction
   !
@@ -258,6 +291,7 @@ function ReactionDBOverrideSpecies(reaction_string,option)
 
   implicit none
 
+  type(mass_action_override_type) :: mass_action_override
   character(len=MAXSTRINGLENGTH) :: reaction_string
   type(option_type) :: option
 
@@ -324,5 +358,30 @@ subroutine ReactionDBDestroyRxn(dbaserxn)
   nullify(dbaserxn)
 
 end subroutine ReactionDBDestroyRxn
+
+! ************************************************************************** !
+
+subroutine ReactionDBDestroyMassActOverride(mass_action_override)
+  !
+  ! Deallocates a database reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/29/08
+  !
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(mass_action_override_type), pointer :: mass_action_override
+
+  if (.not.associated(mass_action_override)) return
+
+  call ReactionEquationDestroy(mass_action_override%reaction_equation)
+  call DeallocateArray(mass_action_override%logK)
+
+  deallocate(mass_action_override)
+  nullify(mass_action_override)
+
+end subroutine ReactionDBDestroyMassActOverride
 
 end module Reaction_Database_Aux_module

@@ -797,6 +797,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   !
   use Input_Aux_module
   use Option_module
+  use Reaction_Equation_module
   use Reaction_Gas_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Inhibition_Aux_module
@@ -831,7 +832,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(transition_state_prefactor_type), pointer :: cur_prefactor
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
-  type(database_rxn_type), pointer :: dbaserxn
+  type(reaction_equation_type), pointer :: reaction_equation
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
@@ -2138,28 +2139,35 @@ subroutine ReactionDBInitBasis(reaction,option)
       endif
 
       ! check for overriding of mass action
-      if (len_trim(cur_mineral%override_mass_action_string) > 0) then
-        dbaserxn => &
-          ReactionDBOverrideSpecies(cur_mineral%override_mass_action_string, &
-                                    option)
+      if (associated(cur_mineral%mass_action_override)) then
+        reaction_equation => &
+          ReactionEquationCreateFromString(cur_mineral%mass_action_override% &
+                                             reaction_string, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
         mineral%mnrlspecid(:,imnrl) = 0
         mineral%mnrlstoich(:,imnrl) = 0.d0
         mineral%mnrlh2oid(imnrl) = 0
         mineral%mnrlh2ostoich(imnrl) = 0.d0
         ispec = 0
-        do i = 1, dbaserxn%reaction_equation%nspec
-          species_name = dbaserxn%reaction_equation%spec_name(i)
-          if (StringCompare(species_name,h2oname)) then
+        do i = 1, reaction_equation%nspec
+          species_name = reaction_equation%spec_name(i)
+          if (StringCompare(species_name,cur_mineral%name)) then
+
+          else if (StringCompare(species_name,h2oname)) then
             ! fill in h2o id and stoich
             mineral%mnrlh2oid(imnrl) = h2o_id
-            mineral%mnrlh2ostoich(imnrl) = &
-              dbaserxn%reaction_equation%stoich(i)
+            mineral%mnrlh2ostoich(imnrl) = reaction_equation%stoich(i)
           else
             ispec = ispec + 1
             mineral%mnrlspecid(ispec,imnrl) = &
               ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
-            mineral%mnrlstoich(ispec,imnrl) = &
-              dbaserxn%reaction_equation%stoich(i)
+            mineral%mnrlstoich(ispec,imnrl) = reaction_equation%stoich(i)
           endif
         enddo
         mineral%mnrlspecid(0,imnrl) = ispec
@@ -2178,7 +2186,8 @@ subroutine ReactionDBInitBasis(reaction,option)
           enddo
           if (ispec == 0) exit
         enddo
-        call ReactionDBDestroyRxn(dbaserxn)
+        cur_mineral%mass_action_override%reaction_equation => reaction_equation
+        nullify(reaction_equation)
       endif
 
       if (.not.reaction%use_geothermal_hpt) then
