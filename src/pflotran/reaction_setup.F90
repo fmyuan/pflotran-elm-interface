@@ -104,14 +104,19 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_radiodecay_rxn)) exit
       cur_radiodecay_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_radiodecay_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_FALSE,option)
+        ReactionEquationCreateFromString(cur_radiodecay_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_radiodecay_rxn% &
+                                             reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_radiodecay_rxn% &
+                                           reaction_equation, &
+                                         h2oname,option)
       cur_radiodecay_rxn => cur_radiodecay_rxn%next
     enddo
     nullify(cur_radiodecay_rxn)
@@ -199,14 +204,17 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_general_rxn)) exit
       cur_general_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_general_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_FALSE,option)
+        ReactionEquationCreateFromString(cur_general_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_general_rxn%reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_general_rxn%reaction_equation, &
+                                         h2oname,option)
       cur_general_rxn => cur_general_rxn%next
     enddo
     nullify(cur_general_rxn)
@@ -330,14 +338,18 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_microbial_rxn)) exit
       cur_microbial_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_microbial_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_TRUE,option)
+        ReactionEquationCreateFromString(cur_microbial_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_microbial_rxn% &
+                                             reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_microbial_rxn%reaction_equation, &
+                                         h2oname,option)
       if (cur_microbial_rxn%activation_energy > 0.d0) then
         activation_energy_count = activation_energy_count + 1
       endif

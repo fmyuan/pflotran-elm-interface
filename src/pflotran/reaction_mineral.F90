@@ -480,6 +480,7 @@ subroutine ReactionMnrlReadMassActOverride(mineral,input,option)
             case('REACTION')
               mass_action_override%reaction_string = trim(input%buf)
             case('LOGK')
+              call DeallocateArray(mass_action_override%logK)
               allocate(mass_action_override%logK(100))
               mass_action_override%logK = UNINITIALIZED_DOUBLE
               icount = 0

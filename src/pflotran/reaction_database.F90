@@ -838,7 +838,6 @@ subroutine ReactionDBInitBasis(reaction,option)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
   character(len=MAXWORDLENGTH) :: species_name
-  character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, parameter :: h2o_id = 1
@@ -874,6 +873,7 @@ subroutine ReactionDBInitBasis(reaction,option)
 
   PetscBool :: found
   PetscInt :: num_logKs
+  PetscReal :: tempreal
 
   surface_complexation => reaction%surface_complexation
   mineral => reaction%mineral
@@ -2140,54 +2140,77 @@ subroutine ReactionDBInitBasis(reaction,option)
 
       ! check for overriding of mass action
       if (associated(cur_mineral%mass_action_override)) then
-        reaction_equation => &
-          ReactionEquationCreateFromString(cur_mineral%mass_action_override% &
-                                             reaction_string, &
-                                           reaction%naqcomp, &
-                                           reaction%offset_aqueous, &
-                                           reaction%primary_species_names, &
-                                           reaction%nimcomp, &
-                                           reaction%offset_immobile, &
-                                           reaction%immobile%names, &
-                                           PETSC_FALSE,option)
-        mineral%mnrlspecid(:,imnrl) = 0
-        mineral%mnrlstoich(:,imnrl) = 0.d0
-        mineral%mnrlh2oid(imnrl) = 0
-        mineral%mnrlh2ostoich(imnrl) = 0.d0
-        ispec = 0
-        do i = 1, reaction_equation%nspec
-          species_name = reaction_equation%spec_name(i)
-          if (StringCompare(species_name,cur_mineral%name)) then
-
-          else if (StringCompare(species_name,h2oname)) then
-            ! fill in h2o id and stoich
-            mineral%mnrlh2oid(imnrl) = h2o_id
-            mineral%mnrlh2ostoich(imnrl) = reaction_equation%stoich(i)
+        if (len_trim(cur_mineral%mass_action_override% &
+                       reaction_string) > 0) then
+          reaction_equation => &
+            ReactionEquationCreateFromString(cur_mineral%mass_action_override% &
+                                              reaction_string,option)
+          ! remove the mineral species
+          call ReactionEquationRemoveSpecies(reaction_equation, &
+                                            cur_mineral%name, &
+                                            tempreal,option)
+          if (Initialized(tempreal)) then
+            if (.not.Equal(-1.d0,tempreal)) then
+              option%io_buffer = 'Non-unity reactive mineral stoichiometry &
+                &in mass action override (i.e., \nu_m /= -1.): ' // &
+                StringWrite(tempreal)
+              call PrintErrMsg(option)
+            endif
           else
+            option%io_buffer = 'Mineral "' // &
+              StringWrite(cur_mineral%name) // &
+              '" not found in mass action override.'
+            call PrintErrMsg(option)
+          endif
+          call ReactionEquationMapSpeciesNames(reaction_equation, &
+                                          reaction%naqcomp, &
+                                          reaction%offset_aqueous, &
+                                          reaction%primary_species_names, &
+                                          reaction%nimcomp, &
+                                          reaction%offset_immobile, &
+                                          reaction%immobile%names, &
+                                          PETSC_FALSE,option)
+          ! extract the water species
+          call ReactionEquationRemoveSpecies(reaction_equation,h2oname, &
+                                             tempreal,option)
+          if (Initialized(tempreal)) then
+            mineral%mnrlh2oid(imnrl) = h2o_id
+            mineral%mnrlh2ostoich(imnrl) = tempreal
+          endif
+          ! fill the arrays
+          mineral%mnrlspecid(:,imnrl) = 0
+          mineral%mnrlstoich(:,imnrl) = 0.d0
+          mineral%mnrlh2oid(imnrl) = 0
+          mineral%mnrlh2ostoich(imnrl) = 0.d0
+          ispec = 0
+          do i = 1, reaction_equation%nspec
+            species_name = reaction_equation%spec_name(i)
             ispec = ispec + 1
             mineral%mnrlspecid(ispec,imnrl) = &
               ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
             mineral%mnrlstoich(ispec,imnrl) = reaction_equation%stoich(i)
-          endif
-        enddo
-        mineral%mnrlspecid(0,imnrl) = ispec
-        ! sort in order of basis
-        do
-          ispec = 0
-          do i = 1, mineral%mnrlspecid(0,imnrl)
-            do j = i+1, mineral%mnrlspecid(0,imnrl)
-              if (mineral%mnrlspecid(i,imnrl) > &
-                  mineral%mnrlspecid(j,imnrl)) then
-                ispec = mineral%mnrlspecid(i,imnrl)
-                mineral%mnrlspecid(i,imnrl) = mineral%mnrlspecid(j,imnrl)
-                mineral%mnrlspecid(j,imnrl) = ispec
-              endif
-            enddo
           enddo
-          if (ispec == 0) exit
-        enddo
-        cur_mineral%mass_action_override%reaction_equation => reaction_equation
-        nullify(reaction_equation)
+          mineral%mnrlspecid(0,imnrl) = ispec
+          cur_mineral%mass_action_override%reaction_equation => &
+            reaction_equation
+          nullify(reaction_equation)
+        endif
+        if (associated(cur_mineral%mass_action_override%logK)) then
+          if (size(cur_mineral%mass_action_override%logK) == 1) then
+            cur_mineral%dbaserxn%logK(:) = &
+              cur_mineral%mass_action_override%logK(1)
+          else if (size(cur_mineral%mass_action_override%logK) == &
+                   reaction%num_dbase_temperatures) then
+            cur_mineral%dbaserxn%logK(:) = &
+              cur_mineral%mass_action_override%logK(:)
+          else
+            option%io_buffer = 'Number of logKs (' // &
+              StringWrite(size(cur_mineral%mass_action_override%logK)) // &
+              ') in mass action override is not equal to 1 or the number &
+              &of database temperatures.'
+            call PrintErrMsg(option)
+          endif
+        endif
       endif
 
       if (.not.reaction%use_geothermal_hpt) then
