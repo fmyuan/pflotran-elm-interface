@@ -831,10 +831,12 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(transition_state_prefactor_type), pointer :: cur_prefactor
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
+  type(database_rxn_type), pointer :: dbaserxn
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
+  character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -2137,13 +2139,12 @@ subroutine ReactionDBInitBasis(reaction,option)
 
       ! check for overriding of mass action
       if (len_trim(cur_mineral%override_mass_action_string) > 0) then
-        call ReactionDBDestroyRxn(dbaserxn)
         dbaserxn => &
           ReactionDBOverrideSpecies(cur_mineral%override_mass_action_string, &
                                     option)
-        mineral%mnrlspecid(:,imnrl) = 0 
-        mineral%mnrlstoich(:,imnrl) = 0.d0 
-        mineral%mnrlh2oid(imnrl) = 0 
+        mineral%mnrlspecid(:,imnrl) = 0
+        mineral%mnrlstoich(:,imnrl) = 0.d0
+        mineral%mnrlh2oid(imnrl) = 0
         mineral%mnrlh2ostoich(imnrl) = 0.d0
         ispec = 0
         do i = 1, dbaserxn%reaction_equation%nspec
@@ -2162,6 +2163,21 @@ subroutine ReactionDBInitBasis(reaction,option)
           endif
         enddo
         mineral%mnrlspecid(0,imnrl) = ispec
+        ! sort in order of basis
+        do
+          ispec = 0
+          do i = 1, mineral%mnrlspecid(0,imnrl)
+            do j = i+1, mineral%mnrlspecid(0,imnrl)
+              if (mineral%mnrlspecid(i,imnrl) > &
+                  mineral%mnrlspecid(j,imnrl)) then
+                ispec = mineral%mnrlspecid(i,imnrl)
+                mineral%mnrlspecid(i,imnrl) = mineral%mnrlspecid(j,imnrl)
+                mineral%mnrlspecid(j,imnrl) = ispec
+              endif
+            enddo
+          enddo
+          if (ispec == 0) exit
+        enddo
         call ReactionDBDestroyRxn(dbaserxn)
       endif
 
