@@ -15,10 +15,6 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_KINETIC = 2
   PetscInt, parameter, public :: MINERAL_EQUILIBRIUM = 3
 
-  PetscInt, parameter, public :: MINERAL_RATE_REVERSIBLE = 0
-  PetscInt, parameter, public :: MINERAL_RATE_DISSOLUTION_ONLY = 1
-  PetscInt, parameter, public :: MINERAL_RATE_PRECIPITATION_ONLY = 2
-
   type, public :: mineral_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -40,8 +36,8 @@ module Reaction_Mineral_Aux_module
     PetscReal :: rate_limiter
     PetscReal :: surf_area_vol_frac_pwr
     PetscReal :: surf_area_porosity_pwr
-    PetscInt :: rate_direction
-    PetscReal :: rate
+    PetscReal :: forward_rate_constant
+    PetscReal :: reverse_rate_constant
     PetscReal :: activation_energy
     character(len=MAXWORDLENGTH) :: armor_min_name
     PetscReal :: armor_pwr
@@ -55,7 +51,8 @@ module Reaction_Mineral_Aux_module
   type, public :: transition_state_prefactor_type
     type(ts_prefactor_species_type), pointer :: species
     ! these supercede the those above in transition_state_rxn_type
-    PetscReal :: rate
+    PetscReal :: forward_rate_constant
+    PetscReal :: reverse_rate_constant
     PetscReal :: activation_energy
     type(transition_state_prefactor_type), pointer :: next
   end type transition_state_prefactor_type
@@ -124,7 +121,8 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrlh2ostoich_in_residual(:)
     PetscReal, pointer :: kinmnrl_logK(:)
     PetscReal, pointer :: kinmnrl_logKcoef(:,:)
-    PetscReal, pointer :: kinmnrl_rate_constant(:)
+    PetscReal, pointer :: kinmnrl_forward_rate_constant(:)
+    PetscReal, pointer :: kinmnrl_reverse_rate_constant(:)
     PetscReal, pointer :: kinmnrl_activation_energy(:)
     PetscReal, pointer :: kinmnrl_molar_vol(:)
     PetscReal, pointer :: kinmnrl_molar_wt(:)
@@ -133,7 +131,8 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_pref_alpha(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_beta(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_atten_coef(:,:,:)
-    PetscReal, pointer :: kinmnrl_pref_rate(:,:)
+    PetscReal, pointer :: kinmnrl_pref_for_rate_const(:,:)
+    PetscReal, pointer :: kinmnrl_pref_rev_rate_const(:,:)
     PetscReal, pointer :: kinmnrl_pref_activation_energy(:,:)
     PetscReal, pointer :: kinmnrl_min_scale_factor(:)
     PetscReal, pointer :: kinmnrl_Temkin_const(:)
@@ -146,7 +145,6 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_armor_pwr(:)
     PetscReal, pointer :: kinmnrl_surf_area_epsilon(:)
     PetscReal, pointer :: kinmnrl_vol_frac_epsilon(:)
-    PetscInt, pointer :: kinmnrl_rate_direction(:)
 
   end type mineral_type
 
@@ -226,7 +224,8 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrlh2ostoich_in_residual)
   nullify(mineral%kinmnrl_logK)
   nullify(mineral%kinmnrl_logKcoef)
-  nullify(mineral%kinmnrl_rate_constant)
+  nullify(mineral%kinmnrl_forward_rate_constant)
+  nullify(mineral%kinmnrl_reverse_rate_constant)
   nullify(mineral%kinmnrl_activation_energy)
   nullify(mineral%kinmnrl_molar_vol)
   nullify(mineral%kinmnrl_molar_wt)
@@ -236,14 +235,14 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrl_pref_alpha)
   nullify(mineral%kinmnrl_pref_beta)
   nullify(mineral%kinmnrl_pref_atten_coef)
-  nullify(mineral%kinmnrl_pref_rate)
+  nullify(mineral%kinmnrl_pref_for_rate_const)
+  nullify(mineral%kinmnrl_pref_rev_rate_const)
   nullify(mineral%kinmnrl_pref_activation_energy)
 
   nullify(mineral%kinmnrl_min_scale_factor)
   nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
-  nullify(mineral%kinmnrl_rate_direction)
   nullify(mineral%kinmnrl_rate_limiter)
   nullify(mineral%kinmnrl_surf_area_vol_frac_pwr)
   nullify(mineral%kinmnrl_surf_area_porosity_pwr)
@@ -315,14 +314,14 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%surf_area_vol_frac_pwr = 0.d0
   tstrxn%surf_area_porosity_pwr = 0.d0
   tstrxn%rate_limiter = 0.d0
-  tstrxn%rate_direction = MINERAL_RATE_REVERSIBLE
   tstrxn%activation_energy = 0.d0
   tstrxn%armor_min_name = ''
   tstrxn%armor_pwr = 0.d0
   tstrxn%armor_crit_vol_frac = 0.d0
   tstrxn%surf_area_epsilon = 0.d0
   tstrxn%vol_frac_epsilon = 0.d0
-  tstrxn%rate = 0.d0
+  tstrxn%forward_rate_constant = UNINITIALIZED_DOUBLE
+  tstrxn%reverse_rate_constant = UNINITIALIZED_DOUBLE
   nullify(tstrxn%prefactor)
   nullify(tstrxn%next)
 
@@ -349,7 +348,8 @@ function ReactionMnrlCreateTSTPrefactor()
   type(transition_state_prefactor_type), pointer :: prefactor
 
   allocate(prefactor)
-  prefactor%rate = 0.d0
+  prefactor%forward_rate_constant = UNINITIALIZED_DOUBLE
+  prefactor%reverse_rate_constant = UNINITIALIZED_DOUBLE
   prefactor%activation_energy = 0.d0
   nullify(prefactor%species)
   nullify(prefactor%next)
@@ -817,7 +817,8 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrlh2ostoich_in_residual)
   call DeallocateArray(mineral%kinmnrl_logK)
   call DeallocateArray(mineral%kinmnrl_logKcoef)
-  call DeallocateArray(mineral%kinmnrl_rate_constant)
+  call DeallocateArray(mineral%kinmnrl_forward_rate_constant)
+  call DeallocateArray(mineral%kinmnrl_reverse_rate_constant)
   call DeallocateArray(mineral%kinmnrl_molar_vol)
   call DeallocateArray(mineral%kinmnrl_molar_wt)
 
@@ -826,7 +827,8 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_pref_alpha)
   call DeallocateArray(mineral%kinmnrl_pref_beta)
   call DeallocateArray(mineral%kinmnrl_pref_atten_coef)
-  call DeallocateArray(mineral%kinmnrl_pref_rate)
+  call DeallocateArray(mineral%kinmnrl_pref_for_rate_const)
+  call DeallocateArray(mineral%kinmnrl_pref_rev_rate_const)
   call DeallocateArray(mineral%kinmnrl_pref_activation_energy)
 
   call DeallocateArray(mineral%kinmnrl_min_scale_factor)
@@ -840,7 +842,6 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_armor_min_names)
   call DeallocateArray(mineral%kinmnrl_armor_pwr)
   call DeallocateArray(mineral%kinmnrl_armor_crit_vol_frac)
-  call DeallocateArray(mineral%kinmnrl_rate_direction)
 
   call DeallocateArray(mineral%kinmnrl_surf_area_epsilon)
   call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)

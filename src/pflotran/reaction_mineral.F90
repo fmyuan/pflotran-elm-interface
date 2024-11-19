@@ -113,6 +113,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                                               cur_prefactor_species
   PetscBool :: found
   PetscInt :: imnrl,icount
+  PetscReal :: rate_constant
 
   cur_mineral => mineral%mineral_list
   do
@@ -143,7 +144,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
         cur_mineral%itype = MINERAL_KINETIC
         tstrxn => ReactionMnrlCreateTSTRxn()
         ! initialize to UNINITIALIZED_INTEGER to ensure that it is set
-        tstrxn%rate = UNINITIALIZED_DOUBLE
+        tstrxn%forward_rate_constant = UNINITIALIZED_DOUBLE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -155,24 +156,19 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
 
           select case(trim(keyword))
             case('RATE_CONSTANT')
-!             read rate constant
-              call InputReadDouble(input,option,tstrxn%rate)
-              if (tstrxn%rate < 0.d0) then
-                tstrxn%rate = 10.d0**tstrxn%rate
-              endif
-              call InputErrorMsg(input,option,keyword,error_string)
-              ! read units if they exist
-              internal_units = 'mol/m^2-sec'
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              if (InputError(input)) then
-                input%err_buf = trim(cur_mineral%name) // ' RATE UNITS'
-                call InputDefaultMsg(input,option)
-              else
-                tstrxn%rate = tstrxn%rate * &
-                  UnitsConvertToInternal(word,internal_units, &
-                                     trim(error_string)//',RATE_CONSTANT', &
-                                     option)
-              endif
+              rate_constant = UNINITIALIZED_DOUBLE
+              call ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+                                                rate_constant,error_string, &
+                                                '',option)
+              select case(keyword)
+                case('RATE_CONSTANT')
+                  tstrxn%forward_rate_constant = rate_constant
+                  tstrxn%reverse_rate_constant = rate_constant
+                case('FORWARD_RATE_CONSTANT')
+                  tstrxn%forward_rate_constant = rate_constant
+                case('REVERSE_RATE_CONSTANT')
+                  tstrxn%reverse_rate_constant = rate_constant
+              end select
             case('ACTIVATION_ENERGY')
 !             read activation energy for Arrhenius law
               call InputReadDouble(input,option,tstrxn%activation_energy)
@@ -206,10 +202,6 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
 !             read rate limiter for precipitation
               call InputReadDouble(input,option,tstrxn%rate_limiter)
               call InputErrorMsg(input,option,keyword,error_string)
-            case('PRECIPITATION_ONLY')
-              tstrxn%rate_direction = MINERAL_RATE_PRECIPITATION_ONLY
-            case('DISSOLUTION_ONLY')
-              tstrxn%rate_direction = MINERAL_RATE_DISSOLUTION_ONLY
             case('ARMOR_MINERAL')
                     ! read mineral name
               call InputReadWord(input,option,tstrxn%armor_min_name,PETSC_TRUE)
@@ -231,7 +223,6 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
               prefactor => ReactionMnrlCreateTSTPrefactor()
               ! Initialize to UNINITIALIZED_DOUBLE to check later whether
               ! they were set
-              prefactor%rate = UNINITIALIZED_DOUBLE
               prefactor%activation_energy = UNINITIALIZED_DOUBLE
               call InputPushBlock(input,option)
               do
@@ -243,26 +234,21 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                 call InputReadCard(input,option,keyword)
                 call InputErrorMsg(input,option,'keyword',error_string)
                 select case(trim(keyword))
-                  case('RATE_CONSTANT')
-                    ! read rate constant
-                    call InputReadDouble(input,option,prefactor%rate)
-                    call InputErrorMsg(input,option,keyword,error_string)
-                    if (prefactor%rate < 0.d0) then
-                      prefactor%rate = 10.d0**prefactor%rate
-                    endif
-                    ! read units if they exist
-                    internal_units = 'mol/m^2-sec'
-                    call InputReadWord(input,option,word,PETSC_TRUE)
-                    if (InputError(input)) then
-                      input%err_buf = trim(cur_mineral%name) // &
-                                      'PREFACTOR RATE UNITS'
-                      call InputDefaultMsg(input,option)
-                    else
-                      prefactor%rate = prefactor%rate * &
-                        UnitsConvertToInternal(word,internal_units, &
-                          trim(cur_mineral%name)//',PREFACTOR RATE_CONSTANT', &
-                          option)
-                    endif
+                  case('RATE_CONSTANT','FORWARD_RATE_CONSTANT', &
+                       'REVERSE_RATE_CONSTANT')
+                    rate_constant = UNINITIALIZED_DOUBLE
+                    call ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+                                                      rate_constant,error_string, &
+                                                      'PREFACTOR',option)
+                    select case(keyword)
+                      case('RATE_CONSTANT')
+                        prefactor%forward_rate_constant = rate_constant
+                        prefactor%reverse_rate_constant = rate_constant
+                      case('FORWARD_RATE_CONSTANT')
+                        prefactor%forward_rate_constant = rate_constant
+                      case('REVERSE_RATE_CONSTANT')
+                        prefactor%reverse_rate_constant = rate_constant
+                    end select
                   case('ACTIVATION_ENERGY')
                     ! read activation energy for Arrhenius law
                     call InputReadDouble(input,option, &
@@ -343,18 +329,37 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
+        ! Ensure that both forward and reverse rate constants have been set
+        if ((Uninitialized(tstrxn%forward_rate_constant) .and. &
+             Initialized(tstrxn%reverse_rate_constant)) .or. &
+            (Initialized(tstrxn%forward_rate_constant) .and. &
+             Uninitialized(tstrxn%reverse_rate_constant))) then
+          option%io_buffer = 'Both forward and reverse rate constants must &
+            &be specified if either is specified for kinetic mineral ' // &
+            trim(cur_mineral%name) // '.'
+          call PrintErrMsg(option)
+        endif
         ! Loop over prefactors and set kinetic rates and activation energies
         ! equal to the "outer" values if zero.
         cur_prefactor => tstrxn%prefactor
         do
           if (.not.associated(cur_prefactor)) exit
           ! if not initialized
-          if (Uninitialized(cur_prefactor%rate)) then
-            cur_prefactor%rate = tstrxn%rate
-            if (Uninitialized(cur_prefactor%rate)) then
-              option%io_buffer = 'Both outer and inner prefactor rate ' // &
-                'constants uninitialized for kinetic mineral ' // &
-                cur_mineral%name // '.'
+          if (Uninitialized(cur_prefactor%forward_rate_constant)) then
+            cur_prefactor%forward_rate_constant = tstrxn%forward_rate_constant
+            if (Uninitialized(cur_prefactor%forward_rate_constant)) then
+              option%io_buffer = 'Both outer and inner prefactor forward &
+                &rate constants uninitialized for kinetic mineral ' // &
+                trim(cur_mineral%name) // '.'
+              call PrintErrMsg(option)
+            endif
+          endif
+          if (Uninitialized(cur_prefactor%reverse_rate_constant)) then
+            cur_prefactor%reverse_rate_constant = tstrxn%reverse_rate_constant
+            if (Uninitialized(cur_prefactor%reverse_rate_constant)) then
+              option%io_buffer = 'Both outer and inner prefactor reverse &
+                &rate constants uninitialized for kinetic mineral ' // &
+                trim(cur_mineral%name) // '.'
               call PrintErrMsg(option)
             endif
           endif
@@ -383,8 +388,8 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
       cur_mineral => cur_mineral%next
     enddo
     if (.not.found) then
-      option%io_buffer = 'Mineral "' // trim(name) // '" specified under ' // &
-        'CHEMISTRY,MINERAL_KINETICS not found in list of available minerals.'
+      option%io_buffer = 'Mineral "' // trim(name) // '" specified under &
+        &CHEMISTRY,MINERAL_KINETICS not found in list of available minerals.'
       call PrintErrMsg(option)
     endif
   enddo
@@ -415,6 +420,58 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
   enddo
 
 end subroutine ReactionMnrlReadKinetics
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+                                        rate_constant,error_string, &
+                                        error_string2,option)
+  !
+  ! Reads mineral kinetics
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/16/08
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use Units_module
+  use Reaction_Database_Aux_module
+  use Utility_module
+
+  implicit none
+
+  type(mineral_type) :: mineral
+  type(input_type), pointer :: input
+  type(mineral_rxn_type) :: cur_mineral
+  PetscReal :: rate_constant
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=*) :: error_string2
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units
+
+  call InputReadDouble(input,option,rate_constant)
+  if (rate_constant < 0.d0) then
+    rate_constant = 10.d0**rate_constant
+  endif
+  call InputErrorMsg(input,option,'RATE_CONSTANT',error_string)
+  ! read units if they exist
+  internal_units = 'mol/m^2-sec'
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  if (InputError(input)) then
+    input%err_buf = trim(cur_mineral%name) // ' ' // trim(error_string2) // &
+      ' RATE_CONSTANT UNITS'
+    call InputDefaultMsg(input,option)
+  else
+    rate_constant = rate_constant * &
+      UnitsConvertToInternal(word,internal_units, &
+                             trim(error_string)//','//trim(error_string2)// &
+                             ',RATE_CONSTANT',option)
+  endif
+
+end subroutine ReactionMnrlReadRateConstant
 
 ! ************************************************************************** !
 
@@ -786,7 +843,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt ::  icplx
   PetscReal :: ln_gam_m_beta
   PetscReal :: TREF = 25.d0
-  PetscInt :: rate_direction
+  PetscBool :: precipitation
+  PetscReal :: rate_constant
 
 #ifdef SOLID_SOLUTION
   PetscBool :: cycle_
@@ -894,20 +952,12 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
 
     if (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0) then
 
-      rate_direction = mineral%kinmnrl_rate_direction(imnrl)
-      if (rate_direction /= MINERAL_RATE_REVERSIBLE) then
-        if ((rate_direction == MINERAL_RATE_PRECIPITATION_ONLY .and. &
-             sign_ > 0.d0) .or. & ! sign_ > 0 = dissolution
-            (rate_direction == MINERAL_RATE_DISSOLUTION_ONLY .and. &
-             sign_ < 0.d0)) then  ! sign_ < 0 = precipitation
-          cycle
-        endif
-      endif
+      precipitation = (sign_ < 0.d0)
 
 !     check for supersaturation threshold for precipitation
 !     if (associated(mineral%kinmnrl_affinity_threshold)) then
       if (mineral%kinmnrl_affinity_threshold(imnrl) > 0.d0) then
-        if (sign_ < 0.d0 .and. &
+        if (precipitation .and. &
             QK < mineral%kinmnrl_affinity_threshold(imnrl)) cycle
       endif
 
@@ -953,9 +1003,13 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
               Arrhenius(mineral%kinmnrl_pref_activation_energy(ipref,imnrl),&
                         global_auxvar%temp,TREF)
           endif
-          sum_prefactor_rate = sum_prefactor_rate + prefactor(ipref)* &
-                               mineral%kinmnrl_pref_rate(ipref,imnrl)* &
-                               arrhenius_factor
+          if (precipitation) then
+            rate_constant = mineral%kinmnrl_pref_for_rate_const(ipref,imnrl)
+          else
+            rate_constant = mineral%kinmnrl_pref_rev_rate_const(ipref,imnrl)
+          endif
+          sum_prefactor_rate = sum_prefactor_rate + &
+            prefactor(ipref)*rate_constant*arrhenius_factor
         enddo
       else
         arrhenius_factor = 1.d0
@@ -964,8 +1018,12 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
             Arrhenius(mineral%kinmnrl_activation_energy(imnrl),&
                       global_auxvar%temp,TREF)
         endif
-        sum_prefactor_rate = mineral%kinmnrl_rate_constant(imnrl)* &
-                             arrhenius_factor
+        if (precipitation) then
+          rate_constant = mineral%kinmnrl_forward_rate_constant(imnrl)
+        else
+          rate_constant = mineral%kinmnrl_reverse_rate_constant(imnrl)
+        endif
+        sum_prefactor_rate = rate_constant*arrhenius_factor
       endif
 
       ! compute rate
@@ -1137,10 +1195,13 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
           ! to with respect to molality
           dprefactor_spec_dspec = dprefactor_spec_dspec * spec_act_coef
 
+          if (precipitation) then
+            rate_constant = mineral%kinmnrl_pref_for_rate_const(ipref,imnrl)
+          else
+            rate_constant = mineral%kinmnrl_pref_rev_rate_const(ipref,imnrl)
+          endif
           dIm_dspec = dIm_dsum_prefactor_rate * dprefactor_dprefactor_spec * &
-                      dprefactor_spec_dspec * &
-                      mineral%kinmnrl_pref_rate(ipref,imnrl)* &
-                      arrhenius_factor
+                      dprefactor_spec_dspec * rate_constant * arrhenius_factor
 
 
           if (icomp > 0) then
@@ -1226,8 +1287,9 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
 
   PetscReal :: lnQK
   PetscInt :: i, imnrl, icomp, ncomp, ipref, ipref_species
-  PetscInt :: rate_direction
+  PetscBool :: precipitation
   PetscReal :: sign_
+  PetscReal :: rate_constant
 
   PetscReal :: ln_spec_act
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
@@ -1269,16 +1331,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
 
   if (rt_auxvar%mnrl_volfrac(imnrl) > 0.d0 .or. sign_ < 0.d0) then
 
-    rate_direction = mineral%kinmnrl_rate_direction(imnrl)
-    if (rate_direction /= MINERAL_RATE_REVERSIBLE) then
-      if ((rate_direction == MINERAL_RATE_PRECIPITATION_ONLY .and. &
-           sign_ > 0.d0) .or. & ! sign_ > 0 = dissolution
-          (rate_direction == MINERAL_RATE_DISSOLUTION_ONLY .and. &
-           sign_ < 0.d0)) then  ! sign_ < 0 = precipitation
-        cycle_ = PETSC_TRUE
-        return
-      endif
-    endif
+      precipitation = (sign_ < 0.d0)
 
 !     check for supersaturation threshold for precipitation
 !     if (associated(mineral%kinmnrl_affinity_threshold)) then
@@ -1331,9 +1384,13 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
             Arrhenius(mineral%kinmnrl_pref_activation_energy(ipref,imnrl),&
                       global_auxvar%temp,TREF)
         endif
-        sum_prefactor_rate = sum_prefactor_rate + prefactor(ipref)* &
-                              mineral%kinmnrl_pref_rate(ipref,imnrl)* &
-                              arrhenius_factor
+        if (precipitation) then
+          rate_constant = mineral%kinmnrl_pref_for_rate_const(ipref,imnrl)
+        else
+          rate_constant = mineral%kinmnrl_pref_rev_rate_const(ipref,imnrl)
+        endif
+        sum_prefactor_rate = sum_prefactor_rate + &
+          prefactor(ipref) * rate_constant * arrhenius_factor
       enddo
     else
       arrhenius_factor = 1.d0
@@ -1342,8 +1399,12 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
           Arrhenius(mineral%kinmnrl_activation_energy(imnrl), &
                     global_auxvar%temp,TREF)
       endif
-      sum_prefactor_rate = mineral%kinmnrl_rate_constant(imnrl)* &
-                           arrhenius_factor
+      if (precipitation) then
+        rate_constant = mineral%kinmnrl_forward_rate_constant(imnrl)
+      else
+        rate_constant = mineral%kinmnrl_reverse_rate_constant(imnrl)
+      endif
+      sum_prefactor_rate = rate_constant*arrhenius_factor
     endif
 
     ! compute rate
