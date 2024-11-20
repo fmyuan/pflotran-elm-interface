@@ -1,0 +1,36 @@
+-- VOLUME_FRACTION: Calcite VF --
+      Max:   2.5764972447882E-05
+      Min:   9.9390963740611E-06
+     Mean:   1.1552178545557E-05
+        1:   2.5764972447882E-05
+        3:   9.9468694564707E-06
+        5:   9.9514473073356E-06
+-- RATE: Calcite Rate --
+      Max:   1.0590135372759E-09
+      Min:  -3.7953125460177E-12
+     Mean:   1.0467092272243E-10
+        1:   1.0590135372759E-09
+        3:  -6.5886977707041E-13
+        5:  -3.7953125460177E-12
+-- GENERIC: Calcite SI --
+      Max:   1.0010590135373E+00
+      Min:   9.9999620468745E-01
+     Mean:   1.0001046709227E+00
+        1:   1.0010590135373E+00
+        3:   9.9999934113022E-01
+        5:   9.9999620468745E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+        3:         1
+        5:         1
+-- SOLUTION: Transport --
+   Time (seconds):   5.9906682001838E-02
+   Time Steps:          111
+   Newton Iterations:          380
+   Linear Solver Iterations:          380
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.9457975435171E-03
+   Residual 2-Norm:   1.1902488256803E-15

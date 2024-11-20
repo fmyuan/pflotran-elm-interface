@@ -3406,6 +3406,30 @@ subroutine ReactionDBPrint(reaction,title,option)
              reaction%num_dbase_temperatures)
         endif
       endif
+      if (associated(cur_mineral%mass_action_override)) then
+        write(option%fid_out,100) &
+          '    Mass Action Override: '
+        if (associated(cur_mineral%mass_action_override% &
+                         reaction_equation)) then
+          write(option%fid_out,120) '      ', -1.d0, cur_mineral%name
+          do ispec = 1, cur_mineral%mass_action_override%reaction_equation%nspec
+            write(option%fid_out,120) '      ', &
+              cur_mineral%mass_action_override%reaction_equation%stoich(ispec), &
+              cur_mineral%mass_action_override%reaction_equation%spec_name(ispec)
+          enddo
+        else
+          write(option%fid_out,100) '      ' // &
+            trim(cur_mineral%mass_action_override%reaction_string)
+        endif
+        if (reaction%use_geothermal_hpt)then
+          write(option%fid_out,100) '      logKCoeff(PT): (mass action &
+            &override not implemented)'
+        else
+          write(option%fid_out,130) '      logK:', &
+            (cur_mineral%mass_action_override%logK(itemp),itemp=1, &
+             size(cur_mineral%mass_action_override%logK))
+        endif
+      endif
       write(option%fid_out,*)
       cur_mineral => cur_mineral%next
     enddo

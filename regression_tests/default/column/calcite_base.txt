@@ -9,7 +9,11 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 5
+  CELL_IDS
+    1
+    3
+    5
+  /
 END
 
 #=========================== flow mode ========================================
@@ -22,6 +26,11 @@ SPECIFIED_VELOCITY
 END
 
 #=========================== solver options ===================================
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 8
+  /
+END
 
 #=========================== discretization ===================================
 GRID
