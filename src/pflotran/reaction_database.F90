@@ -1907,10 +1907,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_affinity_threshold = 0.d0
       allocate(mineral%kinmnrl_rate_limiter(mineral%nkinmnrl))
       mineral%kinmnrl_rate_limiter = 0.d0
-      allocate(mineral%kinmnrl_rate_direction(mineral%nkinmnrl))
-      mineral%kinmnrl_rate_direction = MINERAL_RATE_REVERSIBLE
-      allocate(mineral%kinmnrl_rate_constant(mineral%nkinmnrl))
-      mineral%kinmnrl_rate_constant = 0.d0
+      allocate(mineral%kinmnrl_precip_rate_constant(mineral%nkinmnrl))
+      mineral%kinmnrl_precip_rate_constant = 0.d0
+      allocate(mineral%kinmnrl_dissol_rate_constant(mineral%nkinmnrl))
+      mineral%kinmnrl_dissol_rate_constant = 0.d0
       allocate(mineral%kinmnrl_activation_energy(mineral%nkinmnrl))
       mineral%kinmnrl_activation_energy = 0.d0
       allocate(mineral%kinmnrl_molar_vol(mineral%nkinmnrl))
@@ -1933,8 +1933,12 @@ subroutine ReactionDBInitBasis(reaction,option)
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
       if (max_num_prefactors > 0) then
-        allocate(mineral%kinmnrl_pref_rate(max_num_prefactors,mineral%nkinmnrl))
-        mineral%kinmnrl_pref_rate = 0.d0
+        allocate(mineral%kinmnrl_pref_precip_rate_const(max_num_prefactors, &
+                                                        mineral%nkinmnrl))
+        mineral%kinmnrl_pref_precip_rate_const = 0.d0
+        allocate(mineral%kinmnrl_pref_dissol_rate_const(max_num_prefactors, &
+                                                        mineral%nkinmnrl))
+        mineral%kinmnrl_pref_dissol_rate_const = 0.d0
         allocate(mineral%kinmnrl_pref_activation_energy(max_num_prefactors, &
                                                          mineral%nkinmnrl))
         mineral%kinmnrl_pref_activation_energy = 0.d0
@@ -2293,7 +2297,10 @@ subroutine ReactionDBInitBasis(reaction,option)
             ! ith prefactor
             i = i + 1
 
-            mineral%kinmnrl_pref_rate(i,ikinmnrl) = cur_prefactor%rate
+            mineral%kinmnrl_pref_precip_rate_const(i,ikinmnrl) = &
+              cur_prefactor%precipitation_rate_constant
+            mineral%kinmnrl_pref_dissol_rate_const(i,ikinmnrl) = &
+              cur_prefactor%dissolution_rate_constant
             mineral%kinmnrl_pref_activation_energy(i,ikinmnrl) = &
               cur_prefactor%activation_energy
 
@@ -2348,7 +2355,6 @@ subroutine ReactionDBInitBasis(reaction,option)
           mineral%kinmnrl_affinity_threshold(ikinmnrl) = &
             tstrxn%affinity_threshold
           mineral%kinmnrl_rate_limiter(ikinmnrl) = tstrxn%rate_limiter
-          mineral%kinmnrl_rate_direction(ikinmnrl) = tstrxn%rate_direction
 
           mineral%kinmnrl_armor_min_names(ikinmnrl) = tstrxn%armor_min_name
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr
@@ -2361,7 +2367,10 @@ subroutine ReactionDBInitBasis(reaction,option)
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
-            mineral%kinmnrl_rate_constant(ikinmnrl) = tstrxn%rate
+            mineral%kinmnrl_precip_rate_constant(ikinmnrl) = &
+              tstrxn%precipitation_rate_constant
+            mineral%kinmnrl_dissol_rate_constant(ikinmnrl) = &
+              tstrxn%dissolution_rate_constant
             mineral%kinmnrl_activation_energy(ikinmnrl) = &
               tstrxn%activation_energy
           endif
