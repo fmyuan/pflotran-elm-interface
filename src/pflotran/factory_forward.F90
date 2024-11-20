@@ -317,6 +317,11 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
         call FactoryGeomechReadSimBlock(input,new_pm)
+      case('SUBSURFACE_GEOMECHANICS') ! jaa testing
+        option%geomech_on = PETSC_TRUE
+        new_pm => PMGeomechForceCreate()
+        new_pm%option => option
+        call FactoryGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOPHYSICS')
         call FactorySubsurfReadGeophysicsPM(input,option,new_pm)
       case('AUXILIARY')

@@ -11,10 +11,13 @@ module Simulation_Subsurface_class
   use PMC_Base_class
   use PMC_Geophysics_class
   use PMC_Subsurface_class
+  use PMC_Geomechanics_class
   use PM_Well_class
   use Realization_Subsurface_class
   use Waypoint_module
   use Regression_module
+  use Geomechanics_Realization_class
+  use Geomechanics_Regression_module
 
   implicit none
 
@@ -33,12 +36,18 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: tran_process_model_coupler
     ! pointer to geophysics process model coupler
     class(pmc_geophysics_type), pointer :: geop_process_model_coupler
+    ! pointer to geomechanics process model coupler
+    class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler_new
     ! pointer to well process model coupler
     class(pm_well_type), pointer :: temp_well_process_model_list
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
+    ! jaa test new geomech pmc
+    class(realization_geomech_type), pointer :: geomech_realization_new
     ! regression object
     type(regression_type), pointer :: regression
+    ! jaa test new geomech pmc
+    type(geomechanics_regression_type), pointer :: geomech_regression_new
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
   contains
@@ -127,6 +136,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
+  nullify(this%geomech_process_model_coupler_new)
   nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)

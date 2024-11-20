@@ -65,6 +65,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use PM_Fracture_class
   use PM_Material_Transform_class
   use PM_Parameter_class
+  use PM_Geomechanics_Force_class
   use Factory_Subsurface_Linkage_module
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
@@ -85,6 +86,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_fracture_type), pointer :: pm_fracture
+  class(pm_geomech_force_type), pointer :: pm_geomech
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(realization_subsurface_type), pointer :: realization
 
@@ -98,6 +100,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_geop)
   nullify(pm_auxiliary)
   nullify(pm_fracture)
+  nullify(pm_geomech)
   nullify(pm_well_list)
   nullify(pm_parameter_list)
 
@@ -106,7 +109,8 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                        pm_ufd_biosphere,pm_geop, &
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
-                                       pm_parameter_list,pm_fracture)
+                                       pm_parameter_list,pm_fracture, &
+                                       pm_geomech)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
@@ -120,7 +124,8 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                    pm_waste_form,pm_ufd_decay, &
                                    pm_ufd_biosphere,pm_geop,pm_auxiliary, &
                                    pm_well_list,pm_material_transform, &
-                                   pm_parameter_list,pm_fracture)
+                                   pm_parameter_list,pm_fracture, &
+                                   pm_geomech)
 
   call FactSubLinkAddPMCEvolvingStrata(simulation)
   call FactSubLinkAddPMCInversion(simulation)
