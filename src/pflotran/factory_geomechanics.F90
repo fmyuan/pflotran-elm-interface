@@ -13,9 +13,7 @@ module Factory_Geomechanics_module
 
   public :: FactoryGeomechanicsInitialize, &
             FactoryGeomechReadSimBlock, &
-            GeomechicsInitReadRequiredCards, &
-            GeomechicsInitReadRequiredCards2, &
-            GeomechicsInitReadRequiredCards3
+            GeomechicsInitReadRequiredCards
 
 contains
 
@@ -49,7 +47,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   !
   use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
-  use Factory_Subsurface_module
+  !use Factory_Subsurface_module ! jaa testing
   use Init_Common_module
   use Option_module
   use PM_Base_class
@@ -116,7 +114,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     cur_pm => cur_pm%next
   enddo
 
-  call FactorySubsurfaceInitPostPetsc(simulation)
+  !call FactorySubsurfaceInitPostPetsc(simulation) ! jaa testing
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
   if (option%geomech_on) then
@@ -471,102 +469,6 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
 
 
 end subroutine GeomechicsInitReadRequiredCards
-
-! jaa testing
-subroutine GeomechicsInitReadRequiredCards2(geomech_realization,input)
-  !
-  ! Reads the required input file cards
-  ! related to geomechanics
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 05/23/13
-  !
-
-  use Geomechanics_Discretization_module
-  use Geomechanics_Realization_class
-  use Geomechanics_Patch_module
-  use Geomechanics_Grid_module
-  use Input_Aux_module
-  use String_module
-  use Patch_module
-  use Option_module
-
-  implicit none
-
-  class(realization_geomech_type), pointer :: geomech_realization
-  type(input_type), pointer :: input
-
-  character(len=MAXSTRINGLENGTH) :: string
-  type(option_type), pointer :: option
-
-  option         => geomech_realization%option
-
-! Read in select required cards
-!.........................................................................
-
-  ! GEOMECHANICS information
-  string = "GEOMECHANICS"
-  call InputFindStringInFile(input,option,string)
-  if (InputError(input)) return
-  option%ngeomechdof = 3  ! displacements in x, y, z directions
-  option%n_stress_strain_dof = 6
-
-  string = "GEOMECHANICS_GRID"
-  call InputFindStringInFile(input,option,string)
-  call GeomechanicsInit(geomech_realization,input,option)
-
-
-end subroutine GeomechicsInitReadRequiredCards2
-
-! jaa testing
-subroutine GeomechicsInitReadRequiredCards3(simulation,input)
-  !
-  ! Reads the required input file cards
-  ! related to geomechanics
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 05/23/13
-  !
-
-  use Geomechanics_Discretization_module
-  use Geomechanics_Realization_class
-  use Geomechanics_Patch_module
-  use Geomechanics_Grid_module
-  use Input_Aux_module
-  use String_module
-  use Patch_module
-  use Option_module
-  use Simulation_Subsurface_class
-
-  implicit none
-
-  class(simulation_subsurface_type) :: simulation
-
-  class(realization_geomech_type), pointer :: geomech_realization
-  type(input_type), pointer :: input
-
-  character(len=MAXSTRINGLENGTH) :: string
-  type(option_type), pointer :: option
-
-  geomech_realization  => simulation%geomech_realization_new
-  option         => geomech_realization%option
-
-! Read in select required cards
-!.........................................................................
-
-  ! GEOMECHANICS information
-  string = "GEOMECHANICS"
-  call InputFindStringInFile(input,option,string)
-  if (InputError(input)) return
-  option%ngeomechdof = 3  ! displacements in x, y, z directions
-  option%n_stress_strain_dof = 6
-
-  string = "GEOMECHANICS_GRID"
-  call InputFindStringInFile(input,option,string)
-  call GeomechanicsInit(geomech_realization,input,option)
-
-
-end subroutine GeomechicsInitReadRequiredCards3
 
 ! ************************************************************************** !
 

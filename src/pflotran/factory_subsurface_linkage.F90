@@ -1196,7 +1196,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   use Timestepper_Steady_class
   use PMC_Geomechanics_class
   use Output_Aux_module
-!  use Factory_Geomechanics_module
+  use Factory_Geomechanics_module
 
   implicit none
 
@@ -1227,48 +1227,48 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   subsurf_realization%output_option => OutputOptionDuplicate( &
                               simulation%output_option)
   input => InputCreate(IN_UNIT,option%input_filename,option)
-!  call GeomechicsInitReadRequiredCards(geomech_realization,input)
-!  !call GeomechicsInitReadRequiredCards3(simulation,input)
-!  pmc_geomech => PMCGeomechanicsCreate()
-!
-!  ! jaa testing to avoid issue with geomech read card call ^^
-!  !call GeomechanicsInitialize_new(simulation, geomech_realization, input)
-!
-!  pmc_geomech%name = pmc_name ! jaa: change to setname 
-!  simulation%geomech_process_model_coupler_new => pmc_geomech
-!  pmc_geomech%option => option ! jaa: change to setoption
-!  !pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
-!  pmc_geomech%pm_list => pm_geomech
-!  pmc_geomech%pm_ptr%pm => pm_geomech
-!  pmc_geomech%geomech_realization => simulation%geomech_realization_new
-!  pmc_geomech%subsurf_realization => simulation%realization
-!  pm_geomech%subsurf_realization => simulation%realization
-!
-!  ! add time integrator
-!  timestepper => TimestepperSteadyCreate()
-!  pmc_geomech%timestepper => timestepper
-!
-!  ! add solver
-!  call pm_geomech%InitializeSolver()
-!  timestepper%solver => pm_geomech%solver
-!
-!  ! set up logging stage
-!  string = trim(pmc_geomech%name) // 'Geomechanics'
-!  call LoggingCreateStage(string,pmc_geomech%stage)
-!
-!  string = 'GEOMECHANICS'
-!  call InputFindStringInFile(input,option,string)
-!  call InputFindStringErrorMsg(input,option,string)
-!  geomech_realization%output_option => &
-!    OutputOptionDuplicate(simulation%output_option)
-!  nullify(geomech_realization%output_option%output_snap_variable_list)
-!  nullify(geomech_realization%output_option%output_obs_variable_list)
-!  geomech_realization%output_option%output_snap_variable_list => &
-!    OutputVariableListCreate()
-!  geomech_realization%output_option%output_obs_variable_list => &
-!    OutputVariableListCreate()
-!  !call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
-!  !pm_geomech%output_option => geomech_realization%output_option
+  call GeomechicsInitReadRequiredCards(geomech_realization,input)
+  !call GeomechicsInitReadRequiredCards3(simulation,input)
+  pmc_geomech => PMCGeomechanicsCreate()
+
+  ! jaa testing to avoid issue with geomech read card call ^^
+  !call GeomechanicsInitialize_new(simulation, geomech_realization, input)
+
+  pmc_geomech%name = pmc_name ! jaa: change to setname 
+  simulation%geomech_process_model_coupler_new => pmc_geomech
+  pmc_geomech%option => option ! jaa: change to setoption
+  !pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  pmc_geomech%pm_list => pm_geomech
+  pmc_geomech%pm_ptr%pm => pm_geomech
+  pmc_geomech%geomech_realization => simulation%geomech_realization_new
+  pmc_geomech%subsurf_realization => simulation%realization
+  pm_geomech%subsurf_realization => simulation%realization
+
+  ! add time integrator
+  timestepper => TimestepperSteadyCreate()
+  pmc_geomech%timestepper => timestepper
+
+  ! add solver
+  call pm_geomech%InitializeSolver()
+  timestepper%solver => pm_geomech%solver
+
+  ! set up logging stage
+  string = trim(pmc_geomech%name) // 'Geomechanics'
+  call LoggingCreateStage(string,pmc_geomech%stage)
+
+  string = 'GEOMECHANICS'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  geomech_realization%output_option => &
+    OutputOptionDuplicate(simulation%output_option)
+  nullify(geomech_realization%output_option%output_snap_variable_list)
+  nullify(geomech_realization%output_option%output_obs_variable_list)
+  geomech_realization%output_option%output_snap_variable_list => &
+    OutputVariableListCreate()
+  geomech_realization%output_option%output_obs_variable_list => &
+    OutputVariableListCreate()
+  !call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
+  !pm_geomech%output_option => geomech_realization%output_option
 
 end subroutine FactSubLinkAddPMCSubsurfGeomech
 
