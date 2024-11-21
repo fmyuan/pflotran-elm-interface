@@ -114,6 +114,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
+  call FactorySubsurfaceSetGeomechMode(pm_geomech, option)
 
   realization => RealizationCreate(option)
   simulation%realization => realization
@@ -319,6 +320,36 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
   end select
 
 end subroutine FactorySubsurfaceSetGeopMode
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfaceSetGeomechMode(pm_geomech,option) ! jaa testing
+
+  use Option_module
+  !use PM_Base_class
+  use PM_Geomechanics_Force_class
+  !use PM_ERT_class
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_geomech_force_type), pointer :: pm_geomech
+
+  if (.not.associated(pm_geomech)) then
+    return
+  endif
+
+  select type(pm_geomech)
+    class is (pm_geomech_force_type)
+      option%igeopmode = LINEAR_ELASTICITY_MODE
+      option%geommode = "GEOMECHANICS"
+      option%ngeomechdof = 3 ! displacements in x, y, z directions
+    class default
+      option%io_buffer = ''
+      call PrintErrMsg(option)
+  end select
+
+end subroutine FactorySubsurfaceSetGeomechMode
 
 ! ************************************************************************** !
 

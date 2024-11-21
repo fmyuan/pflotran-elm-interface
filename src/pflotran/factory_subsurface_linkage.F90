@@ -1292,8 +1292,12 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   !                         geomech_realization%output_option)
   !endif
 
+  ! ------------ jaa : remove remaining lines
+  ! ------------       call after FactorySubsurfaceInitSimulation 
+  ! ------------       in factory_subsurface
+
   !! initialize geomech realization
-  call GeomechInitSetupRealization(simulation)
+  !call GeomechInitSetupRealization(simulation)
 
   !call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   !call pm_geomech%Setup()
