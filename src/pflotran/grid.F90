@@ -1008,6 +1008,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   PetscReal, allocatable :: real_array_2d(:,:)
   PetscErrorCode :: ierr
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
+
   explicit_grid => ugrid%explicit_grid
   faceset => region%explicit_faceset
 

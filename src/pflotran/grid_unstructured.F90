@@ -615,6 +615,11 @@ subroutine UGridDecompose(unstructured_grid,option)
   PetscInt, allocatable :: needed_vertices_petsc(:)
   PetscInt, pointer :: int_array_pointer(:)
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
+
 !  cell distribution across processors (size = num_cores + 1)
 !  core i owns cells cell_distribution(i):cell_distribution(i+1), note
 !  the zero-based indexing
@@ -2598,6 +2603,10 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   IS :: is_tmp1, is_tmp2
   VecScatter :: scatter_gton
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   ! fill matrix with boundary faces of local cells
   ! count up the number of boundary faces
@@ -2916,6 +2925,11 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
 
   PetscBool :: done
   PetscScalar, pointer :: aa_v(:)
+
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   ! fill matrix with boundary faces of local cells
   ! count up the number of boundary faces
