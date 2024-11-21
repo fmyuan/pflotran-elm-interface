@@ -13,8 +13,10 @@ module Factory_Geomechanics_module
 
   public :: FactoryGeomechanicsInitialize, &
             FactoryGeomechReadSimBlock, &
-            GeomechicsInitReadRequiredCards
-
+            GeomechicsInitReadRequiredCards, &
+            GeomechanicsInitReadInput, &
+            GeomechanicsJumpStart, &
+            GeomechInitSetupRealization
 contains
 
 ! ************************************************************************** !
@@ -572,7 +574,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  use Simulation_Geomechanics_class
+  !use Simulation_Geomechanics_class
+  use Simulation_Subsurface_class
   use Option_module
   use Input_Aux_module
   use String_module
@@ -600,7 +603,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
   implicit none
 
-  class(simulation_geomechanics_type) :: simulation
+  !class(simulation_geomechanics_type) :: simulation
+  class(simulation_subsurface_type) :: simulation
   type(solver_type) :: geomech_solver
   type(input_type), pointer :: input
 
@@ -626,8 +630,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
-  waypoint_list => simulation%waypoint_list_geomechanics
-  geomech_realization => simulation%geomech_realization
+  !waypoint_list => simulation%waypoint_list_geomechanics
+  geomech_realization => simulation%geomech_realization_new
   option => simulation%option
   geomech_discretization => geomech_realization%geomech_discretization
   output_option => simulation%output_option
@@ -727,8 +731,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         end select
 
       !.....................
-      case ('GEOMECHANICS_REGRESSION')
-        call GeomechanicsRegressionRead(simulation%geomech_regression,input,option)
+      !case ('GEOMECHANICS_REGRESSION')
+      !  call GeomechanicsRegressionRead(simulation%geomech_regression,input,option)
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
@@ -1011,20 +1015,22 @@ subroutine GeomechInitSetupRealization(simulation)
   use Geomechanics_Global_module
   use Geomechanics_Force_module
   use Realization_Subsurface_class
+  use Simulation_Subsurface_class
 
   use Option_module
   use Waypoint_module
 
   implicit none
 
-  class(simulation_geomechanics_type) :: simulation
+  !class(simulation_geomechanics_type) :: simulation
+  class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: subsurf_realization
   class(realization_geomech_type), pointer :: geomech_realization
   type(option_type), pointer :: option
 
   subsurf_realization => simulation%realization
-  geomech_realization => simulation%geomech_realization
+  geomech_realization => simulation%geomech_realization_new
   option => subsurf_realization%option
 
   call GeomechRealizCreateDiscretization(geomech_realization)

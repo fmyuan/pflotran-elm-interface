@@ -498,6 +498,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 #endif
 
   ! Create scatter context between flow and geomech
+  print *, 'phi0: ', realization%field%porosity0
   call VecScatterCreate(realization%field%porosity0,is_subsurf, &
                         geomech_realization%geomech_field%press, &
                         is_geomech_petsc,scatter,ierr)!;CHKERRQ(ierr)
