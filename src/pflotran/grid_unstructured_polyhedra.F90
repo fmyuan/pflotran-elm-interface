@@ -572,8 +572,10 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   VecScatter :: vec_scatter
 
+#if UGRID_DEBUG
   character(len=MAXSTRINGLENGTH) :: string
   PetscViewer :: viewer
+#endif
 
   pgrid => ugrid%polyhedra_grid
   max_nvert_per_cell = ugrid%max_nvert_per_cell

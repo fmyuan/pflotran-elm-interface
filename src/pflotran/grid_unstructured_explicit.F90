@@ -47,7 +47,6 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: hint
   character(len=MAXWORDLENGTH) :: word, card
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: fileid, icell, iconn, irank, remainder, temp_int, num_to_read
 
   PetscInt :: num_cells, num_connections, num_elems
@@ -58,6 +57,9 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   PetscErrorCode :: ierr
   PetscReal, allocatable :: temp_real_array(:,:)
   PetscInt :: ivertex, num_vertices, num_grid_vertices
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
 
   explicit_grid => unstructured_grid%explicit_grid
 ! Format of explicit unstructured grid file
@@ -939,14 +941,12 @@ subroutine UGridExplicitDecompose(ugrid,option)
   PetscInt :: icell_up,icell_dn
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscViewer :: viewer
-
-  explicit_grid => ugrid%explicit_grid
-
 #if UGRID_DEBUG
+  PetscViewer :: viewer
   call PrintMsg(option,'Adjacency matrix')
 #endif
 
+  explicit_grid => ugrid%explicit_grid
 
   temp_int = minval(explicit_grid%cell_ids)
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &

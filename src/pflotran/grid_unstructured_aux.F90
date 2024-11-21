@@ -407,9 +407,11 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   PetscInt :: local_id, ghosted_id
   IS :: is_tmp
   Vec :: vec_tmp
+#if UGRID_DEBUG
   character(len=MAXWORDLENGTH) :: ndof_word
   character(len=MAXSTRINGLENGTH) :: string
   PetscViewer :: viewer
+#endif
   PetscErrorCode :: ierr
 
   PetscInt, allocatable :: int_array(:)
@@ -1053,7 +1055,9 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   PetscInt, allocatable :: cell_counts(:)
   PetscInt :: iflag
   PetscInt :: tempint
+#if UGRID_DEBUG
   PetscViewer :: viewer
+#endif
   PetscErrorCode :: ierr
 
 #if UGRID_DEBUG
@@ -1128,7 +1132,9 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
 
   IS :: is_num
   PetscInt, pointer :: index_ptr(:)
+#if UGRID_DEBUG
   PetscViewer :: viewer
+#endif
   PetscErrorCode :: ierr
 
   ! calculate the global offsets in the new vector for each grid cell
@@ -1218,7 +1224,9 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt, allocatable :: int_array4(:)
   PetscInt, allocatable :: int_array5(:)
   PetscInt, pointer :: int_array_pointer(:)
+#if UGRID_DEBUG
   PetscViewer :: viewer
+#endif
   PetscErrorCode :: ierr
 
   ! create a petsc vec to store all the information for each element
