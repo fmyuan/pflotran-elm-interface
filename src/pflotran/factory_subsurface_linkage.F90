@@ -1196,7 +1196,8 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   use Timestepper_Steady_class
   use PMC_Geomechanics_class
   use Output_Aux_module
-  use Factory_Geomechanics_module
+  !use Factory_Geomechanics_module
+  use Factory_Subsurface_Geomechanics_module
   use Waypoint_module
 
   implicit none
@@ -1228,14 +1229,12 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   subsurf_realization%output_option => OutputOptionDuplicate( &
                               simulation%output_option)
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call GeomechicsInitReadRequiredCards(geomech_realization,input)
+  call SubsurfGeomechicsInitReadRequiredCards(geomech_realization,input)
   pmc_geomech => PMCGeomechanicsCreate()
 
-  !pmc_geomech%name = pmc_name ! jaa: change to setname 
   call pmc_geomech%SetName(pmc_name)
   call pmc_geomech%SetOption(option)
   simulation%geomech_process_model_coupler_new => pmc_geomech
-  !pmc_geomech%option => option ! jaa: change to setoption
   pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
@@ -1267,7 +1266,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
-  call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
+  call SubsurfGeomechanicsInitReadInput(simulation,timestepper%solver,input)
   pm_geomech%output_option => geomech_realization%output_option
 
   ! Hijack subsurface waypoint to geomechanics waypoint
@@ -1290,94 +1289,6 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
     call WaypointListPrint(pmc_geomech%waypoint_list,option, &
                            geomech_realization%output_option)
   endif
-
-  ! ------------ jaa : remove remaining lines
-  ! ------------       call after FactorySubsurfaceInitSimulation 
-  ! ------------       in factory_subsurface
-
-  !! initialize geomech realization
-  !call GeomechInitSetupRealization(simulation)
-
-  !call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
-  !call pm_geomech%Setup()
-
-  !call pmc_geomech%SetupSolvers()
-
-  !! Here I first calculate the linear part of the jacobian and store it
-  !! since the jacobian is always linear with geomech (even when coupled with
-  !! flow since we are performing sequential coupling). Although
-  !! SNESSetJacobian is called, nothing is done there and PETSc just
-  !! re-uses the linear Jacobian at all iterations and times
-  !call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-  !                  PETSC_FALSE,ierr);CHKERRQ(ierr)
-  !call GeomechForceJacobianLinearPart(timestepper%solver%M, &
-  !                                    geomech_realization)
-  !call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-  !                  PETSC_TRUE,ierr);CHKERRQ(ierr)
-  !nullify(simulation%process_model_coupler_list)
-
-  !! sim_aux: Create PETSc Vectors and VectorScatters
-  !if (option%ngeomechdof > 0) then
-
-  !  call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
-  !                                      geomech_realization)
-  !  call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
-
-  !  call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
-  !                                           geomech_realization)
-  !  call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
-  !        geomech_realization%geomech_field%strain_subsurf)
-
-  !  call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
-  !                                          geomech_realization, &
-  !                                          option)
-
-  !  dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
-  !              geomech_realization%geomech_discretization, ONEDOF)
-
-  !  call SimAuxCopyVecScatter(simulation%sim_aux, &
-  !                            dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-  !                            SUBSURF_TO_GEOMECHANICS)
-  !  call SimAuxCopyVecScatter(simulation%sim_aux, &
-  !                            dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-  !                            GEOMECHANICS_TO_SUBSURF)
-  !endif
-
-  !call GeomechanicsRegressionCreateMapping(simulation%geomech_regression, &
-  !                                         geomech_realization)
-
-  !! sim_aux: Set pointer
-  !simulation%flow_process_model_coupler%sim_aux => simulation%sim_aux
-  !if (associated(simulation%tran_process_model_coupler)) &
-  !  simulation%tran_process_model_coupler%sim_aux => simulation%sim_aux
-  !if (option%ngeomechdof>0 .and. &
-  !   associated(simulation%geomech_process_model_coupler)) &
-  !  simulation%geomech_process_model_coupler%sim_aux => simulation%sim_aux
-
-  !! set geomech as not master
-  !simulation%geomech_process_model_coupler%is_master = PETSC_FALSE
-  !! link geomech and master
-  !simulation%process_model_coupler_list => &
-  !  simulation%geomech_process_model_coupler
-  !! link subsurface flow as peer
-  !simulation%process_model_coupler_list%peer => &
-  !  simulation%flow_process_model_coupler
-
-  !! Set data in sim_aux
-  !cur_process_model_coupler => simulation%process_model_coupler_list
-  !call cur_process_model_coupler%SetAuxData()
-  !if (associated(cur_process_model_coupler%peer)) then
-  !  cur_process_model_coupler => cur_process_model_coupler%peer
-  !  call cur_process_model_coupler%GetAuxData()
-  !  call cur_process_model_coupler%SetAuxData()
-  !  select type(pmc => cur_process_model_coupler)
-  !    class is(pmc_geomechanics_type)
-  !      call GeomechStoreInitialPressTemp(pmc%geomech_realization)
-  !  end select
-  !endif
-
-  !call GeomechanicsJumpStart(simulation)
-  !call InputDestroy(input)
 
 end subroutine FactSubLinkAddPMCSubsurfGeomech
 

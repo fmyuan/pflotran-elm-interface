@@ -243,6 +243,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
 
   use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
+  use Factory_Subsurface_Geomechanics_module
 
   implicit none
 
@@ -321,7 +322,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         option%geomech_on = PETSC_TRUE
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
-        call FactoryGeomechReadSimBlock(input,new_pm)
+        call FactorySubsurfGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOPHYSICS')
         call FactorySubsurfReadGeophysicsPM(input,option,new_pm)
       case('AUXILIARY')
