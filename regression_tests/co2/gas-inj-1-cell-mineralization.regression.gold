@@ -1,0 +1,128 @@
+-- PRESSURE: Liquid Pressure --
+        1:   4.1487059368581E+07
+-- PRESSURE: Gas Pressure --
+        1:   4.1501331333876E+07
+-- PRESSURE: CO2 Partial Pressure --
+        1:   4.1332444970158E+07
+-- PRESSURE: Vapor Pressure --
+        1:   1.6888636371771E+05
+-- SATURATION: Liquid Saturation --
+        1:   8.1652400268350E-01
+-- SATURATION: Gas Saturation --
+        1:   1.8347599731650E-01
+-- SATURATION: Salt Precipitate Saturation --
+        1:   0.0000000000000E+00
+-- SATURATION: Trapped Gas Saturation --
+        1:   0.0000000000000E+00
+-- GENERIC: Liquid Density --
+        1:   1.1218367556879E+03
+-- GENERIC: Gas Density --
+        1:   1.0074747292677E+03
+-- GENERIC: X_g^l --
+        1:   1.5914367317961E-02
+-- GENERIC: X_l^l --
+        1:   9.3463198496935E-01
+-- GENERIC: X_s^l --
+        1:   4.9453647712687E-02
+-- GENERIC: X_g^g --
+        1:   9.9593057961541E-01
+-- GENERIC: X_l^g --
+        1:   4.0694203845903E-03
+-- GENERIC: Temperature --
+        1:   2.5000000000000E+01
+-- GENERIC: Liquid Energy --
+        1:   0.0000000000000E+00
+-- GENERIC: Gas Energy --
+        1:   0.0000000000000E+00
+-- DISCRETE: Thermodynamic State --
+        1:         4
+-- GENERIC: pH --
+        1:   3.3276579221246E+00
+-- CONCENTRATION: HCO3- --
+        1:   1.6959586346370E-03
+-- CONCENTRATION: OH- --
+        1:   2.1202085309816E-11
+-- CONCENTRATION: Al(OH)2+ --
+        1:   7.5415733429018E-10
+-- CONCENTRATION: AlO2- --
+        1:   1.7537908634737E-15
+-- CONCENTRATION: AlOH++ --
+        1:   1.8596037320954E-07
+-- CONCENTRATION: CO3-- --
+        1:   2.0440407506172E-10
+-- CONCENTRATION: CaCO3(aq) --
+        1:   2.5477687484874E-11
+-- CONCENTRATION: CaHCO3+ --
+        1:   1.4272316811295E-06
+-- CONCENTRATION: Fe+++ --
+        1:   4.2057802872800E-10
+-- CONCENTRATION: Fe(OH)3(aq) --
+        1:   2.3867131127732E-12
+-- CONCENTRATION: Fe(OH)4- --
+        1:   1.3584715098266E-18
+-- CONCENTRATION: FeHCO3+ --
+        1:   1.2193783380677E-06
+-- CONCENTRATION: HAlO2(aq) --
+        1:   2.1833707490198E-12
+-- CONCENTRATION: HSiO3- --
+        1:   3.0414964227592E-10
+-- CONCENTRATION: MgCO3(aq) --
+        1:   1.0404593908863E-11
+-- CONCENTRATION: MgHCO3+ --
+        1:   1.2669503786678E-06
+-- CONCENTRATION: MnCO3(aq) --
+        1:   9.6962861305370E-11
+-- CONCENTRATION: MnHCO3+ --
+        1:   2.3819897812231E-07
+-- CONCENTRATION: MnOH+ --
+        1:   9.9346771346860E-13
+-- CONCENTRATION: NaHCO3(aq) --
+        1:   7.4827126638392E-06
+-- CONCENTRATION: NaHSiO3(aq) --
+        1:   4.1892002740249E-11
+-- VOLUME_FRACTION: Chalcedony VF --
+        1:   2.3668294715618E-09
+-- VOLUME_FRACTION: Forsterite VF --
+        1:   3.7909801618556E-02
+-- VOLUME_FRACTION: Fayalite VF --
+        1:   7.5251032645590E-02
+-- VOLUME_FRACTION: Tephroite VF --
+        1:   4.0091236800822E-01
+-- VOLUME_FRACTION: Wollastonite VF --
+        1:   4.0115568142929E-01
+-- VOLUME_FRACTION: Enstatite VF --
+        1:   6.3451999810696E-02
+-- VOLUME_FRACTION: Chrysotile VF --
+        1:   2.0000000014717E-02
+-- RATE: Chalcedony Rate --
+        1:   3.5090144536991E-08
+-- RATE: Forsterite Rate --
+        1:  -1.4764025205453E-06
+-- RATE: Fayalite Rate --
+        1:  -1.5801580000000E-09
+-- RATE: Tephroite Rate --
+        1:  -4.1185739941183E-07
+-- RATE: Wollastonite Rate --
+        1:  -2.5909372517587E-06
+-- RATE: Enstatite Rate --
+        1:  -1.9196251746403E-09
+-- RATE: Chrysotile Rate --
+        1:  -1.1532205689208E-12
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Flow --
+   Time (seconds):   5.0475713001106E-02
+   Time Steps:           94
+   Newton Iterations:          224
+   Linear Solver Iterations:          224
+   Time Step Cuts:            0
+   Solution 2-Norm:   5.8681654693237E+07
+   Residual 2-Norm:   1.4542209313864E-05
+-- SOLUTION: Transport --
+   Time (seconds):   2.4017993389980E+00
+   Time Steps:          230
+   Newton Iterations:         1835
+   Linear Solver Iterations:         1835
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.7887498428918E+00
+   Residual 2-Norm:   3.1158126700959E-07

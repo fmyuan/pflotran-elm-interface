@@ -1,0 +1,408 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+      OPTIONS
+        ISOTHERMAL_TEMPERATURE 25.d0  
+      /
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+CO2_DATABASE ../../database/co2_sw.dat
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+    MINIMUM_NEWTON_ITERATIONS 2
+  END
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  END
+
+  TIMESTEPPER FLOW
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.15
+  END
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+  TIMESTEPPER
+    TS_ACCELERATION 16
+  /
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 100
+  /
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED CARTESIAN
+  NXYZ 1 1 1 
+  DXYZ
+    1@10.d0
+    10.d0
+    10.d0
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Al+++
+    Ca++
+    Fe++
+    K+
+    Mg++
+    Mn++
+    Na+
+    SiO2(aq)
+    Ti(OH)4(aq)
+    H+
+    CO2(aq)
+    Cl-
+    O2(aq)
+  /
+
+  SECONDARY_SPECIES
+    HCO3-
+    OH-
+    Al(OH)2+
+    AlO2-
+    AlOH++
+    CO3--
+    CaCO3(aq)
+    CaHCO3+
+    Fe+++
+    Fe(OH)3(aq)
+    Fe(OH)4-
+    FeHCO3+
+    HAlO2(aq)
+    HSiO3-
+    MgCO3(aq)
+    MgHCO3+
+    MnCO3(aq)
+    MnHCO3+
+    MnOH+
+    NaHCO3(aq)
+    NaHSiO3(aq)
+  /
+  ACTIVE_GAS_SPECIES
+    GAS_TRANSPORT_IS_UNVETTED
+    CO2(g)
+  /
+  PASSIVE_GAS_SPECIES
+    CO2(g)
+    O2(g)
+  /
+  MINERALS
+    Chalcedony
+    Forsterite
+    Fayalite
+    Tephroite
+    Wollastonite
+    Enstatite
+    Chrysotile
+  /
+  MINERAL_KINETICS
+    Chalcedony
+      RATE_CONSTANT 5.89d-13 mol/cm^2-sec
+      ACTIVATION_ENERGY 74.5 kJ/mol
+    /
+    Forsterite
+      PREFACTOR
+        RATE_CONSTANT 5.41e-9 mol/cm^2-sec
+        ACTIVATION_ENERGY 67.2d0
+        PREFACTOR_SPECIES H+
+         ALPHA 0.47d0
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT 2.29e-15 mol/cm^2-sec
+        ACTIVATION_ENERGY 79.d0
+      /
+    /
+    Fayalite
+      PREFACTOR
+        RATE_CONSTANT 1.58e-13 mol/cm^2-sec
+        ACTIVATION_ENERGY 98.4d0
+      /
+      PREFACTOR
+        RATE_CONSTANT 1.58e-17 mol/cm^2-sec
+        ACTIVATION_ENERGY 98.4d0
+      /
+    /
+    Tephroite
+      PREFACTOR
+        RATE_CONSTANT 1.5e-11 mol/cm^2-sec
+        ACTIVATION_ENERGY 67.2d0
+        PREFACTOR_SPECIES H+
+          ALPHA 0.47d0
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT 2.51e-15 mol/cm^2-sec
+        ACTIVATION_ENERGY 79.d0
+      /
+    /
+    Wollastonite
+      PREFACTOR
+        RATE_CONSTANT 5.27e-11 mol/cm^2-sec
+        ACTIVATION_ENERGY 54.7d0
+        PREFACTOR_SPECIES H+
+          ALPHA 0.4d0
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT 1.32e-13 mol/cm^2-sec
+        ACTIVATION_ENERGY 54.7d0
+      /
+    /
+    Enstatite
+      PREFACTOR
+        RATE_CONSTANT 9.55e-14 mol/cm^2-sec
+        ACTIVATION_ENERGY 80.d0
+        PREFACTOR_SPECIES H+
+          ALPHA 0.6d0
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT 1.91e-13 mol/cm^2-sec
+        ACTIVATION_ENERGY 80.d0
+      /
+    /
+    Chrysotile
+      PREFACTOR
+        RATE_CONSTANT 1.d-16 mol/cm^2-sec
+        ACTIVATION_ENERGY 73.5d0
+      /
+      PREFACTOR
+        RATE_CONSTANT 2.63e-18 mol/cm^2-sec
+        ACTIVATION_ENERGY 73.5d0
+        PREFACTOR_SPECIES H+
+          ALPHA -0.23d0
+        /
+      /
+    /
+  /
+
+  DATABASE ../../database/hanford.dat
+
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    SECONDARY_SPECIES
+    FREE_ION
+    PH
+    TOTAL
+    MINERALS
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE co2_sw-20C-50MPa-small.dat
+  HENRYS_CONSTANT DEFAULT
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.12
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 
+  THERMAL_CONDUCTIVITY_WET 2.18d0
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VG_STOMP
+    N 1.84162
+    OVEN_DRIED_CAP_HEAD 102108.2d0
+    ALPHA 5.d-1
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    MAX_TRAPPED_GAS_SAT 0.d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 0.457
+    LIQUID_RESIDUAL_SATURATION 0.3
+  /
+  PERMEABILITY_FUNCTION MODIFIED_COREY_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.3
+    GAS_RESIDUAL_SATURATION 0.05
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d-4 y
+  INITIAL_TIMESTEP_SIZE 1.d-3 s
+  MAXIMUM_TIMESTEP_SIZE 1.d-5 y
+END
+
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d1 1.d1 1.d1
+  /
+END
+
+REGION well
+  COORDINATE 5.d0 5.d0 5.d0
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0  0.d0  0.d0 
+    10.d0  10.d0  10.d0 
+  /
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0 
+  SALT_MASS_FRACTION 1.5d-1
+END
+
+FLOW_CONDITION boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0 
+  SALT_MASS_FRACTION 2.2d-1
+END
+
+
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 0.d0 12.5d0 0.d0 kg/s kg/s kg/s
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    Al+++         8.48d-6  T
+    Ca++          2.7d-5   T
+    Fe++          1.72d-5  T
+    K+            6.01d-5  T
+    Mg++          4.53d-6  T
+    Mn++          2.57d-7  T
+    Na+           4.03d-3  T
+    SiO2(aq)      1.28d-3  T
+    Ti(OH)4(aq)   2.26d-10 T
+    H+            10.      P
+    CO2(aq)       1.d-4    T
+    Cl-           1.d-6    T
+    O2(aq)        1.d-10   T
+  /
+  MINERALS
+    Chalcedony 0.d0 1
+    Forsterite 0.03791 1
+    Fayalite 0.075251 1
+    Tephroite 0.400913 1.d2
+    Wollastonite 0.401156 1.d2
+    Enstatite 0.063452 1
+    Chrysotile 0.02 1
+  /
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+SOURCE_SINK well
+  FLOW_CONDITION injection
+  TRANSPORT_CONDITION background_conc
+  REGION well
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION boundary
+  TRANSPORT_CONDITION background_conc
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE
