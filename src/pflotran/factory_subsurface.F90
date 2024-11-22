@@ -70,6 +70,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
   use Waypoint_module
+  use Factory_Geomechanics_module
 
   implicit none
 
@@ -134,6 +135,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   ! FactorySubsurfaceInitSimulation() must be called after pmc linkages
   ! are set above.
   call FactorySubsurfaceInitSimulation(simulation)
+  call FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE

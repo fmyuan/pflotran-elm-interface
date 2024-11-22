@@ -1229,21 +1229,20 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
                               simulation%output_option)
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call GeomechicsInitReadRequiredCards(geomech_realization,input)
-  !call GeomechicsInitReadRequiredCards3(simulation,input)
   pmc_geomech => PMCGeomechanicsCreate()
 
-  ! jaa testing to avoid issue with geomech read card call ^^
-  !call GeomechanicsInitialize_new(simulation, geomech_realization, input)
-
-  pmc_geomech%name = pmc_name ! jaa: change to setname 
+  !pmc_geomech%name = pmc_name ! jaa: change to setname 
+  call pmc_geomech%SetName(pmc_name)
+  call pmc_geomech%SetOption(option)
   simulation%geomech_process_model_coupler_new => pmc_geomech
-  pmc_geomech%option => option ! jaa: change to setoption
-  !pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  !pmc_geomech%option => option ! jaa: change to setoption
+  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
   pmc_geomech%geomech_realization => simulation%geomech_realization_new
   pmc_geomech%subsurf_realization => simulation%realization
   pm_geomech%subsurf_realization => simulation%realization
+  pm_geomech%geomech_realization => simulation%geomech_realization_new ! jaa
 
   ! add time integrator
   timestepper => TimestepperSteadyCreate()
@@ -1274,23 +1273,23 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   ! Hijack subsurface waypoint to geomechanics waypoint
   ! Subsurface controls the output now
   ! Always have snapshot on at t=0
-  !pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
 
-  !! link geomech and flow timestepper waypoints to geomech way point list
-  !if (associated(simulation%geomech_process_model_coupler_new)) then
-  !  call simulation%geomech_process_model_coupler_new% &
-  !         SetWaypointPtr(pmc_geomech%waypoint_list)
-  !  if (associated(simulation%flow_process_model_coupler)) then
-  !    call simulation%flow_process_model_coupler% &
-  !           SetWaypointPtr(pmc_geomech%waypoint_list)
-  !  endif
-  !endif
+  ! link geomech and flow timestepper waypoints to geomech way point list
+  if (associated(simulation%geomech_process_model_coupler_new)) then
+    call simulation%geomech_process_model_coupler_new% &
+           SetWaypointPtr(pmc_geomech%waypoint_list)
+    if (associated(simulation%flow_process_model_coupler)) then
+      call simulation%flow_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+    endif
+  endif
 
-  !! print the waypoints when debug flag is on
-  !if (geomech_realization%geomech_debug%print_waypoints) then
-  !  call WaypointListPrint(pmc_geomech%waypoint_list,option, &
-  !                         geomech_realization%output_option)
-  !endif
+  ! print the waypoints when debug flag is on
+  if (geomech_realization%geomech_debug%print_waypoints) then
+    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+                           geomech_realization%output_option)
+  endif
 
   ! ------------ jaa : remove remaining lines
   ! ------------       call after FactorySubsurfaceInitSimulation 

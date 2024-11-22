@@ -382,6 +382,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISCreateGeneral(option%mycomm,geomech_grid%mapping_num_cells, &
                        geomech_grid%mapping_cell_ids_flow-1,PETSC_COPY_VALUES, &
                        is_subsurf,ierr);CHKERRQ(ierr)
+  !print *, 'ISview is_subsurf: '
+  !call ISView(is_subsurf,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
@@ -396,6 +398,8 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISCreateGeneral(option%mycomm,geomech_grid%mapping_num_cells, &
                        geomech_grid%mapping_vertex_ids_geomech-1, &
                        PETSC_COPY_VALUES,is_geomech,ierr);CHKERRQ(ierr)
+  !print *, 'ISview is_geomech: '
+  !call ISView(is_geomech,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)  
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
