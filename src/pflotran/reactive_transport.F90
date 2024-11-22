@@ -1521,8 +1521,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   enddo
 
   ! CO2-specific
-  select case(option%iflowmode)
-    case(MPH_MODE, SCO2_MODE)
+  if (option%transport%couple_co2) then
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
@@ -1557,7 +1556,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
         enddo
         source_sink => source_sink%next
       enddo
-  end select
+  endif
 #endif
 
   ! Restore vectors
@@ -1972,7 +1971,7 @@ end subroutine RTComputeBCMassBalanceOS
 
 ! ************************************************************************** !
 
-subroutine RTNumericalJacobianTest(realization)
+subroutine RTNumericalJacobianTest(realization,xx)
   !
   ! Computes the a test numerical jacobian
   !
@@ -1989,6 +1988,7 @@ subroutine RTNumericalJacobianTest(realization)
   implicit none
 
   class(realization_subsurface_type) :: realization
+  Vec :: xx
 
   Vec :: xx_pert
   Vec :: res
@@ -2013,9 +2013,9 @@ subroutine RTNumericalJacobianTest(realization)
   patch => realization%patch
   grid => patch%grid
 
-  call VecDuplicate(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%tran_xx,res,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%tran_xx,res_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res_pert,ierr);CHKERRQ(ierr)
 
   call MatCreate(option%mycomm,A,ierr);CHKERRQ(ierr)
   call MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%ntrandof, &
@@ -2023,12 +2023,12 @@ subroutine RTNumericalJacobianTest(realization)
   call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
   call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
 
-  call RTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
+  call RTResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
   call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
   do idof = 1,grid%nlmax*option%ntrandof
     icell = (idof-1)/option%ntrandof+1
     if (patch%imat(grid%nL2G(icell)) <= 0) cycle
-    call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
+    call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
     perturbation = vec_p(idof)*perturbation_tolerance
     vec_p(idof) = vec_p(idof)+perturbation
@@ -2127,10 +2127,9 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   call RTResidualNonFlux(snes,xx,r,realization,ierr)
 
 !#if 0
-  select case(realization%option%iflowmode)
-    case(MPH_MODE, SCO2_MODE)
-      call RTResidualEquilibrateCO2(r,realization)
-  end select
+  if (option%transport%couple_co2) then
+    call RTResidualEquilibrateCO2(r,realization)
+  endif
 !#endif
 
   call MatrixZeroingZeroVecEntries(patch%aux%RT%matrix_zeroing,r)
@@ -2658,8 +2657,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   endif
 
   ! CO2-specific
-  select case(option%iflowmode)
-    case(MPH_MODE, SCO2_MODE)
+  if (option%transport%couple_co2) then
       source_sink => patch%source_sink_list%first
       do
         if (.not.associated(source_sink)) exit
@@ -2736,7 +2734,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         enddo
         source_sink => source_sink%next
       enddo
-  end select
+  endif
 #endif
 
 #if 1
@@ -2806,10 +2804,6 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   use Grid_module
   use EOS_Water_module
 
-  ! CO2-specific
-  use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
-
   implicit none
 
   Vec :: r
@@ -2817,14 +2811,9 @@ subroutine RTResidualEquilibrateCO2(r,realization)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: jco2
-  PetscReal :: tc, pg, henry, m_na, m_cl
-  PetscReal :: Qkco2, mco2eq, xphi
-  PetscReal :: eps = 1.d-6
+  PetscReal :: mco2eq
+  PetscReal, parameter :: eps = 1.d-6
 
-  ! CO2-specific
-  PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
-               yco2,sat_pressure,lngamco2
-  PetscInt :: iflag
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -2855,40 +2844,14 @@ subroutine RTResidualEquilibrateCO2(r,realization)
       global_auxvars(ghosted_id)%sat(GAS_PHASE) < 1.d0-eps) then
 
       jco2 = reaction%species_idx%co2_aq_id
-
-      tc = global_auxvars(ghosted_id)%temp
-      pg = global_auxvars(ghosted_id)%pres(2)
-      m_na = 0.d0
-      m_cl = 0.d0
-      if (reaction%species_idx%na_ion_id /= 0 .and. &
-        reaction%species_idx%cl_ion_id /= 0) then
-        m_na = rt_auxvars(ghosted_id)%pri_molal(reaction%species_idx%na_ion_id)
-        m_cl = rt_auxvars(ghosted_id)%pri_molal(reaction%species_idx%cl_ion_id)
-        call Henry_duan_sun(tc,pg*1D-5,henry,lngamco2,m_na,m_cl)
-      else
-        call Henry_duan_sun(tc,pg*1D-5,henry,lngamco2,option%m_nacl,option%m_nacl)
+      if (jco2 < 0) then
+        call PrintErrMsg(option,'RTResidualEquilibrateCO2 not set up &
+                                &for primary other than CO2(aq)')
       endif
-!     call Henry_duan_sun(tc,pg*1.D-5,henry,lngamco2,m_na,m_cl)
 
-!     print *,'check_EOSeq: ',local_id,jco2,reaction%ncomp, &
-!         global_auxvars(ghosted_id)%sat(GAS_PHASE), &
-!         rt_auxvars(ghosted_id)%pri_molal(jco2), &
-!         global_auxvars(ghosted_id)%pres, &
-!         global_auxvars(ghosted_id)%temp, &
-!         r_p(jco2+(local_id-1)*reaction%ncomp)
-
-      iflag = 1
-      call co2_span_wagner(pg*1D-6,tc+T273K,dg,dddt,dddp,fg, &
-              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,co2_sw_itable)
-
-      call EOSWaterSaturationPressure(tc, sat_pressure, ierr)
-
-      yco2 = 1.d0-sat_pressure/pg
-      xphi = fg*1.D6/pg/yco2
-      Qkco2 = henry*xphi  ! QkCO2 = xphi * exp(-mu0) / gamma
-
-!     sat_pressure = sat_pressure * 1.D5
-      mco2eq = (pg - sat_pressure)*1.D-5 * Qkco2 ! molality CO2, y * P = P - Psat(T)
+      call RCalculateSCO2Solubility(rt_auxvars(ghosted_id), &
+                                    global_auxvars(ghosted_id), &
+                                    reaction,mco2eq,option)
 
       r_p(jco2+(local_id-1)*reaction%ncomp) = &
       rt_auxvars(ghosted_id)%pri_molal(jco2) - mco2eq
@@ -2940,7 +2903,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   call PetscLogEventBegin(logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
 
 #if 0
-  call RTNumericalJacobianTest(realization)
+  call RTNumericalJacobianTest(realization,xx)
 #endif
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
@@ -2968,10 +2931,9 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   call RTJacobianNonFlux(snes,xx,J,J,realization,ierr)
 
 !#if 0
-  select case(realization%option%iflowmode)
-    case(MPH_MODE, SCO2_MODE)
+  if (realization%option%transport%couple_co2) then
     call RTJacobianEquilibrateCO2(J,realization)
-  end select
+  endif
 !#endif
 
   call MatrixZeroingZeroMatEntries(realization%patch%aux%RT%matrix_zeroing,J)
@@ -3485,7 +3447,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   ! add the equilibration
 
   jacobian_entry = 1.d0
-  jco2 = reaction%species_idx%co2_aq_id
+  jco2 = reaction%species_idx%pri_co2_id
   zero_count = 0
   zero_rows = 0
   ghosted_rows = 0
@@ -3569,8 +3531,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
       call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == SCO2_MODE) then
+      if (option%transport%couple_co2) then
         call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
@@ -3595,8 +3556,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                    patch%aux%Global% &
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == SCO2_MODE) then
+        if (option%transport%couple_co2) then
           call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
                              patch%aux%Global%auxvars_bc(sum_connection), &
                              reaction,option)
@@ -3735,8 +3695,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         call RActivityCoefficients(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == SCO2_MODE) then
+        if (option%transport%couple_co2) then
           call CO2AqActCoeff(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
@@ -3817,8 +3776,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 #endif
 
         equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
-        if (option%iflowmode /= MPH_MODE .and. &
-            option%iflowmode /= SCO2_MODE) then
+        if (.not.option%transport%couple_co2) then
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! since basis_molarity is in molarity, must convert to molality

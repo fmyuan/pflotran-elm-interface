@@ -36,6 +36,7 @@ module PM_RT_class
     ! for transport only
     PetscBool :: transient_porosity
     PetscBool :: operator_split
+    PetscBool :: debug_update
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMRTReadSimOptionsBlock
@@ -139,6 +140,7 @@ subroutine PMRTInit(pm_rt)
   ! these flags can only be true for transport only
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
+  pm_rt%debug_update = PETSC_FALSE
 
 end subroutine PMRTInit
 
@@ -206,6 +208,11 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
         this%millington_quirk_tortuosity = PETSC_TRUE
+      case('PRINT_EKG')
+        option%print_ekg = PETSC_TRUE
+        this%print_ekg = PETSC_TRUE
+      case('DEBUG_UPDATE')
+        this%debug_update = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -925,6 +932,10 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
+  call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
+  call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+
   if (reaction%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
@@ -937,10 +948,16 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
       call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     endif
+    if (this%debug_update) then
+      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      write(*,'("C: ",10es15.6)') exp(C_p(:))
+      write(*,'("dC: ",10es15.6)') exp(C_p(:)-dC_p(:))-exp(C_p(:))
+      write(*,'("lndC: ",10es15.6)') dC_p(:)
+      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    endif
   else
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-
     if (Initialized(reaction%truncated_concentration)) then
       dC_p = min(dC_p,C_p-reaction%truncated_concentration)
     else
@@ -987,6 +1004,10 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
         ! scale by 0.99 to make the update slightly smaller than the min_ratio
         dC_p = dC_p*min_ratio*0.99d0
         changed = PETSC_TRUE
+      endif
+      if (this%debug_update) then
+        write(*,'("C: ",10es15.6)') C_p(:)
+        write(*,'("dC: ",10es15.6)') dC_p(:)
       endif
     endif
     call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
@@ -1105,7 +1126,12 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       offset = (local_id-1)*option%ntrandof
       do idof = 1, option%ntrandof
         index = idof + offset
-        tempreal = dabs(dC_p(index)/C0_p(index))
+        if (this%realization%reaction%use_log_formulation) then
+          tempreal = exp(C0_p(index))
+          tempreal = dabs((exp(C0_p(index)-dC_p(index))-tempreal)/tempreal)
+        else
+          tempreal = dabs(dC_p(index)/C0_p(index))
+        endif
         max_relative_change_by_dof(idof) = &
           max(max_relative_change_by_dof(idof),tempreal)
       enddo
