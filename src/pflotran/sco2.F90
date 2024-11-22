@@ -362,6 +362,11 @@ subroutine SCO2UpdateSolution(realization)
     global_auxvars(ghosted_id)%den_kg(1:option%nphase) = &
                                 sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
                                 den_kg(1:option%nphase)
+    if (option%ntrandof > 0) then
+      global_auxvars(ghosted_id)%reaction_rate_store(:) = &
+                              global_auxvars(ghosted_id)%reaction_rate(:)
+      global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
+    endif
 
   enddo
 
@@ -408,6 +413,10 @@ subroutine SCO2TimeCut(realization)
   do ghosted_id = 1, grid%ngmax
     global_auxvars(ghosted_id)%istate = &
       sco2_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
+    if (option%ntrandof > 0) then
+      global_auxvars(ghosted_id)%reaction_rate(:) = &
+                      global_auxvars(ghosted_id)%reaction_rate_store(:)
+    endif
   enddo
 
   sco2_ts_cut_count = sco2_ts_cut_count + 1
@@ -838,10 +847,6 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                             sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid)
       global_auxvars(ghosted_id)%xmass(gid) = &
                             sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
-      !MAN: this might be better placed elsewhere.
-      global_auxvars(ghosted_id)%reaction_rate_store(:) = &
-                                    global_auxvars(ghosted_id)%reaction_rate(:)
-      global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
     endif
   enddo
 
