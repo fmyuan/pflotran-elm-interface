@@ -390,6 +390,7 @@ factory_forward.o : \
   driver.o \
   factory_geomechanics.o \
   factory_subsurface.o \
+  factory_subsurface_geomechanics.o \
   factory_subsurface_read.o \
   input_aux.o \
   inversion_aux.o \
@@ -484,6 +485,7 @@ factory_subsurface.o : \
   discretization.o \
   dm_custom.o \
   eos.o \
+  factory_subsurface_geomechanics.o \
   factory_subsurface_linkage.o \
   field.o \
   global.o \
@@ -509,6 +511,7 @@ factory_subsurface.o : \
   pm_ert.o \
   pm_fracture.o \
   pm_general.o \
+  pm_geomechanics_force.o \
   pm_hydrate.o \
   pm_inversion.o \
   pm_material_transform.o \
@@ -545,16 +548,67 @@ factory_subsurface.o : \
   waypoint.o \
   wipp.o \
   zflow_aux.o
-factory_subsurface_linkage.o : \
-  factory_subsurface_read.o \
+factory_subsurface_geomechanics.o : \
+  condition_control.o \
+  geomech_grid.o \
+  geomech_grid_aux.o \
+  geomechanics_condition.o \
+  geomechanics_coupler.o \
+  geomechanics_debug.o \
+  geomechanics_discretization.o \
+  geomechanics_field.o \
+  geomechanics_force.o \
+  geomechanics_global.o \
+  geomechanics_material.o \
+  geomechanics_patch.o \
+  geomechanics_realization.o \
+  geomechanics_region.o \
+  geomechanics_regression.o \
+  geomechanics_strata.o \
+  grid_unstructured.o \
+  grid_unstructured_aux.o \
+  init_common.o \
   input_aux.o \
   logging.o \
   option.o \
+  output.o \
+  output_aux.o \
+  output_geomechanics.o \
+  output_tecplot.o \
+  patch.o \
+  pflotran_constants.o \
+  pm_base.o \
+  pm_base_pointer.o \
+  pm_ert.o \
+  pm_geomechanics_force.o \
+  pmc_base.o \
+  pmc_geomechanics.o \
+  realization_base.o \
+  realization_subsurface.o \
+  simulation_aux.o \
+  simulation_geomechanics.o \
+  simulation_subsurface.o \
+  solver.o \
+  string.o \
+  timestepper_base.o \
+  timestepper_steady.o \
+  units.o \
+  utility.o \
+  waypoint.o
+factory_subsurface_linkage.o : \
+  factory_subsurface_geomechanics.o \
+  factory_subsurface_read.o \
+  geomechanics_realization.o \
+  input_aux.o \
+  logging.o \
+  option.o \
+  output_aux.o \
   pflotran_constants.o \
   pm_auxiliary.o \
   pm_base.o \
   pm_ert.o \
   pm_fracture.o \
+  pm_geomechanics_force.o \
   pm_hydrate.o \
   pm_inversion.o \
   pm_material_transform.o \
@@ -574,6 +628,7 @@ factory_subsurface_linkage.o : \
   pm_wipp_srcsink.o \
   pmc_base.o \
   pmc_general.o \
+  pmc_geomechanics.o \
   pmc_geophysics.o \
   pmc_linear.o \
   pmc_subsurface.o \
@@ -3489,6 +3544,8 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
+  geomechanics_realization.o \
+  geomechanics_regression.o \
   init_subsurface.o \
   input_aux.o \
   inversion_aux.o \
@@ -3506,6 +3563,7 @@ simulation_subsurface.o : \
   pm_base.o \
   pm_well.o \
   pmc_base.o \
+  pmc_geomechanics.o \
   pmc_geophysics.o \
   pmc_subsurface.o \
   reaction_aux.o \
