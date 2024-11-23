@@ -399,7 +399,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
                        geomech_grid%mapping_vertex_ids_geomech-1, &
                        PETSC_COPY_VALUES,is_geomech,ierr);CHKERRQ(ierr)
   !print *, 'ISview is_geomech: '
-  !call ISView(is_geomech,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)  
+  !call ISView(is_geomech,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
 
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm, &
