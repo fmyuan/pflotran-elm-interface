@@ -355,11 +355,11 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   class(realization_geomech_type), pointer :: geomech_realization
   class(pmc_base_type), pointer :: cur_process_model_coupler
   type(gmdm_ptr_type), pointer :: dm_ptr
-  class(pm_base_type), pointer :: cur_pm, prev_pm
+  !class(pm_base_type), pointer :: cur_pm, prev_pm
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   !class(timestepper_steady_type), pointer :: timestepper
   class(timestepper_base_type), pointer :: timestepper
-  character(len=MAXSTRINGLENGTH) :: string
+  !character(len=MAXSTRINGLENGTH) :: string
   !type(input_type), pointer :: input
   PetscErrorCode :: ierr
 
@@ -761,7 +761,7 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
   type(geomech_condition_type), pointer :: condition
   type(geomech_coupler_type), pointer :: coupler
   type(output_option_type), pointer :: output_option
-  type(waypoint_list_type), pointer :: waypoint_list
+  !type(waypoint_list_type), pointer :: waypoint_list
 
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: card
