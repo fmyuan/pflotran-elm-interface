@@ -432,7 +432,7 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! link geomech and master
   !simulation%process_model_coupler_list => &
   !  simulation%geomech_process_model_coupler_new
-  ! jaa testing.. let flow be the master 
+  ! jaa testing.. let flow be the master
   simulation%process_model_coupler_list => &
     simulation%flow_process_model_coupler
   ! link subsurface flow as peer
