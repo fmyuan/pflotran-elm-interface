@@ -1235,7 +1235,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   call pmc_geomech%SetName(pmc_name)
   call pmc_geomech%SetOption(option)
   simulation%geomech_process_model_coupler_new => pmc_geomech
-  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  !pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
   pmc_geomech%geomech_realization => simulation%geomech_realization_new
@@ -1272,23 +1272,23 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   ! Hijack subsurface waypoint to geomechanics waypoint
   ! Subsurface controls the output now
   ! Always have snapshot on at t=0
-  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+  !pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
 
   ! link geomech and flow timestepper waypoints to geomech way point list
-  if (associated(simulation%geomech_process_model_coupler_new)) then
-    call simulation%geomech_process_model_coupler_new% &
-           SetWaypointPtr(pmc_geomech%waypoint_list)
-    if (associated(simulation%flow_process_model_coupler)) then
-      call simulation%flow_process_model_coupler% &
-             SetWaypointPtr(pmc_geomech%waypoint_list)
-    endif
-  endif
+  !if (associated(simulation%geomech_process_model_coupler_new)) then
+  !  call simulation%geomech_process_model_coupler_new% &
+  !         SetWaypointPtr(pmc_geomech%waypoint_list)
+  !  if (associated(simulation%flow_process_model_coupler)) then
+  !    call simulation%flow_process_model_coupler% &
+  !           SetWaypointPtr(pmc_geomech%waypoint_list)
+  !  endif
+  !endif
 
   ! print the waypoints when debug flag is on
-  if (geomech_realization%geomech_debug%print_waypoints) then
-    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
-                           geomech_realization%output_option)
-  endif
+  !if (geomech_realization%geomech_debug%print_waypoints) then
+  !  call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+  !                         geomech_realization%output_option)
+  !endif
 
 end subroutine FactSubLinkAddPMCSubsurfGeomech
 

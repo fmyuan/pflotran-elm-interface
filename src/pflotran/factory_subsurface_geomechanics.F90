@@ -343,7 +343,7 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
-  use Waypoint_module
+  !use Waypoint_module
 
   implicit none
 
@@ -355,13 +355,12 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   class(realization_geomech_type), pointer :: geomech_realization
   class(pmc_base_type), pointer :: cur_process_model_coupler
   type(gmdm_ptr_type), pointer :: dm_ptr
-  !class(pm_base_type), pointer :: cur_pm, prev_pm
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   !class(timestepper_steady_type), pointer :: timestepper
   class(timestepper_base_type), pointer :: timestepper
-  !character(len=MAXSTRINGLENGTH) :: string
-  !type(input_type), pointer :: input
   PetscErrorCode :: ierr
+
+  if (.not. associated(pm_geomech)) return
 
   option => simulation%option
   geomech_realization => simulation%geomech_realization_new
@@ -431,11 +430,17 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! set geomech as not master
   simulation%geomech_process_model_coupler_new%is_master = PETSC_FALSE
   ! link geomech and master
+  !simulation%process_model_coupler_list => &
+  !  simulation%geomech_process_model_coupler_new
+  ! jaa testing.. let flow be the master 
   simulation%process_model_coupler_list => &
-    simulation%geomech_process_model_coupler_new
-  ! link subsurface flow as peer
-  simulation%process_model_coupler_list%peer => &
     simulation%flow_process_model_coupler
+  ! link subsurface flow as peer
+  !simulation%process_model_coupler_list%peer => &
+  !  simulation%flow_process_model_coupler
+  ! jaa testing.. set geomech as a child
+  simulation%process_model_coupler_list%child => &
+    simulation%geomech_process_model_coupler_new
 
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list

@@ -135,9 +135,9 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   ! FactorySubsurfaceInitSimulation() must be called after pmc linkages
   ! are set above.
   call FactorySubsurfaceInitSimulation(simulation)
-  if(associated(pm_geomech)) then
-    call FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
-  endif
+  !if(associated(pm_geomech)) then
+  call FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
+  !endif
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
