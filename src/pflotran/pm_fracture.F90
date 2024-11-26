@@ -669,6 +669,8 @@ subroutine PMFracInitializeRun(this)
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
   cur_fracture => this%fracture_list
   do
@@ -687,9 +689,15 @@ subroutine PMFracInitializeRun(this)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
 
-      material_auxvar%permeability(1) = material_auxvar%permeability(1) + kx
-      material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky
-      material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
+      ! record the maximum permeability encountered so far
+      this%max_frac_kx(icell) = max(kx,this%max_frac_kx(icell))
+      this%max_frac_ky(icell) = max(ky,this%max_frac_ky(icell))
+      this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
+
+      ! record the sum of permeability encountered so far
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx 
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky 
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz 
 
       material_auxvar%porosity_0 = material_auxvar%porosity_0 + &
                                    (cur_fracture%hap0/L)
@@ -712,15 +720,34 @@ subroutine PMFracInitializeRun(this)
     cur_fracture => cur_fracture%next
   enddo
 
+  ! update domain material permeability of cells with fractures
   if (associated(this%allfrac_unique_cell_ids)) then
     do k = 1,size(this%allfrac_unique_cell_ids)
       icell = this%allfrac_unique_cell_ids(k)
-      material_auxvar => &
-          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
-      perm0_xx_p(icell) = material_auxvar%permeability(1)
-      perm0_yy_p(icell) = material_auxvar%permeability(2)
-      perm0_zz_p(icell) = material_auxvar%permeability(3)
+      if (this%frac_intersection_type == 2) then ! maximum
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
+      endif 
+      if (this%frac_intersection_type == 1) then ! summation
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
+      endif 
     enddo
+  endif
+
+  if (this%update_material_auxvar_perm) then
+    if (associated(this%allfrac_unique_cell_ids)) then
+      do k = 1,size(this%allfrac_unique_cell_ids)
+        icell = this%allfrac_unique_cell_ids(k)
+        material_auxvar => &
+          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
+        material_auxvar%permeability(1) = perm0_xx_p(icell)
+        material_auxvar%permeability(2) = perm0_yy_p(icell)
+        material_auxvar%permeability(3) = perm0_zz_p(icell)
+      enddo
+    endif
   endif
 
   call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
