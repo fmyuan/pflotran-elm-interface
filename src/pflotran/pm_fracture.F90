@@ -575,9 +575,9 @@ subroutine PMFracSetup(this)
 
     allocate(temp_allfrac_unique_cell_ids(tfc))
     temp_allfrac_unique_cell_ids(:) = 0
-    j = 1 
+    j = 1
     temp_allfrac_unique_cell_ids(1) = this%allfrac_cell_ids(1)
-    do i=2,tfc 
+    do i=2,tfc
         ! if the number already exists in temp check next
         if (any( temp_allfrac_unique_cell_ids == &
                  this%allfrac_cell_ids(i) )) cycle
@@ -695,9 +695,9 @@ subroutine PMFracInitializeRun(this)
       this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
 
       ! record the sum of permeability encountered so far
-      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx 
-      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky 
-      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz 
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz
 
       material_auxvar%porosity_0 = material_auxvar%porosity_0 + &
                                    (cur_fracture%hap0/L)
@@ -728,12 +728,12 @@ subroutine PMFracInitializeRun(this)
         perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
         perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
         perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
-      endif 
+      endif
       if (this%frac_intersection_type == 1) then ! summation
         perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
         perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
         perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
-      endif 
+      endif
     enddo
   endif
 
@@ -1539,117 +1539,63 @@ end subroutine PMFracReadPass2
 
 ! ************************************************************************** !
 
-subroutine GetRndNumFromNormalDist_N(mean,st_dev,number,fracfamnum,seed)
+subroutine GetLHSValues(mean,st_dev,isamples,seed,LHSvalues)
   !
-  ! Based on the routine of the same name in utility.F90.
+  ! Gets a set of samples from a normal distribution using LHS method.
   !
   ! Author: Jenn Frederick
-  ! Date: 10/24/2024
-  use Utility_module
+  ! Date: 11/26/2024
 
   implicit none
 
-  PetscReal :: mean, st_dev, number
-  PetscInt :: fracfamnum, seed, f
+  PetscReal :: mean, st_dev
+  PetscInt :: isamples, seed
+  PetscReal:: LHSvalues(:)
 
+  PetscReal :: rndnum
+  PetscInt :: f, k
   PetscBool :: switch
-  PetscReal, save :: n0, n1
+  PetscReal :: n0, n1
   PetscReal :: nu1, nu2
   PetscReal :: TWO_PI
 
-  switch = mod(fracfamnum, 2) == 0 
+  switch = mod(seed, 2) == 0
   TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
 
-  if (.not.switch) then
-    ! Generate two random numbers between (0,1)
-    do f=1,seed
-      nu1 = rnd()
-      nu2 = rnd()
-    enddo
-    n0 = sqrt(-2.0*log(nu1)) * cos(TWO_PI*nu2)
-    n1 = sqrt(-2.0*log(nu1)) * sin(TWO_PI*nu2)
-    number = n0*st_dev + mean
-  else
-    number = n1*st_dev + mean
-  endif
+  do k=1,isamples
+    if (.not.switch) then
+      ! Generate two random numbers between (0,1)
+      do f=1,seed
+        nu1 = rnd4LHS(seed)
+        nu2 = rnd4LHS(seed)
+      enddo
+      n0 = sqrt(-2.0*log(nu1)) * cos(TWO_PI*nu2)
+      n1 = sqrt(-2.0*log(nu1)) * sin(TWO_PI*nu2)
+      rndnum = n0*st_dev + mean
+    else
+      rndnum = n1*st_dev + mean
+    endif
+    LHSvalues(k) = rndnum
+    switch = .not.switch
+  enddo
 
-end subroutine GetRndNumFromNormalDist_N
+end subroutine GetLHSValues
 
 ! ************************************************************************** !
 
-subroutine GetRndNumFromNormalDist_C(mean,st_dev,number,seed)
-  !
-  ! Based on the routine of the same name in utility.F90.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 10/24/2024
-  use Utility_module
+function rnd4LHS(iseed)
 
   implicit none
 
-  PetscReal :: mean, st_dev, number
-  PetscInt :: seed, f
+  PetscInt :: iseed
+  PetscReal :: rnd4LHS
 
-  PetscBool, save :: switch
-  PetscReal, save :: z0, z1
-  PetscReal :: u1, u2
-  PetscReal :: TWO_PI
+  iseed = iseed*125
+  iseed = iseed - (iseed/2796203) * 2796203
+  rnd4LHS   = dble(iseed)/2796203.0
+  return
 
-  switch = .not.switch
-  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
-
-  if (.not.switch) then
-    ! Generate two random numbers between (0,1)
-    do f=1,seed
-      u1 = rnd()
-      u2 = rnd()
-    enddo
-    z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
-    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2)
-    number = z0*st_dev + mean
-  else
-    number = z1*st_dev + mean
-  endif
-
-end subroutine GetRndNumFromNormalDist_C
-
-! ************************************************************************** !
-
-subroutine GetRndNumFromNormalDist_R(mean,st_dev,number,seed)
-  !
-  ! Based on the routine of the same name in utility.F90.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 10/24/2024
-  use Utility_module
-
-  implicit none
-
-  PetscReal :: mean, st_dev, number
-  PetscInt :: seed, f
-
-  PetscBool, save :: switch
-  PetscReal, save :: z0, z1
-  PetscReal :: u1, u2
-  PetscReal :: TWO_PI
-
-  switch = .not.switch
-  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
-
-  if (.not.switch) then
-    ! Generate two random numbers between (0,1)
-    do f=1,seed
-      u1 = rnd()
-      u2 = rnd()
-    enddo
-    z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
-    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2)
-    number = z0*st_dev + mean
-  else
-    number = z1*st_dev + mean
-  endif
-
-end subroutine GetRndNumFromNormalDist_R
+end function rnd4LHS
 
 ! ************************************************************************** !
 
@@ -1667,7 +1613,50 @@ subroutine PMFracGenerateFracFam(fracfam)
   type(fracfam_type) :: fracfam
 
   type(fracture_type), pointer :: new_fracture,cur_fracture
+  PetscReal, pointer :: center_x(:),center_y(:),center_z(:)
+  PetscReal, pointer :: normal_x(:),normal_y(:),normal_z(:)
+  PetscReal, pointer :: radius_x(:),radius_y(:),radius_z(:)
+  PetscReal, pointer :: hap0(:)
   PetscBool :: added
+
+  allocate(center_x(fracfam%intensity_fracfam))
+  allocate(center_y(fracfam%intensity_fracfam))
+  allocate(center_z(fracfam%intensity_fracfam))
+  center_x(:) = 0.d0; center_y(:) = 0.d0; center_z(:) = 0.d0
+  allocate(normal_x(fracfam%intensity_fracfam))
+  allocate(normal_y(fracfam%intensity_fracfam))
+  allocate(normal_z(fracfam%intensity_fracfam))
+  normal_x(:) = 0.d0; normal_y(:) = 0.d0; normal_z(:) = 0.d0
+  allocate(radius_x(fracfam%intensity_fracfam))
+  allocate(radius_y(fracfam%intensity_fracfam))
+  allocate(radius_z(fracfam%intensity_fracfam))
+  radius_x(:) = 0.d0; radius_y(:) = 0.d0; radius_z(:) = 0.d0
+  allocate(hap0(fracfam%intensity_fracfam))
+  hap0(:) = 0.d0
+
+  call GetLHSValues(fracfam%center%x,fracfam%center_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_x)
+  call GetLHSValues(fracfam%center%y,fracfam%center_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_y)
+  call GetLHSValues(fracfam%center%z,fracfam%center_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_z)
+
+  call GetLHSValues(fracfam%normal%x,fracfam%normal_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_x)
+  call GetLHSValues(fracfam%normal%y,fracfam%normal_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_y)
+  call GetLHSValues(fracfam%normal%z,fracfam%normal_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_z)
+
+  call GetLHSValues(fracfam%radius%x,fracfam%radius_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_x)
+  call GetLHSValues(fracfam%radius%y,fracfam%radius_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_y)
+  call GetLHSValues(fracfam%radius%z,fracfam%radius_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_z)
+
+  call GetLHSValues(fracfam%hap0,fracfam%hap0_stdev, &
+                    fracfam%intensity_fracfam,fracfam%hap0_seed,hap0)
 
   do while (fracfam%nfrac_in_fam < fracfam%intensity_fracfam)
     added = PETSC_FALSE
@@ -1677,42 +1666,24 @@ subroutine PMFracGenerateFracFam(fracfam)
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
     new_fracture%max_distance = fracfam%max_distance
 
-    call GetRndNumFromNormalDist_C(fracfam%center%x,fracfam%center_stdev%x, &
-      new_fracture%center%x,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist_C(fracfam%center%y,fracfam%center_stdev%y, &
-      new_fracture%center%y,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist_C(fracfam%center%z,fracfam%center_stdev%z, &
-      new_fracture%center%z,(fracfam%center_seed + fracfam%nfrac_in_fam))
+    new_fracture%center%x = center_x(fracfam%nfrac_in_fam)
+    new_fracture%center%y = center_y(fracfam%nfrac_in_fam)
+    new_fracture%center%z = center_z(fracfam%nfrac_in_fam)
 
-    call GetRndNumFromNormalDist_N(fracfam%normal%x,fracfam%normal_stdev%x, &
-      new_fracture%normal%x,fracfam%nfrac_in_fam,fracfam%normal_seed)
-    call GetRndNumFromNormalDist_N(fracfam%normal%y,fracfam%normal_stdev%y, &
-      new_fracture%normal%y,fracfam%nfrac_in_fam,fracfam%normal_seed)
-    call GetRndNumFromNormalDist_N(fracfam%normal%z,fracfam%normal_stdev%z, &
-      new_fracture%normal%z,fracfam%nfrac_in_fam,fracfam%normal_seed)
+    new_fracture%normal%x = normal_x(fracfam%nfrac_in_fam)
+    new_fracture%normal%y = normal_y(fracfam%nfrac_in_fam)
+    new_fracture%normal%z = normal_z(fracfam%nfrac_in_fam)
 
-    call GetRndNumFromNormalDist_R(fracfam%radius%x,fracfam%radius_stdev%x, &
-      new_fracture%radx,(fracfam%radius_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist_R(fracfam%radius%y,fracfam%radius_stdev%y, &
-      new_fracture%rady,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist_R(fracfam%radius%z,fracfam%radius_stdev%z, &
-      new_fracture%radz,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    new_fracture%radx = radius_x(fracfam%nfrac_in_fam)
+    new_fracture%rady = radius_y(fracfam%nfrac_in_fam)
+    new_fracture%radz = radius_z(fracfam%nfrac_in_fam)
     new_fracture%radx = abs(new_fracture%radx)  ! ensures radius is positive
     new_fracture%rady = abs(new_fracture%rady)  ! ensures radius is positive
     new_fracture%radz = abs(new_fracture%radz)  ! ensures radius is positive
 
-    call GetRndNumFromNormalDist(fracfam%hap0,fracfam%hap0_stdev, &
-      new_fracture%hap0,(fracfam%hap0_seed + fracfam%nfrac_in_fam))
+    new_fracture%hap0 = hap0(fracfam%nfrac_in_fam)
     new_fracture%hap0 = abs(new_fracture%hap0)  ! ensures hap0 is positive
     new_fracture%hap0 = min(new_fracture%hap0,fracfam%hap0_max)
-
-    write(*,*) 'Fracture ID', new_fracture%id
-    write(*,*) 'fracture family normal%x =', fracfam%normal%x
-    write(*,*) '   new fracture normal%x =', new_fracture%normal%x 
-    write(*,*) 'fracture family normal%y =', fracfam%normal%y
-    write(*,*) '   new fracture normal%y =', new_fracture%normal%y 
-    write(*,*) 'fracture family normal%z =', fracfam%normal%z 
-    write(*,*) '   new fracture normal%z =', new_fracture%normal%z 
 
     !------ add fracture to list -------------------------
     if (.not.associated(fracfam%fracture_list)) then
@@ -1732,6 +1703,11 @@ subroutine PMFracGenerateFracFam(fracfam)
 
     nullify(new_fracture)
   enddo
+
+  deallocate(center_x); deallocate(radius_x); deallocate(normal_x)
+  deallocate(center_y); deallocate(radius_y); deallocate(normal_y)
+  deallocate(center_z); deallocate(radius_z); deallocate(normal_z)
+  deallocate(hap0)
 
 end subroutine PMFracGenerateFracFam
 
@@ -1902,9 +1878,9 @@ subroutine PMFracSolve(this,time,ierr)
       this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
 
       ! record the sum of permeability encountered so far
-      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx 
-      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky 
-      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz 
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -1921,12 +1897,12 @@ subroutine PMFracSolve(this,time,ierr)
         perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
         perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
         perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
-      endif 
+      endif
       if (this%frac_intersection_type == 1) then ! summation
         perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
         perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
         perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
-      endif 
+      endif
     enddo
   endif
 
