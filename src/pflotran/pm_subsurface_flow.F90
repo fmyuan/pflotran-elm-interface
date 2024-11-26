@@ -42,7 +42,6 @@ module PM_Subsurface_Flow_class
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
-    PetscInt :: logging_verbosity
     ! for tracking convergence history to catch and report oscillator behavior
     PetscReal :: norm_history(3,10)
 
@@ -134,7 +133,6 @@ subroutine PMSubsurfaceFlowInit(this)
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
-  this%logging_verbosity = 0
 
   call SSSandboxInit()
 
@@ -176,9 +174,6 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       count_upwind_direction_flip = PETSC_TRUE
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
-    case('LOGGING_VERBOSITY')
-      call InputReadInt(input,option,this%logging_verbosity)
-      call InputErrorMsg(input,option,keyword,error_string)
     case('MULTIPLE_CONTINUUM')
       option%use_sc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')

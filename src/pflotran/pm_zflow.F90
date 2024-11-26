@@ -26,7 +26,6 @@ module PM_ZFlow_class
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
     PetscReal :: sat_update_trunc_ni
     PetscReal :: unsat_to_sat_pres_damping_ni
-    PetscInt :: convergence_verbosity
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -116,7 +115,6 @@ subroutine PMZFlowInitObject(this)
   this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
   this%check_post_convergence = PETSC_TRUE
-  this%convergence_verbosity = 0
 
   this%max_allow_liq_pres_change_ni = UNINITIALIZED_DOUBLE
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
@@ -159,7 +157,6 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: local_error_string
   PetscBool :: found
   PetscReal :: array(1)
-  PetscInt :: temp_int
 
   option => this%option
 
@@ -204,14 +201,6 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
           end select
         enddo
         call InputPopBlock(input,option)
-      case('VERBOSE_CONVERGENCE')
-        this%convergence_verbosity = 1
-        call InputReadInt(input,option,temp_int)
-        if (input%ierr == 0) then
-          this%convergence_verbosity = temp_int
-        else
-          call InputDefaultMsg(input,option,keyword)
-        endif
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -1002,7 +991,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   this%convergence_flags(MAX_RES_SOL_EQ) = max_abs_res_sol_cell
   this%convergence_reals(MAX_RES_SOL_EQ) = max_abs_res_sol_
 
-  if (this%convergence_verbosity >= 10) then
+  if (this%logging_verbosity >= 10) then
     print *, option%myrank, &
       this%convergence_flags(MAX_RES_LIQ_EQ), &
       this%convergence_reals(MAX_RES_LIQ_EQ), &
@@ -1030,7 +1019,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
 
-  if (this%convergence_verbosity > 0 .and. &
+  if (this%logging_verbosity > 0 .and. &
       OptionPrintToScreen(option)) then
     if (option%comm%size > 1) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &

@@ -169,8 +169,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
       do
         if (.not.associated(cur_variable)) exit
         call OutputGetVariableArray(realization_base,global_vec,cur_variable)
-        string = OutputVariableGetName(cur_variable)
-        call StringSwapChar(string," ","_")
+        string = StringSwapChar(OutputVariableGetName(cur_variable)," ","_")
         if (len_trim(cur_variable%units) > 0) then
           word = cur_variable%units
           call HDF5MakeStringCompatible(word)
