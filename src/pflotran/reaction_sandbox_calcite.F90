@@ -142,7 +142,7 @@ subroutine CalciteSetup(this,reaction,option)
     ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
-    ReactionMnrlGetMnrlIDFromName(word,reaction%mineral,option)
+    ReactionMnrlGetKinMnrlIDFromName(word,reaction%mineral,option)
 
 end subroutine CalciteSetup
 

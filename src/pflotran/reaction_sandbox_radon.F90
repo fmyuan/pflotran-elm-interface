@@ -135,7 +135,7 @@ subroutine RadonSetup(this,reaction,option)
   this%species_id = &
     ReactionAuxGetPriSpecIDFromName(this%species_name,reaction,option)
   this%mineral_id = &
-    ReactionMnrlGetMnrlIDFromName(this%mineral_name,reaction%mineral,option)
+    ReactionMnrlGetKinMnrlIDFromName(this%mineral_name,reaction%mineral,option)
   if (Uninitialized(this%radon_generation_rate)) then
     option%io_buffer = 'A "RADON_GENERATION_RATE" must be defined in the &
       &RADON REACTION_SANDBOX.'
