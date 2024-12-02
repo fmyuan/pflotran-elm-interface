@@ -96,12 +96,12 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
                                       volume_over_dt
   endif
 
-  if (option%ntrandof > 0) then
+  if (option%ntrandof > 0 .and. &
+      option%iflag == SCO2_UPDATE_FOR_FIXED_ACCUM) then
     select case(option%itranmode)
       case(RT_MODE)
         do icomp = 1, option%nflowspec - 1
           ! Water and CO2 source/sinks from reaction.
-          ! MAN: Not sure if we also need an energy source/sink?
           Res(icomp) = Res(icomp) - material_auxvar%volume * &
                       global_auxvar%reaction_rate(icomp) * 1.d-3 * &
                       fmw_comp(icomp)

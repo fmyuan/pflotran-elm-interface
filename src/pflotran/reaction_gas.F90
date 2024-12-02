@@ -239,8 +239,7 @@ subroutine ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
 
       if (abs(reaction%species_idx%co2_gas_id) == iactgas ) then
 
-        if (reaction%species_idx%na_ion_id /= 0 .and. &
-            reaction%species_idx%cl_ion_id /= 0) then
+        if (option%transport%couple_co2_salinity) then
           m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
           m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
           call Henry_duan_sun(temperature,pressure*1D-5,muco2, &

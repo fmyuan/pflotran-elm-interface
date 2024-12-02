@@ -774,6 +774,7 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
 ! Date: 01/29/24
 !
   use Option_module
+  use Option_Transport_module
   use String_module
 
   implicit none
@@ -806,6 +807,24 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
       if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
                                   word)) then
         reaction%species_idx%cl_ion_id = ispec
+      endif
+    endif
+    ! this can be CO2(aq), HCO3-, CO3-2
+    if (reaction%species_idx%pri_co2_id == 0) then
+      word = 'CO2(aq)'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
+      endif
+      word = 'HCO3-'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
+      endif
+      word = 'CO3--'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
       endif
     endif
     if (reaction%species_idx%co2_aq_id == 0) then
@@ -902,6 +921,20 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
     endif
 
   enddo
+
+  select case(option%iflowmode)
+    case(MPH_MODE,SCO2_MODE)
+      option%transport%couple_co2 = &
+        (reaction%species_idx%pri_co2_id /= 0 .and. &
+         reaction%species_idx%co2_aq_id /= 0)
+      option%transport%couple_co2_salinity = &
+        (reaction%species_idx%na_ion_id /= 0 .and. &
+         reaction%species_idx%cl_ion_id /= 0)
+  end select
+  if (option%transport%force_decouple_co2) then
+    option%transport%couple_co2 = PETSC_FALSE
+    option%transport%couple_co2_salinity = PETSC_FALSE
+  endif
 
 end subroutine ReactionSetupSpecificSpecies
 

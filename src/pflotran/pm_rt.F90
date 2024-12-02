@@ -17,6 +17,10 @@ module PM_RT_class
 
   private
 
+  PetscInt, parameter :: REL_UPDATE_INDEX = 1
+  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 2
+  PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
+
   type, public, extends(pm_base_type) :: pm_rt_type
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
@@ -36,6 +40,12 @@ module PM_RT_class
     ! for transport only
     PetscBool :: transient_porosity
     PetscBool :: operator_split
+    PetscBool :: debug_update
+    ! for convergence
+    PetscBool :: refactored_convergence
+    PetscBool, pointer :: converged_flag(:)
+    PetscInt, pointer :: converged_cell(:,:)
+    PetscReal, pointer :: converged_real(:,:)
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMRTReadSimOptionsBlock
@@ -139,6 +149,12 @@ subroutine PMRTInit(pm_rt)
   ! these flags can only be true for transport only
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
+  pm_rt%debug_update = PETSC_FALSE
+
+  pm_rt%refactored_convergence = PETSC_FALSE
+  nullify(pm_rt%converged_flag)
+  nullify(pm_rt%converged_cell)
+  nullify(pm_rt%converged_real)
 
 end subroutine PMRTInit
 
@@ -206,6 +222,14 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
         this%millington_quirk_tortuosity = PETSC_TRUE
+      case('PRINT_EKG')
+        option%print_ekg = PETSC_TRUE
+        this%print_ekg = PETSC_TRUE
+      case('DEBUG_UPDATE')
+        this%debug_update = PETSC_TRUE
+      case('REFACTORED_CONVERGENCE')
+        this%refactored_convergence = PETSC_TRUE
+        this%check_post_convergence = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -422,6 +446,12 @@ subroutine PMRTSetup(this)
            this%realization%reaction%ncomp))
   allocate(this%max_volfrac_change( &
            this%realization%reaction%mineral%nkinmnrl))
+  allocate(this%converged_flag(MAX_INDEX))
+  allocate(this%converged_cell(this%option%ntrandof,MAX_INDEX))
+  allocate(this%converged_real(this%option%ntrandof,MAX_INDEX))
+  this%converged_flag = PETSC_FALSE
+  this%converged_cell = 0
+  this%converged_real = 0.d0
 
   call CondControlAssignRTTranInitCond(this%realization)
 
@@ -925,6 +955,10 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
+  call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
+  call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+
   if (reaction%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
@@ -937,10 +971,18 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
       call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     endif
+    if (this%debug_update) then
+      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      write(*,'("C: ",10es15.6)') exp(C_p(:))
+      write(*,'("dC: ",10es15.6)') exp(C_p(:)-dC_p(:))-exp(C_p(:))
+      write(*,'("dlnC: ",10es15.6)') -dC_p(:)
+      write(*,'("dC/C: ",10es15.6)') &
+        (exp(C_p(:)-dC_p(:))-exp(C_p(:)))/exp(C_p(:))
+      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    endif
   else
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-
     if (Initialized(reaction%truncated_concentration)) then
       dC_p = min(dC_p,C_p-reaction%truncated_concentration)
     else
@@ -987,6 +1029,11 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
         ! scale by 0.99 to make the update slightly smaller than the min_ratio
         dC_p = dC_p*min_ratio*0.99d0
         changed = PETSC_TRUE
+      endif
+      if (this%debug_update) then
+        write(*,'("C: ",10es15.6)') C_p(:)
+        write(*,'("dC: ",10es15.6)') -dC_p(:)
+        write(*,'("dC/C: ",10es15.6)') -dC_p(:)/C_p(:)
       endif
     endif
     call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
@@ -1035,15 +1082,11 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)
-  PetscBool :: converged_due_to_rel_update
-  PetscBool :: converged_due_to_residual
-  PetscReal :: max_relative_change
-  PetscReal :: max_scaled_residual
-  PetscInt :: converged_flag
-  PetscInt :: temp_int
-  PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
+  PetscReal :: relative_change
+  PetscReal :: scaled_residual
   PetscMPIInt :: mpi_int
   PetscInt :: local_id, offset, idof, index
+  PetscInt :: natural_id
   PetscReal :: tempreal
 
   grid => this%realization%patch%grid
@@ -1054,37 +1097,51 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
-  converged_flag = 0
-  if (this%check_post_convergence) then
-    converged_due_to_rel_update = PETSC_FALSE
-    converged_due_to_residual = PETSC_FALSE
+  this%converged_flag = PETSC_FALSE
+  this%converged_cell = ZERO_INTEGER
+  this%converged_real = 0.d0
+
+  if (this%check_post_convergence .or. this%print_ekg) then
+    relative_change = 0.d0
+    scaled_residual = 0.d0
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
-    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%ntrandof
+      natural_id = grid%nG2A(grid%nL2G(local_id))
+      do idof = 1, option%ntrandof
+        index = offset+idof
+        ! relative change in concentration
+        if (this%realization%reaction%use_log_formulation) then
+          tempreal = exp(C0_p(index))
+          relative_change = &
+            dabs((exp(C0_p(index)-dC_p(index))-tempreal)/tempreal)
+        else
+          relative_change = dabs(dC_p(index)/C0_p(index))
+        endif
+        if (relative_change > this%converged_real(idof,REL_UPDATE_INDEX)) then
+          this%converged_real(idof,REL_UPDATE_INDEX) = relative_change
+          this%converged_cell(idof,REL_UPDATE_INDEX) = natural_id
+        endif
+        ! scaled residual
+        scaled_residual = dabs(r_p(index)/accum_p(index))
+        if (scaled_residual > &
+            this%converged_real(idof,SCALED_RESIDUAL_INDEX)) then
+          this%converged_real(idof,SCALED_RESIDUAL_INDEX) = scaled_residual
+          this%converged_cell(idof,SCALED_RESIDUAL_INDEX) = natural_id
+        endif
+      enddo
+    enddo
+    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-    converged_due_to_rel_update = (Initialized(rt_itol_rel_update) .and. &
-                                   max_relative_change < rt_itol_rel_update)
-    converged_due_to_residual = (Initialized(rt_itol_scaled_res) .and. &
-                                max_scaled_residual < rt_itol_scaled_res)
-    if (converged_due_to_rel_update .or. converged_due_to_residual) then
-      converged_flag = 1
-    endif
-  endif
-
-  ! get global minimum
-  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-                     MPI_MIN,this%realization%option%mycomm, &
-                     ierr);CHKERRQ(ierr)
-
-  option%converged = PETSC_FALSE
-  if (temp_int == 1) then
-    option%converged = PETSC_TRUE
+    mpi_int = option%ntrandof
+    call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
+                       MPI_DOUBLE_PRECISION,MPI_MAX, &
+                       this%realization%option%mycomm,ierr);CHKERRQ(ierr)
   endif
 
   if (option%use_sc) then
@@ -1098,27 +1155,9 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   if (this%print_ekg) then
-    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    max_relative_change_by_dof = -MAX_DOUBLE
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%ntrandof
-      do idof = 1, option%ntrandof
-        index = idof + offset
-        tempreal = dabs(dC_p(index)/C0_p(index))
-        max_relative_change_by_dof(idof) = &
-          max(max_relative_change_by_dof(idof),tempreal)
-      enddo
-    enddo
-    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    mpi_int = option%ntrandof
-    call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm, &
-                       ierr);CHKERRQ(ierr)
     if (OptionPrintToFile(option)) then
 100 format("REACTIVE TRANSPORT  NEWTON_ITERATION ",30es16.8)
-      write(IUNIT_EKG,100) max_relative_change_by_dof(:)
+      write(IUNIT_EKG,100) this%converged_real(:,REL_UPDATE_INDEX)
     endif
   endif
 
@@ -1132,6 +1171,8 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ! Date: 11/15/17
   !
   use Convergence_module
+  use String_module
+  use Reactive_Transport_Aux_module
 
   implicit none
 
@@ -1143,6 +1184,18 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscReal :: fnorm
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
+
+  type(option_type), pointer :: option
+  Vec :: residual_vec
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: rsn_string
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscInt :: icount
+  PetscInt :: i
+  PetscReal :: inorm_residual
+  PetscReal :: tempreal
+
+  option => this%option
 
 #if 0
   character(len=MAXSTRINGLENGHT) :: out_string
@@ -1161,9 +1214,123 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   endif
 #endif
 
-  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
-                       this%realization%patch%grid, &
-                       this%option,this%solver,ierr)
+  if (this%check_post_convergence) then
+    if (Initialized(rt_itol_rel_update)) then
+      this%converged_flag(REL_UPDATE_INDEX) = &
+        (maxval(this%converged_real(:,REL_UPDATE_INDEX)) < rt_itol_rel_update)
+    endif
+    if (Initialized(rt_itol_scaled_res)) then
+      this%converged_flag(SCALED_RESIDUAL_INDEX) = &
+        (maxval(this%converged_real(:,SCALED_RESIDUAL_INDEX)) < rt_itol_scaled_res)
+    endif
+  endif
+
+  if (this%refactored_convergence) then
+    !geh: We must check the convergence here as i_iteration initializes
+    !     snes->stol for subsequent iterations.
+    call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
+                              0,ierr);CHKERRQ(ierr)
+
+    if (option%convergence /= CONVERGENCE_CONVERGED .and. reason == -9) then
+      write(out_string,'(i3," 2r:",es9.2," 2x:",es9.2," 2u:",es9.2, &
+            & " -diverged")') it, fnorm, xnorm, unorm
+      call PrintMsg(option,out_string)
+      return
+    endif
+
+    if (Initialized(rt_itol_scaled_res) .and. &
+        this%converged_flag(SCALED_RESIDUAL_INDEX)) then
+      reason = 12
+    endif
+
+    if (Initialized(rt_itol_rel_update) .and. &
+        this%converged_flag(REL_UPDATE_INDEX)) then
+      reason = 11
+    endif
+
+    if (it < this%solver%newton_min_iterations) then
+      reason = 0
+    endif
+
+    call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
+                         PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+    call VecNorm(residual_vec,NORM_INFINITY,inorm_residual, &
+                 ierr);CHKERRQ(ierr)
+
+      icount = int(reason)
+      select case(icount)
+        case(2)
+          rsn_string = 'atol'
+        case(3)
+          rsn_string = 'rtol'
+        case(4)
+          rsn_string = 'stol'
+        case(11)
+          rsn_string = 'itol_rel_upd'
+        case(12)
+          rsn_string = 'itol_scl_res'
+        case default
+          write(rsn_string,'(i3)') reason
+      end select
+
+    write(out_string,'(i3)') it
+    icount = 5
+      out_string = trim(out_string) // ' 2r: ' // &
+        StringWrite('(es9.2)',fnorm)
+      icount = icount - 1
+!      out_string = trim(out_string) // ' 2x: ' // &
+!        StringWrite('(es9.2)',xnorm)
+!      icount = icount - 1
+!      out_string = trim(out_string) // ' 2u: ' // &
+!        StringWrite('(es9.2)',unorm)
+!      icount = icount - 1
+      out_string = trim(out_string) // ' ir: ' // &
+        StringWrite('(es9.2)',inorm_residual)
+      icount = icount - 1
+      if (it > 0) then
+        tempreal = maxval(this%converged_real(:,REL_UPDATE_INDEX))
+      else
+        tempreal = 0.d0
+      endif
+      out_string = trim(out_string) // ' iru: ' // StringWrite('(es9.2)',tempreal)
+      icount = icount - 1
+    if (icount > 0) then
+      icount = icount - 1
+      string = '("'//trim(out_string)//'",'
+      if (icount > 0) then
+        string = trim(string) // &
+                  trim(StringWrite(icount*13)) // 'x,'
+      endif
+      string = trim(string) // '" rsn: '//trim(rsn_string)//'")'
+      write(out_string,trim(string))
+    else
+      out_string = trim(out_string) // ' rsn: ' // trim(rsn_string)
+    endif
+    call PrintMsg(option,out_string)
+
+    if (this%logging_verbosity > 0 .and. it > 0) then
+      if (option%comm%size > 1) then
+        write(out_string,'(4x,*(es10.2))') &
+          (this%converged_real(i,REL_UPDATE_INDEX),i=1,option%ntrandof)
+      else if (this%realization%patch%grid%nmax > 9999) then
+        write(out_string,'(4x,*(i8,es10.2))') &
+          (this%converged_cell(i,REL_UPDATE_INDEX), &
+           this%converged_real(i,REL_UPDATE_INDEX),i=1,option%ntrandof)
+      else
+        write(out_string,'(4x,*(i5,es10.2))') &
+          (this%converged_cell(i,REL_UPDATE_INDEX), &
+           this%converged_real(i,REL_UPDATE_INDEX),i=1,option%ntrandof)
+      endif
+      call PrintMsg(option,out_string)
+    endif
+  else
+    if (any(this%converged_flag)) then
+      option%converged = PETSC_TRUE
+    endif
+    call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                        this%realization%patch%grid, &
+                        this%option,this%solver,ierr)
+  endif
 
 end subroutine PMRTCheckConvergence
 

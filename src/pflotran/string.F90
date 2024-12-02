@@ -577,7 +577,7 @@ end function StringFindEntryInList
 
 ! ************************************************************************** !
 
-subroutine StringSwapChar(string,char_in,char_out)
+function StringSwapChar(string,char_in,char_out)
   !
   ! Swaps a character from a string
   !
@@ -591,13 +591,16 @@ subroutine StringSwapChar(string,char_in,char_out)
   character(len=1) :: char_in
   character(len=1) :: char_out
 
+  character(len=:), allocatable :: StringSwapChar
+
   PetscInt :: i
 
-  do i=1, len_trim(string)
-   if (string(i:i) == char_in(1:1)) string(i:i) = char_out(1:1)
+  StringSwapChar = trim(string)
+  do i=1, len_trim(StringSwapChar)
+   if (StringSwapChar(i:i) == char_in(1:1)) StringSwapChar(i:i) = char_out(1:1)
   enddo
 
-end subroutine StringSwapChar
+end function StringSwapChar
 
 ! ************************************************************************** !
 
