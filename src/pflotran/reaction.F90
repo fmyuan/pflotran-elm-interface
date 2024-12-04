@@ -466,7 +466,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call ReactionMicrobReadMicrobial(reaction%microbial,input,option)
       case('MINERALS')
         call ReactionMnrlRead(reaction%mineral,input,option)
-      case('MINERAL_KINETICS') ! mineral kinetics read on second round
+      case('MINERAL_KINETICS')
         error_string = 'CHEMISTRY,MINERAL_KINETICS'
         !geh: but we need to count the number of kinetic minerals this round
         temp_int = 0 ! used to count kinetic minerals
@@ -500,7 +500,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   call StringToUpper(word)
                   select case(word)
                     case('PREFACTOR_SPECIES')
-                      call InputSkipToEnd(input,option,word)
+                      call InputSkipToEND(input,option,word)
                     ! no default here as skipping
                   end select
                 enddo
@@ -512,13 +512,20 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputPopBlock(input,option)
         reaction%mineral%nkinmnrl = reaction%mineral%nkinmnrl + temp_int
 
+      case('OVERRIDE_MINERAL_MASS_ACTION')
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+          call InputSkipToEND(input,option,card)
+        enddo
       case('SOLID_SOLUTIONS') ! solid solutions read on second round
 #ifdef SOLID_SOLUTION
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputSkipToEnd(input,option,word)
+          call InputSkipToEND(input,option,word)
         enddo
 #else
         option%io_buffer = 'To use solid solutions, must compile with -DSOLID_SOLUTION'
@@ -804,9 +811,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputKeywordDeprecated('REDOX_SPECIES', &
                                     'DECOUPLED_EQUILIBRIUM_REACTIONS',option)
       case('DECOUPLED_EQUILIBRIUM_REACTIONS')
-        call InputSkipToEnd(input,option,word)
+        call InputSkipToEND(input,option,word)
       case('OUTPUT')
-        call InputSkipToEnd(input,option,word)
+        call InputSkipToEND(input,option,word)
       case('MAX_DLNC')
         call InputReadDouble(input,option,reaction%max_dlnC)
         call InputErrorMsg(input,option,trim(word),'CHEMISTRY')
@@ -989,6 +996,8 @@ subroutine ReactionReadPass2(reaction,input,option)
         call ReactionReadOutput(reaction,input,option)
       case('MINERAL_KINETICS')
         call ReactionMnrlReadKinetics(reaction%mineral,input,option)
+      case('OVERRIDE_MINERAL_MASS_ACTION')
+        call ReactionMnrlReadMassActOverride(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
       case('CLM_REACTION')
@@ -1015,7 +1024,7 @@ subroutine ReactionReadPass2(reaction,input,option)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,word,error_string)
                 ! skip over remaining cards to end of each kd entry
-                call InputSkipToEnd(input,option,word)
+                call InputSkipToEND(input,option,word)
               enddo
             case('ISOTHERM_REACTIONS')
               error_string = 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS'
@@ -1026,7 +1035,7 @@ subroutine ReactionReadPass2(reaction,input,option)
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,word,error_string)
                 ! skip over remaining cards to end of each kd entry
-                call InputSkipToEnd(input,option,word)
+                call InputSkipToEND(input,option,word)
               enddo
             case('SURFACE_COMPLEXATION_RXN','ION_EXCHANGE_RXN')
               do
@@ -1047,7 +1056,7 @@ subroutine ReactionReadPass2(reaction,input,option)
                       call InputErrorMsg(input,option,word, &
                              'CHEMISTRY,SURFACE_COMPLEXATION_RXN,KINETIC_RATES')
                       ! skip over remaining cards to end of each mineral entry
-                      call InputSkipToEnd(input,option,word)
+                      call InputSkipToEND(input,option,word)
                     enddo
                 end select
               enddo
@@ -1769,7 +1778,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
           ! activity of water
           if (mineral_reaction%mnrlh2oid(imnrl) > 0) then
-            lnQK = lnQK + mineral_reaction%mnrlh2ostoich(imnrl)*rt_auxvar%ln_act_h2o
+            lnQK = lnQK + mineral_reaction%mnrlh2ostoich(imnrl)* &
+                          rt_auxvar%ln_act_h2o
           endif
 
           ! compute ion activity product
@@ -2641,12 +2651,15 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
       ! compute saturation
       lnQK(imnrl) = -mineral_reaction%mnrl_logK(imnrl)*LOG_TO_LN
       if (mineral_reaction%mnrlh2oid(imnrl) > 0) then
-        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlh2ostoich(imnrl)*rt_auxvar%ln_act_h2o
+        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlh2ostoich(imnrl)* &
+                                    rt_auxvar%ln_act_h2o
       endif
       do jcomp = 1, mineral_reaction%mnrlspecid(0,imnrl)
         comp_id = mineral_reaction%mnrlspecid(jcomp,imnrl)
-        lnQK(imnrl) = lnQK(imnrl) + mineral_reaction%mnrlstoich(jcomp,imnrl)* &
-                      log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
+        lnQK(imnrl) = lnQK(imnrl) + &
+                      mineral_reaction%mnrlstoich(jcomp,imnrl)* &
+                      log(rt_auxvar%pri_molal(comp_id)* &
+                      rt_auxvar%pri_act_coef(comp_id))
       enddo
       QK(imnrl) = exp(lnQK(imnrl))
     enddo

@@ -9,6 +9,8 @@ module Reaction_Equation_module
 
   private
 
+  character(len=3), parameter, public :: h2oname = 'H2O'
+
   type, public :: reaction_equation_type
     PetscInt :: nspec
     character(len=MAXWORDLENGTH), pointer :: spec_name(:)
@@ -26,8 +28,15 @@ module Reaction_Equation_module
     module procedure ReactionEquationCreate2
   end interface ReactionEquationCreate
 
+  interface ReactionEquationRemoveSpecies
+    module procedure ReactionEquationRemoveSpecies1
+    module procedure ReactionEquationRemoveSpecies2
+  end interface ReactionEquationRemoveSpecies
+
   public :: ReactionEquationCreate, &
             ReactionEquationCreateFromString, &
+            ReactionEquationMapSpeciesNames, &
+            ReactionEquationRemoveSpecies, &
             ReactionEquationSubSpecInRxn, &
             ReactionEquationCreateRxnPtr, &
             ReactionEquationDestroyRxnPtr, &
@@ -112,13 +121,7 @@ end function ReactionEquationCreateRxnPtr
 
 ! ************************************************************************** !
 
-function ReactionEquationCreateFromString(reaction_string, &
-                                          naqcomp, aq_offset, &
-                                          primary_aq_species_names, &
-                                          nimcomp, im_offset, &
-                                          primary_im_species_names, &
-                                          consider_immobile_species,&
-                                          option)
+function ReactionEquationCreateFromString(reaction_string,option)
   !
   ! Creates a reaction eqaution given a reaction string
   !
@@ -130,26 +133,18 @@ function ReactionEquationCreateFromString(reaction_string, &
   use Input_Aux_module
 
   character(len=MAXSTRINGLENGTH) :: reaction_string
-  PetscInt :: naqcomp ! mobile aqueoues species
-  PetscInt :: aq_offset ! offset for aqueous species
-  character(len=MAXWORDLENGTH) :: primary_aq_species_names(naqcomp)
-  PetscInt :: nimcomp ! immobile primary speces (e.g. biomass)
-  PetscInt :: im_offset ! offset for aqueous species
-  character(len=MAXWORDLENGTH), pointer :: primary_im_species_names(:)
-  PetscBool :: consider_immobile_species
   type(option_type) :: option
 
   type(reaction_equation_type), pointer :: ReactionEquationCreateFromString
 
   character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word, word2
+  character(len=MAXWORDLENGTH) :: word
   PetscInt :: icount
   PetscInt :: midpoint
-  PetscInt :: i, j, idum
+  PetscInt :: i
   PetscReal :: value
   PetscReal :: tempreal
   PetscBool :: negative_flag
-  PetscBool :: found
   PetscErrorCode :: ierr
   type(reaction_equation_type), pointer :: reaction_equation
 
@@ -176,12 +171,7 @@ function ReactionEquationCreateFromString(reaction_string, &
           StringIntegerDoubleOrWord(string2) /= STRING_IS_A_WORD) then
         ! the word is the stoichiometry value
       else
-        ! check water
-        word2 = 'H2O'
-        if (.not.StringCompareIgnoreCase(word,word2)) then
-          ! the word is the species name
-          icount = icount + 1
-        endif
+        icount = icount + 1
       endif
     end select
 
@@ -253,46 +243,8 @@ function ReactionEquationCreateFromString(reaction_string, &
             reaction_equation%stoich(icount) = -1.d0
           endif
 
-          ! set the primary aqueous species id
-          found = PETSC_FALSE
-          do i = 1, naqcomp
-            if (StringCompare(word,primary_aq_species_names(i), &
-                              MAXWORDLENGTH)) then
-              reaction_equation%specid(icount) = i + aq_offset
-              found = PETSC_TRUE
-              exit
-            endif
-          enddo
-          ! set the primary immobile species id
-          if (.not.found .and. consider_immobile_species) then
-            do i = 1, nimcomp
-              if (StringCompare(word,primary_im_species_names(i), &
-                                MAXWORDLENGTH)) then
-                reaction_equation%specid(icount) = i + im_offset
-                found = PETSC_TRUE
-                exit
-              endif
-            enddo
-          endif
+          icount = icount + 1
 
-          ! check water
-          word2 = 'H2O'
-          if (StringCompareIgnoreCase(word,word2)) then
-            ! set stoichiometry back to uninitialized
-            reaction_equation%stoich(icount) = UNINITIALIZED_DOUBLE
-            ! don't increment icount
-          else if (.not.found) then
-            if (consider_immobile_species) then
-              option%io_buffer = 'Species ' // trim(word) // &
-                        ' in reaction not found among primary species list.'
-            else
-              option%io_buffer = 'Species ' // trim(word) // &
-                ' in reaction not found among primary aqueous species list.'
-            endif
-            call PrintErrMsg(option)
-          else
-            icount = icount + 1
-          endif
         endif
         negative_flag = PETSC_FALSE
     end select
@@ -313,29 +265,197 @@ function ReactionEquationCreateFromString(reaction_string, &
   do i = 1, reaction_equation%nspec
     reaction_equation%stoich(i) = -1.d0*reaction_equation%stoich(i)
   enddo
-  ! reorder species ids in ascending order
-  do i = 1, reaction_equation%nspec
-    do j = i+1, reaction_equation%nspec
-      if (reaction_equation%specid(i) > reaction_equation%specid(j)) then
-        ! swap ids
-        idum = reaction_equation%specid(j)
-        reaction_equation%specid(j) = reaction_equation%specid(i)
-        reaction_equation%specid(i) = idum
-        ! swap stoichiometry
-        value = reaction_equation%stoich(j)
-        reaction_equation%stoich(j) = reaction_equation%stoich(i)
-        reaction_equation%stoich(i) = value
-        ! swap names
-        word = reaction_equation%spec_name(j)
-        reaction_equation%spec_name(j) = reaction_equation%spec_name(i)
-        reaction_equation%spec_name(i) = word
-      endif
-    enddo
-  enddo
 
   ReactionEquationCreateFromString => reaction_equation
 
 end function ReactionEquationCreateFromString
+
+! ************************************************************************** !
+
+subroutine ReactionEquationMapSpeciesNames(reaction_equation, &
+                                           naqcomp, aq_offset, &
+                                           primary_aq_species_names, &
+                                           nimcomp, im_offset, &
+                                           primary_im_species_names, &
+                                           consider_immobile_species, &
+                                           option)
+  !
+  ! Maps species names and ids to reaction equation object; orders by id
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+  use Option_module
+  use String_module
+
+  type(reaction_equation_type) :: reaction_equation
+  PetscInt :: naqcomp ! mobile aqueoues species
+  PetscInt :: aq_offset ! offset for aqueous species
+  character(len=MAXWORDLENGTH) :: primary_aq_species_names(naqcomp)
+  PetscInt :: nimcomp ! immobile primary speces (e.g. biomass)
+  PetscInt :: im_offset ! offset for aqueous species
+  character(len=MAXWORDLENGTH), pointer :: primary_im_species_names(:)
+  PetscBool :: consider_immobile_species
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: i, j, idum
+  PetscInt :: icount
+  PetscReal :: tempreal
+  PetscBool :: found
+
+  do icount = 1, reaction_equation%nspec
+    ! set the primary aqueous species id
+    found = PETSC_FALSE
+    word = reaction_equation%spec_name(icount)
+    do i = 1, naqcomp
+      if (StringCompare(word,primary_aq_species_names(i), &
+                        MAXWORDLENGTH)) then
+        reaction_equation%specid(icount) = i + aq_offset
+        found = PETSC_TRUE
+        exit
+      endif
+    enddo
+    if (found) cycle
+    ! set the primary immobile species id
+    if (consider_immobile_species) then
+      do i = 1, nimcomp
+        if (StringCompare(word,primary_im_species_names(i), &
+                          MAXWORDLENGTH)) then
+          reaction_equation%specid(icount) = i + im_offset
+          found = PETSC_TRUE
+          exit
+        endif
+      enddo
+    endif
+    if (found) cycle
+    ! check water
+    if (StringCompareIgnoreCase(word,h2oname)) then
+      cycle
+    else if (.not.found) then
+      if (consider_immobile_species) then
+        option%io_buffer = 'Species ' // trim(word) // &
+          ' in reaction not found among primary species list.'
+      else
+        option%io_buffer = 'Species ' // trim(word) // &
+          ' in reaction not found among primary aqueous species list.'
+      endif
+      call PrintErrMsg(option)
+    endif
+  enddo
+
+  ! reorder species ids in ascending order
+  do
+    idum = UNINITIALIZED_INTEGER
+    do i = 1, reaction_equation%nspec
+      do j = i+1, reaction_equation%nspec
+        if (reaction_equation%specid(i) > reaction_equation%specid(j)) then
+          ! swap ids
+          idum = reaction_equation%specid(j)
+          reaction_equation%specid(j) = reaction_equation%specid(i)
+          reaction_equation%specid(i) = idum
+          ! swap stoichiometry
+          tempreal = reaction_equation%stoich(j)
+          reaction_equation%stoich(j) = reaction_equation%stoich(i)
+          reaction_equation%stoich(i) = tempreal
+          ! swap names
+          word = reaction_equation%spec_name(j)
+          reaction_equation%spec_name(j) = reaction_equation%spec_name(i)
+          reaction_equation%spec_name(i) = word
+        endif
+      enddo
+    enddo
+    if (Uninitialized(idum)) exit
+  enddo
+
+end subroutine ReactionEquationMapSpeciesNames
+
+! ************************************************************************** !
+
+subroutine ReactionEquationRemoveSpecies1(reaction_equation,species_name, &
+                                          option)
+  !
+  ! Removes a species from a reaction equation and returns its stoichometry
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+  use Option_module
+
+  type(reaction_equation_type) :: reaction_equation
+  character(len=*) :: species_name
+  type(option_type) :: option
+
+  PetscReal :: tempreal
+
+  call ReactionEquationRemoveSpecies(reaction_equation,species_name, &
+                                     tempreal,option)
+
+end subroutine ReactionEquationRemoveSpecies1
+
+! ************************************************************************** !
+
+subroutine ReactionEquationRemoveSpecies2(reaction_equation,species_name, &
+                                          species_stoich,option)
+  !
+  ! Removes a species from a reaction equation and returns its stoichometry
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+  use Option_module
+  use String_module
+  use Utility_module
+
+  type(reaction_equation_type) :: reaction_equation
+  character(len=*) :: species_name
+  PetscReal :: species_stoich
+  type(option_type) :: option
+
+  PetscInt :: i
+  PetscInt :: icount
+
+  character(len=MAXWORDLENGTH), pointer :: spec_name(:)
+  PetscInt, pointer :: specid(:)
+  PetscReal, pointer :: stoich(:)
+
+  species_stoich = UNINITIALIZED_DOUBLE
+  icount = 0
+  do i = 1, reaction_equation%nspec
+    if (StringCompare(reaction_equation%spec_name(i),species_name)) then
+      species_stoich = reaction_equation%stoich(i)
+      cycle
+    endif
+    icount = icount + 1
+  enddo
+
+  if (icount < reaction_equation%nspec) then
+    allocate(spec_name(icount))
+    allocate(specid(icount))
+    allocate(stoich(icount))
+    spec_name(:) = ''
+    specid(:) = 0
+    stoich(:) = 0.d0
+    icount = 0
+    do i = 1, reaction_equation%nspec
+      if (StringCompare(reaction_equation%spec_name(i),species_name)) then
+        cycle
+      endif
+      icount = icount + 1
+      spec_name(icount) = reaction_equation%spec_name(i)
+      specid(icount) = reaction_equation%specid(i)
+      stoich(icount) = reaction_equation%stoich(i)
+    enddo
+    call DeallocateArray(reaction_equation%spec_name)
+    call DeallocateArray(reaction_equation%specid)
+    call DeallocateArray(reaction_equation%stoich)
+    reaction_equation%spec_name => spec_name
+    reaction_equation%specid => specid
+    reaction_equation%stoich => stoich
+    reaction_equation%nspec =  icount
+  endif
+
+end subroutine ReactionEquationRemoveSpecies2
 
 ! ************************************************************************** !
 
