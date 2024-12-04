@@ -5642,6 +5642,7 @@ subroutine PMWellUpdateReservoirHydrate(pm_well,update_index,segment_index)
   type(well_comm_type), pointer :: well_comm
   PetscInt :: k, indx
   PetscInt :: ghosted_id
+  PetscInt :: tag
   PetscErrorCode :: ierr
 
   option => pm_well%option
@@ -5721,9 +5722,19 @@ subroutine PMWellUpdateReservoirHydrate(pm_well,update_index,segment_index)
   enddo
 
   if (update_index < 0 .or. initialize_well_flow) then
-    call MPI_Allreduce(MPI_IN_PLACE,pm_well%well%bh_p,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr); &
-                     CHKERRQ(ierr)
+    tag = 0
+    do k = 2,pm_well%well_grid%nsegments
+      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+        if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
+        call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(k),TAG,option%mycomm,ierr); &
+                      CHKERRQ(ierr)
+      elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
+        call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                      pm_well%well_grid%h_rank_id(1),TAG,option%mycomm, &
+                      MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
+      endif
+    enddo
   endif
 
 end subroutine PMWellUpdateReservoirHydrate
@@ -6221,7 +6232,6 @@ subroutine PMWellModifyFlowResidual(this,residual)
                     Q = -1.d0 * (this%well%th_qg + this%well%th_ql)
                   endif
                   residual(local_end) = Q - sum_q
-                  ! if (this%pressure_controlled) residual(local_end) = 0.d0
                 endif
                 do j = 0,2
                   ! Compontent j+1 residual at well segment k
@@ -11168,7 +11178,7 @@ subroutine PMWellSetPlotVariables(list,pm_well)
     call OutputVariableAddToList(list,name,OUTPUT_RATE,units,WELL_GAS_Q)
   endif
   select case (pm_well%option%iflowmode)
-    case (SCO2_MODE)
+    case (SCO2_MODE, H_MODE)
       name = 'Well BHP'
       units = 'Pa'
       call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units,WELL_BHP)
@@ -11278,7 +11288,7 @@ subroutine PMWellOutputHeader(pm_well)
   cell_string = ''
 
   select case (pm_well%option%iflowmode)
-  case (SCO2_MODE)
+  case (SCO2_MODE, H_MODE)
     variable_string = 'Well BHP'
     units_string = 'Pa'
     call OutputWriteToHeader(fid,variable_string,units_string, &
@@ -11420,7 +11430,7 @@ subroutine PMWellOutput(pm_well)
   write(fid,100,advance="no") option%time / output_option%tconv
 
   select case (pm_well%option%iflowmode)
-    case (SCO2_MODE)
+    case (SCO2_MODE,H_MODE)
       write(fid,100,advance="no") pm_well%well%bh_p
   end select
 
