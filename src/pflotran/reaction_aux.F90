@@ -1590,14 +1590,15 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     cur_rxn => ReactionEquationCreateRxnPtr()
     string = input%buf
     cur_rxn%reaction_equation => &
-      ReactionEquationCreateFromString(string, &
-                                       reaction%naqcomp, &
-                                       reaction%offset_aqueous, &
-                                       reaction%primary_species_names, &
-                                       reaction%nimcomp, &
-                                       reaction%offset_immobile, &
-                                       reaction%immobile%names, &
-                                       PETSC_FALSE,option)
+      ReactionEquationCreateFromString(string,option)
+    call ReactionEquationMapSpeciesNames(cur_rxn%reaction_equation, &
+                                         reaction%naqcomp, &
+                                         reaction%offset_aqueous, &
+                                         reaction%primary_species_names, &
+                                         reaction%nimcomp, &
+                                         reaction%offset_immobile, &
+                                         reaction%immobile%names, &
+                                         PETSC_FALSE,option)
     if (.not.associated(rxn_list)) then
       rxn_list => cur_rxn
     else

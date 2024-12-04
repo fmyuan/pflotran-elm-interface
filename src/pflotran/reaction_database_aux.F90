@@ -16,6 +16,12 @@ module Reaction_Database_Aux_module
     PetscReal, pointer :: logKCoeff_hpt(:)
   end type database_rxn_type
 
+  type, public :: mass_action_override_type
+    character(len=MAXSTRINGLENGTH) :: reaction_string
+    type(reaction_equation_type), pointer :: reaction_equation
+    PetscReal, pointer :: logK(:)
+  end type mass_action_override_type
+
   interface ReactionDBCreateRxn
     module procedure ReactionDBCreateRxn1
     module procedure ReactionDBCreateRxn2
@@ -25,7 +31,10 @@ module Reaction_Database_Aux_module
             ReactionDBSubSpecInRxn, &
             ReactionDBCreateRxn, &
             ReactionDBCheckLegitLogKs, &
-            ReactionDBDestroyRxn
+            ReactionDBOverrideSpecies, &
+            ReactionDBDestroyRxn, &
+            ReactionDBCreateMassActOverride, &
+            ReactionDBDestroyMassActOverride
 
 contains
 
@@ -81,6 +90,31 @@ function ReactionDBCreateRxn2(num_species,num_logKs)
   ReactionDBCreateRxn2 => dbaserxn
 
 end function ReactionDBCreateRxn2
+
+! ************************************************************************** !
+
+function ReactionDBCreateMassActOverride()
+  !
+  ! Allocate and initialize a mass action override object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+
+  implicit none
+
+  type(mass_action_override_type), pointer :: ReactionDBCreateMassActOverride
+
+  type(mass_action_override_type), pointer :: mass_action_override
+
+  allocate(mass_action_override)
+  mass_action_override%reaction_string = ''
+  nullify(mass_action_override%reaction_equation)
+  nullify(mass_action_override%logK)
+
+  ReactionDBCreateMassActOverride => mass_action_override
+
+end function ReactionDBCreateMassActOverride
 
 ! ************************************************************************** !
 
@@ -244,6 +278,63 @@ end function ReactionDBCheckLegitLogKs
 
 ! ************************************************************************** !
 
+function ReactionDBOverrideSpecies(mass_action_override,option)
+  !
+  ! Allocate and initialize an equilibrium reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/24
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+
+  implicit none
+
+  type(mass_action_override_type) :: mass_action_override
+  character(len=MAXSTRINGLENGTH) :: reaction_string
+  type(option_type) :: option
+
+  type(database_rxn_type), pointer :: ReactionDBOverrideSpecies
+
+  type(database_rxn_type), pointer :: dbaserxn
+  PetscInt :: num_species_in_rxn
+  PetscInt :: ispec
+  PetscErrorCode :: ierr
+
+  ierr = 0
+
+  ! read the number of aqueous species in mineral rxn
+  call InputReadInt(reaction_string,option,num_species_in_rxn,ierr)
+  if (ierr /= 0) then
+    option%io_buffer = 'ReactionDBOverrideMassActionQ::num_species'
+    call PrintErrMsg(option)
+  endif
+  dbaserxn => ReactionDBCreateRxn(num_species_in_rxn,0)
+  ! read in species and stoichiometries
+  do ispec = 1, dbaserxn%reaction_equation%nspec
+    call InputReadDouble(reaction_string,option,dbaserxn% &
+                           reaction_equation%stoich(ispec),ierr)
+    if (ierr /= 0) then
+      option%io_buffer = 'ReactionDBOverrideMassActionQ::stoich ' // &
+                         StringWrite(ispec)
+      call PrintErrMsg(option)
+    endif
+    call InputReadWord(reaction_string,dbaserxn% &
+                         reaction_equation%spec_name(ispec),PETSC_TRUE,ierr)
+    if (ierr /= 0) then
+      option%io_buffer = 'ReactionDBOverrideMassActionQ::species name ' // &
+                         StringWrite(ispec)
+      call PrintErrMsg(option)
+    endif
+  enddo
+
+  ReactionDBOverrideSpecies => dbaserxn
+
+end function ReactionDBOverrideSpecies
+
+! ************************************************************************** !
+
 subroutine ReactionDBDestroyRxn(dbaserxn)
   !
   ! Deallocates a database reaction
@@ -267,5 +358,30 @@ subroutine ReactionDBDestroyRxn(dbaserxn)
   nullify(dbaserxn)
 
 end subroutine ReactionDBDestroyRxn
+
+! ************************************************************************** !
+
+subroutine ReactionDBDestroyMassActOverride(mass_action_override)
+  !
+  ! Deallocates a database reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/29/08
+  !
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(mass_action_override_type), pointer :: mass_action_override
+
+  if (.not.associated(mass_action_override)) return
+
+  call ReactionEquationDestroy(mass_action_override%reaction_equation)
+  call DeallocateArray(mass_action_override%logK)
+
+  deallocate(mass_action_override)
+  nullify(mass_action_override)
+
+end subroutine ReactionDBDestroyMassActOverride
 
 end module Reaction_Database_Aux_module

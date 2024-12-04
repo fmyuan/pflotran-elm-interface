@@ -23,6 +23,7 @@ module Reaction_Mineral_Aux_module
     PetscReal :: molar_weight
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn
+    type(mass_action_override_type), pointer :: mass_action_override
     type(transition_state_rxn_type), pointer :: tstrxn
     type(mineral_rxn_type), pointer :: next
   end type mineral_rxn_type
@@ -35,8 +36,8 @@ module Reaction_Mineral_Aux_module
     PetscReal :: rate_limiter
     PetscReal :: surf_area_vol_frac_pwr
     PetscReal :: surf_area_porosity_pwr
-    PetscInt :: irreversible
-    PetscReal :: rate
+    PetscReal :: precipitation_rate_constant
+    PetscReal :: dissolution_rate_constant
     PetscReal :: activation_energy
     character(len=MAXWORDLENGTH) :: armor_min_name
     PetscReal :: armor_pwr
@@ -50,7 +51,8 @@ module Reaction_Mineral_Aux_module
   type, public :: transition_state_prefactor_type
     type(ts_prefactor_species_type), pointer :: species
     ! these supercede the those above in transition_state_rxn_type
-    PetscReal :: rate
+    PetscReal :: precipitation_rate_constant
+    PetscReal :: dissolution_rate_constant
     PetscReal :: activation_energy
     type(transition_state_prefactor_type), pointer :: next
   end type transition_state_prefactor_type
@@ -96,6 +98,10 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: mnrlstoich(:,:)
     PetscInt, pointer :: mnrlh2oid(:)
     PetscReal, pointer :: mnrlh2ostoich(:)
+    PetscInt, pointer :: mnrlspecid_in_residual(:,:)
+    PetscReal, pointer :: mnrlstoich_in_residual(:,:)
+    PetscInt, pointer :: mnrlh2oid_in_residual(:)
+    PetscReal, pointer :: mnrlh2ostoich_in_residual(:)
     PetscReal, pointer :: mnrl_logK(:)
     PetscReal, pointer :: mnrl_logKcoef(:,:)
     PetscBool, pointer :: mnrl_print(:)
@@ -109,9 +115,14 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrlstoich(:,:)
     PetscInt, pointer :: kinmnrlh2oid(:)
     PetscReal, pointer :: kinmnrlh2ostoich(:)
+    PetscInt, pointer :: kinmnrlspecid_in_residual(:,:)
+    PetscReal, pointer :: kinmnrlstoich_in_residual(:,:)
+    PetscInt, pointer :: kinmnrlh2oid_in_residual(:)
+    PetscReal, pointer :: kinmnrlh2ostoich_in_residual(:)
     PetscReal, pointer :: kinmnrl_logK(:)
     PetscReal, pointer :: kinmnrl_logKcoef(:,:)
-    PetscReal, pointer :: kinmnrl_rate_constant(:)
+    PetscReal, pointer :: kinmnrl_precip_rate_constant(:)
+    PetscReal, pointer :: kinmnrl_dissol_rate_constant(:)
     PetscReal, pointer :: kinmnrl_activation_energy(:)
     PetscReal, pointer :: kinmnrl_molar_vol(:)
     PetscReal, pointer :: kinmnrl_molar_wt(:)
@@ -120,7 +131,8 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_pref_alpha(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_beta(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_atten_coef(:,:,:)
-    PetscReal, pointer :: kinmnrl_pref_rate(:,:)
+    PetscReal, pointer :: kinmnrl_pref_precip_rate_const(:,:)
+    PetscReal, pointer :: kinmnrl_pref_dissol_rate_const(:,:)
     PetscReal, pointer :: kinmnrl_pref_activation_energy(:,:)
     PetscReal, pointer :: kinmnrl_min_scale_factor(:)
     PetscReal, pointer :: kinmnrl_Temkin_const(:)
@@ -133,7 +145,6 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_armor_pwr(:)
     PetscReal, pointer :: kinmnrl_surf_area_epsilon(:)
     PetscReal, pointer :: kinmnrl_vol_frac_epsilon(:)
-    PetscInt, pointer :: kinmnrl_irreversible(:)
 
   end type mineral_type
 
@@ -192,6 +203,10 @@ function ReactionMnrlCreateAux()
   nullify(mineral%mnrlh2oid)
   nullify(mineral%mnrlstoich)
   nullify(mineral%mnrlh2ostoich)
+  nullify(mineral%mnrlspecid_in_residual)
+  nullify(mineral%mnrlh2oid_in_residual)
+  nullify(mineral%mnrlstoich_in_residual)
+  nullify(mineral%mnrlh2ostoich_in_residual)
   nullify(mineral%mnrl_logK)
   nullify(mineral%mnrl_logKcoef)
 
@@ -203,9 +218,14 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrlstoich)
   nullify(mineral%kinmnrlh2oid)
   nullify(mineral%kinmnrlh2ostoich)
+  nullify(mineral%kinmnrlspecid_in_residual)
+  nullify(mineral%kinmnrlstoich_in_residual)
+  nullify(mineral%kinmnrlh2oid_in_residual)
+  nullify(mineral%kinmnrlh2ostoich_in_residual)
   nullify(mineral%kinmnrl_logK)
   nullify(mineral%kinmnrl_logKcoef)
-  nullify(mineral%kinmnrl_rate_constant)
+  nullify(mineral%kinmnrl_precip_rate_constant)
+  nullify(mineral%kinmnrl_dissol_rate_constant)
   nullify(mineral%kinmnrl_activation_energy)
   nullify(mineral%kinmnrl_molar_vol)
   nullify(mineral%kinmnrl_molar_wt)
@@ -215,14 +235,14 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrl_pref_alpha)
   nullify(mineral%kinmnrl_pref_beta)
   nullify(mineral%kinmnrl_pref_atten_coef)
-  nullify(mineral%kinmnrl_pref_rate)
+  nullify(mineral%kinmnrl_pref_precip_rate_const)
+  nullify(mineral%kinmnrl_pref_dissol_rate_const)
   nullify(mineral%kinmnrl_pref_activation_energy)
 
   nullify(mineral%kinmnrl_min_scale_factor)
   nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
-  nullify(mineral%kinmnrl_irreversible)
   nullify(mineral%kinmnrl_rate_limiter)
   nullify(mineral%kinmnrl_surf_area_vol_frac_pwr)
   nullify(mineral%kinmnrl_surf_area_porosity_pwr)
@@ -260,6 +280,8 @@ function ReactionMnrlCreateMineralRxn()
   mineral%molar_volume = 0.d0
   mineral%molar_weight = 0.d0
   mineral%print_me = PETSC_FALSE
+  nullify(mineral%dbaserxn)
+  nullify(mineral%mass_action_override)
   nullify(mineral%tstrxn)
   nullify(mineral%next)
 
@@ -292,14 +314,14 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%surf_area_vol_frac_pwr = 0.d0
   tstrxn%surf_area_porosity_pwr = 0.d0
   tstrxn%rate_limiter = 0.d0
-  tstrxn%irreversible = 0
   tstrxn%activation_energy = 0.d0
   tstrxn%armor_min_name = ''
   tstrxn%armor_pwr = 0.d0
   tstrxn%armor_crit_vol_frac = 0.d0
   tstrxn%surf_area_epsilon = 0.d0
   tstrxn%vol_frac_epsilon = 0.d0
-  tstrxn%rate = 0.d0
+  tstrxn%precipitation_rate_constant = UNINITIALIZED_DOUBLE
+  tstrxn%dissolution_rate_constant = UNINITIALIZED_DOUBLE
   nullify(tstrxn%prefactor)
   nullify(tstrxn%next)
 
@@ -326,7 +348,8 @@ function ReactionMnrlCreateTSTPrefactor()
   type(transition_state_prefactor_type), pointer :: prefactor
 
   allocate(prefactor)
-  prefactor%rate = 0.d0
+  prefactor%precipitation_rate_constant = UNINITIALIZED_DOUBLE
+  prefactor%dissolution_rate_constant = UNINITIALIZED_DOUBLE
   prefactor%activation_energy = 0.d0
   nullify(prefactor%species)
   nullify(prefactor%next)
@@ -625,10 +648,9 @@ subroutine ReactionMnrlDestroyMineralRxn(mineral)
 
   type(mineral_rxn_type), pointer :: mineral
 
-  if (associated(mineral%dbaserxn)) &
-    call ReactionDBDestroyRxn(mineral%dbaserxn)
-  if (associated(mineral%tstrxn)) &
-    call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
+  call ReactionDBDestroyRxn(mineral%dbaserxn)
+  call ReactionDBDestroyMassActOverride(mineral%mass_action_override)
+  call ReactionMnrlDestroyTSTRxn(mineral%tstrxn)
 
   deallocate(mineral)
   nullify(mineral)
@@ -778,6 +800,10 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%mnrlstoich)
   call DeallocateArray(mineral%mnrlh2oid)
   call DeallocateArray(mineral%mnrlh2ostoich)
+  call DeallocateArray(mineral%mnrlspecid_in_residual)
+  call DeallocateArray(mineral%mnrlstoich_in_residual)
+  call DeallocateArray(mineral%mnrlh2oid_in_residual)
+  call DeallocateArray(mineral%mnrlh2ostoich_in_residual)
   call DeallocateArray(mineral%mnrl_logK)
   call DeallocateArray(mineral%mnrl_logKcoef)
 
@@ -785,9 +811,14 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrlstoich)
   call DeallocateArray(mineral%kinmnrlh2oid)
   call DeallocateArray(mineral%kinmnrlh2ostoich)
+  call DeallocateArray(mineral%kinmnrlspecid_in_residual)
+  call DeallocateArray(mineral%kinmnrlstoich_in_residual)
+  call DeallocateArray(mineral%kinmnrlh2oid_in_residual)
+  call DeallocateArray(mineral%kinmnrlh2ostoich_in_residual)
   call DeallocateArray(mineral%kinmnrl_logK)
   call DeallocateArray(mineral%kinmnrl_logKcoef)
-  call DeallocateArray(mineral%kinmnrl_rate_constant)
+  call DeallocateArray(mineral%kinmnrl_precip_rate_constant)
+  call DeallocateArray(mineral%kinmnrl_dissol_rate_constant)
   call DeallocateArray(mineral%kinmnrl_molar_vol)
   call DeallocateArray(mineral%kinmnrl_molar_wt)
 
@@ -796,7 +827,8 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_pref_alpha)
   call DeallocateArray(mineral%kinmnrl_pref_beta)
   call DeallocateArray(mineral%kinmnrl_pref_atten_coef)
-  call DeallocateArray(mineral%kinmnrl_pref_rate)
+  call DeallocateArray(mineral%kinmnrl_pref_precip_rate_const)
+  call DeallocateArray(mineral%kinmnrl_pref_dissol_rate_const)
   call DeallocateArray(mineral%kinmnrl_pref_activation_energy)
 
   call DeallocateArray(mineral%kinmnrl_min_scale_factor)
@@ -810,7 +842,6 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_armor_min_names)
   call DeallocateArray(mineral%kinmnrl_armor_pwr)
   call DeallocateArray(mineral%kinmnrl_armor_crit_vol_frac)
-  call DeallocateArray(mineral%kinmnrl_irreversible)
 
   call DeallocateArray(mineral%kinmnrl_surf_area_epsilon)
   call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)
