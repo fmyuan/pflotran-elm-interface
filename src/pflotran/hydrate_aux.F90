@@ -40,7 +40,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
   PetscReal, public :: hydrate_bc_reference_pressure = 101325
   PetscReal, public :: hydrate_min_xmol = 1.d-10
-  PetscBool, public :: hydrate_high_p_co2_boundary = PETSC_FALSE
+  PetscBool, public :: hydrate_low_p_co2_boundary = PETSC_FALSE
   PetscBool, public :: hydrate_pressure_controlled_well = PETSC_FALSE
 
   !Salinity
@@ -4360,12 +4360,12 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         c = 1.9025194d3
         PE = a * T_k **2 + b * T_k + c
         dP = PE - (a * (T_k-dTf) **2 + b * (T_k-dTf) + c)
-      elseif (hydrate_high_p_co2_boundary) then
-        PE = 45.857d0 * T_k - 12958.d0
-        dP = 45.857d0 * (T_k - dTf) - 12958.d0
-      else
+      elseif (hydrate_low_p_co2_boundary) then
         PE = 11.889d0 * T_k - 3356.4d0
         dP = 11.889d0 * (T_k - dTf) - 3356.4d0
+      else
+        PE = 45.857d0 * T_k - 12958.d0
+        dP = 45.857d0 * (T_k - dTf) - 12958.d0
       endif
      PE = min(PE,1.d3)
      dP = min(dP,1.d3)

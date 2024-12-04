@@ -361,7 +361,9 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
                  'HYDRATE_PHASE_BOUNDARY',option)
         end select
       case('HIGH_P_CO2_PHASE_BOUNDARY')
-        hydrate_high_p_co2_boundary = PETSC_TRUE
+        hydrate_low_p_co2_boundary = PETSC_FALSE
+      case('LOW_P_CO2_PHASE_BOUNDARY')
+        hydrate_low_p_co2_boundary = PETSC_TRUE
       case('HENRYS_CONSTANT')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','hydrate henrys constant')
