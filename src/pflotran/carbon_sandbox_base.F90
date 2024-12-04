@@ -637,6 +637,7 @@ subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
   ! Date: 02/16/24
   !
   use Reaction_Aux_module
+  use Reaction_Equation_module
 
   class(carbon_sandbox_rxn_base_type) :: this
   type(carbon_sandbox_aux_type), pointer :: aux
@@ -655,7 +656,8 @@ subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
 
   this%aux => aux
   this%reaction_equation => &
-      ReactionEquationCreateFromString(this%reaction_string, &
+      ReactionEquationCreateFromString(this%reaction_string,option)
+  call ReactionEquationMapSpeciesNames(this%reaction_equation, &
                                        reaction%naqcomp, &
                                        reaction%offset_aqueous, &
                                        reaction%primary_species_names, &
@@ -663,6 +665,7 @@ subroutine CarbonRxnBaseSetup(this,aux,reaction,option)
                                        reaction%offset_immobile, &
                                        reaction%immobile%names, &
                                        PETSC_FALSE,option)
+  call ReactionEquationRemoveSpecies(this%reaction_equation,h2oname,option)
 
 end subroutine CarbonRxnBaseSetup
 
