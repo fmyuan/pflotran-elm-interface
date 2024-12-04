@@ -2729,6 +2729,7 @@ reaction.o : \
   input_aux.o \
   material_aux.o \
   option.o \
+  option_transport.o \
   output_aux.o \
   pflotran_constants.o \
   reaction_aux.o \
@@ -3129,6 +3130,7 @@ reaction_sandbox_ufd_wp.o : \
 reaction_setup.o : \
   carbon_sandbox.o \
   option.o \
+  option_transport.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
@@ -3175,8 +3177,6 @@ reaction_surf_complex_aux.o : \
   reaction_database_aux.o \
   utility.o
 reactive_transport.o : \
-  co2_span_wagner.o \
-  co2eos.o \
   condition.o \
   connection.o \
   coupler.o \
