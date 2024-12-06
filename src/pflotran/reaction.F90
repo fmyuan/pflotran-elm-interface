@@ -28,9 +28,6 @@ module Reaction_module
   use Reaction_Solid_Soln_Aux_module
 #endif
 
-  use Reaction_Sandbox_module
-  use CLM_Rxn_module
-
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
 
@@ -87,7 +84,9 @@ subroutine ReactionInit(reaction,input,option)
 
   use Option_module
   use Input_Aux_module
+  use Carbon_Sandbox_module, only : CarbonSandboxInit
   use CLM_Rxn_module, only : ReactionCLMRxnInit
+  use Reaction_Sandbox_module, only : RSandboxInit
 
   implicit none
 
@@ -102,6 +101,7 @@ subroutine ReactionInit(reaction,input,option)
   reaction => ReactionAuxCreateAux()
 
   ! must be called prior to the first pass
+  call CarbonSandboxInit(option)
   call RSandboxInit(option)
   call ReactionCLMRxnInit(option)
 
@@ -135,6 +135,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
   use CLM_Rxn_module, only : ReactionCLMRxnRead
+  use Reaction_Sandbox_module, only : RSandboxRead
+  use Carbon_Sandbox_module, only : CarbonSandboxRead
   use Generic_module
 
   implicit none
@@ -163,6 +165,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   PetscInt :: srfcplx_count
   PetscBool :: reaction_sandbox_read
   PetscBool :: reaction_clm_read
+  PetscBool :: carbon_sandbox_read
 
   nullify(prev_species)
   nullify(prev_gas)
@@ -175,6 +178,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
   reaction_sandbox_read = PETSC_FALSE
   reaction_clm_read = PETSC_FALSE
+  carbon_sandbox_read = PETSC_FALSE
 
   srfcplx_count = 0
   input%ierr = 0
@@ -459,6 +463,9 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('REACTION_SANDBOX')
         call RSandboxRead(input,option)
         reaction_sandbox_read = PETSC_TRUE
+      case('CARBON_SANDBOX')
+        call CarbonSandboxRead(input,option)
+        carbon_sandbox_read = PETSC_TRUE
       case('CLM_REACTION')
         call ReactionCLMRxnRead(input,option)
         reaction_clm_read = PETSC_TRUE
@@ -922,7 +929,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       reaction%ngeneral_rxn + reaction%microbial%nrxn + &
       reaction%nradiodecay_rxn + reaction%immobile%nimmobile > 0 .or. &
       ReactionGasGetGasCount(reaction%gas,ACTIVE_AND_PASSIVE_GAS) > 0 .or. &
-      reaction_clm_read .or. &
+      reaction_clm_read .or. carbon_sandbox_read .or. &
       reaction_sandbox_read) then
     option%transport%conservative_transport_only = PETSC_FALSE
   endif
@@ -964,6 +971,9 @@ subroutine ReactionReadPass2(reaction,input,option)
   use String_module
   use Input_Aux_module
   use Utility_module
+  use Carbon_Sandbox_module, only : CarbonSandboxSkipInput
+  use CLM_Rxn_module, only : ReactionCLMRxnSkipInput
+  use Reaction_Sandbox_module, only : RSandboxSkipInput
 
   implicit none
 
@@ -1000,6 +1010,8 @@ subroutine ReactionReadPass2(reaction,input,option)
         call ReactionMnrlReadMassActOverride(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
+      case('CARBON_SANDBOX')
+        call CarbonSandboxSkipInput(input,option)
       case('CLM_REACTION')
         call ReactionCLMRxnSkipInput(input,option)
 #ifdef SOLID_SOLUTION
@@ -4021,7 +4033,9 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   !
 
   use Option_module
+  use Reaction_Sandbox_module, only : RSandboxEvaluate, rxn_sandbox_list
   use CLM_Rxn_module, only : ReactionCLMRxn, clmrxn_list
+  use Carbon_Sandbox_module, only : CarbonSandboxEvaluate, carbon_sandbox_list
 
   implicit none
 
@@ -4077,6 +4091,11 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   if (associated(rxn_sandbox_list)) then
     call RSandboxEvaluate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                           material_auxvar,reaction,option)
+  endif
+
+  if (associated(carbon_sandbox_list)) then
+    call CarbonSandboxEvaluate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                               material_auxvar,reaction,option)
   endif
 
   ! add new reactions here and in RReactionDerivative
@@ -5854,6 +5873,8 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! Date: 01/24/13
   !
   use Option_module
+  use Reaction_Sandbox_module, only : RSandboxUpdateKineticState, &
+                                      rxn_sandbox_list
 
   implicit none
 
@@ -6181,6 +6202,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   use Option_module
   use Output_Aux_module
   use Variables_module
+  use Reaction_Sandbox_module
 
   implicit none
 

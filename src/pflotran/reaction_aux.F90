@@ -934,7 +934,7 @@ end function ReactionAuxGetPriSpecIDFromName1
 
 ! ************************************************************************** !
 
-function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetPriSpecIDFromName2(name,reaction,stop_on_error,option)
   !
   ! Returns the id of named primary species
   !
@@ -955,7 +955,7 @@ function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
 
   type(aq_species_type), pointer :: species
   PetscInt :: i
-  PetscBool :: return_error
+  PetscBool :: stop_on_error
 
   ReactionAuxGetPriSpecIDFromName2 = UNINITIALIZED_INTEGER
 
@@ -982,7 +982,7 @@ function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
     enddo
   endif
 
-  if (return_error .and. ReactionAuxGetPriSpecIDFromName2 <= 0) then
+  if (stop_on_error .and. ReactionAuxGetPriSpecIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not found among primary species in &
       &ReactionAuxGetPriSpecIDFromName2().'
@@ -1077,7 +1077,7 @@ end function ReactionAuxGetSecSpecIDFromName1
 
 ! ************************************************************************** !
 
-function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetSecSpecIDFromName2(name,reaction,stop_on_error,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1093,7 +1093,7 @@ function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
   PetscInt :: ReactionAuxGetSecSpecIDFromName2
   type(aq_species_type), pointer :: species
   PetscInt :: i
-  PetscBool :: return_error
+  PetscBool :: stop_on_error
 
   ReactionAuxGetSecSpecIDFromName2 = UNINITIALIZED_INTEGER
 
@@ -1120,7 +1120,7 @@ function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
     enddo
   endif
 
-  if (return_error .and. ReactionAuxGetSecSpecIDFromName2 <= 0) then
+  if (stop_on_error .and. ReactionAuxGetSecSpecIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // '" not found among &
       &secondary species in ReactionAuxGetSecSpecIDFromName().'
     call PrintErrMsg(option)
@@ -1663,8 +1663,7 @@ subroutine ReactionAuxDestroyAqSpecies(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) &
-    call ReactionDBDestroyRxn(species%dbaserxn)
+  call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 

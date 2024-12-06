@@ -28,6 +28,7 @@ subroutine ReactionSetupKinetics(reaction,option)
   ! Author: Glenn Hammond
   ! Date: 01/29/24
   !
+  use Carbon_Sandbox_module
   use CLM_Rxn_module
   use Option_module
   use Reaction_Equation_module
@@ -92,8 +93,8 @@ subroutine ReactionSetupKinetics(reaction,option)
                                    immobile%print_all
       cur_immobile_spec => cur_immobile_spec%next
     enddo
+    reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
   endif
-  reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
 
   ! radioactive decay reaction
 
@@ -772,6 +773,7 @@ subroutine ReactionSetupKinetics(reaction,option)
 
   ! sandbox reactions
   call RSandboxSetup(reaction,option)
+  call CarbonSandboxSetup(reaction,option)
   call ReactionCLMRxnSetup(reaction,option)
 
 end subroutine ReactionSetupKinetics

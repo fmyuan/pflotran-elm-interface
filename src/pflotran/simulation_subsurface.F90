@@ -835,6 +835,7 @@ subroutine SimSubsurfFinalizeRun(this)
   use Timestepper_Base_class
   use String_module, only : StringWrite
   use Reaction_Sandbox_module, only : RSandboxDestroy
+  use Carbon_Sandbox_module, only : CarbonSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
   use Klinkenberg_module, only : KlinkenbergDestroy
@@ -888,6 +889,7 @@ subroutine SimSubsurfFinalizeRun(this)
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
       call ReactionCLMRxnDestroy()
+      call CarbonSandboxDestroy()
     endif
   endif
 
