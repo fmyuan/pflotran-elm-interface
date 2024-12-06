@@ -237,8 +237,10 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   case('RATE_CONSTANT','PRECIPITATION_RATE_CONSTANT', &
                        'DISSOLUTION_RATE_CONSTANT')
                     rate_constant = UNINITIALIZED_DOUBLE
-                    call ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
-                                                      rate_constant,error_string, &
+                    call ReactionMnrlReadRateConstant(mineral,input, &
+                                                      cur_mineral, &
+                                                      rate_constant, &
+                                                      error_string, &
                                                       'PREFACTOR',option)
                     select case(keyword)
                       case('RATE_CONSTANT')
@@ -1027,6 +1029,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
         endif
         sum_prefactor_rate = rate_constant*arrhenius_factor
       endif
+      if (.not.(sum_prefactor_rate > 0.d0)) cycle
 
       ! compute rate
       ! rate: mol/m^2 mnrl/sec
