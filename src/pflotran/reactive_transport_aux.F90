@@ -18,6 +18,8 @@ module Reactive_Transport_Aux_module
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_min_saturation = 1.d-40
 
+  PetscBool, public :: rt_numerical_derivatives = PETSC_FALSE
+
   type, public :: reactive_transport_auxvar_type
     ! molality
     PetscReal, pointer :: pri_molal(:)     ! mol/kg water
@@ -71,6 +73,8 @@ module Reactive_Transport_Aux_module
     ! cumulative mass, etc.
     PetscReal, pointer :: auxiliary_data(:)
 
+    PetscReal :: pert
+
   end type reactive_transport_auxvar_type
 
   type, public :: reactive_transport_param_type
@@ -111,12 +115,16 @@ module Reactive_Transport_Aux_module
     type(reactive_transport_auxvar_type), pointer :: auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_bc(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_ss(:)
+    type(reactive_transport_auxvar_type), pointer :: auxvars_pert(:,:)
+    type(reactive_transport_auxvar_type), pointer :: auxvars_bc_pert(:,:)
+    type(reactive_transport_auxvar_type), pointer :: auxvars_ss_pert(:,:)
     type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type reactive_transport_type
 
   interface RTAuxVarDestroy
     module procedure RTAuxVarSingleDestroy
-    module procedure RTAuxVarArrayDestroy
+    module procedure RTAuxVar1DArrayDestroy
+    module procedure RTAuxVar2DArrayDestroy
   end interface RTAuxVarDestroy
 
   public :: RTAuxCreate, RTAuxDestroy, &
@@ -151,6 +159,9 @@ function RTAuxCreate(naqcomp,nphase)
   nullify(aux%auxvars)      ! rt_auxvars for local and ghosted grid cells
   nullify(aux%auxvars_bc)   ! rt_auxvars for boundary connections
   nullify(aux%auxvars_ss)   ! rt_auxvars for source/sinks
+  nullify(aux%auxvars_pert)      ! perturbed auxvars
+  nullify(aux%auxvars_bc_pert)
+  nullify(aux%auxvars_ss_pert)
   nullify(aux%matrix_zeroing)
 
   allocate(aux%rt_parameter)
@@ -349,6 +360,8 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%auxiliary_data)
   endif
 
+  auxvar%pert = 0.d0
+
 end subroutine RTAuxVarInit
 
 ! ************************************************************************** !
@@ -499,7 +512,7 @@ end subroutine RTAuxVarSingleDestroy
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarArrayDestroy(auxvars)
+subroutine RTAuxVar1DArrayDestroy(auxvars)
   !
   ! Deallocates a mode auxiliary object
   !
@@ -521,7 +534,35 @@ subroutine RTAuxVarArrayDestroy(auxvars)
   endif
   nullify(auxvars)
 
-end subroutine RTAuxVarArrayDestroy
+end subroutine RTAuxVar1DArrayDestroy
+
+! ************************************************************************** !
+
+subroutine RTAuxVar2DArrayDestroy(auxvars)
+  !
+  ! Deallocates a mode auxiliary object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/06/24
+  !
+
+  implicit none
+
+  type(reactive_transport_auxvar_type), pointer :: auxvars(:,:)
+
+  PetscInt :: iaux, idof
+
+  if (associated(auxvars)) then
+    do iaux = 1, size(auxvars,2)
+      do idof = 1, size(auxvars,1)
+        call RTAuxVarStrip(auxvars(idof,iaux))
+      enddo
+    enddo
+    deallocate(auxvars)
+  endif
+  nullify(auxvars)
+
+end subroutine RTAuxVar2DArrayDestroy
 
 ! ************************************************************************** !
 
@@ -598,6 +639,9 @@ subroutine RTAuxDestroy(aux)
   call RTAuxVarDestroy(aux%auxvars)
   call RTAuxVarDestroy(aux%auxvars_bc)
   call RTAuxVarDestroy(aux%auxvars_ss)
+  call RTAuxVarDestroy(aux%auxvars_pert)
+  call RTAuxVarDestroy(aux%auxvars_bc_pert)
+  call RTAuxVarDestroy(aux%auxvars_ss_pert)
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%rt_parameter)) then
