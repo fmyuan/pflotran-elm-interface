@@ -230,6 +230,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
+      case('NUMERICAL_DERIVATIVES_MOVE_TO_NR')
+        rt_numerical_derivatives = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

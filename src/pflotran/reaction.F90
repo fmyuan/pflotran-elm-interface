@@ -68,6 +68,7 @@ module Reaction_module
             RReact, &
             RStep, &
             RTAuxVarCompute, &
+            RTAuxVarComputePerturbed, &
             RTAccumulation, &
             RTAccumulationDerivative, &
             RTPrintAuxVar, &
@@ -3842,7 +3843,9 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
     endif
     call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          natural_id,option)
-
+    if (rt_numerical_derivatives) then
+      stop 'Setup numerical derivatives in RReact()'
+    endif
     if (num_iterations > reaction%maximum_reaction_iterations) then
       current_total(1:naqcomp) = rt_auxvar%total(:,1)
       if (nimmobile > 0) then
@@ -5142,40 +5145,6 @@ end subroutine RTotalSorbEqIonx
 
 ! ************************************************************************** !
 
-subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
-                                       material_auxvar,reaction,option,J)
-  !
-  ! Computes derivative of non-aqueous portion of
-  ! the accumulation term in residual function
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/26/09
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
-  type(option_type) :: option
-  class(reaction_rt_type) :: reaction
-  PetscReal :: J(reaction%ncomp,reaction%ncomp)
-
-  PetscReal :: v_t
-
-  ! units = (kg water/m^3 bulk)*(m^3 bulk)/(sec) = kg water/sec
-  ! all Jacobian entries should be in kg water/sec
-  v_t = material_auxvar%volume/option%tran_dt
-  J(1:reaction%naqcomp,1:reaction%naqcomp) = &
-    J(1:reaction%naqcomp,1:reaction%naqcomp) + &
-    rt_auxvar%dtotal_sorb_eq(:,:)*v_t
-
-end subroutine RAccumulationSorbDerivative
-
-! ************************************************************************** !
-
 subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
                              global_auxvar,material_auxvar,reaction,option)
   !
@@ -5661,6 +5630,41 @@ end subroutine RTAuxVarCompute
 
 ! ************************************************************************** !
 
+subroutine RTAuxVarComputePerturbed(rt_auxvar,rt_auxvars_pert, &
+                                    global_auxvar,material_auxvar, &
+                                    reaction,natural_id,option)
+  !
+  ! Computes secondary variables for each grid cell (perturbed version)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/06/24
+  !
+
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(reactive_transport_auxvar_type) :: rt_auxvars_pert(:)
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  PetscInt :: natural_id
+  type(option_type) :: option
+
+  PetscInt :: idof
+
+  call RTAuxVarPerturb(rt_auxvar,rt_auxvars_pert,reaction,option)
+  do idof = 1, option%ntrandof
+    call RTAuxVarCompute(rt_auxvars_pert(idof), &
+                         global_auxvar,material_auxvar, &
+                         reaction,natural_id,option)
+  enddo
+
+end subroutine RTAuxVarComputePerturbed
+
+! ************************************************************************** !
+
 subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
                           reaction,option,Res)
   !
@@ -5908,12 +5912,6 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
       if (dabs(J(i,jj)) > 1.d-20) ofill(i,jj) = 1
     enddo
   enddo
-
-  if (reaction%neqsorb > 0) then
-    call RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
-                                     material_auxvar, &
-                                     reaction,option,J)
-  endif
 
   call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
                  material_auxvar,reaction,option)

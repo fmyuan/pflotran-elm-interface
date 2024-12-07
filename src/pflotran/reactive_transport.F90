@@ -282,6 +282,15 @@ subroutine RTSetup(realization)
     call RTAuxVarInit(patch%aux%RT%auxvars(ghosted_id),reaction,option)
   enddo
   patch%aux%RT%num_aux = grid%ngmax
+  if (rt_numerical_derivatives) then
+    allocate(patch%aux%RT%auxvars_pert(rt_parameter%ncomp,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      do i = 1, rt_parameter%ncomp
+        call RTAuxVarInit(patch%aux%RT%auxvars_pert(i,ghosted_id), &
+                          reaction,option)
+      enddo
+    enddo
+  endif
 
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
@@ -292,6 +301,16 @@ subroutine RTSetup(realization)
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_bc(iconn),reaction,option)
     enddo
+    if (rt_numerical_derivatives) then
+      option%iflag = 0
+      allocate(patch%aux%RT%auxvars_bc_pert(rt_parameter%ncomp,sum_connection))
+      do iconn = 1, sum_connection
+        do i = 1, rt_parameter%ncomp
+          call RTAuxVarInit(patch%aux%RT%auxvars_bc_pert(i,iconn), &
+                            reaction,option)
+        enddo
+      enddo
+    endif
   endif
   patch%aux%RT%num_aux_bc = sum_connection
 
@@ -304,6 +323,16 @@ subroutine RTSetup(realization)
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_ss(iconn),reaction,option)
     enddo
+    if (rt_numerical_derivatives) then
+      option%iflag = 0
+      allocate(patch%aux%RT%auxvars_ss_pert(rt_parameter%ncomp,sum_connection))
+      do iconn = 1, sum_connection
+        do i = 1, rt_parameter%ncomp
+          call RTAuxVarInit(patch%aux%RT%auxvars_ss_pert(i,iconn), &
+                            reaction,option)
+        enddo
+      enddo
+    endif
   endif
   patch%aux%RT%num_aux_ss = sum_connection
   option%iflag = 0
@@ -3615,6 +3644,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_pert(:,:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc_pert(:,:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
   class(tran_constraint_rt_type), pointer :: constraint
 
@@ -3635,6 +3666,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   reaction => realization%reaction
   rt_auxvars => patch%aux%RT%auxvars
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
+  rt_auxvars_pert => patch%aux%RT%auxvars_pert
+  rt_auxvars_bc_pert => patch%aux%RT%auxvars_bc_pert
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
@@ -3689,6 +3722,13 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                            global_auxvars(ghosted_id), &
                            patch%aux%Material%auxvars(ghosted_id), &
                            reaction,grid%nG2A(ghosted_id),option)
+      if (rt_numerical_derivatives) then
+        call RTAuxVarComputePerturbed(rt_auxvars(ghosted_id), &
+                             rt_auxvars_pert(:,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             patch%aux%Material%auxvars(ghosted_id), &
+                             reaction,grid%nG2A(ghosted_id),option)
+      endif
     enddo
 
     call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
@@ -3803,6 +3843,13 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                                global_auxvars_bc(sum_connection), &
                                patch%aux%Material%auxvars(ghosted_id), &
                                reaction,grid%nG2A(ghosted_id),option)
+          if (rt_numerical_derivatives) then
+            call RTAuxVarComputePerturbed(rt_auxvars_bc(sum_connection), &
+                                 rt_auxvars_bc_pert(:,sum_connection), &
+                                 global_auxvars_bc(sum_connection), &
+                                 patch%aux%Material%auxvars(ghosted_id), &
+                                 reaction,grid%nG2A(ghosted_id),option)
+          endif
         else
           equilibrate_constraint = PETSC_TRUE
         ! Chuan needs to fill this in.

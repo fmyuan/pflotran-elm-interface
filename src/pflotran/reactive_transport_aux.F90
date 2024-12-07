@@ -127,9 +127,14 @@ module Reactive_Transport_Aux_module
     module procedure RTAuxVar2DArrayDestroy
   end interface RTAuxVarDestroy
 
-  public :: RTAuxCreate, RTAuxDestroy, &
-            RTAuxVarInit, RTAuxVarCopy, RTAuxVarDestroy, &
-            RTAuxVarStrip, RTAuxVarCopyInitialGuess
+  public :: RTAuxCreate, &
+            RTAuxVarInit, &
+            RTAuxVarCopy, &
+            RTAuxVarPerturb, &
+            RTAuxVarCopyInitialGuess, &
+            RTAuxVarDestroy, &
+            RTAuxVarStrip, &
+            RTAuxDestroy
 
 contains
 
@@ -451,6 +456,47 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
   endif
 
 end subroutine RTAuxVarCopy
+
+! ************************************************************************** !
+
+subroutine RTAuxVarPerturb(auxvar,auxvars_pert,reaction,option)
+  !
+  ! Perturbs an reactive transport aux var for numerical derivatives
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/06/24
+  !
+
+  use Option_module
+  use Reaction_Aux_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: auxvar
+  type(reactive_transport_auxvar_type) :: auxvars_pert(:)
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  PetscReal, parameter :: tolerance = 1.d-6
+  PetscReal :: tempreal
+  PetscInt :: idof, i
+
+  do idof = 1, option%ntrandof
+    call RTAuxVarCopy(auxvar,auxvars_pert(idof),option)
+    if (idof < reaction%offset_aqueous + reaction%naqcomp) then
+      i = reaction%offset_aqueous + idof
+      tempreal = auxvar%pri_molal(i)
+      auxvars_pert(idof)%pri_molal(i) = tempreal + tempreal * tolerance
+      auxvars_pert(idof)%pert = auxvars_pert(idof)%pri_molal(i) - tempreal
+    else if (idof < reaction%offset_immobile + reaction%immobile%nimmobile) then
+      i = reaction%offset_immobile + idof
+      tempreal = auxvar%immobile(i)
+      auxvars_pert(idof)%immobile(i) = tempreal + tempreal * tolerance
+      auxvars_pert(idof)%pert = auxvars_pert(idof)%immobile(i) - tempreal
+    endif
+  enddo
+
+end subroutine RTAuxVarPerturb
 
 ! ************************************************************************** !
 
