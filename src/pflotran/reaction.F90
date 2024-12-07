@@ -4248,7 +4248,7 @@ subroutine RReactionDerivative2(ghosted_id,Res,Jac, &
                      material_auxvars(ghosted_id),reaction,option)
       do ieq = 1, option%ntrandof
         Jac(ieq,idof) = Jac(ieq,idof) + &
-                        (Res_pert(idof)-Res_orig(idof)) / &
+                        (Res_pert(ieq)-Res_orig(ieq)) / &
                         rt_auxvars_pert(idof,ghosted_id)%pert
       enddo
     enddo
@@ -5840,7 +5840,7 @@ subroutine RTAccumulationDerivative2(ghosted_id,rt_auxvars,rt_auxvars_pert, &
   class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
 
-  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Res_orig(reaction%ncomp)
   PetscReal :: Res_pert(reaction%ncomp)
   PetscInt :: ieq, idof
 
@@ -5848,14 +5848,16 @@ subroutine RTAccumulationDerivative2(ghosted_id,rt_auxvars,rt_auxvars_pert, &
     call RTAccumulation(rt_auxvars(ghosted_id), &
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
-                        reaction,option,Res)
+                        reaction,option,Res_orig)
+    Res_orig = Res_orig / option%tran_dt
     do idof = 1, option%ntrandof
-    call RTAccumulation(rt_auxvars_pert(idof,ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        reaction,option,Res_pert)
+      call RTAccumulation(rt_auxvars_pert(idof,ghosted_id), &
+                          global_auxvars(ghosted_id), &
+                          material_auxvars(ghosted_id), &
+                          reaction,option,Res_pert)
+      Res_pert = Res_pert / option%tran_dt
       do ieq = 1, option%ntrandof
-        J(ieq,idof) = (Res_pert(idof)-Res(idof)) / &
+        J(ieq,idof) = (Res_pert(ieq)-Res_orig(ieq)) / &
                       rt_auxvars_pert(idof,ghosted_id)%pert
       enddo
     enddo

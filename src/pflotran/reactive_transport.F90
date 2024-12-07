@@ -4677,7 +4677,7 @@ subroutine RTFluxDerivative(rt_parameter,boundary_condition, &
                   coef_up,coef_dn,option,Flux,Res_pert)
         do ieq = 1, option%ntrandof
           Jup(ieq,idof) = Jup(ieq,idof) + &
-                          (Res_pert(idof)-Res(idof)) / &
+                          (Res_pert(ieq)-Res(ieq)) / &
                           rt_auxvars_pert(idof,ghosted_id_up)%pert
         enddo
       enddo
@@ -4691,7 +4691,7 @@ subroutine RTFluxDerivative(rt_parameter,boundary_condition, &
                  coef_up,coef_dn,option,Flux,Res_pert)
       do ieq = 1, option%ntrandof
         Jdn(ieq,idof) = Jdn(ieq,idof) + &
-                        (Res_pert(idof)-Res(idof)) / &
+                        (Res_pert(ieq)-Res(ieq)) / &
                         rt_auxvars_pert(idof,ghosted_id_dn)%pert
       enddo
     enddo
@@ -4788,7 +4788,7 @@ subroutine RTSourceSinkDerivative(rt_parameter,ghosted_id, &
                         Res_pert,Qdum)
       do ieq = 1, rt_parameter%ncomp
         Jac(ieq,idof) = Jac(ieq,idof) + &
-                        (Res_pert(idof)-Res_orig(idof)) / &
+                        (Res_pert(ieq)-Res_orig(ieq)) / &
                         rt_auxvars_pert(idof,ghosted_id)%pert
       enddo
     enddo

@@ -483,13 +483,13 @@ subroutine RTAuxVarPerturb(auxvar,auxvars_pert,reaction,option)
 
   do idof = 1, option%ntrandof
     call RTAuxVarCopy(auxvar,auxvars_pert(idof),option)
-    if (idof < reaction%offset_aqueous + reaction%naqcomp) then
-      i = reaction%offset_aqueous + idof
+    if (idof <= reaction%offset_aqueous + reaction%naqcomp) then
+      i = idof - reaction%offset_aqueous
       tempreal = auxvar%pri_molal(i)
       auxvars_pert(idof)%pri_molal(i) = tempreal + tempreal * tolerance
       auxvars_pert(idof)%pert = auxvars_pert(idof)%pri_molal(i) - tempreal
-    else if (idof < reaction%offset_immobile + reaction%immobile%nimmobile) then
-      i = reaction%offset_immobile + idof
+    else if (idof <= reaction%offset_immobile + reaction%immobile%nimmobile) then
+      i = idof - reaction%offset_immobile
       tempreal = auxvar%immobile(i)
       auxvars_pert(idof)%immobile(i) = tempreal + tempreal * tolerance
       auxvars_pert(idof)%pert = auxvars_pert(idof)%immobile(i) - tempreal
