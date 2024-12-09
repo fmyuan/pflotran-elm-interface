@@ -444,6 +444,12 @@ subroutine SimSubsurfJumpStart(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
   endif
 
+  ! jaa testing.. want to set the geomech dt equal to flow dt
+  if (associated(this%geomech_process_model_coupler_new)) then
+     this%geomech_process_model_coupler_new%timestepper%dt = &
+         this%process_model_coupler_list%timestepper%dt
+  endif
+
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_timestepper%max_time_step < 0) then
     call PrintMsg(option,'')
@@ -701,6 +707,10 @@ subroutine SimSubsurfExecuteRun(this)
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfExecuteRun()')
 #endif
+
+  !print *, '>> (jaa) geomech dt: ', this%geomech_process_model_coupler_new%timestepper%dt
+  !print *, '>> (jaa) master dt: ', this%process_model_coupler_list%timestepper%dt
+  !stop
 
   if (.not.associated(this%process_model_coupler_list)) then
     return

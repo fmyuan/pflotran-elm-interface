@@ -170,6 +170,9 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   PetscReal :: final_time
   PetscReal :: dt
 
+  print *, '>>> (JAA) exiting!!!'
+  stop
+
   time = this%option%time
 
   final_time = SimSubsurfGetFinalWaypointTime(this)
@@ -189,11 +192,14 @@ subroutine GeomechanicsSimulationExecuteRun(this)
       this%option%io_buffer = 'Set non-zero COUPLING_TIME_SIZE in GEOMECHANICS_TIME.'
       call PrintErrMsg(this%option)
     else
+      !print *, '>>>>>>>>>>>>>>>>>>>>>>>'
+      !print *, 'dt, final', this%geomech_realization%dt_coupling, final_time
       do
         if (time + this%geomech_realization%dt_coupling > final_time) then
           dt = final_time-time
         else
           dt = this%geomech_realization%dt_coupling
+          print *, '>>> (JAA) print dt: ', dt
         endif
 
         time = time + dt

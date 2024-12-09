@@ -239,12 +239,17 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   observation_plot_flag = PETSC_FALSE
   massbal_plot_flag = PETSC_FALSE
 
+  print *, 'sync_time value: ', sync_time
+
   call this%timestepper%SetTargetTime(sync_time,this%option,local_stop_flag, &
                                       sync_flag, &
                                       snapshot_plot_flag, &
                                       observation_plot_flag, &
                                       massbal_plot_flag,checkpoint_flag)
   call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+
+  print *, 'target time, local stop flag: ', this%timestepper%target_time, local_stop_flag
+  !local_stop_flag = 0 ! jaa testing
 
   ! Check if it is initial solve
   if (this%timestepper%steps == 1) then

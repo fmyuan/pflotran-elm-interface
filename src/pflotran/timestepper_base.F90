@@ -423,6 +423,8 @@ subroutine TimestepperBaseInitializeRun(this,option)
   class(timestepper_base_type) :: this
   type(option_type) :: option
 
+  print *, '>> (jaa) dt, dt_init, dt_min: ', this%dt, this%dt_init, this%dt_min
+
   if (Uninitialized(this%dt_min)) this%dt_min = default_dt_min
   if (Uninitialized(this%dt_init)) this%dt_init = default_dt_init
   if (Uninitialized(this%dt)) this%dt = this%dt_init
@@ -506,6 +508,8 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: revert_due_to_sync_time
   type(waypoint_type), pointer :: cur_waypoint
 
+
+  print *, '>> (JAA) in TimestepperBaseSetTargetTime'
 !geh: for debugging
 #ifdef DEBUG
   option%io_buffer = 'TimestepperBaseSetTargetTime()'
@@ -540,6 +544,8 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   revert_due_to_sync_time = PETSC_FALSE
 
   dt = this%dt
+  ! jaa
+  print *, '>> (jaa) dt is ', dt
   this%prev_dt = dt
   cur_waypoint => this%cur_waypoint
   ! need previous waypoint for reverting back on time step cut
@@ -556,6 +562,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     ! ensure that the time step does not overstep the next waypoint time +
     ! dtmax combination.
     target_time = this%target_time + dt
+    print *, 'just set target_time, dt: ', target_time, dt
 
 !---! This section of code ensures that no time step over steps the next
     ! maximum time step (dt_max) if a waypoint is surpassed.
@@ -670,6 +677,8 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   this%dt_max = dt_max
   this%target_time = target_time
   this%cur_waypoint => cur_waypoint
+
+  print *, ' >> (JAA) dt: ', dt
 
  end subroutine TimestepperBaseSetTargetTime
 

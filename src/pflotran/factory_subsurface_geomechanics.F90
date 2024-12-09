@@ -343,7 +343,7 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
-  !use Waypoint_module
+  use Waypoint_module
 
   implicit none
 
@@ -432,7 +432,7 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! link geomech and master
   !simulation%process_model_coupler_list => &
   !  simulation%geomech_process_model_coupler_new
-  ! jaa testing.. let flow be the master
+  ! jaa testing.. set flow as the master
   simulation%process_model_coupler_list => &
     simulation%flow_process_model_coupler
   ! link subsurface flow as peer
@@ -457,6 +457,11 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
 
   call SubsurfGeomechanicsJumpStart(simulation)
 
+  ! jaa: testing if dt init would work here..
+  !print *, '>> (jaa) geomech dt: ', simulation%geomech_process_model_coupler_new%timestepper%dt
+  !print *, '>> (jaa) master§ dt: ', simulation%process_model_coupler_list%timestepper%dt
+
+  !stop
 end subroutine FactorySubsurfGeomechInitSimulation
 
 ! ************************************************************************** !
@@ -502,7 +507,7 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
     class is(timestepper_steady_type)
       geomech_timestepper => ts
   end select
-  nullify(master_timestepper)
+  !nullify(master_timestepper)
 
   option => geomch_realization%option
 
@@ -511,7 +516,7 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
 
   geomech_timestepper%name = 'GEOMECHANICS'
 
-  master_timestepper => geomech_timestepper
+  !master_timestepper => geomech_timestepper
 
   snapshot_plot_flag = PETSC_FALSE
   observation_plot_flag = PETSC_FALSE
@@ -519,7 +524,7 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
   geomech_read = PETSC_FALSE
   failure = PETSC_FALSE
 
-  call OutputGeomechInit(master_timestepper%steps)
+  !call OutputGeomechInit(master_timestepper%steps)
 
   ! pushed in INIT_STAGE()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
