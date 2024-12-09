@@ -759,7 +759,7 @@ subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag, &
       call PrintMsg(option)
     endif
 
-    process_model%output_option%plot_name = trim(process_model%name)// & 
+    process_model%output_option%plot_name = trim(process_model%name)// &
       '_cut_to_failure'
     snapshot_plot_flag = PETSC_TRUE
     observation_plot_flag = PETSC_FALSE
