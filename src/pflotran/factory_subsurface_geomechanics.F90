@@ -490,7 +490,7 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
   type(simulation_subsurface_type) :: simulation
 
   class(realization_geomech_type), pointer :: geomch_realization
-  class(timestepper_steady_type), pointer :: master_timestepper
+  !class(timestepper_steady_type), pointer :: master_timestepper
   class(timestepper_steady_type), pointer :: geomech_timestepper
   type(option_type), pointer :: option
 
