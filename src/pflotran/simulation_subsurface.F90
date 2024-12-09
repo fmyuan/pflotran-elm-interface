@@ -708,10 +708,6 @@ subroutine SimSubsurfExecuteRun(this)
   call PrintMsg(this%option,'SimSubsurfExecuteRun()')
 #endif
 
-  !print *, '>> (jaa) geomech dt: ', this%geomech_process_model_coupler_new%timestepper%dt
-  !print *, '>> (jaa) master dt: ', this%process_model_coupler_list%timestepper%dt
-  !stop
-
   if (.not.associated(this%process_model_coupler_list)) then
     return
   endif

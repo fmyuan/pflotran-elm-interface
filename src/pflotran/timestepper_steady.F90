@@ -180,7 +180,6 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
     endif
   enddo
   if (.not.associated(this%cur_waypoint)) then
-    print *, '>> (JAA) stopping simulation here'
     stop_flag = TS_STOP_END_SIMULATION
   endif
 

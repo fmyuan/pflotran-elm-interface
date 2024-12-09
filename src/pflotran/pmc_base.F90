@@ -641,7 +641,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
 
     ! Run underlying process model couplers
     if (associated(this%child)) then
-      print *, '********* here in child pmc'
       ! Set data needed by process-models
       call this%SetAuxData()
       call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
