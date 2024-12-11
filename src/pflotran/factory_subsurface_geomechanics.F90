@@ -524,7 +524,7 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
   geomech_read = PETSC_FALSE
   failure = PETSC_FALSE
 
-  !call OutputGeomechInit(master_timestepper%steps)
+  call OutputGeomechInit(geomech_timestepper%steps)
 
   ! pushed in INIT_STAGE()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
