@@ -445,7 +445,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
   call cur_process_model_coupler%SetAuxData()
-  if (associated(cur_process_model_coupler%peer)) then
+  !if (associated(cur_process_model_coupler%peer)) then
+  if (associated(cur_process_model_coupler%child)) then
     cur_process_model_coupler => cur_process_model_coupler%peer
     call cur_process_model_coupler%GetAuxData()
     call cur_process_model_coupler%SetAuxData()
@@ -1175,7 +1176,6 @@ subroutine SubsurfGeomechInitSetupRealization(simulation)
 
   implicit none
 
-  !class(simulation_geomechanics_type) :: simulation
   class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: subsurf_realization

@@ -681,6 +681,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   use PFLOTRAN_Constants_module
   use Material_Aux_module
   use Material_module
+  use PMC_Geomechanics_class
 
   implicit none
 
@@ -703,6 +704,19 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   PetscViewer :: viewer
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
 #endif
+
+  ! jaa testing
+  ! want to skip initial get aux when using new pmc geomech
+  if (associated(this%child)) then
+    !print *, '>> (jaa) new geomech pmc'
+    select type (pmc => this%child)
+      class is(pmc_geomechanics_type)
+        if (this%timestepper%dt == 1) then
+          print *, '(jaa) skipping get aux because of reordering'
+          return
+        endif
+    end select
+  endif
 
   if (associated(this%sim_aux)) then
     select type (pmc => this)

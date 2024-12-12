@@ -2651,6 +2651,7 @@ pmc_subsurface.o : \
   pm_wipp_flow.o \
   pm_zflow.o \
   pmc_base.o \
+  pmc_geomechanics.o \
   realization_subsurface.o \
   richards_aux.o \
   solver.o \

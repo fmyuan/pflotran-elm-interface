@@ -501,14 +501,6 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 
 #endif
 
-  !call VecView(realization%field%porosity0,PETSC_VIEWER_STDOUT_WORLD,ierr)! i think this is null
-  !print *, 'press'
-  !call VecView(geomech_realization%geomech_field%press,PETSC_VIEWER_STDOUT_WORLD,ierr)
-  !print *, 'ISsubsurf'
-  !call ISView(is_subsurf,PETSC_VIEWER_STDOUT_WORLD, ierr)
-  !print *, 'ISgeomech'
-  !call ISView(is_geomech_petsc,PETSC_VIEWER_STDOUT_WORLD, ierr)
-  ! Create scatter context between flow and geomech
   call VecScatterCreate(realization%field%porosity0,is_subsurf, &
                         geomech_realization%geomech_field%press, &
                         is_geomech_petsc,scatter,ierr)!;CHKERRQ(ierr)
