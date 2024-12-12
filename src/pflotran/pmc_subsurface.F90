@@ -711,7 +711,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
     !print *, '>> (jaa) new geomech pmc'
     select type (pmc => this%child)
       class is(pmc_geomechanics_type)
-        if (this%timestepper%dt == 1) then
+        if (this%timestepper%steps < 1) then
           print *, '(jaa) skipping get aux because of reordering'
           return
         endif
