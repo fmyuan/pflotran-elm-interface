@@ -224,6 +224,9 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   if (stop_flag == TS_STOP_FAILURE) return
 
+  ! jaa testing -  want to use dt from flow (master).. it works for now!
+  this%timestepper%dt = this%option%dt
+
   call this%PrintHeader()
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call PrintVerboseMsg(this%option)
@@ -235,6 +238,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   call SetOutputFlags(this)
   sync_flag = PETSC_FALSE
+  !sync_flag = PETSC_TRUE ! jaa testing
   snapshot_plot_flag = PETSC_FALSE
   observation_plot_flag = PETSC_FALSE
   massbal_plot_flag = PETSC_FALSE
