@@ -885,8 +885,8 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
         end select
 
       !.....................
-      !case ('GEOMECHANICS_REGRESSION')
-      !  call GeomechanicsRegressionRead(simulation%geomech_regression,input,option)
+      case ('GEOMECHANICS_REGRESSION')
+        call GeomechanicsRegressionRead(simulation%geomech_regression_new,input,option)
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
@@ -998,7 +998,7 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
       !.........................................................................
       case default
         call InputKeywordUnrecognized(input,word, &
-                                 'GeomechanicsInitReadInput',option)
+                                 'SubsurfGeomechanicsInitReadInput',option)
     end select
   enddo
   call InputPopBlock(input,option)
