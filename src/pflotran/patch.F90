@@ -6412,7 +6412,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          SC_FUGA_COEFF,ICE_DENSITY,LIQUID_HEAD,VAPOR_PRESSURE, &
          SATURATION_PRESSURE,PRECIPITATE_SATURATION,DERIVATIVE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,&
-         SOLUTE_CONCENTRATION)
+         SOLUTE_CONCENTRATION,TOTAL_LIQUID_HEAD)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6547,10 +6547,20 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/ &
+                patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
                 EARTH_GRAVITY/ &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
+                patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
+            enddo
+          case(TOTAL_LIQUID_HEAD)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
+                EARTH_GRAVITY/ &
+                patch%aux%Global%auxvars(ghosted_id)%den_kg(1) + &
+                grid%z(ghosted_id)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -6599,9 +6609,17 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pres/ &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER, &
+                                        grid%nL2G(local_id))%pres/ &
                 EARTH_GRAVITY/ &
                 zflow_density_kg
+            enddo
+          case(TOTAL_LIQUID_HEAD)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres / &
+                EARTH_GRAVITY / zflow_density_kg + grid%z(ghosted_id)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -8395,7 +8413,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,DERIVATIVE, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,SOLUTE_CONCENTRATION, &
-         PRECIPITATE_SATURATION)
+         PRECIPITATE_SATURATION,TOTAL_LIQUID_HEAD)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -8471,6 +8489,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
                     EARTH_GRAVITY/ &
                     patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
+          case(TOTAL_LIQUID_HEAD)
+            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
+                    EARTH_GRAVITY/ &
+                    patch%aux%Global%auxvars(ghosted_id)%den_kg(1) + &
+                    grid%z(ghosted_id)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
           case(LIQUID_DENSITY)
@@ -8499,6 +8522,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(LIQUID_HEAD)
             value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres/ &
                     EARTH_GRAVITY/zflow_density_kg
+          case(TOTAL_LIQUID_HEAD)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres/ &
+                    EARTH_GRAVITY/zflow_density_kg + grid%z(ghosted_id)
           case(LIQUID_SATURATION)
             value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
           case(SOLUTE_CONCENTRATION)
