@@ -22,6 +22,7 @@ module Dataset_Common_HDF5_class
             DatasetCommonHDF5Init, &
             DatasetCommonHDF5Copy, &
             DatasetCommonHDF5Cast, &
+            DatasetCommonHDF5Verify, &
             DatasetCommonHDF5Read, &
             DatasetCommonHDF5ReadSelectCase, &
             DatasetCommonHDF5Load, &
@@ -128,6 +129,36 @@ function DatasetCommonHDF5Cast(this)
   end select
 
 end function DatasetCommonHDF5Cast
+
+! ************************************************************************** !
+
+subroutine DatasetCommonHDF5Verify(this,dataset_error,option)
+  !
+  ! Verifies that data structure is properly set up.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/19/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(dataset_common_hdf5_type) :: this
+  PetscBool :: dataset_error
+  type(option_type) :: option
+
+  call DatasetBaseVerify(this,dataset_error,option)
+  if (len_trim(this%hdf5_dataset_name) < 1) then
+    call PrintMsg(option,'hdf5 datset name uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+
+  if (.not.this%is_cell_indexed .and. Uninitialized(this%max_buffer_size)) then
+    call PrintMsg(option,'max buffer size uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+
+end subroutine DatasetCommonHDF5Verify
 
 ! ************************************************************************** !
 
