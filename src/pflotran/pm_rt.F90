@@ -182,7 +182,6 @@ subroutine PMRTReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
-  PetscReal :: tempreal
 
   option => this%option
 
@@ -231,13 +230,9 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
-      case('NUMERICAL_DERIVATIVES_MOVE_TO_NR')
-        rt_numerical_derivatives = PETSC_TRUE
-        ! tolerance is an optional arguments
-        call InputReadDouble(input,option,tempreal)
-        if (input%ierr == 0) then
-          rt_numerical_derivative_tol = tempreal
-        endif
+      case('DERIVATIVE_PERTURBATION_TOL')
+        call InputReadDouble(input,option,rt_numerical_derivative_tol)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

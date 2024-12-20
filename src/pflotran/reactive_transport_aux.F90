@@ -18,7 +18,6 @@ module Reactive_Transport_Aux_module
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_min_saturation = 1.d-40
 
-  PetscBool, public :: rt_numerical_derivatives = PETSC_FALSE
   PetscReal, public :: rt_numerical_derivative_tol = 1.d-6
 
   type, public :: reactive_transport_auxvar_type

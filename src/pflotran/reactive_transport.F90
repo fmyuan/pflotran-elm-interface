@@ -280,7 +280,7 @@ subroutine RTSetup(realization)
   allocate(patch%aux%RT%auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     call RTAuxVarInit(patch%aux%RT%auxvars(ghosted_id),reaction, &
-                      rt_numerical_derivatives,option)
+                      option%transport%numerical_derivatives,option)
   enddo
   patch%aux%RT%num_aux = grid%ngmax
 
@@ -292,7 +292,7 @@ subroutine RTSetup(realization)
     allocate(patch%aux%RT%auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_bc(iconn),reaction, &
-                        rt_numerical_derivatives,option)
+                        option%transport%numerical_derivatives,option)
     enddo
   endif
   patch%aux%RT%num_aux_bc = sum_connection
@@ -305,7 +305,7 @@ subroutine RTSetup(realization)
     allocate(patch%aux%RT%auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_ss(iconn),reaction, &
-                        rt_numerical_derivatives,option)
+                        option%transport%numerical_derivatives,option)
     enddo
   endif
   patch%aux%RT%num_aux_ss = sum_connection
@@ -3289,7 +3289,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                         qsrc_flow,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       call RTSourceSinkDerivative(rt_parameter,rt_auxvars(ghosted_id), &
-                                  rt_auxvar_out,coef_in,coef_out,Jup)
+                                  rt_auxvar_out,coef_in,coef_out,option,Jup)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
@@ -3317,6 +3317,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                                        PETSC_FALSE,option)
       endif
       call RReactionDerivative(Res,Jup, &
+                               .not.option%transport%numerical_derivatives, &
                                rt_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id),reaction,option)
@@ -4601,7 +4602,7 @@ subroutine RTFluxDerivative(rt_parameter,boundary_condition, &
   PetscReal :: Flux(rt_parameter%naqcomp,rt_parameter%nphase)
   PetscInt :: idof, ieq
 
-  if (rt_numerical_derivatives) then
+  if (option%transport%numerical_derivatives) then
     Jup = 0.d0
     Jdn = 0.d0
     call TFlux(rt_parameter, &
@@ -4683,7 +4684,7 @@ end subroutine RTSourceSink
 ! ************************************************************************** !
 
 subroutine RTSourceSinkDerivative(rt_parameter,rt_auxvar,rt_auxvar_out, &
-                                  coef_in,coef_out,Jac)
+                                  coef_in,coef_out,option,Jac)
   !
   ! Calculates the derivative of the src/sink wrt primary dependent variable
   !
@@ -4698,17 +4699,18 @@ subroutine RTSourceSinkDerivative(rt_parameter,rt_auxvar,rt_auxvar_out, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar_out
   PetscReal :: coef_in(:), coef_out(:)
+  type(option_type) :: option
   PetscReal :: Jac(:,:)
 
   PetscReal :: Res_orig(rt_parameter%ncomp)
   PetscReal :: Res_pert(rt_parameter%ncomp)
-  PetscReal :: Qdum(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: Qdum(rt_parameter%ncomp,rt_parameter%nphase)
   PetscInt :: idof, ieq
   PetscInt :: istart_aq, iend_aq
   PetscInt :: iphase
 
   Jac = 0.d0
-  if (rt_numerical_derivatives) then
+  if (option%transport%numerical_derivatives) then
     call RTSourceSink(rt_parameter,rt_auxvar,rt_auxvar_out,coef_in,coef_out, &
                       Res_orig,Qdum)
     do idof = 1, rt_parameter%ncomp
