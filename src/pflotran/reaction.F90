@@ -37,17 +37,6 @@ module Reaction_module
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
 
-  interface RTAccumulationDerivative
-    module procedure :: RTAccumulationDerivative1
-    module procedure :: RTAccumulationDerivative2
-  end interface
-
-  interface RReactionDerivative
-    module procedure :: RReactionDerivative1
-    module procedure :: RReactionDerivative2
-  end interface
-
-
   public :: ReactionInit, &
             ReactionReadPass1, &
             ReactionReadPass2, &
@@ -4110,8 +4099,8 @@ end subroutine RReaction
 
 ! ************************************************************************** !
 
-subroutine RReactionDerivative1(Res,Jac,rt_auxvar,global_auxvar, &
-                                material_auxvar,reaction,option)
+subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
+                               material_auxvar,reaction,option)
   !
   ! RReaction: Computes reactions
   !
@@ -4136,22 +4125,41 @@ subroutine RReactionDerivative1(Res,Jac,rt_auxvar,global_auxvar, &
   PetscInt :: icomp, jcomp, joffset
   PetscReal :: Jac_dummy(reaction%ncomp,reaction%ncomp)
   PetscReal :: pert
+  PetscInt :: idof, ieq
   PetscBool :: compute_derivative
 
   ! add new reactions in the 3 locations below
 
   if (.not.option%transport%numerical_derivatives) then ! analytical derivative
-    compute_derivative = PETSC_TRUE
-    call RReaction(Res,Jac,compute_derivative,rt_auxvar, &
-                   global_auxvar,material_auxvar,reaction,option)
 
-    ! add only in RReaction
+    if (.not.rt_numerical_derivatives) then
+      compute_derivative = PETSC_TRUE
+      call RReaction(Res,Jac,compute_derivative,rt_auxvar, &
+                    global_auxvar,material_auxvar,reaction,option)
+    else
+      compute_derivative = PETSC_FALSE
+      Res_orig = 0.d0
+      call RReaction(Res_orig,Jac_dummy,compute_derivative, &
+                     rt_auxvar,global_auxvar, &
+                     material_auxvar,reaction,option)
+      do idof = 1, option%ntrandof
+        Res_pert = 0.d0
+        call RReaction(Res_pert,Jac_dummy,compute_derivative, &
+                       rt_auxvar%auxvar_pert(idof), &
+                       global_auxvar,material_auxvar,reaction,option)
+        do ieq = 1, option%ntrandof
+          Jac(ieq,idof) = Jac(ieq,idof) + &
+                          (Res_pert(ieq)-Res_orig(ieq)) / &
+                          rt_auxvar%auxvar_pert(idof)%pert
+        enddo
+      enddo
+    endif
 
   else ! numerical derivative
     compute_derivative = PETSC_FALSE
     Res_orig = 0.d0
     option%iflag = 0 ! be sure not to allocate mass_balance array
-    call RTAuxVarInit(rt_auxvar_pert,reaction,option)
+    call RTAuxVarInit(rt_auxvar_pert,reaction,PETSC_FALSE,option)
     call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
 
     call RReaction(Res_orig,Jac_dummy,compute_derivative,rt_auxvar, &
@@ -4200,66 +4208,7 @@ subroutine RReactionDerivative1(Res,Jac,rt_auxvar,global_auxvar, &
     call RTAuxVarStrip(rt_auxvar_pert)
   endif
 
-end subroutine RReactionDerivative1
-
-! ************************************************************************** !
-
-subroutine RReactionDerivative2(ghosted_id,Res,Jac, &
-                                rt_auxvars,rt_auxvars_pert,global_auxvars, &
-                                material_auxvars,reaction,option)
-  !
-  ! RReaction: Computes reactions
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/30/08
-  !
-  use Option_module
-
-  implicit none
-
-  PetscInt :: ghosted_id
-  type(reactive_transport_auxvar_type) :: rt_auxvars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_pert(:,:)
-  type(global_auxvar_type) :: global_auxvars(:)
-  type(material_auxvar_type) :: material_auxvars(:)
-  type(option_type) :: option
-  class(reaction_rt_type), pointer :: reaction
-  PetscReal :: Res(reaction%ncomp)
-  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
-
-  PetscReal :: Res_orig(reaction%ncomp)
-  PetscReal :: Res_pert(reaction%ncomp)
-  PetscReal :: Jac_dummy(reaction%ncomp,reaction%ncomp)
-  PetscBool :: compute_derivative
-  PetscInt :: ieq, idof
-
-  if (rt_numerical_derivatives) then
-    compute_derivative = PETSC_FALSE
-    Res_orig = 0.d0
-    call RReaction(Res_orig,Jac_dummy,compute_derivative, &
-                   rt_auxvars(ghosted_id), &
-                   global_auxvars(ghosted_id), &
-                   material_auxvars(ghosted_id),reaction,option)
-    do idof = 1, option%ntrandof
-      Res_pert = 0.d0
-      call RReaction(Res_pert,Jac_dummy,compute_derivative, &
-                     rt_auxvars_pert(idof,ghosted_id), &
-                     global_auxvars(ghosted_id), &
-                     material_auxvars(ghosted_id),reaction,option)
-      do ieq = 1, option%ntrandof
-        Jac(ieq,idof) = Jac(ieq,idof) + &
-                        (Res_pert(ieq)-Res_orig(ieq)) / &
-                        rt_auxvars_pert(idof,ghosted_id)%pert
-      enddo
-    enddo
-  else
-    call RReactionDerivative(Res,Jac,rt_auxvars(ghosted_id), &
-                             global_auxvars(ghosted_id), &
-                             material_auxvars(ghosted_id), &
-                             reaction,option)
-  endif
-
-end subroutine RReactionDerivative2
+end subroutine RReactionDerivative
 
 ! ************************************************************************** !
 
@@ -5532,8 +5481,9 @@ end subroutine RAge
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           natural_id,option)
+recursive subroutine RTAuxVarCompute(rt_auxvar,global_auxvar, &
+                                     material_auxvar,reaction, &
+                                     natural_id,option)
   !
   ! Computes secondary variables for each grid cell
   !
@@ -5551,6 +5501,8 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+
+  PetscInt :: i
 
 #if 0
   PetscReal :: Res_orig(reaction%ncomp)
@@ -5623,6 +5575,13 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   call RTAuxVarStrip(rt_auxvar_pert)
 #endif
 
+  if (associated(rt_auxvar%auxvar_pert)) then
+    do i = 1, option%ntrandof
+      call RTAuxVarCompute(rt_auxvar%auxvar_pert(i),global_auxvar, &
+                           material_auxvar,reaction,natural_id,option)
+    enddo
+  endif
+
 !  call RTPrintAuxVar(STDOUT_UNIT,rt_auxvar,global_auxvar,material_auxvar, &
 !                     reaction,natural_id,'',option)
 
@@ -5630,8 +5589,7 @@ end subroutine RTAuxVarCompute
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarComputePerturbed(rt_auxvar,rt_auxvars_pert, &
-                                    global_auxvar,material_auxvar, &
+subroutine RTAuxVarComputePerturbed(rt_auxvar,global_auxvar,material_auxvar, &
                                     reaction,natural_id,option)
   !
   ! Computes secondary variables for each grid cell (perturbed version)
@@ -5645,7 +5603,6 @@ subroutine RTAuxVarComputePerturbed(rt_auxvar,rt_auxvars_pert, &
   implicit none
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(reactive_transport_auxvar_type) :: rt_auxvars_pert(:)
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
@@ -5654,9 +5611,9 @@ subroutine RTAuxVarComputePerturbed(rt_auxvar,rt_auxvars_pert, &
 
   PetscInt :: idof
 
-  call RTAuxVarPerturb(rt_auxvar,rt_auxvars_pert,reaction,option)
+  call RTAuxVarPerturb(rt_auxvar,reaction,option)
   do idof = 1, option%ntrandof
-    call RTAuxVarCompute(rt_auxvars_pert(idof), &
+    call RTAuxVarCompute(rt_auxvar%auxvar_pert(idof), &
                          global_auxvar,material_auxvar, &
                          reaction,natural_id,option)
   enddo
@@ -5731,7 +5688,7 @@ end subroutine RTAccumulation
 
 ! ************************************************************************** !
 
-subroutine RTAccumulationDerivative1(rt_auxvar,global_auxvar, &
+subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
                                      material_auxvar, &
                                      reaction,option,J)
   !
@@ -5756,9 +5713,12 @@ subroutine RTAccumulationDerivative1(rt_auxvar,global_auxvar, &
   PetscInt :: icomp, iphase
   PetscInt :: istart, iendaq
   PetscInt :: idof
+  PetscInt :: ieq
   PetscInt :: iimob
   PetscReal :: psvd_t ! d is for density
   PetscReal :: v_t
+  PetscReal :: Res_orig(reaction%ncomp)
+  PetscReal :: Res_pert(reaction%ncomp)
 
   J = 0.d0
 
@@ -5770,105 +5730,70 @@ subroutine RTAccumulationDerivative1(rt_auxvar,global_auxvar, &
     return
   endif
 
-  iphase = 1
-  istart = 1
-  iendaq = reaction%naqcomp
-  ! units = (m^3 por/m^3 bulk)*(m^3 water/m^3 por)*(m^3 bulk)/(sec)
-  !         *(kg water/L water)*(1000L water/m^3 water) = kg water/sec
-  ! all Jacobian entries should be in kg water/sec
-  if (associated(rt_auxvar%aqueous%dtotal)) then ! units of dtotal = kg water/L water
-    psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
-             material_auxvar%volume/option%tran_dt
-    J(istart:iendaq,istart:iendaq) = rt_auxvar%aqueous%dtotal(:,:,iphase)*psvd_t
-  else
-    psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-             global_auxvar%den_kg(iphase)*material_auxvar%volume/ &
-             option%tran_dt ! units of den = kg water/m^3 water
-    do icomp=istart,iendaq
-      J(icomp,icomp) = psvd_t
-    enddo
-  endif
+  if (.not.rt_numerical_derivatives) then
 
-  if (reaction%immobile%nimmobile > 0) then
-    do iimob = 1, reaction%immobile%nimmobile
-      idof = reaction%offset_immobile + iimob
-      J(idof,idof) = material_auxvar%volume/option%tran_dt
-    enddo
-  endif
-  if (reaction%gas%nactive_gas > 0) then
-    iphase = 2
-    ! units of dtotal(:,:,2) = kg water / L gas
-    psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
-             material_auxvar%volume/option%tran_dt
-    J(istart:iendaq,istart:iendaq) = J(istart:iendaq,istart:iendaq) + &
-                                     rt_auxvar%aqueous%dtotal(:,:,iphase) * &
-                                     psvd_t
-  endif
-  if (reaction%neqsorb > 0) then
-    ! units = (kg water/m^3 bulk)*(m^3 bulk)/(sec) = kg water/sec
+    iphase = 1
+    istart = 1
+    iendaq = reaction%naqcomp
+    ! units = (m^3 por/m^3 bulk)*(m^3 water/m^3 por)*(m^3 bulk)/(sec)
+    !         *(kg water/L water)*(1000L water/m^3 water) = kg water/sec
     ! all Jacobian entries should be in kg water/sec
-    v_t = material_auxvar%volume/option%tran_dt
-    J(istart:iendaq,istart:iendaq) = J(istart:iendaq,istart:iendaq) + &
-      rt_auxvar%dtotal_sorb_eq(:,:)*v_t
-  endif
+    if (associated(rt_auxvar%aqueous%dtotal)) then
+      psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+               1000.d0*material_auxvar%volume/option%tran_dt
+      ! units of dtotal = kg water/L water
+      J(istart:iendaq,istart:iendaq) = &
+        rt_auxvar%aqueous%dtotal(:,:,iphase)*psvd_t
+    else
+      psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+              global_auxvar%den_kg(iphase)*material_auxvar%volume/ &
+              option%tran_dt ! units of den = kg water/m^3 water
+      do icomp=istart,iendaq
+        J(icomp,icomp) = psvd_t
+      enddo
+    endif
 
-end subroutine RTAccumulationDerivative1
+    if (reaction%immobile%nimmobile > 0) then
+      do iimob = 1, reaction%immobile%nimmobile
+        idof = reaction%offset_immobile + iimob
+        J(idof,idof) = material_auxvar%volume/option%tran_dt
+      enddo
+    endif
+    if (reaction%gas%nactive_gas > 0) then
+      iphase = 2
+      ! units of dtotal(:,:,2) = kg water / L gas
+      psvd_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
+              material_auxvar%volume/option%tran_dt
+      J(istart:iendaq,istart:iendaq) = J(istart:iendaq,istart:iendaq) + &
+                                      rt_auxvar%aqueous%dtotal(:,:,iphase) * &
+                                      psvd_t
+    endif
+    if (reaction%neqsorb > 0) then
+      ! units = (kg water/m^3 bulk)*(m^3 bulk)/(sec) = kg water/sec
+      ! all Jacobian entries should be in kg water/sec
+      v_t = material_auxvar%volume/option%tran_dt
+      J(istart:iendaq,istart:iendaq) = J(istart:iendaq,istart:iendaq) + &
+        rt_auxvar%dtotal_sorb_eq(:,:)*v_t
+    endif
 
-! ************************************************************************** !
-
-subroutine RTAccumulationDerivative2(ghosted_id,rt_auxvars,rt_auxvars_pert, &
-                                     global_auxvars,material_auxvars, &
-                                     reaction,option,J)
-  !
-  ! Computes derivative of aqueous portion of the
-  ! accumulation term in residual function
-  !
-  ! Author: Glenn Hammond
-  ! Date: 02/15/08
-  !
-
-  use Option_module
-
-  implicit none
-
-  PetscInt :: ghosted_id
-  type(reactive_transport_auxvar_type) :: rt_auxvars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_pert(:,:)
-  type(global_auxvar_type) :: global_auxvars(:)
-  type(material_auxvar_type) :: material_auxvars(:)
-  type(option_type) :: option
-  class(reaction_rt_type) :: reaction
-  PetscReal :: J(reaction%ncomp,reaction%ncomp)
-
-  PetscReal :: Res_orig(reaction%ncomp)
-  PetscReal :: Res_pert(reaction%ncomp)
-  PetscInt :: ieq, idof
-
-  if (rt_numerical_derivatives) then
-    call RTAccumulation(rt_auxvars(ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
+  else
+    call RTAccumulation(rt_auxvar,global_auxvar, &
+                        material_auxvar, &
                         reaction,option,Res_orig)
     Res_orig = Res_orig / option%tran_dt
     do idof = 1, option%ntrandof
-      call RTAccumulation(rt_auxvars_pert(idof,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          material_auxvars(ghosted_id), &
+      call RTAccumulation(rt_auxvar%auxvar_pert(idof),global_auxvar, &
+                          material_auxvar, &
                           reaction,option,Res_pert)
       Res_pert = Res_pert / option%tran_dt
       do ieq = 1, option%ntrandof
         J(ieq,idof) = (Res_pert(ieq)-Res_orig(ieq)) / &
-                      rt_auxvars_pert(idof,ghosted_id)%pert
+                      rt_auxvar%auxvar_pert(idof)%pert
       enddo
     enddo
-  else
-    call RTAccumulationDerivative(rt_auxvars(ghosted_id), &
-                                  global_auxvars(ghosted_id), &
-                                  material_auxvars(ghosted_id), &
-                                  reaction,option,J)
   endif
 
-end subroutine RTAccumulationDerivative2
+end subroutine RTAccumulationDerivative
 
 ! ************************************************************************** !
 

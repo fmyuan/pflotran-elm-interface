@@ -75,6 +75,8 @@ module Reactive_Transport_Aux_module
 
     PetscReal :: pert
 
+    type(reactive_transport_auxvar_type), pointer :: auxvar_pert(:)
+
   end type reactive_transport_auxvar_type
 
   type, public :: reactive_transport_param_type
@@ -115,9 +117,6 @@ module Reactive_Transport_Aux_module
     type(reactive_transport_auxvar_type), pointer :: auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_bc(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_ss(:)
-    type(reactive_transport_auxvar_type), pointer :: auxvars_pert(:,:)
-    type(reactive_transport_auxvar_type), pointer :: auxvars_bc_pert(:,:)
-    type(reactive_transport_auxvar_type), pointer :: auxvars_ss_pert(:,:)
     type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type reactive_transport_type
 
@@ -164,9 +163,6 @@ function RTAuxCreate(naqcomp,nphase)
   nullify(aux%auxvars)      ! rt_auxvars for local and ghosted grid cells
   nullify(aux%auxvars_bc)   ! rt_auxvars for boundary connections
   nullify(aux%auxvars_ss)   ! rt_auxvars for source/sinks
-  nullify(aux%auxvars_pert)      ! perturbed auxvars
-  nullify(aux%auxvars_bc_pert)
-  nullify(aux%auxvars_ss_pert)
   nullify(aux%matrix_zeroing)
 
   allocate(aux%rt_parameter)
@@ -204,7 +200,8 @@ end function RTAuxCreate
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarInit(auxvar,reaction,option)
+recursive subroutine RTAuxVarInit(auxvar,reaction, &
+                                  allocate_perturbation,option)
   !
   ! Initialize auxiliary object
   !
@@ -220,7 +217,9 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: auxvar
   class(reaction_rt_type) :: reaction
+  PetscBool :: allocate_perturbation
   type(option_type) :: option
+  PetscInt :: i
 
   type(surface_complexation_type), pointer :: surface_complexation
 
@@ -367,6 +366,15 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
 
   auxvar%pert = 0.d0
 
+  if (allocate_perturbation) then
+    allocate(auxvar%auxvar_pert(reaction%ncomp))
+    do i = 1, reaction%ncomp
+      call RTAuxVarInit(auxvar%auxvar_pert(i),reaction,PETSC_FALSE,option)
+    enddo
+  else
+    nullify(auxvar%auxvar_pert)
+  endif
+
 end subroutine RTAuxVarInit
 
 ! ************************************************************************** !
@@ -459,7 +467,7 @@ end subroutine RTAuxVarCopy
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarPerturb(auxvar,auxvars_pert,reaction,option)
+subroutine RTAuxVarPerturb(auxvar,reaction,option)
   !
   ! Perturbs an reactive transport aux var for numerical derivatives
   !
@@ -473,26 +481,29 @@ subroutine RTAuxVarPerturb(auxvar,auxvars_pert,reaction,option)
   implicit none
 
   type(reactive_transport_auxvar_type) :: auxvar
-  type(reactive_transport_auxvar_type) :: auxvars_pert(:)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
+
+  type(reactive_transport_auxvar_type), pointer :: auxvar_pert(:)
 
   PetscReal, parameter :: tolerance = 1.d-6
   PetscReal :: tempreal
   PetscInt :: idof, i
 
+  auxvar_pert => auxvar%auxvar_pert
+
   do idof = 1, option%ntrandof
-    call RTAuxVarCopy(auxvar,auxvars_pert(idof),option)
+    call RTAuxVarCopy(auxvar,auxvar_pert(idof),option)
     if (idof <= reaction%offset_aqueous + reaction%naqcomp) then
       i = idof - reaction%offset_aqueous
       tempreal = auxvar%pri_molal(i)
-      auxvars_pert(idof)%pri_molal(i) = tempreal + tempreal * tolerance
-      auxvars_pert(idof)%pert = auxvars_pert(idof)%pri_molal(i) - tempreal
+      auxvar_pert(idof)%pri_molal(i) = tempreal + tempreal * tolerance
+      auxvar_pert(idof)%pert = auxvar_pert(idof)%pri_molal(i) - tempreal
     else if (idof <= reaction%offset_immobile + reaction%immobile%nimmobile) then
       i = idof - reaction%offset_immobile
       tempreal = auxvar%immobile(i)
-      auxvars_pert(idof)%immobile(i) = tempreal + tempreal * tolerance
-      auxvars_pert(idof)%pert = auxvars_pert(idof)%immobile(i) - tempreal
+      auxvar_pert(idof)%immobile(i) = tempreal + tempreal * tolerance
+      auxvar_pert(idof)%pert = auxvar_pert(idof)%immobile(i) - tempreal
     endif
   enddo
 
@@ -612,7 +623,7 @@ end subroutine RTAuxVar2DArrayDestroy
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarStrip(auxvar)
+recursive subroutine RTAuxVarStrip(auxvar)
   !
   ! Deallocates all members of single auxiliary object
   !
@@ -625,6 +636,8 @@ subroutine RTAuxVarStrip(auxvar)
   implicit none
 
   type(reactive_transport_auxvar_type) :: auxvar
+
+  PetscInt :: i
 
   call DeallocateArray(auxvar%pri_molal)
   call DeallocateArray(auxvar%total)
@@ -662,6 +675,12 @@ subroutine RTAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%immobile)
   call DeallocateArray(auxvar%auxiliary_data)
 
+  if (associated(auxvar%auxvar_pert)) then
+    do i = 1, size(auxvar%auxvar_pert)
+      call RTAuxVarStrip(auxvar%auxvar_pert(i))
+    enddo
+  endif
+
 end subroutine RTAuxVarStrip
 
 ! ************************************************************************** !
@@ -685,9 +704,6 @@ subroutine RTAuxDestroy(aux)
   call RTAuxVarDestroy(aux%auxvars)
   call RTAuxVarDestroy(aux%auxvars_bc)
   call RTAuxVarDestroy(aux%auxvars_ss)
-  call RTAuxVarDestroy(aux%auxvars_pert)
-  call RTAuxVarDestroy(aux%auxvars_bc_pert)
-  call RTAuxVarDestroy(aux%auxvars_ss_pert)
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%rt_parameter)) then

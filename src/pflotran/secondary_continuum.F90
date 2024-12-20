@@ -619,7 +619,8 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,half_matrix_width, &
   ! Initializing the secondary RT auxvars
   allocate(rt_sec_transport_vars%sec_rt_auxvar(rt_sec_transport_vars%ncells))
   do cell = 1, rt_sec_transport_vars%ncells
-    call RTAuxVarInit(rt_sec_transport_vars%sec_rt_auxvar(cell),reaction,option)
+    call RTAuxVarInit(rt_sec_transport_vars%sec_rt_auxvar(cell),reaction, &
+                      PETSC_FALSE,option)
   enddo
 
   allocate(rt_sec_transport_vars%sec_jac(reaction%naqcomp,reaction%naqcomp))
@@ -900,7 +901,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   pordt = porosity/option%tran_dt * 1.d3
   pordiff = porosity*diffusion_coefficient * 1.d3 * global_auxvar%sat
 
-  call RTAuxVarInit(rt_auxvar,reaction,option)
+  call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
   !Needed for ufd decay
   if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
     allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
@@ -1352,7 +1353,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
   if (option%numerical_derivatives_multi_coupling) then
 
-    call RTAuxVarInit(rt_auxvar,reaction,option)
+    call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
     conc_prim = auxvar%pri_molal
     conc_prim_pert = conc_prim
 
@@ -1847,7 +1848,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = porosity
 
-  call RTAuxVarInit(rt_auxvar,reaction,option)
+  call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
   !Needed for ufd decay
   if (associated(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq) .and. .not.associated(rt_auxvar%total_sorb_eq)) then
     allocate(rt_auxvar%total_sorb_eq(size(sec_transport_vars%sec_rt_auxvar(1)%total_sorb_eq,1)))
