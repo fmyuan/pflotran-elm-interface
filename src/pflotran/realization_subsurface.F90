@@ -1034,7 +1034,6 @@ subroutine RealProcessFlowConditions(realization)
   ! Author: Glenn Hammond
   ! Date: 10/26/11
   !
-
   use Dataset_Base_class
   use Dataset_module
 
@@ -1071,6 +1070,8 @@ subroutine RealProcessFlowConditions(realization)
                  cur_flow_condition%sub_condition_ptr(i)%ptr%gradient, &
                  cur_flow_condition%default_time_storage, &
                  string,option)
+          call FlowSubCondEnsureCompatibility(cur_flow_condition, &
+                     cur_flow_condition%sub_condition_ptr(i)%ptr,option)
         enddo
     end select
     cur_flow_condition => cur_flow_condition%next

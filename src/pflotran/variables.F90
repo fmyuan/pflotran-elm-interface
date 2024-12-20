@@ -212,5 +212,6 @@ module Variables_module
   PetscInt, parameter, public :: GEOMECH_VOLUMETRIC_STRAIN = 170
 
   PetscInt, parameter, public :: WELL_BHP = 171
+  PetscInt, parameter, public :: TOTAL_LIQUID_HEAD             = 172
 
 end module Variables_module

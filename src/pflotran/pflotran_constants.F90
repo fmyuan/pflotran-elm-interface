@@ -314,13 +314,17 @@ module PFLOTRAN_Constants_module
 
   interface Uninitialized
     module procedure UninitializedInteger
+    module procedure UninitializedIntegerArray
     module procedure UninitializedDouble
+    module procedure UninitializedDoubleArray
     module procedure UninitializedMatType
   end interface
 
   interface Initialized
     module procedure InitializedInteger
+    module procedure InitializedIntegerArray
     module procedure InitializedDouble
+    module procedure InitializedDoubleArray
     module procedure InitializedMatType
   end interface
 
@@ -350,6 +354,24 @@ function InitializedInteger(value)
 
 end function InitializedInteger
 
+! ************************************************************************** !
+
+function InitializedIntegerArray(values)
+  !
+  ! Tests whether a variable is initialized based orginally being set to
+  ! the value UNINITIALIZED_INTEGER
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/29/14
+  !
+  implicit none
+
+  PetscInt :: values(:)
+  PetscBool :: InitializedIntegerArray
+
+  InitializedIntegerArray = .not.Uninitialized(values)
+
+end function InitializedIntegerArray
 
 ! ************************************************************************** !
 
@@ -372,10 +394,36 @@ end function UninitializedInteger
 
 ! ************************************************************************** !
 
+function UninitializedIntegerArray(values)
+  !
+  ! Tests whether a variable is uninitialized based orginally being set to
+  ! the value UNINITIALIZED_INTEGER
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/29/14
+  !
+  implicit none
+
+  PetscInt :: values(:)
+  PetscBool :: UninitializedIntegerArray
+  PetscInt :: i
+
+  UninitializedIntegerArray = PETSC_FALSE
+  do i = 1, size(values)
+    if (values(i) == UNINITIALIZED_INTEGER) then
+      UninitializedIntegerArray = PETSC_TRUE
+      return
+    endif
+  enddo
+
+end function UninitializedIntegerArray
+
+! ************************************************************************** !
+
 function InitializedDouble(value)
   !
   ! Tests whether a variable is initialized based orginally being set to
-  ! the value UNINITIALIZED_INTEGER
+  ! the value UNINITIALIZED_DOUBLE
   !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
@@ -391,10 +439,29 @@ end function InitializedDouble
 
 ! ************************************************************************** !
 
+function InitializedDoubleArray(values)
+  !
+  ! Tests whether a variable is initialized based orginally being set to
+  ! the value UNINITIALIZED_DOUBLE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/29/14
+  !
+  implicit none
+
+  PetscReal :: values(:)
+  PetscBool :: InitializedDoubleArray
+
+  InitializedDoubleArray = .not.Uninitialized(values)
+
+end function InitializedDoubleArray
+
+! ************************************************************************** !
+
 function UninitializedDouble(value)
   !
   ! Tests whether a variable is uninitialized based orginally being set to
-  ! the value UNINITIALIZED_INTEGER
+  ! the value UNINITIALIZED_DOUBLE
   !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
@@ -407,6 +474,32 @@ function UninitializedDouble(value)
   UninitializedDouble = (dabs(value-UNINITIALIZED_DOUBLE) < 1.d-20)
 
 end function UninitializedDouble
+
+! ************************************************************************** !
+
+function UninitializedDoubleArray(values)
+  !
+  ! Tests whether a variable is uninitialized based orginally being set to
+  ! the value UNINITIALIZED_INTEGER
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/29/14
+  !
+  implicit none
+
+  PetscReal :: values(:)
+  PetscBool :: UninitializedDoubleArray
+  PetscInt :: i
+
+  UninitializedDoubleArray = PETSC_FALSE
+  do i = 1, size(values)
+    if (dabs(values(i)-UNINITIALIZED_DOUBLE) < 1.d-20) then
+      UninitializedDoubleArray = PETSC_TRUE
+      return
+    endif
+  enddo
+
+end function UninitializedDoubleArray
 
 ! ************************************************************************** !
 
