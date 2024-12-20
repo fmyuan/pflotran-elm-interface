@@ -4602,6 +4602,8 @@ subroutine RTFluxDerivative(rt_parameter,boundary_condition, &
   PetscInt :: idof, ieq
 
   if (rt_numerical_derivatives) then
+    Jup = 0.d0
+    Jdn = 0.d0
     call TFlux(rt_parameter, &
                rt_auxvar_up,global_auxvar_up, &
                rt_auxvar_dn,global_auxvar_dn, &

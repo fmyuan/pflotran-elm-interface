@@ -5576,10 +5576,8 @@ recursive subroutine RTAuxVarCompute(rt_auxvar,global_auxvar, &
 #endif
 
   if (associated(rt_auxvar%auxvar_pert)) then
-    do i = 1, option%ntrandof
-      call RTAuxVarCompute(rt_auxvar%auxvar_pert(i),global_auxvar, &
-                           material_auxvar,reaction,natural_id,option)
-    enddo
+    call RTAuxVarComputePerturbed(rt_auxvar,global_auxvar,material_auxvar, &
+                                  reaction,natural_id,option)
   endif
 
 !  call RTPrintAuxVar(STDOUT_UNIT,rt_auxvar,global_auxvar,material_auxvar, &

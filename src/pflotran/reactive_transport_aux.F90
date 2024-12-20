@@ -19,6 +19,7 @@ module Reactive_Transport_Aux_module
   PetscReal, public :: rt_min_saturation = 1.d-40
 
   PetscBool, public :: rt_numerical_derivatives = PETSC_FALSE
+  PetscReal, public :: rt_numerical_derivative_tol = 1.d-6
 
   type, public :: reactive_transport_auxvar_type
     ! molality
@@ -486,7 +487,6 @@ subroutine RTAuxVarPerturb(auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type), pointer :: auxvar_pert(:)
 
-  PetscReal, parameter :: tolerance = 1.d-6
   PetscReal :: tempreal
   PetscInt :: idof, i
 
@@ -497,12 +497,15 @@ subroutine RTAuxVarPerturb(auxvar,reaction,option)
     if (idof <= reaction%offset_aqueous + reaction%naqcomp) then
       i = idof - reaction%offset_aqueous
       tempreal = auxvar%pri_molal(i)
-      auxvar_pert(idof)%pri_molal(i) = tempreal + tempreal * tolerance
+      auxvar_pert(idof)%pri_molal(i) = tempreal + tempreal * &
+                                                  rt_numerical_derivative_tol
       auxvar_pert(idof)%pert = auxvar_pert(idof)%pri_molal(i) - tempreal
-    else if (idof <= reaction%offset_immobile + reaction%immobile%nimmobile) then
+    else if (idof <= reaction%offset_immobile + &
+                       reaction%immobile%nimmobile) then
       i = idof - reaction%offset_immobile
       tempreal = auxvar%immobile(i)
-      auxvar_pert(idof)%immobile(i) = tempreal + tempreal * tolerance
+      auxvar_pert(idof)%immobile(i) = tempreal + tempreal * &
+                                                 rt_numerical_derivative_tol
       auxvar_pert(idof)%pert = auxvar_pert(idof)%immobile(i) - tempreal
     endif
   enddo
