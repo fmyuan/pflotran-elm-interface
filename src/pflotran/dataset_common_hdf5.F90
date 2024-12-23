@@ -153,10 +153,11 @@ subroutine DatasetCommonHDF5Verify(this,dataset_error,option)
     dataset_error = PETSC_TRUE
   endif
 
-  if (.not.this%is_cell_indexed .and. Uninitialized(this%max_buffer_size)) then
-    call PrintMsg(option,'max buffer size uninitialized')
-    dataset_error = PETSC_TRUE
-  endif
+! need to refactor to use "%hdft_itype == HDF5_DATASET_CELL_INDEXED"
+!  if (.not.this%is_cell_indexed .and. Uninitialized(this%max_buffer_size)) then
+!    call PrintMsg(option,'max buffer size uninitialized')
+!    dataset_error = PETSC_TRUE
+!  endif
 
 end subroutine DatasetCommonHDF5Verify
 
