@@ -4232,11 +4232,12 @@ end subroutine HydrateCompositeThermalCond
 subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
                      option)
   !
-  ! This subroutine calculates the 3-phase equilibrium pressure of methane
-  ! hydrate in pure water, from polynomial fit (Moridis, 2003)
+  ! This subroutine calculates the 3-phase equilibrium pressure of CH4
+  ! hydrate in pure water from polynomial fit (Moridis, 2003) or CO2
+  ! hydrate from a data fit of Men et al. (2022) and based off STOMP-HYD curve
   !
   ! Author: Michael Nole
-  ! Date: 01/22/19
+  ! Date: 01/22/19, 12/20/24
   !
 
   use Characteristic_Curves_module
@@ -4346,14 +4347,6 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         dTf = 0.d0
       endif
       T_k = T_k + dTf
-      !Sloan compilation fit (Clathrate Hydrates of Natural Gases)
-    !   if (T < TQD) then
-    !     PE = 1.1046 + 0.04449 * (T_temp - T273K) + 0.000629 * &
-    !          (T_temp - T273K) ** 2
-    !   else
-    !     PE = 1.2241 + 0.13700 * (T_temp - T273K) ** 2 - 0.0015018 * (T_temp - &
-    !           T273K) ** 3 + 0.0001733 * (T_temp - T273K) ** 4
-    !  endif
       if (T_k < 282.65d0) then
         a = 2.5578965d-2
         b = -1.3946940d1
@@ -4364,8 +4357,8 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         PE = 11.889d0 * T_k - 3356.4d0
         dP = 11.889d0 * (T_k - dTf) - 3356.4d0
       else
-        PE = 45.857d0 * T_k - 12958.d0
-        dP = 45.857d0 * (T_k - dTf) - 12958.d0
+        PE = 17.1817d0 * T_k - 4.86193d3
+        dP = 17.1817d0 * (T_k - dTf) - 4.86193d3
       endif
      PE = min(PE,1.d3)
      dP = min(dP,1.d3)
