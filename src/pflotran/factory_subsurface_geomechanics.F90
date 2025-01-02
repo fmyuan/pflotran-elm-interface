@@ -446,8 +446,9 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   cur_process_model_coupler => simulation%process_model_coupler_list
   call cur_process_model_coupler%SetAuxData()
   !if (associated(cur_process_model_coupler%peer)) then
+  !  cur_process_model_coupler => cur_process_model_coupler%peer
   if (associated(cur_process_model_coupler%child)) then
-    cur_process_model_coupler => cur_process_model_coupler%peer
+    cur_process_model_coupler => cur_process_model_coupler%child
     call cur_process_model_coupler%GetAuxData()
     call cur_process_model_coupler%SetAuxData()
     select type(pmc => cur_process_model_coupler)
@@ -458,11 +459,6 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
 
   call SubsurfGeomechanicsJumpStart(simulation)
 
-  ! jaa: testing if dt init would work here..
-  !print *, '>> (jaa) geomech dt: ', simulation%geomech_process_model_coupler_new%timestepper%dt
-  !print *, '>> (jaa) master§ dt: ', simulation%process_model_coupler_list%timestepper%dt
-
-  !stop
 end subroutine FactorySubsurfGeomechInitSimulation
 
 ! ************************************************************************** !
