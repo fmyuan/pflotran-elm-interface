@@ -580,7 +580,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   grid => patch%geomech_grid
   geom_gl_auxvars => patch%geomech_aux%GeomechGlobal%aux_vars
 
-  call GeomechGridVecGetArrayF90(grid,vec,vec_ptr,ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   iphase = 1
 
@@ -692,6 +692,8 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
             '(''IVAR ('',i3,'') not found in GeomechPatchGetDataset'')') ivar
       call PrintErrMsg(option)
   end select
+
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechPatchGetDataset
 

@@ -663,7 +663,7 @@ recursive subroutine PMERTInitializeRun(this)
   call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
   ! are all electrodes mapped?
   call VecNorm(natural_vec,NORM_1,tempreal,ierr);CHKERRQ(ierr)
-  i = size(this%survey%ipos_electrode) - int(tempreal+1.d-1)
+  i = size(this%survey%ipos_electrode) - nint(tempreal)
   if (i > 0) then
     option%io_buffer = StringWrite(i) // ' unmapped ERT electrodes.'
     call PrintErrMsg(option)
@@ -672,7 +672,7 @@ recursive subroutine PMERTInitializeRun(this)
     option%io_buffer = 'Over-mapped ERT electrodes.'
     call PrintErrMsg(option)
   endif
-  option%io_buffer = StringWrite(int(tempreal+1.d-1)) // &
+  option%io_buffer = StringWrite(nint(tempreal)) // &
     ' (of ' //  StringWrite(size(this%survey%ipos_electrode)) // &
     ') ERT electrodes mapped to cells.'
   call PrintMsg(option)

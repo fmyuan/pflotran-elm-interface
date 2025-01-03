@@ -912,7 +912,7 @@ subroutine HydrostaticTest()
     i = 1
     i_up = 1
     do iz = 1,int(1000.d0/increment(i_increment)+0.5d0)
-      i_dn = i_up + int(increment(i_increment)/increment(1)+1.d-6)
+      i_dn = i_up + nint(increment(i_increment)/increment(1))
       dist = increment(1)
       do
         i = i + 1

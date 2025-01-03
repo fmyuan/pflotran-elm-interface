@@ -748,10 +748,9 @@ subroutine GeomechRealizLocalToLocalWithArray(geomech_realization,array_id)
   ! Date: 06/17/13
   !
 
-  use Geomechanics_Grid_Aux_module
-  use Geomechanics_Grid_module
   use Geomechanics_Field_module
   use Realization_Subsurface_class
+  use Petsc_Utility_module
 
   implicit none
 
@@ -759,18 +758,14 @@ subroutine GeomechRealizLocalToLocalWithArray(geomech_realization,array_id)
   PetscInt :: array_id
 
   type(geomech_patch_type), pointer :: patch
-  type(geomech_grid_type), pointer :: grid
   type(geomech_field_type), pointer :: geomech_field
 
   geomech_field => geomech_realization%geomech_field
   patch => geomech_realization%geomech_patch
-  grid => patch%geomech_grid
 
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GeomechGridCopyIntegerArrayToVec(grid,patch%imat, &
-                                            geomech_field%work_loc, &
-                                            grid%ngmax_node)
+      call PetUtilLoadVec(geomech_field%work_loc,patch%imat)
   end select
 
   call GeomechDiscretizationLocalToLocal(&
@@ -780,9 +775,7 @@ subroutine GeomechRealizLocalToLocalWithArray(geomech_realization,array_id)
 
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GeomechGridCopyVecToIntegerArray(grid,patch%imat, &
-                                            geomech_field%work_loc, &
-                                            grid%ngmax_node)
+      call PetUtilUnloadVec(geomech_field%work_loc,patch%imat)
   end select
 
 end subroutine GeomechRealizLocalToLocalWithArray
