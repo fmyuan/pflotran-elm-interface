@@ -243,9 +243,6 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx, &
                                             geomech_field%disp_r)
-  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
-                                            geomech_field%disp_xx, &
-                                            geomech_field%work)
 
   ! 1 degree of freedom, global
   call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
@@ -256,16 +253,15 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press, &
                                             geomech_field%temp)
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press, &
+                                            geomech_field%work)
 
   ! n degrees of freedom, local
   call GeomechDiscretizationCreateVector(geomech_discretization,NGEODOF, &
                                          geomech_field%disp_xx_loc, &
                                          LOCAL,option)
   call VecSet(geomech_field%disp_xx_loc,0.d0,ierr);CHKERRQ(ierr)
-
-  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
-                                            geomech_field%disp_xx_loc, &
-                                            geomech_field%work_loc)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx_loc, &
@@ -293,6 +289,10 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
                                             geomech_field%imech_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%work_loc)
 
   ! 6 dof for strain and stress
   call GeomechDiscretizationCreateVector(geomech_discretization,SIX_INTEGER, &
