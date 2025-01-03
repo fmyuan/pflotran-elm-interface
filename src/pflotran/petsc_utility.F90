@@ -25,7 +25,8 @@ module Petsc_Utility_module
   public :: PetUtilMatSVBL, &
             PetUtilVecSVBL, &
             PetUtilLoadVec, &
-            PetUtilUnloadVec
+            PetUtilUnloadVec, &
+            PetscUtilCompareMatrices
 
 contains
 
@@ -176,5 +177,67 @@ subroutine PetUtilUnloadVecReal(vec,rarray)
   call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecReal
+
+! ************************************************************************** !
+
+subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,option)
+  !
+  ! Compares values in matrices pinpointing differences.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/02/25
+  !
+  use Option_module
+  use String_module
+
+  implicit none
+
+  Mat :: A, B
+  PetscInt :: nL2G(:) ! from grid%nL2G
+  PetscInt :: nG2A(:)
+  type(option_type) :: option
+
+  PetscInt :: nrow, ncol
+  PetscInt, pointer :: irow_ptr(:), icol_ptr(:)
+  PetscReal :: values_a(1,1000), values_b(1,1000)
+  PetscReal :: value_a, value_b, scale, row_scale
+  PetscBool :: success
+  PetscInt :: i, j
+  PetscInt :: irow(1)
+  PetscErrorCode :: ierr
+
+  call MatGetRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                      nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+  do i = 1, nrow
+    irow(1) = i-1
+    ncol = irow_ptr(i+1)-irow_ptr(i)
+    call MatGetValuesLocal(A,ONE_INTEGER,irow,ncol, &
+                           icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
+                           values_a,ierr);CHKERRQ(ierr)
+    call MatGetValuesLocal(B,ONE_INTEGER,irow,ncol, &
+                           icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
+                           values_b,ierr);CHKERRQ(ierr)
+    do j = 1, ncol
+      value_a = values_a(1,j)
+      value_b = values_b(1,j)
+      row_scale = max(maxval(dabs(values_a(1,1:ncol))), &
+                      maxval(dabs(values_b(1,1:ncol))))
+      scale = max(dabs(value_a),dabs(value_b))
+      if (scale > 0.d0) then
+        if (dabs(value_a - value_b)/scale > 1.d-1 .and. &
+            dabs(value_a - value_b)/row_scale > 1.d-8) then
+          option%io_buffer = 'Large difference - (' // &
+            StringWrite(nG2A(nL2G(i))) // ',' // &
+            StringWrite(nG2A(icol_ptr(j)+1)) // ') : ' // &
+            StringWrite(value_a) // ' vs ' // StringWrite(value_b)
+          call PrintMsgByRank(option)
+        endif
+      endif
+    enddo
+  enddo
+  call MatRestoreRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                          nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+
+end subroutine PetscUtilCompareMatrices
 
 end module Petsc_Utility_module

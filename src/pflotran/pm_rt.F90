@@ -935,7 +935,7 @@ subroutine PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
   ! Date: 03/14/13
   !
   use Reactive_Transport_module, only : RTJacobian
-  use Discretization_module, only : DiscretizationCompareMatrices
+  use Petsc_Utility_module
   use Debug_module
 
 #include "petsc/finclude/petscsys.h"
@@ -975,9 +975,10 @@ subroutine PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
   call MatView(A_analytical,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
-  call DiscretizationCompareMatrices(A_analytical,A_numerical, &
-                                      this%realization%discretization, &
-                                      this%option)
+  call PetscUtilCompareMatrices(A_analytical,A_numerical, &
+                                this%realization%patch%grid%nL2G, &
+                                this%realization%patch%grid%nG2A, &
+                                this%option)
 
   if (original_flag) then ! numerical derivatives
     call MatCopy(A_numerical,A,SAME_NONZERO_PATTERN,ierr);CHKERRQ(ierr)
