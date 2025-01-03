@@ -3121,7 +3121,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                        coef_up,coef_dn)
       call RTFluxDerivative(rt_parameter,PETSC_TRUE, &
                             rt_auxvars_bc(sum_connection), &
-                            global_auxvars(sum_connection), &
+                            global_auxvars_bc(sum_connection), &
                             rt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
                             coef_up,coef_dn,option,Jup,Jdn)
