@@ -18,6 +18,8 @@ module Reactive_Transport_Aux_module
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_min_saturation = 1.d-40
 
+  PetscReal, public :: rt_numerical_derivative_tol = 1.d-6
+
   type, public :: reactive_transport_auxvar_type
     ! molality
     PetscReal, pointer :: pri_molal(:)     ! mol/kg water
@@ -71,6 +73,10 @@ module Reactive_Transport_Aux_module
     ! cumulative mass, etc.
     PetscReal, pointer :: auxiliary_data(:)
 
+    PetscReal :: pert
+
+    type(reactive_transport_auxvar_type), pointer :: auxvar_pert(:)
+
   end type reactive_transport_auxvar_type
 
   type, public :: reactive_transport_param_type
@@ -116,12 +122,18 @@ module Reactive_Transport_Aux_module
 
   interface RTAuxVarDestroy
     module procedure RTAuxVarSingleDestroy
-    module procedure RTAuxVarArrayDestroy
+    module procedure RTAuxVar1DArrayDestroy
+    module procedure RTAuxVar2DArrayDestroy
   end interface RTAuxVarDestroy
 
-  public :: RTAuxCreate, RTAuxDestroy, &
-            RTAuxVarInit, RTAuxVarCopy, RTAuxVarDestroy, &
-            RTAuxVarStrip, RTAuxVarCopyInitialGuess
+  public :: RTAuxCreate, &
+            RTAuxVarInit, &
+            RTAuxVarCopy, &
+            RTAuxVarPerturb, &
+            RTAuxVarCopyInitialGuess, &
+            RTAuxVarDestroy, &
+            RTAuxVarStrip, &
+            RTAuxDestroy
 
 contains
 
@@ -188,7 +200,8 @@ end function RTAuxCreate
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarInit(auxvar,reaction,option)
+recursive subroutine RTAuxVarInit(auxvar,reaction, &
+                                  allocate_perturbation,option)
   !
   ! Initialize auxiliary object
   !
@@ -204,7 +217,9 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: auxvar
   class(reaction_rt_type) :: reaction
+  PetscBool :: allocate_perturbation
   type(option_type) :: option
+  PetscInt :: i
 
   type(surface_complexation_type), pointer :: surface_complexation
 
@@ -349,6 +364,17 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%auxiliary_data)
   endif
 
+  auxvar%pert = 0.d0
+
+  if (allocate_perturbation) then
+    allocate(auxvar%auxvar_pert(reaction%ncomp))
+    do i = 1, reaction%ncomp
+      call RTAuxVarInit(auxvar%auxvar_pert(i),reaction,PETSC_FALSE,option)
+    enddo
+  else
+    nullify(auxvar%auxvar_pert)
+  endif
+
 end subroutine RTAuxVarInit
 
 ! ************************************************************************** !
@@ -441,6 +467,52 @@ end subroutine RTAuxVarCopy
 
 ! ************************************************************************** !
 
+subroutine RTAuxVarPerturb(auxvar,reaction,option)
+  !
+  ! Perturbs an reactive transport aux var for numerical derivatives
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/06/24
+  !
+
+  use Option_module
+  use Reaction_Aux_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  type(reactive_transport_auxvar_type), pointer :: auxvar_pert(:)
+
+  PetscReal :: tempreal
+  PetscInt :: idof, i
+
+  auxvar_pert => auxvar%auxvar_pert
+
+  do idof = 1, option%ntrandof
+    call RTAuxVarCopy(auxvar,auxvar_pert(idof),option)
+    if (idof <= reaction%offset_aqueous + reaction%naqcomp) then
+      i = idof - reaction%offset_aqueous
+      tempreal = auxvar%pri_molal(i)
+      auxvar_pert(idof)%pri_molal(i) = tempreal + tempreal * &
+                                                  rt_numerical_derivative_tol
+      auxvar_pert(idof)%pert = auxvar_pert(idof)%pri_molal(i) - tempreal
+    else if (idof <= reaction%offset_immobile + &
+                       reaction%immobile%nimmobile) then
+      i = idof - reaction%offset_immobile
+      tempreal = auxvar%immobile(i)
+      auxvar_pert(idof)%immobile(i) = tempreal + tempreal * &
+                                                 rt_numerical_derivative_tol
+      auxvar_pert(idof)%pert = auxvar_pert(idof)%immobile(i) - tempreal
+    endif
+  enddo
+
+end subroutine RTAuxVarPerturb
+
+! ************************************************************************** !
+
 subroutine RTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
   !
   ! Copies select entries in rt_auxvar that serve as an initial guess when
@@ -499,7 +571,7 @@ end subroutine RTAuxVarSingleDestroy
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarArrayDestroy(auxvars)
+subroutine RTAuxVar1DArrayDestroy(auxvars)
   !
   ! Deallocates a mode auxiliary object
   !
@@ -521,11 +593,39 @@ subroutine RTAuxVarArrayDestroy(auxvars)
   endif
   nullify(auxvars)
 
-end subroutine RTAuxVarArrayDestroy
+end subroutine RTAuxVar1DArrayDestroy
 
 ! ************************************************************************** !
 
-subroutine RTAuxVarStrip(auxvar)
+subroutine RTAuxVar2DArrayDestroy(auxvars)
+  !
+  ! Deallocates a mode auxiliary object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/06/24
+  !
+
+  implicit none
+
+  type(reactive_transport_auxvar_type), pointer :: auxvars(:,:)
+
+  PetscInt :: iaux, idof
+
+  if (associated(auxvars)) then
+    do iaux = 1, size(auxvars,2)
+      do idof = 1, size(auxvars,1)
+        call RTAuxVarStrip(auxvars(idof,iaux))
+      enddo
+    enddo
+    deallocate(auxvars)
+  endif
+  nullify(auxvars)
+
+end subroutine RTAuxVar2DArrayDestroy
+
+! ************************************************************************** !
+
+recursive subroutine RTAuxVarStrip(auxvar)
   !
   ! Deallocates all members of single auxiliary object
   !
@@ -538,6 +638,8 @@ subroutine RTAuxVarStrip(auxvar)
   implicit none
 
   type(reactive_transport_auxvar_type) :: auxvar
+
+  PetscInt :: i
 
   call DeallocateArray(auxvar%pri_molal)
   call DeallocateArray(auxvar%total)
@@ -574,6 +676,12 @@ subroutine RTAuxVarStrip(auxvar)
 
   call DeallocateArray(auxvar%immobile)
   call DeallocateArray(auxvar%auxiliary_data)
+
+  if (associated(auxvar%auxvar_pert)) then
+    do i = 1, size(auxvar%auxvar_pert)
+      call RTAuxVarStrip(auxvar%auxvar_pert(i))
+    enddo
+  endif
 
 end subroutine RTAuxVarStrip
 

@@ -1178,7 +1178,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             if (.not.associated(cur_constraint_coupler%rt_auxvar)) then
               allocate(cur_constraint_coupler%rt_auxvar)
               call RTAuxVarInit(cur_constraint_coupler%rt_auxvar, &
-                                patch%reaction,option)
+                                patch%reaction,PETSC_FALSE,option)
             endif
           class is (tran_constraint_coupler_nwt_type)
             if (.not.associated(cur_constraint_coupler%nwt_auxvar)) then

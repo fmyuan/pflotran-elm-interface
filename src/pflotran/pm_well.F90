@@ -2514,7 +2514,7 @@ subroutine PMWellSetup(this)
         call GlobalAuxVarInit(auxvars_ss(iconn),option)
         if (option%ntrandof > 0) then
           call RTAuxVarInit(realization%patch%aux%RT%auxvars_ss(iconn), &
-                            realization%reaction,option)
+                            realization%reaction,PETSC_FALSE,option)
         endif
       enddo
     endif

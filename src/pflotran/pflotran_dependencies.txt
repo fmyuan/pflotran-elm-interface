@@ -178,6 +178,7 @@ condition.o : \
   dataset.o \
   dataset_ascii.o \
   dataset_base.o \
+  dataset_map_hdf5.o \
   general_aux.o \
   global_aux.o \
   hdf5_aux.o \
