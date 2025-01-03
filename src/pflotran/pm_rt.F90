@@ -41,6 +41,7 @@ module PM_RT_class
     PetscBool :: transient_porosity
     PetscBool :: operator_split
     PetscBool :: debug_update
+    PetscBool :: debug_derivatives
     ! for convergence
     PetscBool :: refactored_convergence
     PetscBool, pointer :: converged_flag(:)
@@ -150,6 +151,7 @@ subroutine PMRTInit(pm_rt)
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
   pm_rt%debug_update = PETSC_FALSE
+  pm_rt%debug_derivatives = PETSC_FALSE
 
   pm_rt%refactored_convergence = PETSC_FALSE
   nullify(pm_rt%converged_flag)
@@ -227,12 +229,12 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         this%print_ekg = PETSC_TRUE
       case('DEBUG_UPDATE')
         this%debug_update = PETSC_TRUE
+      case('DEBUG_DERIVATIVES')
+        this%debug_derivatives = PETSC_TRUE
+        this%option%transport%numerical_derivatives = PETSC_TRUE
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
-      case('DERIVATIVE_PERTURBATION_TOL')
-        call InputReadDouble(input,option,rt_numerical_derivative_tol)
-        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -917,9 +919,77 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call RTJacobian(snes,xx,A,B,this%realization,ierr)
+  if (this%debug_derivatives) then
+    call PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
+  else
+    call RTJacobian(snes,xx,A,B,this%realization,ierr)
+  endif
 
 end subroutine PMRTJacobian
+
+! ************************************************************************** !
+
+subroutine PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/14/13
+  !
+  use Reactive_Transport_module, only : RTJacobian
+  use Discretization_module, only : DiscretizationCompareMatrices
+  use Debug_module
+
+#include "petsc/finclude/petscsys.h"
+  implicit none
+
+  class(pm_rt_type) :: this
+  SNES :: snes
+  Vec :: xx
+  Mat :: A, B
+  PetscErrorCode :: ierr
+
+  Mat :: A_analytical
+  Mat :: A_numerical
+  PetscBool :: original_flag
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+
+  original_flag = this%option%transport%numerical_derivatives
+  call MatDuplicate(A,MAT_SHARE_NONZERO_PATTERN,A_numerical, &
+                    ierr);CHKERRQ(ierr)
+  call MatDuplicate(A,MAT_SHARE_NONZERO_PATTERN,A_analytical, &
+                    ierr);CHKERRQ(ierr)
+
+  this%option%transport%numerical_derivatives = PETSC_TRUE
+  call RTJacobian(snes,xx,A_numerical,A_numerical,this%realization,ierr)
+  string = 'RT_jacobian_numerical'
+  call DebugCreateViewer(this%realization%debug,string, &
+                          this%realization%option,viewer)
+  call MatView(A_numerical,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+  this%option%transport%numerical_derivatives = PETSC_FALSE
+  call RTJacobian(snes,xx,A_analytical,A_analytical,this%realization,ierr)
+  string = 'RT_jacobian_analytical'
+  call DebugCreateViewer(this%realization%debug,string, &
+                          this%realization%option,viewer)
+  call MatView(A_analytical,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+  call DiscretizationCompareMatrices(A_analytical,A_numerical, &
+                                      this%realization%discretization, &
+                                      this%option)
+
+  if (original_flag) then ! numerical derivatives
+    call MatCopy(A_numerical,A,SAME_NONZERO_PATTERN,ierr);CHKERRQ(ierr)
+  else
+    call MatCopy(A_analytical,A,SAME_NONZERO_PATTERN,ierr);CHKERRQ(ierr)
+  endif
+
+  call MatDestroy(A_numerical,ierr);CHKERRQ(ierr)
+  call MatDestroy(A_analytical,ierr);CHKERRQ(ierr)
+  this%option%transport%numerical_derivatives = original_flag
+
+end subroutine PMRTDebugDerivatives
 
 ! ************************************************************************** !
 
