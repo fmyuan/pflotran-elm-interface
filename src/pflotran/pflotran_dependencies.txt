@@ -1871,7 +1871,9 @@ patch.o : \
   wipp_flow_aux.o \
   zflow_aux.o
 petsc_utility.o : \
-  pflotran_constants.o
+  option.o \
+  pflotran_constants.o \
+  string.o
 pflotran.o : \
   driver.o \
   factory_pflotran.o \
@@ -2227,6 +2229,7 @@ pm_rt.o : \
   condition_control.o \
   convergence.o \
   data_mediator.o \
+  debug.o \
   discretization.o \
   field.o \
   global.o \
@@ -2240,6 +2243,7 @@ pm_rt.o : \
   option.o \
   output_ekg.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   reaction_aux.o \
