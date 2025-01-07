@@ -667,10 +667,10 @@ print *, 'PMCGeomechanicsGetAuxData'
                             ONEDOF)
 
       call GeomechDiscretizationGlobalToLocal( &
-                            pmc%geomech_realization%geomech_discretization, &
-                            pmc%geomech_realization%geomech_field%fluid_density, &
-                            pmc%geomech_realization%geomech_field%fluid_density_loc, &
-                            ONEDOF)
+                    pmc%geomech_realization%geomech_discretization, &
+                    pmc%geomech_realization%geomech_field%fluid_density, &
+                    pmc%geomech_realization%geomech_field%fluid_density_loc, &
+                    ONEDOF)
 
   end select
 
