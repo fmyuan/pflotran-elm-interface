@@ -827,7 +827,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt :: ipref, ipref_species
   ! I am assuming a maximum of 10 prefactors and 5 species per prefactor
   PetscReal :: tempreal
-  PetscReal :: dcplx_dprimary
+  PetscReal :: dspec_dprimary
   PetscReal :: affinity_factor, sign_
   PetscReal :: Im, Im_const, dIm_dQK
   PetscReal :: ln_conc(reaction%naqcomp)
@@ -1208,7 +1208,6 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
           dIm_dspec = dIm_dsum_prefactor_rate * dprefactor_dprefactor_spec * &
                       dprefactor_spec_dspec * rate_constant * arrhenius_factor
 
-
           if (icomp > 0) then
             ! add derivative for primary species
             do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
@@ -1240,14 +1239,14 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
             ! respect to free
             do j = 1, reaction%eqcplxspecid(0,icplx)
               jcomp = reaction%eqcplxspecid(j,icplx)
-              dcplx_dprimary = reaction%eqcplxstoich(j,icplx) * &
+              dspec_dprimary = reaction%eqcplxstoich(j,icplx) * &
                                exp(lnQK-ln_conc(jcomp)) / &
                                rt_auxvar%sec_act_coef(icplx)
               do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
                 icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
                 Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
-                  mineral%kinmnrlstoich_in_residual(i,icplx)* &
-                  dIm_dspec*dcplx_dprimary
+                  mineral%kinmnrlstoich_in_residual(i,imnrl)* &
+                  dIm_dspec*dspec_dprimary
               enddo
             enddo
           endif
@@ -1292,7 +1291,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
   PetscBool :: cycle_
 
   PetscReal :: lnQK
-  PetscInt :: i, imnrl, icomp, ncomp, ipref, ipref_species
+  PetscInt :: i, imnrl, icomp, ipref, ipref_species
   PetscBool :: precipitation
   PetscReal :: sign_
   PetscReal :: rate_constant
@@ -1314,8 +1313,7 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
                   rt_auxvar%ln_act_h2o
   endif
 
-  ncomp = mineral%kinmnrlspecid(0,imnrl)
-  do i = 1, ncomp
+  do i = 1, mineral%kinmnrlspecid(0,imnrl)
     icomp = mineral%kinmnrlspecid(i,imnrl)
     lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
   enddo
