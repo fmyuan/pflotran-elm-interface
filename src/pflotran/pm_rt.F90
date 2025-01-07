@@ -1029,10 +1029,6 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-  dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
-  call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-
   if (reaction%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
