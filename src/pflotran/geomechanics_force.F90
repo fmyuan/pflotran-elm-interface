@@ -2246,6 +2246,10 @@ subroutine GeomechStoreInitialPressTemp(geomech_realization)
                geomech_realization%geomech_field%temp_init_loc, &
                ierr);CHKERRQ(ierr)
 
+  call VecCopy(geomech_realization%geomech_field%fluid_density_loc, &
+               geomech_realization%geomech_field%fluid_density_init_loc, &
+               ierr);CHKERRQ(ierr)
+
 end subroutine GeomechStoreInitialPressTemp
 
 ! ************************************************************************** !

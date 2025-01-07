@@ -33,7 +33,7 @@ module Geomechanics_Field_module
 
     Vec :: porosity_init_loc
 
-    ! jaa testing: for set as a single phase. Extend later!
+    ! jaa testing
     Vec :: fluid_density ! store density from subsurf
     Vec :: fluid_density_loc
     Vec :: fluid_density_init_loc

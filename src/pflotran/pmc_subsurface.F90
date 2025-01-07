@@ -767,6 +767,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   use Richards_Aux_module
   use TH_Aux_module
   use Mphase_Aux_module
+  use Global_Aux_module
 
   implicit none
 
@@ -775,6 +776,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   type(grid_type), pointer :: subsurf_grid
   type(option_type), pointer :: option
   type(field_type), pointer :: subsurf_field
+  type(global_auxvar_type), pointer :: global_auxvars(:)
 
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
@@ -840,6 +842,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                             ierr);CHKERRQ(ierr)
 
+        ! jaa testing
+        global_auxvars => pmc%realization%patch%aux%global%auxvars
+
         do local_id = 1, subsurf_grid%nlmax
           ghosted_id = subsurf_grid%nL2G(local_id)
           pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
@@ -851,8 +856,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
-            fluid_den_p(local_id) = pmc%realization%patch%aux%global%auxvars(ghosted_id)%den_kg(1)
           endif
+          ! jaa testing
+          fluid_den_p(local_id) = global_auxvars(ghosted_id)%den_kg(1)
         enddo
 
         call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
