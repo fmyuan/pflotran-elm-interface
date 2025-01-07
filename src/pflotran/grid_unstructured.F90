@@ -3423,7 +3423,7 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
     do ghosted_id = 1, ugrid%ngmax
       cell_vertices_natural_new_1d((ghosted_id-1)* &
                                    ugrid%max_nvert_per_cell+ivertex) = &
-        int(vec_loc_ptr(ghosted_id)+1.d-4)
+        nint(vec_loc_ptr(ghosted_id))
     enddo
     call VecRestoreArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
   enddo

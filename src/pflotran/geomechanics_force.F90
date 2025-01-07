@@ -279,7 +279,7 @@ subroutine GeomechanicsForceInitialGuess(geomech_realization)
   patch => geomech_realization%geomech_patch
   grid => patch%geomech_grid
 
-  call GeomechGridVecGetArrayF90(grid,field%disp_xx,xx_p,ierr)
+  call VecGetArrayf90(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
 
   boundary_condition => patch%geomech_boundary_condition_list%first
   total_verts = 0
@@ -331,7 +331,7 @@ subroutine GeomechanicsForceInitialGuess(geomech_realization)
     boundary_condition => boundary_condition%next
   enddo
 
-  call GeomechGridVecRestoreArrayF90(grid,field%disp_xx,xx_p,ierr)
+  call VecRestoreArrayf90(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechanicsForceInitialGuess
 
@@ -377,9 +377,8 @@ subroutine GeomechForceUpdateAuxVars(geomech_realization)
 
   geomech_global_aux_vars => patch%geomech_aux%GeomechGlobal%aux_vars
 
-  call GeomechGridVecGetArrayF90(grid,geomech_field%disp_xx_loc,xx_loc_p,ierr)
-  call GeomechGridVecGetArrayF90(grid,geomech_field%disp_xx_init_loc, &
-                                 xx_init_loc_p,ierr)
+  call VecGetArrayF90(geomech_field%disp_xx_loc,xx_loc_p,ierr)
+  call VecGetArrayF90(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
 
   ! Internal aux vars
   do ghosted_id = 1, grid%ngmax_node
@@ -406,10 +405,8 @@ subroutine GeomechForceUpdateAuxVars(geomech_realization)
       xx_init_loc_p(GEOMECH_DISP_Z_DOF + (ghosted_id-1)*THREE_INTEGER)
  enddo
 
-  call GeomechGridVecRestoreArrayF90(grid,geomech_field%disp_xx_loc, &
-                                     xx_loc_p,ierr)
-  call GeomechGridVecRestoreArrayF90(grid,geomech_field%disp_xx_init_loc, &
-                                     xx_init_loc_p,ierr)
+  call VecRestoreArrayF90(geomech_field%disp_xx_loc,xx_loc_p,ierr)
+  call VecRestoreArrayF90(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
 
 
 end subroutine GeomechForceUpdateAuxVars
@@ -591,15 +588,15 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       local_press(ivertex) = press(ghosted_id) - press_init(ghosted_id)  ! p - p_0
       local_temp(ivertex) = temp(ghosted_id) - temp_init(ghosted_id)     ! T - T_0
       alpha_vec(ivertex) = &
-        GeomechParam%thermal_exp_coef(int(imech_loc_p(ghosted_id)))
+        GeomechParam%thermal_exp_coef(nint(imech_loc_p(ghosted_id)))
       beta_vec(ivertex) = &
-        GeomechParam%biot_coef(int(imech_loc_p(ghosted_id)))
+        GeomechParam%biot_coef(nint(imech_loc_p(ghosted_id)))
       density_vec(ivertex) = &
-        GeomechParam%density(int(imech_loc_p(ghosted_id)))
+        GeomechParam%density(nint(imech_loc_p(ghosted_id)))
       youngs_vec(ivertex) = &
-        GeomechParam%youngs_modulus(int(imech_loc_p(ghosted_id)))
+        GeomechParam%youngs_modulus(nint(imech_loc_p(ghosted_id)))
       poissons_vec(ivertex) = &
-        GeomechParam%poissons_ratio(int(imech_loc_p(ghosted_id)))
+        GeomechParam%poissons_ratio(nint(imech_loc_p(ghosted_id)))
     enddo
     size_elenodes = size(elenodes)
     call GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
@@ -1460,9 +1457,9 @@ subroutine GeomechForceJacobianLinearPart(A,geomech_realization)
           geomech_global_aux_vars(ghosted_id)%disp_vector(idof)
       enddo
       youngs_vec(ivertex) = &
-        GeomechParam%youngs_modulus(int(imech_loc_p(ghosted_id)))
+        GeomechParam%youngs_modulus(nint(imech_loc_p(ghosted_id)))
       poissons_vec(ivertex) = &
-        GeomechParam%poissons_ratio(int(imech_loc_p(ghosted_id)))
+        GeomechParam%poissons_ratio(nint(imech_loc_p(ghosted_id)))
     enddo
     size_elenodes = size(elenodes)
     call GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
@@ -1633,14 +1630,12 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
 
   ! pressure
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call GeomechGridVecGetArrayF90(geomech_grid, &
-                                 geomech_field%subsurf_vec_1dof,vec_p,ierr)
+  call VecGetArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     vec_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id-1)+1)
   enddo
-  call GeomechGridVecRestoreArrayF90(geomech_grid, &
-                                     geomech_field%subsurf_vec_1dof,vec_p,ierr)
+  call VecRestoreArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Scatter the data
@@ -1654,15 +1649,12 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
   ! temperature
   if (option%nflowdof > 1) then
     call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-    call GeomechGridVecGetArrayF90(geomech_grid, &
-                                   geomech_field%subsurf_vec_1dof,vec_p,ierr)
+    call VecGetArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       vec_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id-1)+2)
     enddo
-    call GeomechGridVecRestoreArrayF90(geomech_grid, &
-                                       geomech_field%subsurf_vec_1dof, &
-                                       vec_p,ierr)
+    call VecRestoreArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
     call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
     ! Scatter the data
@@ -1978,9 +1970,9 @@ subroutine GeomechForceStressStrain(geomech_realization)
           (petsc_ids(ivertex)-1)*option%ngeomechdof + (idof-1)
       enddo
       youngs_vec(ivertex) = &
-        GeomechParam%youngs_modulus(int(imech_loc_p(ghosted_id)))
+        GeomechParam%youngs_modulus(nint(imech_loc_p(ghosted_id)))
       poissons_vec(ivertex) = &
-        GeomechParam%poissons_ratio(int(imech_loc_p(ghosted_id)))
+        GeomechParam%poissons_ratio(nint(imech_loc_p(ghosted_id)))
     enddo
     size_elenodes = size(elenodes)
     call GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
@@ -2029,9 +2021,9 @@ subroutine GeomechForceStressStrain(geomech_realization)
   do local_id = 1, grid%nlmax_node
     do idof = 1, SIX_INTEGER
       strain_p(idof + (local_id-1)*SIX_INTEGER) = &
-        strain_p(idof + (local_id-1)*SIX_INTEGER)/int(no_elems_p(local_id))
+        strain_p(idof + (local_id-1)*SIX_INTEGER)/nint(no_elems_p(local_id))
       stress_p(idof + (local_id-1)*SIX_INTEGER) = &
-        stress_p(idof + (local_id-1)*SIX_INTEGER)/int(no_elems_p(local_id))
+        stress_p(idof + (local_id-1)*SIX_INTEGER)/nint(no_elems_p(local_id))
     enddo
   enddo
   call VecRestoreArrayF90(field%stress,stress_p,ierr);CHKERRQ(ierr)

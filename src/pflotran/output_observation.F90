@@ -1100,7 +1100,7 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
                          ierr);CHKERRQ(ierr)
   end select
 
-  agg_rank = int(global_metric(2)+1.d-5)
+  agg_rank = nint(global_metric(2))
 
   if (option%myrank == agg_rank) then
 
@@ -1187,7 +1187,7 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
     if (cur_variable%iformat == 0) then ! real
       write(fid,110,advance="no") temp_real
     else ! integer
-      write(fid,111,advance="no") int(temp_real + 1.d-5)
+      write(fid,111,advance="no") nint(temp_real)
     endif
     cur_variable => cur_variable%next
   enddo
@@ -1310,7 +1310,7 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
     if (cur_variable%iformat == 0) then ! real
       write(fid,110,advance="no") temp_real
     else ! integer
-      write(fid,111,advance="no") int(temp_real + 1.d-5)
+      write(fid,111,advance="no") nint(temp_real)
     endif
     cur_variable => cur_variable%next
   enddo

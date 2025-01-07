@@ -699,7 +699,7 @@ contains
           if (cur_variable%iformat == 0) then ! real
             rdata(icell) = tmp_real
           else                                ! integer
-            idata(icell) = int(tmp_real + 1.d-5)
+            idata(icell) = nint(tmp_real)
           endif
 
         enddo

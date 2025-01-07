@@ -10405,7 +10405,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
     case(STATE,PHASE)
       do local_id=1,grid%nlmax
         patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
-          int(vec_ptr(local_id)+1.d-10)
+          nint(vec_ptr(local_id))
       enddo
     case(VOLUME,TORTUOSITY,TORTUOSITY_Y,TORTUOSITY_Z,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)

@@ -439,7 +439,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
       end select
     case(STATE)
       do ghosted_id=1, grid%ngmax
-        auxvars(ghosted_id)%istate = int(vec_loc_p(ghosted_id)+1.d-10)
+        auxvars(ghosted_id)%istate = nint(vec_loc_p(ghosted_id))
       enddo
     case(DARCY_VELOCITY)
       do ghosted_id=1, grid%ngmax

@@ -822,6 +822,7 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   use Logging_module
   use Input_Aux_module
   use Material_module
+  use Petsc_Utility_module
 
   use HDF5_module
 
@@ -862,9 +863,7 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
                                          filename,group_name, &
                                          dataset_name,realization_dependent)
     call DiscretizationGlobalToLocal(discretization,global_vec,local_vec,ONEDOF)
-    call GridCopyVecToIntegerArray(grid,patch%imat,local_vec,grid%ngmax)
-    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-    call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
+    call PetUtilUnloadVec(local_vec,patch%imat)
   else
     call PetscLogEventBegin(logging%event_hash_map,ierr);CHKERRQ(ierr)
     call GridCreateNaturalToGhostedHash(grid,option)

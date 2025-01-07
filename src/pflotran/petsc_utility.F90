@@ -150,7 +150,7 @@ subroutine PetUtilUnloadVecInt(vec,iarray)
   PetscErrorCode :: ierr
 
   call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
-  iarray(:) = int(vec_ptr(:)+1.d-5)
+  iarray(:) = nint(vec_ptr(:))
   call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecInt
