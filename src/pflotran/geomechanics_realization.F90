@@ -292,7 +292,19 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
+<<<<<<< HEAD
                                             geomech_field%work_loc)
+=======
+                                            geomech_field%fluid_density)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%fluid_density_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%fluid_density_init_loc)
+>>>>>>> b23a53b73 (adding fluid density to geomech auxvars)
 
   ! 6 dof for strain and stress
   call GeomechDiscretizationCreateVector(geomech_discretization,SIX_INTEGER, &

@@ -514,8 +514,8 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   PetscInt, allocatable :: petsc_ids(:)
   PetscInt, allocatable :: ids(:)
   PetscReal, allocatable :: res_vec(:)
-  PetscReal, pointer :: press(:), temp(:)
-  PetscReal, pointer :: press_init(:), temp_init(:)
+  PetscReal, pointer :: press(:), temp(:), fluid_density(:)
+  PetscReal, pointer :: press_init(:), temp_init(:), fluid_density_init(:)
   PetscReal, allocatable :: beta_vec(:), alpha_vec(:)
   PetscReal, allocatable :: density_vec(:)
   PetscReal, allocatable :: youngs_vec(:), poissons_vec(:)
@@ -548,10 +548,14 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecGetArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
+
+  ! jaa - want to pass fluid density from subsurface
 
   ! Get initial pressure and temperature
   call VecGetArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%fluid_density_init_loc,fluid_density_init,ierr);CHKERRQ(ierr)
 
   ! Loop over elements on a processor
   do ielem = 1, grid%nlmax_elem

@@ -779,6 +779,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
+  PetscScalar, pointer :: fluid_den_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
 
@@ -836,6 +837,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+                            ierr);CHKERRQ(ierr)
 
         do local_id = 1, subsurf_grid%nlmax
           ghosted_id = subsurf_grid%nL2G(local_id)
@@ -848,6 +851,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
+            fluid_den_p(local_id) = pmc%realization%patch%aux%global%auxvars(ghosted_id)%den_kg(1)
+                                            
           endif
         enddo
 
@@ -856,6 +861,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
                                 ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                                 ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then

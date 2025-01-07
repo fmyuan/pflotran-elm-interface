@@ -33,6 +33,11 @@ module Geomechanics_Field_module
 
     Vec :: porosity_init_loc
 
+    ! jaa testing: for set as a single phase. Extend later!
+    Vec :: fluid_density ! store density from subsurf
+    Vec :: fluid_density_loc
+    Vec :: fluid_density_init_loc
+
     ! Solution vectors (xx = current iterate)
     Vec :: disp_xx, disp_xx_loc
     Vec :: disp_xx_init_loc
@@ -90,6 +95,11 @@ function GeomechFieldCreate()
   geomech_field%stress_subsurf_loc = PETSC_NULL_VEC
 
   geomech_field%porosity_init_loc = PETSC_NULL_VEC
+
+  ! jaa testing
+  geomech_field%fluid_density = PETSC_NULL_VEC
+  geomech_field%fluid_density_loc = PETSC_NULL_VEC
+  geomech_field%fluid_density_init_loc = PETSC_NULL_VEC
 
   GeomechFieldCreate => geomech_field
 
@@ -187,6 +197,17 @@ subroutine GeomechFieldDestroy(geomech_field)
 
   if (geomech_field%porosity_init_loc /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
+  endif
+
+  ! jaa testing
+  if (geomech_field%fluid_density /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%fluid_density_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density_loc,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%fluid_density_init_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density_init_loc,ierr);CHKERRQ(ierr)
   endif
 
   if (associated(geomech_field)) deallocate(geomech_field)
