@@ -852,7 +852,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
             fluid_den_p(local_id) = pmc%realization%patch%aux%global%auxvars(ghosted_id)%den_kg(1)
-                                            
           endif
         enddo
 
