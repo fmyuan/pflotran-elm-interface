@@ -823,10 +823,11 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
 
-  PetscInt :: i, j, imnrl, icomp, jcomp, iphase, ncomp
+  PetscInt :: i, j, imnrl, icomp, jcomp, iphase
   PetscInt :: ipref, ipref_species
   ! I am assuming a maximum of 10 prefactors and 5 species per prefactor
   PetscReal :: tempreal
+  PetscReal :: dcplx_dprimary
   PetscReal :: affinity_factor, sign_
   PetscReal :: Im, Im_const, dIm_dQK
   PetscReal :: ln_conc(reaction%naqcomp)
@@ -928,8 +929,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
                     rt_auxvar%ln_act_h2o
     endif
 
-    ncomp = mineral%kinmnrlspecid(0,imnrl)
-    do i = 1, ncomp
+    do i = 1, mineral%kinmnrlspecid(0,imnrl)
       icomp = mineral%kinmnrlspecid(i,imnrl)
       lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
     enddo
@@ -1067,8 +1067,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     ! units: mol/sec
     Im = Im*material_auxvar%volume
 
-    ncomp = mineral%kinmnrlspecid_in_residual(0,imnrl)
-    do i = 1, ncomp
+    do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
       icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
       Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
     enddo
@@ -1107,7 +1106,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
 
     ! derivatives with respect to primary species in reaction quotient
     if (mineral%kinmnrl_rate_limiter(imnrl) <= 0.d0) then
-      do j = 1, ncomp
+      do j = 1, mineral%kinmnrlspecid(0,imnrl)
         jcomp = mineral%kinmnrlspecid(j,imnrl)
         ! unit = L water/mol
         dQK_dCj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
@@ -1115,18 +1114,19 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
         !       = kg water/mol
         ! the multiplication by den_kg could be moved outside the loop
         dQK_dmj = dQK_dCj*global_auxvar%den_kg(iphase)*1.d-3
-        do i = 1, ncomp
-          icomp = mineral%kinmnrlspecid(i,imnrl)
+        do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+          icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
           ! units = (mol/sec)*(kg water/mol) = kg water/sec
           Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
-                             mineral%kinmnrlstoich(i,imnrl)*dIm_dQK*dQK_dmj
+                             mineral%kinmnrlstoich_in_residual(i,imnrl)* &
+                             dIm_dQK*dQK_dmj
         enddo
       enddo
 
     else
 
       den = 1.d0+(1.d0-affinity_factor)/mineral%kinmnrl_rate_limiter(imnrl)
-      do j = 1, ncomp
+      do j = 1, mineral%kinmnrlspecid(0,imnrl)
         jcomp = mineral%kinmnrlspecid(j,imnrl)
         ! unit = L water/mol
         dQK_dCj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
@@ -1134,12 +1134,12 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
         !       = kg water/mol
         ! the multiplication by density could be moved outside the loop
         dQK_dmj = dQK_dCj*global_auxvar%den_kg(iphase)*1.d-3
-        do i = 1, ncomp
-          icomp = mineral%kinmnrlspecid(i,imnrl)
+        do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+          icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
           ! units = (mol/sec)*(kg water/mol) = kg water/sec
           Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
-            mineral%kinmnrlstoich(i,imnrl)*dIm_dQK  &
-            *(1.d0 + QK/mineral%kinmnrl_rate_limiter(imnrl)/den)*dQK_dmj/den
+            mineral%kinmnrlstoich_in_residual(i,imnrl)*dIm_dQK*  &
+            (1.d0 + QK/mineral%kinmnrl_rate_limiter(imnrl)/den)*dQK_dmj/den
         enddo
       enddo
     endif
@@ -1211,11 +1211,12 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
 
           if (icomp > 0) then
             ! add derivative for primary species
-            do i = 1, ncomp
-              jcomp = mineral%kinmnrlspecid(i,imnrl)
+            do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+              jcomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
               ! units = (mol/sec)*(kg water/mol) = kg water/sec
               Jac(jcomp,icomp) = Jac(jcomp,icomp) + &
-                                 mineral%kinmnrlstoich(i,imnrl)*dIm_dspec
+                                 mineral%kinmnrlstoich_in_residual(i,imnrl)* &
+                                 dIm_dspec
             enddo
           else ! secondary species -- have to calculate the derivative
             ! have to recalculate the reaction quotient (QK) for secondary
@@ -1231,22 +1232,22 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
                             rt_auxvar%ln_act_h2o
             endif
 
-            ncomp = reaction%eqcplxspecid(0,icplx)
-            do i = 1, ncomp
+            do i = 1, reaction%eqcplxspecid(0,icplx)
               icomp = reaction%eqcplxspecid(i,icplx)
               lnQK = lnQK + reaction%eqcplxstoich(i,icplx)*ln_act(icomp)
             enddo
             ! add contribution to derivatives secondary prefactor with
             ! respect to free
-            do j = 1, ncomp
+            do j = 1, reaction%eqcplxspecid(0,icplx)
               jcomp = reaction%eqcplxspecid(j,icplx)
-              tempreal = reaction%eqcplxstoich(j,icplx) * &
-                         exp(lnQK-ln_conc(jcomp)) / &
-                         rt_auxvar%sec_act_coef(icplx)
-              do i = 1, ncomp
-                icomp = reaction%eqcplxspecid(i,icplx)
+              dcplx_dprimary = reaction%eqcplxstoich(j,icplx) * &
+                               exp(lnQK-ln_conc(jcomp)) / &
+                               rt_auxvar%sec_act_coef(icplx)
+              do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+                icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
                 Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
-                  reaction%eqcplxstoich(i,icplx)*tempreal*dIm_dspec
+                  mineral%kinmnrlstoich_in_residual(i,icplx)* &
+                  dIm_dspec*dcplx_dprimary
               enddo
             enddo
           endif
@@ -1660,7 +1661,7 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
   type(option_type) :: option
 
   PetscInt, save :: icount = 0
-  PetscInt :: imnrl, iaqspec, ncomp, icomp
+  PetscInt :: imnrl, iaqspec, icomp
   PetscReal :: delta_volfrac
   PetscReal :: res(reaction%ncomp) ! has to be sized accurately
   PetscReal :: jac(1,1) ! strictly a dummy array
@@ -1687,8 +1688,7 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
 
     ! CO2-specific
     if (option%transport%couple_co2) then
-      ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
-      do iaqspec = 1, ncomp
+      do iaqspec = 1, reaction%mineral%kinmnrlspecid_in_residual(0,imnrl)
         icomp = reaction%mineral%kinmnrlspecid_in_residual(iaqspec,imnrl)
         !geh: this is problematic. once back to the flow side, the co2 src/sink
         !     rate depends on the previous flow time step size
