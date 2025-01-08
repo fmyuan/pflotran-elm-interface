@@ -41,7 +41,8 @@ module PM_RT_class
     PetscBool :: transient_porosity
     PetscBool :: operator_split
     PetscBool :: debug_update
-    PetscBool :: debug_derivatives
+    PetscReal :: debug_derivatives_rtol
+    PetscReal :: debug_derivatives_row_rtol
     ! for convergence
     PetscBool :: refactored_convergence
     PetscBool, pointer :: converged_flag(:)
@@ -151,7 +152,8 @@ subroutine PMRTInit(pm_rt)
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
   pm_rt%debug_update = PETSC_FALSE
-  pm_rt%debug_derivatives = PETSC_FALSE
+  pm_rt%debug_derivatives_rtol = 1.d-1
+  pm_rt%debug_derivatives_row_rtol = 1.d-8
 
   pm_rt%refactored_convergence = PETSC_FALSE
   nullify(pm_rt%converged_flag)
@@ -230,8 +232,13 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('DEBUG_UPDATE')
         this%debug_update = PETSC_TRUE
       case('DEBUG_DERIVATIVES')
-        this%debug_derivatives = PETSC_TRUE
-        this%option%transport%numerical_derivatives = PETSC_TRUE
+        this%option%transport%debug_derivatives = PETSC_TRUE
+      case('DEBUG_DERIVATIVES_RTOL')
+        call InputReadDouble(input,option,this%debug_derivatives_rtol)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DEBUG_DERIVATIVES_ROW_RTOL')
+        call InputReadDouble(input,option,this%debug_derivatives_row_rtol)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
@@ -919,7 +926,7 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  if (this%debug_derivatives) then
+  if (this%option%transport%debug_derivatives) then
     call PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
   else
     call RTJacobian(snes,xx,A,B,this%realization,ierr)
@@ -978,6 +985,8 @@ subroutine PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
   call PetscUtilCompareMatrices(A_analytical,A_numerical, &
                                 this%realization%patch%grid%nL2G, &
                                 this%realization%patch%grid%nG2A, &
+                                this%debug_derivatives_rtol, &
+                                this%debug_derivatives_row_rtol, &
                                 this%option)
 
   if (original_flag) then ! numerical derivatives

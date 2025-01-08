@@ -135,6 +135,7 @@ subroutine RTSetup(realization)
   PetscInt :: iphase, local_id, i, ndof
   PetscInt :: flag(10)
   PetscBool, allocatable :: dof_is_active(:)
+  PetscBool :: allocate_perturbation_auxvars
 
   option => realization%option
   patch => realization%patch
@@ -277,10 +278,12 @@ subroutine RTSetup(realization)
 #else
   option%iflag = 0 ! be sure not to allocate mass_balance array
 #endif
+  allocate_perturbation_auxvars = option%transport%numerical_derivatives .or. &
+                                  option%transport%debug_derivatives
   allocate(patch%aux%RT%auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     call RTAuxVarInit(patch%aux%RT%auxvars(ghosted_id),reaction, &
-                      option%transport%numerical_derivatives,option)
+                      allocate_perturbation_auxvars,option)
   enddo
   patch%aux%RT%num_aux = grid%ngmax
 
@@ -292,7 +295,7 @@ subroutine RTSetup(realization)
     allocate(patch%aux%RT%auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_bc(iconn),reaction, &
-                        option%transport%numerical_derivatives,option)
+                        allocate_perturbation_auxvars,option)
     enddo
   endif
   patch%aux%RT%num_aux_bc = sum_connection
@@ -305,7 +308,7 @@ subroutine RTSetup(realization)
     allocate(patch%aux%RT%auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%auxvars_ss(iconn),reaction, &
-                        option%transport%numerical_derivatives,option)
+                        allocate_perturbation_auxvars,option)
     enddo
   endif
   patch%aux%RT%num_aux_ss = sum_connection

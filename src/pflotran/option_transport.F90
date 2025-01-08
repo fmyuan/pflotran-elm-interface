@@ -27,6 +27,7 @@ module Option_Transport_module
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
     PetscBool :: numerical_derivatives
+    PetscBool :: debug_derivatives
     PetscBool :: steady_state
     PetscBool :: use_np ! nernst-planck diffusion.
     PetscBool :: sc_fixed_water_density
@@ -123,6 +124,7 @@ subroutine OptionTransportInitRealization(option)
   option%reactive_transport_coupling = GLOBAL_IMPLICIT
   option%nw_transport_coupling = GLOBAL_IMPLICIT
   option%numerical_derivatives = PETSC_FALSE
+  option%debug_derivatives = PETSC_FALSE
   option%conservative_transport_only = PETSC_TRUE
 
   option%jumpstart_kinetic_sorption = PETSC_FALSE
