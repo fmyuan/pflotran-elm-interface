@@ -208,6 +208,7 @@
        80:         1
       100:         1
 -- SOLUTION: Transport --
+   Time (seconds):   1.9170423400021E-01
    Time Steps:           61
    Newton Iterations:          197
    Linear Solver Iterations:          197
