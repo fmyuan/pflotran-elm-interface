@@ -834,7 +834,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: ln_sec(reaction%neqcplx)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: ln_sec_act(reaction%neqcplx)
-  PetscReal :: QK, lnQK, dQK_dCj, dQK_dmj, den
+  PetscReal :: QK, lnQK, dQK_dmj, den
 
   PetscReal :: ln_spec_act, spec_act_coef
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
@@ -1108,12 +1108,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     if (mineral%kinmnrl_rate_limiter(imnrl) <= 0.d0) then
       do j = 1, mineral%kinmnrlspecid(0,imnrl)
         jcomp = mineral%kinmnrlspecid(j,imnrl)
-        ! unit = L water/mol
-        dQK_dCj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
-        ! units = (L water/mol)*(kg water/m^3 water)*(m^3 water/1000 L water)
-        !       = kg water/mol
-        ! the multiplication by den_kg could be moved outside the loop
-        dQK_dmj = dQK_dCj*global_auxvar%den_kg(iphase)*1.d-3
+        ! unit = kg water/mol
+        dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
         do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
           icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
           ! units = (mol/sec)*(kg water/mol) = kg water/sec
@@ -1128,12 +1124,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       den = 1.d0+(1.d0-affinity_factor)/mineral%kinmnrl_rate_limiter(imnrl)
       do j = 1, mineral%kinmnrlspecid(0,imnrl)
         jcomp = mineral%kinmnrlspecid(j,imnrl)
-        ! unit = L water/mol
-        dQK_dCj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
-        ! units = (L water/mol)*(kg water/m^3 water)*(m^3 water/1000 L water)
-        !       = kg water/mol
-        ! the multiplication by density could be moved outside the loop
-        dQK_dmj = dQK_dCj*global_auxvar%den_kg(iphase)*1.d-3
+        ! unit = kg water/mol
+        dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
         do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
           icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
           ! units = (mol/sec)*(kg water/mol) = kg water/sec
