@@ -243,6 +243,9 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx, &
                                             geomech_field%disp_r)
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%disp_xx, &
+                                            geomech_field%work)
 
   ! 1 degree of freedom, global
   call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
@@ -253,15 +256,20 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press, &
                                             geomech_field%temp)
+
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press, &
-                                            geomech_field%work)
+                                            geomech_field%fluid_density)
 
   ! n degrees of freedom, local
   call GeomechDiscretizationCreateVector(geomech_discretization,NGEODOF, &
                                          geomech_field%disp_xx_loc, &
                                          LOCAL,option)
   call VecSet(geomech_field%disp_xx_loc,0.d0,ierr);CHKERRQ(ierr)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%disp_xx_loc, &
+                                            geomech_field%work_loc)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx_loc, &
@@ -289,11 +297,6 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
                                             geomech_field%imech_loc)
-
-  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
-                                            geomech_field%press_loc, &
-                                            geomech_field%work_loc)
-                                            geomech_field%fluid_density)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
