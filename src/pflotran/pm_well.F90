@@ -5385,8 +5385,8 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
 
   res_grid => pm_well%realization%patch%grid
 
-  reservoir%tmp_flow = 1.d-20
-  reservoir%tmp_tran = 1.d-20
+  reservoir%tmp_flow = -1.d20
+  reservoir%tmp_tran = -1.d20
 
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
