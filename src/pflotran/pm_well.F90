@@ -2349,7 +2349,7 @@ subroutine PMWellSetup(this)
       source_sink%flow_condition%general%gas_pressure => &
             FlowGeneralSubConditionPtr(input_dummy,string,source_sink% &
                                       flow_condition%general,option)
-      allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
+      allocate(source_sink%flow_condition%general%rate%dataset%rarray(4))
       source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0
 
       source_sink%flow_condition%well => FlowSubConditionCreate(ONE_INTEGER)
@@ -5855,10 +5855,20 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
                 0.d0 ! [kmol/s]
               source_sink%flow_condition%general%rate%dataset%rarray(2) = &
                 0.d0 ! [kmol/s]
+              ! access to Q is needed in NWT Mode, so load Q into 3 & 4:
+              source_sink%flow_condition%general%rate%dataset%rarray(3) = &
+                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
+              source_sink%flow_condition%general%rate%dataset%rarray(4) = &
+                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
             else
               source_sink%flow_condition%general%rate%dataset%rarray(1) = &
                 -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
               source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
+              ! access to Q is needed in NWT Mode, so load Q into 3 & 4:
+              source_sink%flow_condition%general%rate%dataset%rarray(3) = &
+                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
+              source_sink%flow_condition%general%rate%dataset%rarray(4) = &
                 -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
             endif
 
