@@ -167,6 +167,10 @@ module PM_Well_class
     PetscBool :: output_sl
     ! flag for output
     PetscBool :: output_sg
+    ! flag for .well file segment output
+    PetscBool, pointer :: output_in_well_file(:)
+    ! list of segments for printing in the .well file
+    PetscInt, pointer :: segments_for_output(:)
     ! well liquid Darcy flux [m3/m2-s] of interior interfaces
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces
@@ -668,6 +672,8 @@ subroutine PMWellVarCreate(well)
   well%output_pg = PETSC_FALSE
   well%output_sl = PETSC_FALSE
   well%output_sg = PETSC_FALSE
+  nullify(well%output_in_well_file)
+  nullify(well%segments_for_output)
   nullify(well%ql)
   nullify(well%qg)
   nullify(well%ql_bc)
@@ -2060,6 +2066,23 @@ subroutine PMWellSetup(this)
     this%well%skin = 0.d0
   endif
 
+  allocate(this%well%output_in_well_file(nsegments))
+  ! by default, print all segments in the .well file:
+  this%well%output_in_well_file = PETSC_TRUE
+  if (size(this%well%segments_for_output) > 0) then
+    this%well%output_in_well_file = PETSC_FALSE
+    do k = 1,size(this%well%segments_for_output)
+      if (this%well%segments_for_output(k) > nsegments) then
+        option%io_buffer = 'Invalid segment number encountered. Please review &
+          &the list of segment numbers provided after the PRINT_WELL_FILE &
+          &SEGMENTS keyword. At least one segment number exceeds the total &
+          &number of well segments, as defined in the WELL_GRID block.'
+        call PrintErrMsg(option)
+      endif
+      this%well%output_in_well_file(this%well%segments_for_output(k)) = &
+        PETSC_TRUE
+    enddo
+  endif
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -2689,7 +2712,10 @@ subroutine PMWellReadPMBlock(this,input)
   type(well_grid_type), pointer :: well_grid
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscInt, pointer :: temp_seg_nums(:)
   PetscBool :: found
+  PetscInt :: k, num_read
+  PetscInt :: read_max = 10000
 
   option => this%option
   well_grid => this%well_grid
@@ -2698,6 +2724,8 @@ subroutine PMWellReadPMBlock(this,input)
 
   option%io_buffer = 'pflotran card:: WELLBORE_MODEL'
   call PrintMsg(option)
+
+  allocate(temp_seg_nums(read_max))
 
   call InputPushBlock(input,option)
   do
@@ -2728,6 +2756,37 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('PRINT_WELL_FILE')
         this%print_well = PETSC_TRUE
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (InputError(input)) cycle
+        call StringToUpper(word)
+        if (StringCompare(word,'SEGMENTS')) then
+          ! count the segment numbers
+          num_read = 0
+          do k = 1,read_max
+            call InputReadInt(input,option,temp_seg_nums(k))
+            if (InputError(input)) exit
+            if (temp_seg_nums(k) <= 0) then
+              option%io_buffer = 'A value provided for SEGMENTS &
+                &after the ' // trim(error_string) // ', PRINT_WELL_FILE &
+                &keyword was 0 or negative. Only positive integers are valid.'
+              call PrintErrMsg(option)
+            endif
+            num_read = num_read + 1
+          enddo
+          if (num_read == 0) then
+            option%io_buffer = 'At least one value for SEGMENTS &
+              &must be provided after the ' // trim(error_string) // ', &
+              &PRINT_WELL_FILE keyword.'
+            call PrintErrMsg(option)
+          endif
+        else
+          option%io_buffer = 'Keyword ' // trim(word) // ' not recognized &
+            &after the ' // trim(error_string) // ', PRINT_WELL_FILE keyword&
+            &. Did you mean "SEGMENTS"?'
+          call PrintErrMsg(option)
+        endif
+        allocate(this%well%segments_for_output(num_read))
+        this%well%segments_for_output(1:num_read) = temp_seg_nums(1:num_read)
         cycle
     !-------------------------------------
       case('CHECK_FOR_SS')
@@ -2793,6 +2852,8 @@ subroutine PMWellReadPMBlock(this,input)
 
   enddo
   call InputPopBlock(input,option)
+
+  deallocate(temp_seg_nums)
 
 end subroutine PMWellReadPMBlock
 
@@ -11302,6 +11363,18 @@ subroutine PMWellOutputHeader(pm_well)
   enddo
   write(fid,'(a)',advance="yes") '===========================================&
                                   &================='
+  write(fid,'(a)',advance="no") ' Segment Numbers Requested for Output: '
+  if (size(pm_well%well%segments_for_output) > 0) then
+    do k = 1,size(pm_well%well%segments_for_output)
+      write(word,'(i4)') pm_well%well%segments_for_output(k)
+      write(fid,'(a)',advance="no") trim(word)
+    enddo
+    write(fid,'(a)',advance="yes") ' '
+  else
+    write(fid,'(a)',advance="yes") 'ALL SEGMENTS'
+  endif
+  write(fid,'(a)',advance="yes") '===========================================&
+                                  &================='
 
   write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
   cell_string = ''
@@ -11315,6 +11388,9 @@ subroutine PMWellOutputHeader(pm_well)
 end select
 
   do k = 1,pm_well%well_grid%nsegments
+    ! only print the segments that are being requested in the .well file
+    if (.not. pm_well%well%output_in_well_file(k)) cycle
+
     variable_string = 'Seg.#'
     units_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
@@ -11412,7 +11488,7 @@ end subroutine PMWellOutputHeader
 
 subroutine PMWellOutput(pm_well)
   !
-  ! Sets up output for the wellbore process model
+  ! Sets up .well file output for the wellbore process model.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
@@ -11454,6 +11530,8 @@ subroutine PMWellOutput(pm_well)
   end select
 
   do k = 1,pm_well%well_grid%nsegments
+    ! only print the segments that are being requested in the .well file
+    if (.not. pm_well%well%output_in_well_file(k)) cycle
     write(fid,101,advance="no") k
     write(fid,100,advance="no") pm_well%well_grid%h(k)%x, &
                                 pm_well%well_grid%h(k)%y, &
@@ -11735,6 +11813,8 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%qg)
   call DeallocateArray(this%well%ql_bc)
   call DeallocateArray(this%well%qg_bc)
+  call DeallocateArray(this%well%output_in_well_file)
+  call DeallocateArray(this%well%segments_for_output)
   if (this%transport) then
     call DeallocateArray(this%well%aqueous_conc)
     call DeallocateArray(this%well%aqueous_mass)
