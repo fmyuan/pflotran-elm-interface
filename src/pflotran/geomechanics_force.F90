@@ -659,9 +659,15 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecRestoreArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+                          ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%porosity_init_loc,porosity_init, &
+                          ierr);CHKERRQ(ierr)
 
 #if 0
   call MPI_Allreduce(error_H1_global,error_H1_global,ONE_INTEGER_MPI, &
