@@ -2069,7 +2069,7 @@ subroutine PMWellSetup(this)
   allocate(this%well%output_in_well_file(nsegments))
   ! by default, print all segments in the .well file:
   this%well%output_in_well_file = PETSC_TRUE
-  if (size(this%well%segments_for_output) > 0) then
+  if (associated(this%well%segments_for_output)) then
     this%well%output_in_well_file = PETSC_FALSE
     do k = 1,size(this%well%segments_for_output)
       if (this%well%segments_for_output(k) > nsegments) then
@@ -11364,7 +11364,7 @@ subroutine PMWellOutputHeader(pm_well)
   write(fid,'(a)',advance="yes") '===========================================&
                                   &================='
   write(fid,'(a)',advance="no") ' Segment Numbers Requested for Output: '
-  if (size(pm_well%well%segments_for_output) > 0) then
+  if (associated(pm_well%well%segments_for_output)) then
     do k = 1,size(pm_well%well%segments_for_output)
       write(word,'(i4)') pm_well%well%segments_for_output(k)
       write(fid,'(a)',advance="no") trim(word)
