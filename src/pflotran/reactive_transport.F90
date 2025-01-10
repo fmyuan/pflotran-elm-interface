@@ -2126,11 +2126,9 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   ! pass #2 for everything else
   call RTResidualNonFlux(snes,xx,r,realization,ierr)
 
-!#if 0
   if (option%transport%couple_co2) then
     call RTResidualEquilibrateCO2(r,realization)
   endif
-!#endif
 
   call MatrixZeroingZeroVecEntries(patch%aux%RT%matrix_zeroing,r)
 
@@ -2841,12 +2839,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
                                     reaction,mco2eq,option)
 
       r_p(jco2+(local_id-1)*reaction%ncomp) = &
-      rt_auxvars(ghosted_id)%pri_molal(jco2) - mco2eq
-
-!     print *,'check_EOS', local_id,jco2,reaction%ncomp, mco2eq, &
-!       rt_auxvars(ghosted_id)%pri_molal(jco2), &
-!       sat_pressure, henry, &
-!       yco2, fg, xphi,r_p(jco2+(local_id-1)*reaction%ncomp)
+        rt_auxvars(ghosted_id)%pri_molal(jco2) - mco2eq
     endif
   enddo
 
@@ -2917,11 +2910,9 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   ! pass #2 for everything else
   call RTJacobianNonFlux(snes,xx,J,J,realization,ierr)
 
-!#if 0
   if (realization%option%transport%couple_co2) then
     call RTJacobianEquilibrateCO2(J,realization)
   endif
-!#endif
 
   call MatrixZeroingZeroMatEntries(realization%patch%aux%RT%matrix_zeroing,J)
 
@@ -3398,7 +3389,6 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   class(realization_subsurface_type) :: realization
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: idof
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -3411,7 +3401,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   PetscInt :: zero_rows(realization%patch%grid%nlmax * realization%option%ntrandof)
   PetscInt :: ghosted_rows(realization%patch%grid%nlmax)
   PetscInt :: zero_count
-  PetscInt :: i, jco2
+  PetscInt :: jco2
   PetscReal :: jacobian_entry
   PetscReal :: eps = 1.d-6
 
@@ -3443,25 +3433,9 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
     endif
   enddo
 
+  ! the value on the diagonal should be 1 as this is prior to log form
   call MatZeroRowsLocal(J,zero_count,zero_rows(1:zero_count),jacobian_entry, &
                         PETSC_NULL_VEC,PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
-
-  do i = 1, zero_count
-    ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
-    if (patch%imat(ghosted_id) <= 0) cycle
-    if (reaction%use_log_formulation) then
-      jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
-    else
-      jacobian_entry = 1.d0
-    endif
-
-    idof = (ghosted_id-1)*option%ntrandof + jco2
-    call MatSetValuesLocal(J,1,idof-1,1,idof-1,jacobian_entry,INSERT_VALUES, &
-                           ierr);CHKERRQ(ierr)
-  enddo
-
-  call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
 end subroutine RTJacobianEquilibrateCO2
 
