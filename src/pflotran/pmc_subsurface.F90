@@ -799,6 +799,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   print *, 'PMCSubsurfaceSetAuxDataForGeomech()'
 #endif
 
+
   select case(this%option%iflowmode)
     case (TH_MODE,TH_TS_MODE)
       pres_dof = TH_PRESSURE_DOF
@@ -830,6 +831,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         option        => pmc%option
         subsurf_grid  => pmc%realization%discretization%grid
         subsurf_field => pmc%realization%field
+
 
         ! Extract pressure, temperature and porosity from subsurface realization
         call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
