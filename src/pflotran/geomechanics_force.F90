@@ -514,11 +514,15 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   PetscInt, allocatable :: petsc_ids(:)
   PetscInt, allocatable :: ids(:)
   PetscReal, allocatable :: res_vec(:)
-  PetscReal, pointer :: press(:), temp(:), fluid_density(:)
-  PetscReal, pointer :: press_init(:), temp_init(:), fluid_density_init(:)
+  PetscReal, pointer :: press(:), temp(:)
+  PetscReal, pointer :: fluid_density(:), porosity(:)
+  PetscReal, pointer :: press_init(:), temp_init(:)
+  PetscReal, pointer :: fluid_density_init(:), porosity_init(:)
   PetscReal, allocatable :: beta_vec(:), alpha_vec(:)
-  PetscReal, allocatable :: density_vec(:)
+  PetscReal, allocatable :: density_rock_vec(:), density_fluid_vec(:)
+  PetscReal, allocatable :: density_bulk_vec(:)
   PetscReal, allocatable :: youngs_vec(:), poissons_vec(:)
+  PetscReal, allocatable :: porosity_vec(:)
   PetscInt :: ielem, ivertex
   PetscInt :: ghosted_id
   PetscInt :: eletype, idof
@@ -548,14 +552,15 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecGetArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
-
-  ! jaa - want to pass fluid density from subsurface
 
   ! Get initial pressure and temperature
   call VecGetArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+                      ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%porosity_init_loc,porosity_init, &
                       ierr);CHKERRQ(ierr)
 
   ! Loop over elements on a processor
@@ -570,9 +575,12 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     allocate(res_vec(size(elenodes)*option%ngeomechdof))
     allocate(beta_vec(size(elenodes)))
     allocate(alpha_vec(size(elenodes)))
-    allocate(density_vec(size(elenodes)))
+    allocate(density_rock_vec(size(elenodes)))
+    allocate(density_fluid_vec(size(elenodes)))
     allocate(youngs_vec(size(elenodes)))
     allocate(poissons_vec(size(elenodes)))
+    allocate(porosity_vec(size(elenodes)))
+    allocate(density_bulk_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
     eletype = grid%gauss_node(ielem)%element_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
@@ -595,9 +603,19 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       alpha_vec(ivertex) = &
         GeomechParam%thermal_exp_coef(nint(imech_loc_p(ghosted_id)))
       beta_vec(ivertex) = &
-        GeomechParam%biot_coef(nint(imech_loc_p(ghosted_id)))
-      density_vec(ivertex) = &
-        GeomechParam%density(nint(imech_loc_p(ghosted_id)))
+        GeomechParam%biot_coef(int(imech_loc_p(ghosted_id)))
+      ! rock density
+      density_rock_vec(ivertex) = &
+        GeomechParam%density(int(imech_loc_p(ghosted_id)))
+      ! jaa fluid density
+      density_fluid_vec(ivertex) = fluid_density(ghosted_id)
+      ! jaa for now use init porosity then update later
+      porosity_vec(ivertex) = porosity(ghosted_id)
+      ! bulk density
+      density_bulk_vec(ivertex) = (porosity_vec(ivertex) * &
+                                   density_fluid_vec(ivertex)) + &
+                                  ((1.0 - porosity_vec(ivertex)) * &
+                                   density_rock_vec(ivertex))
       youngs_vec(ivertex) = &
         GeomechParam%youngs_modulus(nint(imech_loc_p(ghosted_id)))
       poissons_vec(ivertex) = &
@@ -606,7 +624,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     size_elenodes = size(elenodes)
     call GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
        local_disp,local_press,local_temp,youngs_vec,poissons_vec, &
-       density_vec,beta_vec,alpha_vec,eletype, &
+       density_rock_vec,beta_vec,alpha_vec,eletype, &
        grid%gauss_node(ielem)%dim,grid%gauss_node(ielem)%r, &
        grid%gauss_node(ielem)%w,res_vec,option)
     call VecSetValues(r,size(ids),ids,res_vec,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -630,9 +648,12 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     deallocate(local_temp)
     deallocate(beta_vec)
     deallocate(alpha_vec)
-    deallocate(density_vec)
+    deallocate(density_rock_vec)
+    deallocate(density_fluid_vec)
     deallocate(youngs_vec)
     deallocate(poissons_vec)
+    deallocate(porosity_vec)
+    deallocate(density_bulk_vec)
   enddo
 
   call VecRestoreArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
@@ -2246,9 +2267,12 @@ subroutine GeomechStoreInitialPressTemp(geomech_realization)
   call VecCopy(geomech_realization%geomech_field%temp_loc, &
                geomech_realization%geomech_field%temp_init_loc, &
                ierr);CHKERRQ(ierr)
-
+  ! jaa testing
   call VecCopy(geomech_realization%geomech_field%fluid_density_loc, &
                geomech_realization%geomech_field%fluid_density_init_loc, &
+               ierr);CHKERRQ(ierr)
+  call VecCopy(geomech_realization%geomech_field%porosity_loc, &
+               geomech_realization%geomech_field%porosity_init_loc, &
                ierr);CHKERRQ(ierr)
 
 end subroutine GeomechStoreInitialPressTemp

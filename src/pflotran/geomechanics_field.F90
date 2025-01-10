@@ -31,6 +31,8 @@ module Geomechanics_Field_module
     Vec :: strain_subsurf_loc
     Vec :: stress_subsurf_loc
 
+    Vec :: porosity ! jaa
+    Vec :: porosity_loc! jaa
     Vec :: porosity_init_loc
 
     ! jaa testing
@@ -94,6 +96,8 @@ function GeomechFieldCreate()
   geomech_field%strain_subsurf_loc = PETSC_NULL_VEC
   geomech_field%stress_subsurf_loc = PETSC_NULL_VEC
 
+  geomech_field%porosity = PETSC_NULL_VEC
+  geomech_field%porosity_loc = PETSC_NULL_VEC
   geomech_field%porosity_init_loc = PETSC_NULL_VEC
 
   ! jaa testing
@@ -195,6 +199,12 @@ subroutine GeomechFieldDestroy(geomech_field)
     call VecDestroy(geomech_field%stress_subsurf_loc,ierr);CHKERRQ(ierr)
   endif
 
+  if (geomech_field%porosity /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%porosity,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%porosity_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%porosity_loc,ierr);CHKERRQ(ierr)
+  endif
   if (geomech_field%porosity_init_loc /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
   endif

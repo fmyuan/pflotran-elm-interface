@@ -654,6 +654,15 @@ print *, 'PMCGeomechanicsGetAuxData'
                          pmc%geomech_realization%geomech_field%fluid_density, &
                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
+      call VecScatterBegin(pmc%sim_aux%subsurf_to_geomechanics, &
+                           pmc%sim_aux%subsurf_por0, &
+                           pmc%geomech_realization%geomech_field%porosity, &
+                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterEnd(pmc%sim_aux%subsurf_to_geomechanics, &
+                         pmc%sim_aux%subsurf_por0, &
+                         pmc%geomech_realization%geomech_field%porosity, &
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
       call GeomechDiscretizationGlobalToLocal( &
                             pmc%geomech_realization%geomech_discretization, &
                             pmc%geomech_realization%geomech_field%press, &
@@ -670,6 +679,12 @@ print *, 'PMCGeomechanicsGetAuxData'
                     pmc%geomech_realization%geomech_discretization, &
                     pmc%geomech_realization%geomech_field%fluid_density, &
                     pmc%geomech_realization%geomech_field%fluid_density_loc, &
+                    ONEDOF)
+
+      call GeomechDiscretizationGlobalToLocal( &
+                    pmc%geomech_realization%geomech_discretization, &
+                    pmc%geomech_realization%geomech_field%porosity, &
+                    pmc%geomech_realization%geomech_field%porosity_loc, &
                     ONEDOF)
 
   end select

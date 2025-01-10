@@ -776,11 +776,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   type(grid_type), pointer :: subsurf_grid
   type(option_type), pointer :: option
   type(field_type), pointer :: subsurf_field
-  type(global_auxvar_type), pointer :: global_auxvars(:)
 
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
+  PetscScalar, pointer :: por_p(:)
   PetscScalar, pointer :: fluid_den_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
@@ -790,6 +790,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscInt :: pres_dof
   PetscInt :: temp_dof
 
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
@@ -797,7 +798,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 #ifdef GEOMECH_DEBUG
   print *, 'PMCSubsurfaceSetAuxDataForGeomech()'
 #endif
-
 
   select case(this%option%iflowmode)
     case (TH_MODE,TH_TS_MODE)
@@ -831,7 +831,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         subsurf_grid  => pmc%realization%discretization%grid
         subsurf_field => pmc%realization%field
 
-
         ! Extract pressure, temperature and porosity from subsurface realization
         call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
@@ -841,9 +840,12 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por_p, &
+                            ierr);CHKERRQ(ierr)
 
         ! jaa testing
         global_auxvars => pmc%realization%patch%aux%global%auxvars
+        material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
         do local_id = 1, subsurf_grid%nlmax
           ghosted_id = subsurf_grid%nL2G(local_id)
@@ -857,8 +859,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
           endif
-          ! jaa testing
+          ! jaa: use for bulk density
           fluid_den_p(local_id) = global_auxvars(ghosted_id)%den_kg(1)
+          por_p(local_id) = material_auxvars(ghosted_id)%porosity
         enddo
 
         call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
@@ -869,9 +872,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                 ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                                 ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por_p, &
+                                ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
-          material_auxvars => pmc%realization%patch%aux%Material%auxvars
+          !material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
           call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &

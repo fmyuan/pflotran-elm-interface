@@ -261,6 +261,10 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
                                             geomech_field%press, &
                                             geomech_field%fluid_density)
 
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press, &
+                                            geomech_field%porosity)
+
   ! n degrees of freedom, local
   call GeomechDiscretizationCreateVector(geomech_discretization,NGEODOF, &
                                          geomech_field%disp_xx_loc, &
@@ -305,6 +309,14 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
                                             geomech_field%fluid_density_init_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%porosity_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%porosity_init_loc)
 
   ! 6 dof for strain and stress
   call GeomechDiscretizationCreateVector(geomech_discretization,SIX_INTEGER, &
