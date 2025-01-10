@@ -937,7 +937,6 @@ geomechanics_patch.o : \
 geomechanics_realization.o : \
   dataset.o \
   dataset_base.o \
-  geomech_grid.o \
   geomech_grid_aux.o \
   geomechanics_condition.o \
   geomechanics_coupler.o \
@@ -952,6 +951,7 @@ geomechanics_realization.o : \
   input_aux.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_base.o \
   realization_subsurface.o \
@@ -1230,6 +1230,7 @@ init_subsurface.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   region.o \
@@ -2726,7 +2727,6 @@ print.o : \
   string.o
 reaction.o : \
   carbon_sandbox.o \
-  co2_span_wagner.o \
   co2eos.o \
   eos_water.o \
   generic.o \
@@ -2739,6 +2739,7 @@ reaction.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_clm.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_gas_aux.o \
   reaction_immobile.o \
@@ -2792,6 +2793,17 @@ reaction_clm.o : \
   string.o \
   units.o \
   utility.o
+reaction_co2.o : \
+  co2_span_wagner.o \
+  co2eos.o \
+  eos_water.o \
+  global_aux.o \
+  material_aux.o \
+  option.o \
+  option_transport.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reactive_transport_aux.o
 reaction_database.o : \
   input_aux.o \
   option.o \
@@ -2827,8 +2839,6 @@ reaction_equation.o : \
   string.o \
   utility.o
 reaction_gas.o : \
-  co2eos.o \
-  eos_water.o \
   global_aux.o \
   input_aux.o \
   option.o \
@@ -3208,6 +3218,7 @@ reactive_transport.o : \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_surf_complex_aux.o \
   reactive_transport_aux.o \
@@ -3288,6 +3299,7 @@ realization_subsurface.o : \
   output_aux.o \
   parameter.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
