@@ -375,6 +375,7 @@ module PM_Well_class
     PetscReal :: cumulative_dt_tran             ! [sec]
     PetscBool :: transport
     PetscBool :: ss_check
+    PetscBool :: split_output_file
     PetscBool :: well_on    !Turns the well on, regardless of other checks
     PetscInt :: well_force_ts_cut
     PetscBool :: update_for_wippflo_qi_coupling
@@ -480,6 +481,7 @@ function PMWellCreate()
   this%cumulative_dt_tran = 0.d0
   this%transport = PETSC_FALSE
   this%ss_check = PETSC_FALSE
+  this%split_output_file = PETSC_FALSE
   this%well_on = PETSC_TRUE
   this%well_force_ts_cut = 0
   this%update_for_wippflo_qi_coupling = PETSC_FALSE
@@ -2755,6 +2757,16 @@ subroutine PMWellReadPMBlock(this,input)
         cycle
     !-------------------------------------
       case('PRINT_WELL_FILE')
+
+
+
+
+        this%split_output_file = PETSC_TRUE
+
+
+
+
+
         this%print_well = PETSC_TRUE
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (InputError(input)) cycle
@@ -2788,6 +2800,9 @@ subroutine PMWellReadPMBlock(this,input)
         allocate(this%well%segments_for_output(num_read))
         this%well%segments_for_output(1:num_read) = temp_seg_nums(1:num_read)
         cycle
+    !-------------------------------------
+      case('SPLIT_WELL_FILE')
+        this%split_output_file = PETSC_TRUE
     !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
@@ -11294,7 +11309,7 @@ subroutine PMWellOutputHeader(pm_well)
   ! Writes the header for wellbore model output file.
   !
   ! Author: Jennifer M. Frederick
-  ! Date: 12/16/2021
+  ! Date: 12/16/2021, updated 01/09/2025
   !
 
   use Output_Aux_module
@@ -11306,13 +11321,13 @@ subroutine PMWellOutputHeader(pm_well)
   class(pm_well_type) :: pm_well
 
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename, word
+  character(len=MAXSTRINGLENGTH) :: filename,word
   character(len=MAXWORDLENGTH) :: units_string, variable_string
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscBool :: exist
-  PetscInt :: fid
+  PetscInt :: fid,fid2
   PetscInt :: icolumn
-  PetscInt :: k, j
+  PetscInt :: k, j, i
 
   if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
 
@@ -11324,163 +11339,202 @@ subroutine PMWellOutputHeader(pm_well)
     icolumn = -1
   endif
 
-  fid = 555
-  filename = PMWellOutputFilename(pm_well%name,pm_well%option)
-  exist = FileExists(trim(filename))
-  if (pm_well%option%restart_flag .and. exist) return
-  open(unit=fid,file=filename,action="write",status="replace")
+  do k = 1,pm_well%well_grid%nsegments
+    ! only print the segments that are being requested in the .well file
+    if (.not. pm_well%well%output_in_well_file(k)) cycle
 
-  ! First write out the well grid information
-  write(fid,'(a)',advance="yes") '========= WELLBORE MODEL GRID INFORMATION &
-                                  &=================='
-  write(word,'(i5)') pm_well%well_grid%nsegments
-  write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word)
-  write(word,'(i5)') pm_well%well_grid%nconnections
-  write(fid,'(a)',advance="yes") ' Number of connections: ' // trim(word)
-  write(word,'(es10.3,es10.3,es10.3)') pm_well%well_grid%tophole(1), &
-                          pm_well%well_grid%tophole(2), pm_well%well_grid% &
-                          tophole(3)
-  write(fid,'(a)',advance="yes") ' Top of hole (x,y,z) [m]: ' // trim(word)
-  write(word,'(es10.3,es10.3,es10.3)') pm_well%well_grid%bottomhole(1), &
-                    pm_well%well_grid%bottomhole(2), pm_well%well_grid% &
-                    bottomhole(3)
-  write(fid,'(a)',advance="yes") ' Bottom of hole (x,y,z) [m]: ' // trim(word)
-  write(fid,'(a)',advance="yes") '===========================================&
-                                  &================='
-  write(fid,'(a)',advance="yes") ' Segment Number: Center coordinate (x,y,z) [m] '
-  do k = 1,pm_well%well_grid%nsegments
-    write(word,'(i4,a3,es10.3,es10.3,es10.3,a1)') k,': (', &
-      pm_well%well_grid%h(k)%x,pm_well%well_grid%h(k)%y,pm_well% &
-      well_grid%h(k)%z,')'
-    write(fid,'(a)',advance="yes") trim(word)
-  enddo
-  write(fid,'(a)',advance="yes") '===========================================&
-                                  &================='
-  write(fid,'(a)',advance="yes") ' Segment Number: Segment length [m] '
-  do k = 1,pm_well%well_grid%nsegments
-    write(word,'(i4,a3,es10.3,a1)') k,': (',pm_well%well_grid%dh(k),')'
-    write(fid,'(a)',advance="yes") trim(word)
-  enddo
-  write(fid,'(a)',advance="yes") '===========================================&
-                                  &================='
-  write(fid,'(a)',advance="no") ' Segment Numbers Requested for Output: '
-  if (associated(pm_well%well%segments_for_output)) then
-    do k = 1,size(pm_well%well%segments_for_output)
-      write(word,'(i4)') pm_well%well%segments_for_output(k)
-      write(fid,'(a)',advance="no") trim(word)
+    fid = k + 100
+    filename = PMWellOutputFilename(pm_well%name,pm_well%option)
+    write(word,'(i5)') k
+    if (k < 10000) word(1:1) = '0'; if (k < 1000) word(1:2) = '00'
+    if (k < 100) word(1:3) = '000'; if (k < 10) word(1:4) = '0000'
+    if (pm_well%split_output_file) then
+      filename = trim(filename) // trim(word)
+    endif
+
+    exist = FileExists(trim(filename))
+    if (pm_well%option%restart_flag .and. exist) return
+    open(unit=fid,file=filename,action="write",status="replace")
+
+    ! First write out the well grid information
+    write(fid,'(a)',advance="yes") '========= WELLBORE MODEL GRID INFORMATION &
+                                    &=================='
+    write(word,'(i5)') pm_well%well_grid%nsegments
+    write(fid,'(a)',advance="yes") ' Number of segments: ' // trim(word)
+    write(word,'(i5)') pm_well%well_grid%nconnections
+    write(fid,'(a)',advance="yes") ' Number of connections: ' // trim(word)
+    write(word,'(es10.3,es10.3,es10.3)') pm_well%well_grid%tophole(1), &
+                            pm_well%well_grid%tophole(2), pm_well%well_grid% &
+                            tophole(3)
+    write(fid,'(a)',advance="yes") ' Top of hole (x,y,z) [m]: ' // trim(word)
+    write(word,'(es10.3,es10.3,es10.3)') pm_well%well_grid%bottomhole(1), &
+                      pm_well%well_grid%bottomhole(2), pm_well%well_grid% &
+                      bottomhole(3)
+    write(fid,'(a)',advance="yes") ' Bottom of hole (x,y,z) [m]: ' // trim(word)
+    write(fid,'(a)',advance="yes") '===========================================&
+                                    &================='
+    write(fid,'(a)',advance="yes") ' Segment Number: Center coordinate (x,y,z) [m] '
+    do j = 1,pm_well%well_grid%nsegments
+      write(word,'(i4,a3,es10.3,es10.3,es10.3,a1)') j,': (', &
+        pm_well%well_grid%h(j)%x,pm_well%well_grid%h(j)%y,pm_well% &
+        well_grid%h(j)%z,')'
+      write(fid,'(a)',advance="yes") trim(word)
     enddo
-    write(fid,'(a)',advance="yes") ' '
-  else
-    write(fid,'(a)',advance="yes") 'ALL SEGMENTS'
-  endif
-  write(fid,'(a)',advance="yes") '===========================================&
-                                  &================='
+    write(fid,'(a)',advance="yes") '===========================================&
+                                    &================='
+    write(fid,'(a)',advance="yes") ' Segment Number: Segment length [m] '
+    do j = 1,pm_well%well_grid%nsegments
+      write(word,'(i4,a3,es10.3,a1)') j,': (',pm_well%well_grid%dh(j),')'
+      write(fid,'(a)',advance="yes") trim(word)
+    enddo
+    write(fid,'(a)',advance="yes") '===========================================&
+                                    &================='
+    write(fid,'(a)',advance="no") ' Segment Numbers Requested for Output: '
+    if (associated(pm_well%well%segments_for_output)) then
+      do j = 1,size(pm_well%well%segments_for_output)
+        write(word,'(i4)') pm_well%well%segments_for_output(j)
+        write(fid,'(a)',advance="no") trim(word)
+      enddo
+      write(fid,'(a)',advance="yes") ' '
+    else
+      write(fid,'(a)',advance="yes") 'ALL SEGMENTS'
+    endif
+    write(fid,'(a)',advance="yes") '===========================================&
+                                    &================='
 
-  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
-  cell_string = ''
-
-  select case (pm_well%option%iflowmode)
-  case (SCO2_MODE, H_MODE)
-    variable_string = 'Well BHP'
-    units_string = 'Pa'
-    call OutputWriteToHeader(fid,variable_string,units_string, &
-                             cell_string,icolumn)
-end select
+    close(fid)
+    if (.not. pm_well%split_output_file) exit
+  enddo
 
   do k = 1,pm_well%well_grid%nsegments
     ! only print the segments that are being requested in the .well file
     if (.not. pm_well%well%output_in_well_file(k)) cycle
 
-    variable_string = 'Seg.#'
-    units_string = ''
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'X'
-    units_string = 'm'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Y'
-    units_string = 'm'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Z'
-    units_string = 'm'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well P-liq'
-    units_string = 'Pa'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Res P-liq'
-    units_string = 'Pa'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well P-gas'
-    units_string = 'Pa'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Res P-gas'
-    units_string = 'Pa'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well S-liq'
-    units_string = '-'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well S-gas'
-    units_string = '-'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well Q-liq'
-    units_string = 'kg/s'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well Q-gas'
-    units_string = 'kg/s'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well q-liq'
-    units_string = 'm/s'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well q-gas'
-    units_string = 'm/s'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well Liq Mass Bal'
-    units_string = 'kmol/s'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well Liq Mass'
-    units_string = 'kmol'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    variable_string = 'Well P. Index'
-    units_string = '-'
-    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
-                             icolumn)
-    if (pm_well%transport) then
-      do j = 1,pm_well%nspecies
-        variable_string = 'Well Aqueous Conc. ' // &
-                          trim(pm_well%well%species_names(j))
-        units_string = 'mol/m^3-liq'
-        call OutputWriteToHeader(fid,variable_string,units_string, &
-                                 cell_string,icolumn)
-        variable_string = 'Well Aqueous Mass. ' &
-                           // trim(pm_well%well%species_names(j))
-        units_string = 'mol'
-        call OutputWriteToHeader(fid,variable_string,units_string, &
-                                 cell_string,icolumn)
-        variable_string = 'Res Aqueous Conc. ' // &
-                          trim(pm_well%well%species_names(j))
-        units_string = 'mol/m^3-liq'
-        call OutputWriteToHeader(fid,variable_string,units_string, &
-                                 cell_string,icolumn)
-      enddo
+    fid = k + 100
+    filename = PMWellOutputFilename(pm_well%name,pm_well%option)
+    write(word,'(i5)') k
+    if (k < 10000) word(1:1) = '0'; if (k < 1000) word(1:2) = '00'
+    if (k < 100) word(1:3) = '000'; if (k < 10) word(1:4) = '0000'
+    if (pm_well%split_output_file) then
+      filename = trim(filename) // trim(word)
     endif
-  enddo
+    open(unit=fid,file=filename,action="write",status="old", &
+         position="append")
 
-  close(fid)
+    write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+    cell_string = ''
+
+    select case (pm_well%option%iflowmode)
+    case (SCO2_MODE, H_MODE)
+      variable_string = 'Well BHP'
+      units_string = 'Pa'
+      call OutputWriteToHeader(fid,variable_string,units_string, &
+                               cell_string,icolumn)
+    end select
+
+    ! here a j while loop that depends on if the file is split or not
+    j = k
+    do while (j <= pm_well%well_grid%nsegments)
+      if (.not. pm_well%well%output_in_well_file(j)) then
+        j = j + 1
+        cycle
+      endif
+
+      variable_string = 'Seg.#'
+      units_string = ''
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'X'
+      units_string = 'm'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Y'
+      units_string = 'm'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Z'
+      units_string = 'm'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well P-liq'
+      units_string = 'Pa'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Res P-liq'
+      units_string = 'Pa'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well P-gas'
+      units_string = 'Pa'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Res P-gas'
+      units_string = 'Pa'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well S-liq'
+      units_string = '-'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well S-gas'
+      units_string = '-'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well Q-liq'
+      units_string = 'kg/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well Q-gas'
+      units_string = 'kg/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well q-liq'
+      units_string = 'm/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well q-gas'
+      units_string = 'm/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well Liq Mass Bal'
+      units_string = 'kmol/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well Liq Mass'
+      units_string = 'kmol'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well P. Index'
+      units_string = '-'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      if (pm_well%transport) then
+        do i = 1,pm_well%nspecies
+          variable_string = 'Well Aqueous Conc. ' // &
+                            trim(pm_well%well%species_names(i))
+          units_string = 'mol/m^3-liq'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Well Aqueous Mass. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Res Aqueous Conc. ' // &
+                            trim(pm_well%well%species_names(i))
+          units_string = 'mol/m^3-liq'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+        enddo
+      endif
+
+      if (pm_well%split_output_file) exit
+      j = j + 1
+    enddo
+
+    close(fid)
+    if (.not. pm_well%split_output_file) exit
+  enddo
 
 end subroutine PMWellOutputHeader
 
@@ -11491,7 +11545,7 @@ subroutine PMWellOutput(pm_well)
   ! Sets up .well file output for the wellbore process model.
   !
   ! Author: Jennifer M. Frederick
-  ! Date: 12/16/2021
+  ! Date: 12/16/2021, updated 01/09/2025
   !
 
   use Output_Aux_module
@@ -11504,9 +11558,9 @@ subroutine PMWellOutput(pm_well)
 
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: filename,word
   PetscInt :: fid
-  PetscInt :: k, j
+  PetscInt :: k, j, i
 
 100 format(100es18.8)
 101 format(1I6.1)
@@ -11516,55 +11570,75 @@ subroutine PMWellOutput(pm_well)
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option
 
-  fid = 555
-  filename = PMWellOutputFilename(pm_well%name,option)
-  open(unit=fid,file=filename,action="write",status="old", &
-       position="append")
-
-  ! pm_well time is set at the end of the wellbore step????
-  write(fid,100,advance="no") option%time / output_option%tconv
-
-  select case (pm_well%option%iflowmode)
-    case (SCO2_MODE,H_MODE)
-      write(fid,100,advance="no") pm_well%well%bh_p
-  end select
-
   do k = 1,pm_well%well_grid%nsegments
     ! only print the segments that are being requested in the .well file
     if (.not. pm_well%well%output_in_well_file(k)) cycle
-    write(fid,101,advance="no") k
-    write(fid,100,advance="no") pm_well%well_grid%h(k)%x, &
-                                pm_well%well_grid%h(k)%y, &
-                                pm_well%well_grid%h(k)%z, &
-                                pm_well%well%pl(k), &
-                                pm_well%well%reservoir%p_l(k), &
-                                pm_well%well%pg(k), &
-                                pm_well%well%reservoir%p_g(k), &
-                                pm_well%well%liq%s(k), &
-                                pm_well%well%gas%s(k), &
-                                pm_well%well%liq%Q(k), &
-                                pm_well%well%gas%Q(k)
-    if (k == 1) then
-      write(fid,100,advance="no") pm_well%well%ql_bc(1), &
-                                  pm_well%well%qg_bc(1)
-    endif
-    if (k > 1) then
-      write(fid,100,advance="no") pm_well%well%ql(k-1), &
-                                  pm_well%well%qg(k-1)
-    endif
-    write(fid,100,advance="no") pm_well%well%mass_balance_liq(k), &
-                                pm_well%well%liq_mass(k), &
-                                pm_well%well%WI(k)
-    if (pm_well%transport) then
-      do j = 1,pm_well%nspecies
-        write(fid,100,advance="no") pm_well%well%aqueous_conc(j,k), &
-                                    pm_well%well%aqueous_mass(j,k), &
-                                    pm_well%well%reservoir%aqueous_conc(j,k)
-      enddo
-    endif
-  enddo
 
-  close(fid)
+    fid = k + 100
+    filename = PMWellOutputFilename(pm_well%name,pm_well%option)
+    write(word,'(i5)') k
+    if (k < 10000) word(1:1) = '0'; if (k < 1000) word(1:2) = '00'
+    if (k < 100) word(1:3) = '000'; if (k < 10) word(1:4) = '0000'
+    if (pm_well%split_output_file) then
+      filename = trim(filename) // trim(word)
+    endif
+    open(unit=fid,file=filename,action="write",status="old", &
+         position="append")
+
+    ! pm_well time is set at the end of the wellbore step????
+    write(fid,100,advance="no") option%time / output_option%tconv
+
+    select case (pm_well%option%iflowmode)
+      case (SCO2_MODE,H_MODE)
+        write(fid,100,advance="no") pm_well%well%bh_p
+    end select
+
+    ! here a j while loop that depends on if the file is split or not
+    j = k
+    do while (j <= pm_well%well_grid%nsegments)
+      if (.not. pm_well%well%output_in_well_file(j)) then
+        j = j + 1
+        cycle
+      endif
+
+      write(fid,101,advance="no") j
+      write(fid,100,advance="no") pm_well%well_grid%h(j)%x, &
+                                  pm_well%well_grid%h(j)%y, &
+                                  pm_well%well_grid%h(j)%z, &
+                                  pm_well%well%pl(j), &
+                                  pm_well%well%reservoir%p_l(j), &
+                                  pm_well%well%pg(j), &
+                                  pm_well%well%reservoir%p_g(j), &
+                                  pm_well%well%liq%s(j), &
+                                  pm_well%well%gas%s(j), &
+                                  pm_well%well%liq%Q(j), &
+                                  pm_well%well%gas%Q(j)
+      if (j == 1) then
+        write(fid,100,advance="no") pm_well%well%ql_bc(1), &
+                                    pm_well%well%qg_bc(1)
+      endif
+      if (j > 1) then
+        write(fid,100,advance="no") pm_well%well%ql(j-1), &
+                                    pm_well%well%qg(j-1)
+      endif
+      write(fid,100,advance="no") pm_well%well%mass_balance_liq(j), &
+                                  pm_well%well%liq_mass(j), &
+                                  pm_well%well%WI(j)
+      if (pm_well%transport) then
+        do i = 1,pm_well%nspecies
+          write(fid,100,advance="no") pm_well%well%aqueous_conc(i,j), &
+                                      pm_well%well%aqueous_mass(i,j), &
+                                      pm_well%well%reservoir%aqueous_conc(i,j)
+        enddo
+      endif
+
+      if (pm_well%split_output_file) exit
+      j = j + 1
+    enddo
+
+    close(fid)
+    if (.not. pm_well%split_output_file) exit
+  enddo
 
 end subroutine PMWellOutput
 
