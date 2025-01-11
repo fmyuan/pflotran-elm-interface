@@ -361,6 +361,7 @@ debug.o : \
 discretization.o : \
   dm_custom.o \
   grid.o \
+  grid_eclipse.o \
   grid_structured.o \
   grid_unstructured.o \
   grid_unstructured_aux.o \
@@ -1039,6 +1040,20 @@ grid.o : \
   region.o \
   string.o \
   utility.o
+grid_eclipse.o : \
+  grid_eclipse_util.o \
+  grid_unstructured_aux.o \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  string.o \
+  utility.o
+grid_eclipse_util.o : \
+  characteristic_curves.o \
+  option.o \
+  pflotran_constants.o \
+  string.o \
+  utility.o
 grid_structured.o : \
   connection.o \
   input_aux.o \
@@ -1222,6 +1237,7 @@ init_subsurface.o : \
   field.o \
   geomechanics_subsurface_properties.o \
   grid.o \
+  grid_eclipse.o \
   hdf5.o \
   input_aux.o \
   logging.o \

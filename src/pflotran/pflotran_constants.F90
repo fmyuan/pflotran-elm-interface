@@ -262,6 +262,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: IMPLICIT_UNSTRUCTURED_GRID = 3
   PetscInt, parameter, public :: EXPLICIT_UNSTRUCTURED_GRID = 4
   PetscInt, parameter, public :: POLYHEDRA_UNSTRUCTURED_GRID = 5
+  PetscInt, parameter, public :: ECLIPSE_UNSTRUCTURED_GRID = 6
   PetscInt, parameter, public :: ONE_DIM_GRID = 1
   PetscInt, parameter, public :: TWO_DIM_GRID = 2
   PetscInt, parameter, public :: THREE_DIM_GRID = 3
