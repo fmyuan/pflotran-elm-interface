@@ -2757,16 +2757,6 @@ subroutine PMWellReadPMBlock(this,input)
         cycle
     !-------------------------------------
       case('PRINT_WELL_FILE')
-
-
-
-
-        this%split_output_file = PETSC_TRUE
-
-
-
-
-
         this%print_well = PETSC_TRUE
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (InputError(input)) cycle
@@ -2803,6 +2793,7 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('SPLIT_WELL_FILE')
         this%split_output_file = PETSC_TRUE
+        cycle
     !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
