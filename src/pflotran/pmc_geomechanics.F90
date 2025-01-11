@@ -655,11 +655,11 @@ print *, 'PMCGeomechanicsGetAuxData'
                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
       call VecScatterBegin(pmc%sim_aux%subsurf_to_geomechanics, &
-                           pmc%sim_aux%subsurf_por0, &
+                           pmc%sim_aux%subsurf_por, &
                            pmc%geomech_realization%geomech_field%porosity, &
                            INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
       call VecScatterEnd(pmc%sim_aux%subsurf_to_geomechanics, &
-                         pmc%sim_aux%subsurf_por0, &
+                         pmc%sim_aux%subsurf_por, &
                          pmc%geomech_realization%geomech_field%porosity, &
                          INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 

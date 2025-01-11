@@ -842,7 +842,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por_p, &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p, &
                             ierr);CHKERRQ(ierr)
 
         ! jaa testing
@@ -874,7 +874,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                 ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por_p, &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
                                 ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
