@@ -20,6 +20,7 @@ module Reaction_Mineral_module
             ReactionMnrlReadFromDatabase, &
             ReactionMnrlReadMassActOverride, &
             ReactionMnrlProcessConstraint, &
+            ReactionMnrlSetup, &
             ReactionMnrlKineticRate, &
             ReactionMnrlSaturationIndex, &
             ReactionMnrlUpdateTempDepCoefs, &
@@ -326,6 +327,23 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   endif
                 enddo
               endif
+            case('SURFACE_AREA_FUNCTION')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,keyword,error_string)
+              call StringToUpper(word)
+              select case(word)
+                case('CONSTANT')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_NULL
+                case('POROSITY')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POROSITY
+                case('VOLUME_FRACTION')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_VOLFRAC
+                case default
+                  error_string = error_string // ',' // &
+                                 trim(keyword) // ',' // word
+                  call InputKeywordUnrecognized(input,keyword, &
+                                                error_string,option)
+              end select
             case default
               call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
@@ -680,7 +698,6 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   PetscBool :: external_area_dataset(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: units
   character(len=MAXWORDLENGTH) :: internal_units
-  PetscBool :: per_unit_mass
   PetscReal :: tempreal
 
   if (.not.associated(constraint)) return
@@ -736,16 +753,28 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   ! set up constraint specific surface area conversion factor
   do imnrl = 1, mineral%nkinmnrl
     units = constraint%constraint_area_units(imnrl)
-    per_unit_mass = StringEndsWith(units,'g')
-    internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 bulk
-    if (per_unit_mass) then
+    call StringToLower(units)
+    if (StringEndsWith(units,'m^3_mnrl')) then
+      units = units(1:index(units,'m^3_mnrl')+2)
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_MNRL_VOL
+      internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 mnrl
+    elseif (StringEndsWith(units,'g')) then
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_MNRL_MASS
       internal_units = 'm^2/kg' ! m^2 mnrl/kg mnrl
+    elseif (StringEndsWith(units,'m^3')) then
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_BULK_VOL
+      internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 bulk
+    else
+      option%io_buffer = 'Unrecognized mineral specific surface area units &
+        &for mineral ' // constraint%names(imnrl) // '.'
+      call PrintErrMsg(option)
     endif
     tempreal = UnitsConvertToInternal(units,internal_units, &
                          trim(constraint%names(imnrl))// &
                          ',specific surface area', &
                          option)
-    if (per_unit_mass) then
+    if (constraint%area_units_type(imnrl) == &
+        MINERAL_SURF_AREA_PER_MNRL_MASS) then
       mineral_rxn => &
         ReactionMnrlGetMnrlPtrFromName(constraint%names(imnrl),mineral)
       if (mineral_rxn%molar_weight < epsilon .or. &
@@ -767,12 +796,12 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       ! m^2/m^3 (m^2 mnrl/m^3 mnrl) = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
       tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
                  mineral_rxn%molar_volume
-      constraint%area_per_unit_mass(imnrl) = PETSC_TRUE
     endif
     constraint%constraint_area_conv_factor(imnrl) = tempreal
     constraint%constraint_area_units(imnrl) = internal_units
     if (Initialized(constraint%constraint_vol_frac(imnrl))) then
-      if (per_unit_mass) then
+      if (constraint%area_units_type(imnrl) == &
+          MINERAL_SURF_AREA_PER_MNRL_MASS) then
         ! m^2 mnrl/m^3 mnrl -> m^2 mnrl/m^3 bulk
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
         if (tempreal < epsilon) then
@@ -791,6 +820,48 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   enddo
 
 end subroutine ReactionMnrlProcessConstraint
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlSetup(reaction,option)
+  !
+  ! Ensure that the mineral object is properly initialized.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/10/25
+  !
+  use Option_module
+
+  implicit none
+
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  type(mineral_type), pointer :: mineral
+  PetscBool :: error_found
+  PetscInt :: imnrl
+
+  mineral => reaction%mineral
+
+  error_found = PETSC_FALSE
+  do imnrl = 1, mineral%nkinmnrl
+    select case(mineral%kinmnrl_surf_area_function(imnrl))
+      case(MINERAL_SURF_AREA_F_VOLFRAC)
+        if (Uninitialized(mineral%kinmnrl_spec_surf_area)) then
+          error_found = PETSC_TRUE
+          option%io_buffer = 'A specific surface area must be defined in &
+            &in the MINERAL_KINETICS block for mineral "' // &
+            trim(mineral%mineral_names(imnrl)) // '".'
+          call PrintMsg(option)
+        endif
+    end select
+  enddo
+
+  if (error_found) then
+    call PrintErrMsg(option,'Mineral kinetics missing parameters.')
+  endif
+
+end subroutine ReactionMnrlSetup
 
 ! ************************************************************************** !
 
@@ -1563,6 +1634,7 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
 
   mineral => reaction%mineral
 
+!gehmnrl - remove this block
   do imnrl = 1, mineral%nkinmnrl
 
     porosity_scale = 1.d0
@@ -1622,6 +1694,75 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
       endif
     endif
 
+  enddo
+!gehmnrl - (end) remove this block
+
+  do imnrl = 1, mineral%nkinmnrl
+
+    select case(mineral%kinmnrl_surf_area_function(imnrl))
+      case(MINERAL_SURF_AREA_F_POROSITY)
+#if 0
+        porosity_scale = 1.d0
+        porosity_scale = &
+            ((1.d0-material_auxvar%porosity_base) / &
+            (1.d0-porosity0))** &
+            mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
+
+        volfrac_scale = 1.d0
+        mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+                            mineral%kinmnrl_vol_frac_epsilon(imnrl))
+        mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
+                          mineral%kinmnrl_vol_frac_epsilon(imnrl))
+        if (mnrl_volfrac0 > 0.d0) then
+          volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
+                          mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+        endif
+
+        rt_auxvar%mnrl_area(imnrl) = &
+            max(rt_auxvar%mnrl_area0(imnrl), &
+                mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
+            porosity_scale*volfrac_scale
+
+        if (reaction%update_armor_mineral_surface .and. &
+            mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
+          imnrl_armor = imnrl
+          do imnrl1 = 1, mineral%nkinmnrl
+            if (mineral%kinmnrl_armor_min_names(imnrl) == &
+                mineral%kinmnrl_names(imnrl1)) then
+              imnrl_armor = imnrl1
+              exit
+            endif
+          enddo
+
+          ! check for negative surface area armoring correction
+          if (mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
+              rt_auxvar%mnrl_volfrac(imnrl_armor)) then
+
+            if (reaction%update_armor_mineral_surface_flag == 0) then
+              ! surface unarmored
+              rt_auxvar%mnrl_area(imnrl) = &
+                rt_auxvar%mnrl_area(imnrl) * &
+                ((mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
+                - rt_auxvar%mnrl_volfrac(imnrl_armor))/ &
+                mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
+                mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+            else
+              rt_auxvar%mnrl_area(imnrl) = &
+                rt_auxvar%mnrl_area0(imnrl)
+              reaction%update_armor_mineral_surface_flag = 0
+            endif
+          else
+            rt_auxvar%mnrl_area(imnrl) = 0.d0
+            reaction%update_armor_mineral_surface_flag = 1 ! surface armored
+          endif
+        endif
+#endif
+      case(MINERAL_SURF_AREA_F_VOLFRAC)
+        rt_auxvar%mnrl_area(imnrl) = &
+          mineral%kinmnrl_spec_surf_area(imnrl) * &
+          rt_auxvar%mnrl_volfrac(imnrl)
+      case default
+    end select
   enddo
 
 end subroutine ReactionMnrlUpdateSpecSurfArea

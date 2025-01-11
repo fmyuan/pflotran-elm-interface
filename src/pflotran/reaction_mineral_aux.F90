@@ -15,6 +15,14 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_KINETIC = 2
   PetscInt, parameter, public :: MINERAL_EQUILIBRIUM = 3
 
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_BULK_VOL = 1
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_MNRL_MASS = 2
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_MNRL_VOL = 3
+
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_NULL = 1
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_POROSITY = 2
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_VOLFRAC = 3
+
   type, public :: mineral_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -44,6 +52,8 @@ module Reaction_Mineral_Aux_module
     PetscReal :: armor_crit_vol_frac
     PetscReal :: surf_area_epsilon
     PetscReal :: vol_frac_epsilon
+    PetscInt :: surf_area_function
+    PetscReal :: spec_surf_area
     type(transition_state_prefactor_type), pointer :: prefactor
     type(transition_state_rxn_type), pointer :: next
   end type transition_state_rxn_type
@@ -76,7 +86,7 @@ module Reaction_Mineral_Aux_module
     character(len=MAXWORDLENGTH), pointer :: constraint_area_string(:)
     character(len=MAXWORDLENGTH), pointer :: constraint_area_units(:)
     PetscReal, pointer :: constraint_area_conv_factor(:)
-    PetscBool, pointer :: area_per_unit_mass(:)
+    PetscInt, pointer :: area_units_type(:)
     PetscBool, pointer :: external_vol_frac_dataset(:)
     PetscBool, pointer :: external_area_dataset(:)
   end type mineral_constraint_type
@@ -145,6 +155,8 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_armor_pwr(:)
     PetscReal, pointer :: kinmnrl_surf_area_epsilon(:)
     PetscReal, pointer :: kinmnrl_vol_frac_epsilon(:)
+    PetscReal, pointer :: kinmnrl_spec_surf_area(:)
+    PetscInt, pointer :: kinmnrl_surf_area_function(:)
 
   end type mineral_type
 
@@ -253,6 +265,8 @@ function ReactionMnrlCreateAux()
 
   nullify(mineral%kinmnrl_surf_area_epsilon)
   nullify(mineral%kinmnrl_vol_frac_epsilon)
+  nullify(mineral%kinmnrl_spec_surf_area)
+  nullify(mineral%kinmnrl_surf_area_function)
 
   ReactionMnrlCreateAux => mineral
 
@@ -320,6 +334,8 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%armor_crit_vol_frac = 0.d0
   tstrxn%surf_area_epsilon = 0.d0
   tstrxn%vol_frac_epsilon = 0.d0
+  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_NULL
+  tstrxn%spec_surf_area = UNINITIALIZED_DOUBLE
   tstrxn%precipitation_rate_constant = UNINITIALIZED_DOUBLE
   tstrxn%dissolution_rate_constant = UNINITIALIZED_DOUBLE
   nullify(tstrxn%prefactor)
@@ -421,8 +437,8 @@ function ReactionMnrlCreateMnrlConstraint(mineral,option)
   constraint%constraint_area_units = ''
   allocate(constraint%constraint_area_conv_factor(mineral%nkinmnrl))
   constraint%constraint_area_conv_factor = UNINITIALIZED_DOUBLE
-  allocate(constraint%area_per_unit_mass(mineral%nkinmnrl))
-  constraint%area_per_unit_mass = PETSC_FALSE
+  allocate(constraint%area_units_type(mineral%nkinmnrl))
+  constraint%area_units_type = UNINITIALIZED_INTEGER
   allocate(constraint%external_vol_frac_dataset(mineral%nkinmnrl))
   constraint%external_vol_frac_dataset = PETSC_FALSE
   allocate(constraint%external_area_dataset(mineral%nkinmnrl))
@@ -753,7 +769,7 @@ subroutine ReactionMnrlDestMnrlConstraint(constraint)
   call DeallocateArray(constraint%constraint_area_string)
   call DeallocateArray(constraint%constraint_area_units)
   call DeallocateArray(constraint%constraint_area_conv_factor)
-  call DeallocateArray(constraint%area_per_unit_mass)
+  call DeallocateArray(constraint%area_units_type)
   call DeallocateArray(constraint%external_area_dataset)
   call DeallocateArray(constraint%external_vol_frac_dataset)
 
@@ -845,6 +861,8 @@ subroutine ReactionMnrlDestroyAux(mineral)
 
   call DeallocateArray(mineral%kinmnrl_surf_area_epsilon)
   call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)
+  call DeallocateArray(mineral%kinmnrl_spec_surf_area)
+  call DeallocateArray(mineral%kinmnrl_surf_area_function)
 
   deallocate(mineral)
   nullify(mineral)

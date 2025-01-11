@@ -1905,6 +1905,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Mineral_module
+  use Reaction_Mineral_Aux_module, only : MINERAL_SURF_AREA_F_NULL
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z, &
                                PERMEABILITY_XY, PERMEABILITY_XZ, &
@@ -1956,13 +1957,19 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
 
   if (reaction%update_mineral_surface_area) then
-
+!gehmnrl  if (any(reaction%mineral%kinmnrl_surf_area_function /= &
+!gehmnrl      MINERAL_SURF_AREA_F_NULL)) then
     nullify(porosity0_p)
     if (reaction%update_mnrl_surf_with_porosity) then
       ! placing the get/restore array calls within the condition will
       ! avoid improper access.
       call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
+!gehmnrl - need to move VecGetArrayReadF90 outsite, always on
+
+    ! placing the get/restore array calls within the condition will
+    ! avoid improper access.
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     temp_porosity = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
@@ -1977,10 +1984,12 @@ subroutine RealizationUpdatePropertiesTS(realization)
       enddo
     enddo
 
+!gehmnrl - need to move VecGetArrayReadF90 outsite, always on
     if (reaction%update_mnrl_surf_with_porosity) then
       call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
                                   ierr);CHKERRQ(ierr)
     endif
+
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)

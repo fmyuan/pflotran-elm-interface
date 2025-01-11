@@ -102,6 +102,7 @@ subroutine RTSetup(realization)
   use Material_module
   use Material_Aux_module
   use Reaction_Surface_Complexation_Aux_module
+  use Reaction_Mineral_module, only : ReactionMnrlSetup
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
   use Secondary_Continuum_Aux_module, only : sec_transport_type, &
@@ -242,6 +243,8 @@ subroutine RTSetup(realization)
       'Material property errors found in RTSetup (reactive transport).'
     call PrintErrMsg(option)
   endif
+
+  call ReactionMnrlSetup(reaction,option)
 
 !============== Create secondary continuum variables - SK 2/5/13 ===============
 

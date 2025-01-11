@@ -733,6 +733,7 @@ subroutine PMRTFinalizeTimestep(this)
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
   use Material_Aux_module, only : POROSITY_BASE
+  use Reaction_Mineral_Aux_module, only : MINERAL_SURF_AREA_F_POROSITY
   use Global_module
 
   implicit none
@@ -749,6 +750,9 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
+!gehmnrl
+!  else if (any(this%realization%reaction%mineral%kinmnrl_surf_area_function &
+!           == MINERAL_SURF_AREA_F_POROSITY)) then
   else if (this%realization%reaction%update_mineral_surface_area) then
     call RealizationUpdatePropertiesTS(this%realization)
   endif

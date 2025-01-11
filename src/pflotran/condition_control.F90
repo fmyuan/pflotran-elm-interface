@@ -1389,6 +1389,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                                         RTUpdateActivityCoefficients
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
+  use Reaction_Mineral_Aux_module
   use Global_Aux_module
   use Material_Aux_module
   use Reaction_module
@@ -1554,7 +1555,10 @@ subroutine CondControlAssignRTTranInitCond(realization)
                           constraint%minerals% &
                             constraint_area_conv_factor(imnrl), &
                           ierr);CHKERRQ(ierr)
-            if (constraint%minerals%area_per_unit_mass(imnrl)) then
+            if (constraint%minerals%area_units_type(imnrl) == &
+                MINERAL_SURF_AREA_PER_MNRL_MASS .or. &
+                constraint%minerals%area_units_type(imnrl) == &
+                MINERAL_SURF_AREA_PER_MNRL_VOL) then
               if (constraint%minerals% &
                     external_vol_frac_dataset(imnrl)) then
                 dataset => DatasetBaseGetPointer(realization%datasets, &

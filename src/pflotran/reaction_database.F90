@@ -1939,6 +1939,11 @@ subroutine ReactionDBInitBasis(reaction,option)
       allocate(mineral%kinmnrl_vol_frac_epsilon(mineral%nkinmnrl))
       mineral%kinmnrl_vol_frac_epsilon = 0.d0
 
+      allocate(mineral%kinmnrl_spec_surf_area(mineral%nkinmnrl))
+      mineral%kinmnrl_spec_surf_area = UNINITIALIZED_DOUBLE
+      allocate(mineral%kinmnrl_surf_area_function(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_function = UNINITIALIZED_INTEGER
+
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
       if (max_num_prefactors > 0) then
@@ -2034,6 +2039,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       endif
       cur_mineral => cur_mineral%next
     enddo
+!gehmnrl
+!    if (any(reaction%mineral%kinmnrl_surf_area_function == &
+!            MINERAL_SURF_AREA_F_POROSITY) .or. found) then
     if (reaction%update_mineral_surface_area .or. found) then
       allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0
@@ -2373,6 +2381,10 @@ subroutine ReactionDBInitBasis(reaction,option)
             tstrxn%surf_area_epsilon
           mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
             tstrxn%vol_frac_epsilon
+          mineral%kinmnrl_spec_surf_area(ikinmnrl) = &
+            tstrxn%spec_surf_area
+          mineral%kinmnrl_surf_area_function(ikinmnrl) = &
+            tstrxn%surf_area_function
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
