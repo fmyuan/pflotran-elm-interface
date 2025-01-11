@@ -614,7 +614,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       ! bulk density
       density_bulk_vec(ivertex) = (porosity_vec(ivertex) * &
                                    density_fluid_vec(ivertex)) + &
-                                  ((1.0 - porosity_vec(ivertex)) * &
+                                  ((1.d0 - porosity_vec(ivertex)) * &
                                    density_rock_vec(ivertex))
       youngs_vec(ivertex) = &
         GeomechParam%youngs_modulus(nint(imech_loc_p(ghosted_id)))
@@ -624,7 +624,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     size_elenodes = size(elenodes)
     call GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
        local_disp,local_press,local_temp,youngs_vec,poissons_vec, &
-       density_rock_vec,beta_vec,alpha_vec,eletype, &
+       density_bulk_vec,beta_vec,alpha_vec,eletype, &
        grid%gauss_node(ielem)%dim,grid%gauss_node(ielem)%r, &
        grid%gauss_node(ielem)%w,res_vec,option)
     call VecSetValues(r,size(ids),ids,res_vec,ADD_VALUES,ierr);CHKERRQ(ierr)
