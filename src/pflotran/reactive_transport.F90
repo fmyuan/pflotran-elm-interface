@@ -462,7 +462,7 @@ subroutine RTSetup(realization)
                             realization%output_option%tunit)
   endif
 
-  if (option%transport%reactive_transport_coupling == &
+  if (option%transport%reaction_coupling == &
       GLOBAL_IMPLICIT) then
     ndof = realization%reaction%ncomp
   else

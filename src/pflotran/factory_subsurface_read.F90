@@ -182,13 +182,15 @@ subroutine FactorySubsurfReadTransportPM(input,option,pm)
           case('GIRT')
             pm => PMRTCreate()
             option%itranmode = RT_MODE
+            option%transport%reaction_coupling = GLOBAL_IMPLICIT
           case('OSRT')
             pm => PMOSRTCreate()
             option%itranmode = RT_MODE
-            option%transport%reactive_transport_coupling = OPERATOR_SPLIT
+            option%transport%reaction_coupling = OPERATOR_SPLIT
           case('NWT')
             pm => PMNWTCreate()
             option%itranmode = NWT_MODE
+            option%transport%reaction_coupling = GLOBAL_IMPLICIT
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)

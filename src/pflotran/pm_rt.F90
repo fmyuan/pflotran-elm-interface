@@ -1487,7 +1487,7 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
   if (update_kinetics .and. &
       ! for operator splitting, kinetic state is updated at the end of each
       ! reaction step at each grid cell
-      this%option%transport%reactive_transport_coupling /= OPERATOR_SPLIT) &
+      this%option%transport%reaction_coupling /= OPERATOR_SPLIT) &
     call RTUpdateKineticState(this%realization)
 
 !TODO(geh): MassTransfer
