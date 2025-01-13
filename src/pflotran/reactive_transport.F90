@@ -18,8 +18,6 @@ module Reactive_Transport_module
 
   private
 
-  PetscReal, parameter :: perturbation_tolerance = 1.d-5
-
   public :: RTTimeCut, &
             RTSetup, &
             RTMaxChange, &
@@ -1998,6 +1996,7 @@ subroutine RTNumericalJacobianTest(realization,xx)
   PetscErrorCode :: ierr
 
   PetscReal :: derivative, perturbation
+  PetscReal, parameter :: perturbation_tolerance = 1.d-5
 
   PetscReal, pointer :: vec_p(:), vec2_p(:)
 
@@ -2785,8 +2784,8 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   use Realization_Subsurface_class
   use Patch_module
   use Option_module
-  use Field_module
   use Grid_module
+  use Reaction_CO2_module
   use EOS_Water_module
 
   implicit none
@@ -2799,10 +2798,8 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   PetscReal :: mco2eq
   PetscReal, parameter :: eps = 1.d-6
 
-
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   class(reaction_rt_type), pointer :: reaction
   PetscErrorCode :: ierr
@@ -2812,7 +2809,6 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   PetscReal, pointer :: r_p(:)
 
   option => realization%option
-  field => realization%field
   patch => realization%patch
   reaction => realization%reaction
   grid => patch%grid
@@ -2834,9 +2830,9 @@ subroutine RTResidualEquilibrateCO2(r,realization)
                                 &for primary other than CO2(aq)')
       endif
 
-      call RCalculateSCO2Solubility(rt_auxvars(ghosted_id), &
-                                    global_auxvars(ghosted_id), &
-                                    reaction,mco2eq,option)
+      call RCO2CalculateSCO2Solubility(rt_auxvars(ghosted_id), &
+                                       global_auxvars(ghosted_id), &
+                                       reaction,mco2eq,option)
 
       r_p(jco2+(local_id-1)*reaction%ncomp) = &
         rt_auxvars(ghosted_id)%pri_molal(jco2) - mco2eq
@@ -3455,6 +3451,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
   use Coupler_module
   use Connection_module
   use Option_module
+  use Reaction_CO2_module
 
   implicit none
 
@@ -3487,9 +3484,9 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
       if (option%transport%couple_co2) then
-        call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
-                                 patch%aux%Global%auxvars(ghosted_id), &
-                                 reaction,option)
+        call RCO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
+                            patch%aux%Global%auxvars(ghosted_id), &
+                            reaction,option)
       endif
     enddo
   endif
@@ -3512,9 +3509,9 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
         if (option%transport%couple_co2) then
-          call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
-                             patch%aux%Global%auxvars_bc(sum_connection), &
-                             reaction,option)
+          call RCO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
+                              patch%aux%Global%auxvars_bc(sum_connection), &
+                              reaction,option)
         endif
       enddo ! iconn
       boundary_condition => boundary_condition%next
@@ -3546,6 +3543,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   use Global_Aux_module
   use Material_Aux_module
   use Transport_Constraint_RT_module
+  use Reaction_CO2_module
 
 #ifdef XINGYUAN_BC
   use Dataset_module
@@ -3651,9 +3649,9 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
         if (option%transport%couple_co2) then
-          call CO2AqActCoeff(rt_auxvars(ghosted_id), &
-                                   global_auxvars(ghosted_id), &
-                                   reaction,option)
+          call RCO2AqActCoeff(rt_auxvars(ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              reaction,option)
         endif
       endif
       call RTAuxVarCompute(rt_auxvars(ghosted_id), &

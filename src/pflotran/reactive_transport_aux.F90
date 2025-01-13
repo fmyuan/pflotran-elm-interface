@@ -131,6 +131,7 @@ module Reactive_Transport_Aux_module
             RTAuxVarCopy, &
             RTAuxVarPerturb, &
             RTAuxVarCopyInitialGuess, &
+            RTSumMoles, &
             RTAuxVarDestroy, &
             RTAuxVarStrip, &
             RTAuxDestroy
@@ -546,6 +547,39 @@ subroutine RTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
 #endif
 
 end subroutine RTAuxVarCopyInitialGuess
+
+! ************************************************************************** !
+
+function RTSumMoles(rt_auxvar,reaction,option)
+  !
+  ! Sums the total moles of primary and secondary aqueous species
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/01/14
+  !
+
+  use Option_module
+  use Reaction_Aux_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+  PetscReal :: RTSumMoles
+
+  PetscInt :: i
+
+  RTSumMoles = 0.d0
+  do i = 1, reaction%naqcomp
+    RTSumMoles = RTSumMoles + rt_auxvar%pri_molal(i)
+  enddo
+
+  do i = 1, reaction%neqcplx
+    RTSumMoles = RTSumMoles + rt_auxvar%sec_molal(i)
+  enddo
+
+end function RTSumMoles
 
 ! ************************************************************************** !
 

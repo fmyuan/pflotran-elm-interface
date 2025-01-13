@@ -6102,6 +6102,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   use NW_Transport_Aux_module
   use NWT_Equilibrium_module
   use Reaction_Aux_module
+  use Reaction_CO2_module
   use Global_Aux_module
   use Material_Aux_module
   use Mphase_Aux_module
