@@ -1960,12 +1960,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
 !gehmnrl  if (any(reaction%mineral%kinmnrl_surf_area_function /= &
 !gehmnrl      MINERAL_SURF_AREA_F_NULL)) then
     nullify(porosity0_p)
-    if (reaction%update_mnrl_surf_with_porosity) then
-      ! placing the get/restore array calls within the condition will
-      ! avoid improper access.
-      call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    endif
-!gehmnrl - need to move VecGetArrayReadF90 outsite, always on
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     ! placing the get/restore array calls within the condition will
     ! avoid improper access.
@@ -1984,11 +1979,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
       enddo
     enddo
 
-!gehmnrl - need to move VecGetArrayReadF90 outsite, always on
-    if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
-                                  ierr);CHKERRQ(ierr)
-    endif
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
 
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
