@@ -785,7 +785,7 @@ subroutine InvAuxBCastVecForCommI(comm,vec,driver)
 
   call VecGetLocalSize(vec,vec_size,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
-  call MPI_BCast(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
+  call MPI_Bcast(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
                  comm%communicator,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 

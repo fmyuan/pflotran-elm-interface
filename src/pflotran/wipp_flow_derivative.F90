@@ -232,9 +232,9 @@ subroutine WIPPFloDerivativeSetup(wippflo_parameter, &
   endif
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
-    sf => SF_VG_Create()
-    rpf_liq => RPF_Mualem_VG_Liq_Create()
-    rpf_gas => RPF_Mualem_VG_Gas_Create()
+    sf => SFVGCreate()
+    rpf_liq => RPFMualemVGLiqCreate()
+    rpf_gas => RPFMualemVGGasCreate()
     sf%m = 0.5d0
     sf%alpha = 1.d-4
     sf%Sr = 0.d0
@@ -284,7 +284,6 @@ subroutine WIPPFloDerivativeSetupAuxVar(istate,xx,pert,wippflo_auxvar, &
 
   PetscReal :: xx_pert(3)
   PetscInt :: natural_id = 1
-  PetscBool :: analytical_derivative = PETSC_TRUE
   PetscInt :: i
   
   allocate(wippflo_auxvar(0:3))
@@ -292,7 +291,7 @@ subroutine WIPPFloDerivativeSetupAuxVar(istate,xx,pert,wippflo_auxvar, &
   allocate(material_auxvar(0:3))
   
   do i = 0, 3
-    call WIPPFloAuxVarInit(wippflo_auxvar(i),analytical_derivative,option)
+    call WIPPFloAuxVarInit(wippflo_auxvar(i),option)
     call GlobalAuxVarInit(global_auxvar(i),option)
     call MaterialAuxVarInit(material_auxvar(i),option)
     material_auxvar(i)%porosity_base = 0.25d0
@@ -464,7 +463,6 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
   PetscReal :: res(3), res_pert(3,3)
   PetscReal :: jac_anal(3,3)
   PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)  
   
   call WIPPFloPrintAuxVars(wippflo_auxvar(0),global_auxvar(0),material_auxvar(0), &
                            natural_id,'',option)
@@ -474,7 +472,7 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
                            material_auxvar(ZERO_INTEGER), &
                            material_parameter%soil_heat_capacity(1), &
                            option, &
-                           res,jac_anal,PETSC_TRUE,PETSC_FALSE)
+                           res,PETSC_FALSE)
 
   do i = 1, 3
     call WIPPFloAccumulation(wippflo_auxvar(i), &
@@ -482,7 +480,7 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
                              material_auxvar(i), &
                              material_parameter%soil_heat_capacity(1), &
                              option, &
-                             res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)
+                             res_pert(:,i),PETSC_FALSE)
                            
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
@@ -541,12 +539,10 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
   PetscReal :: res_pert(3,3)
   PetscReal :: jac_anal(3,3)
   PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)
   
   PetscReal :: res_pert2(3,3)
   PetscReal :: jac_anal2(3,3)
   PetscReal :: jac_num2(3,3)
-  PetscReal :: jac_dum2(3,3)
   
   call WIPPFloPrintAuxVars(wippflo_auxvar(0),global_auxvar(0),material_auxvar(0), &
                            natural_id,'upwind',option)
@@ -560,11 +556,10 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                    global_auxvar2(ZERO_INTEGER), &
                    material_auxvar2(ZERO_INTEGER), &
                    area, dist, upwind_direction, wippflo_parameter, &
-                   option,v_darcy,res,jac_anal,jac_anal2, &
+                   option,v_darcy,res, &
                    PETSC_FALSE, & ! derivative call
                    wippflo_fix_upwind_direction, &
-                   PETSC_TRUE,PETSC_FALSE, &
-                   PETSC_TRUE,PETSC_FALSE)                           
+                   PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
 
   do i = 1, 3
     call WIPPFloFlux(wippflo_auxvar(i), &
@@ -574,11 +569,10 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                      global_auxvar2(ZERO_INTEGER), &
                      material_auxvar2(ZERO_INTEGER), &
                      area, dist, upwind_direction, wippflo_parameter, &
-                     option,v_darcy,res_pert(:,i),jac_dum,jac_dum2, &
+                     option,v_darcy,res_pert(:,i), &
                      PETSC_TRUE, & ! derivative call
                      wippflo_fix_upwind_direction, &
-                     PETSC_FALSE,PETSC_FALSE, &
-                     PETSC_FALSE,PETSC_FALSE)                           
+                     PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
     enddo !irow
@@ -591,11 +585,10 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                      global_auxvar2(i), &
                      material_auxvar2(i), &
                      area, dist, upwind_direction, wippflo_parameter, &
-                     option,v_darcy,res_pert2(:,i),jac_dum,jac_dum2, &
+                     option,v_darcy,res_pert2(:,i), &
                      PETSC_TRUE, & ! derivative call
                      wippflo_fix_upwind_direction, &
-                     PETSC_FALSE,PETSC_FALSE, &
-                     PETSC_FALSE,PETSC_FALSE)                           
+                     PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num2(irow,i) = (res_pert2(irow,i)-res(irow))/pert2(i)
     enddo !irow
@@ -654,7 +647,6 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
   PetscReal :: res_pert(3,3)
   PetscReal :: jac_anal(3,3)
   PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)
   
   call WIPPFloPrintAuxVars(wippflo_auxvar_bc,global_auxvar_bc,material_auxvar_dn(0), &
                            natural_id,'boundary',option)
@@ -666,12 +658,12 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
                      wippflo_auxvar_dn(ZERO_INTEGER),global_auxvar_dn(ZERO_INTEGER), &
                      material_auxvar_dn(ZERO_INTEGER), &
                      area,dist,upwind_direction,wippflo_parameter, &
-                     option,v_darcy,res,jac_anal, &
+                     option,v_darcy,res, &
                      PETSC_FALSE, & ! derivative call
                      wippflo_fix_upwind_direction, &
                      PETSC_TRUE, & ! update the upwind direction
                      PETSC_FALSE, & ! count upwind direction flip                     
-                     PETSC_TRUE,PETSC_FALSE)                           
+                     PETSC_FALSE)
                            
   do i = 1, 3
     call WIPPFloBCFlux(ibndtype,auxvar_mapping,auxvars, &
@@ -679,12 +671,12 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
                        wippflo_auxvar_dn(i),global_auxvar_dn(i), &
                        material_auxvar_dn(i), &
                        area,dist,upwind_direction,wippflo_parameter, &
-                       option,v_darcy,res_pert(:,i),jac_dum, &
+                       option,v_darcy,res_pert(:,i), &
                        PETSC_TRUE, & ! derivative call
                        wippflo_fix_upwind_direction, &
                        PETSC_FALSE, & ! update the upwind direction
                        PETSC_FALSE, & ! count upwind direction flip                       
-                       PETSC_FALSE,PETSC_FALSE)                           
+                       PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
     enddo !irow
@@ -727,7 +719,6 @@ subroutine WIPPFloDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
   PetscReal :: res_pert(3,3)
   PetscReal :: jac_anal(3,3)
   PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)
   
   call WIPPFloPrintAuxVars(wippflo_auxvar(0),global_auxvar(0),material_auxvar(0), &
                            natural_id,'srcsink',option)
@@ -735,13 +726,13 @@ subroutine WIPPFloDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvar(ZERO_INTEGER),global_auxvar(ZERO_INTEGER), &
                       ss_flow_vol_flux, &
-                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE)                           
+                      scale,res,PETSC_FALSE)
                            
   do i = 1, 3
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvar(i),global_auxvar(i), &
                         ss_flow_vol_flux, &
-                        scale,res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)                           
+                        scale,res_pert(:,i),PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
     enddo !irow

@@ -2,6 +2,7 @@
 ! Please see LICENSE and COPYRIGHT files at top of repository.
 !=======================================================================
 program pflotran
+#include "petsc/finclude/petscsys.h"
 
   use Driver_class
   use Simulation_Base_class
@@ -9,8 +10,6 @@ program pflotran
   use PFLOTRAN_Constants_module
 
   implicit none
-
-#include "petsc/finclude/petscsys.h"
 
   class(simulation_base_type), pointer :: simulation
   class(driver_type), pointer :: driver

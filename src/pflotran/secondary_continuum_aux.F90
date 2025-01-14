@@ -1,6 +1,7 @@
 ! added by S. Karra 07/11/12
 
 module Secondary_Continuum_Aux_module
+#include "petsc/finclude/petscsys.h"
 
   use Reactive_Transport_Aux_module
 
@@ -9,8 +10,6 @@ module Secondary_Continuum_Aux_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: slab_type
     PetscReal :: half_matrix_width            ! input - length of half width of slab

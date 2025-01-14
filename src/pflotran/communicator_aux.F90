@@ -1,10 +1,9 @@
 module Communicator_Aux_module
+#include "petsc/finclude/petscsys.h"
 
   use petscsys
 
   implicit none
-
-#include "petsc/finclude/petscsys.h"
 
   private
 

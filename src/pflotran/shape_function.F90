@@ -1,12 +1,11 @@
 module Shape_Function_module
+#include "petsc/finclude/petscsys.h"
 
   use Gauss_module
   use Grid_Unstructured_Cell_module
   use PFLOTRAN_Constants_module
 
   implicit none
-
-#include "petsc/finclude/petscsys.h"
 
   private
 

@@ -1,4 +1,5 @@
 module WIPP_Flow_Common_module
+#include "petsc/finclude/petscsys.h"
 
   use WIPP_Flow_Aux_module
   use Global_Aux_module
@@ -9,8 +10,6 @@ module WIPP_Flow_Common_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8

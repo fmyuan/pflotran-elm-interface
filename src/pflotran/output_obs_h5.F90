@@ -170,7 +170,7 @@ contains
     ! create an hdf5 file access property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
 #ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+    call h5pset_fapl_mpio_f90(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
 #endif
 
     call h5fcreate_f(h5_filename, H5F_ACC_TRUNC_F, file_id, h5_err, &
@@ -419,7 +419,7 @@ contains
     ! parallel hdf5 property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
 #ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+    call h5pset_fapl_mpio_f90(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
 #endif
 
     ! open HDF5 observation file
@@ -632,7 +632,7 @@ contains
     ! parallel hdf5 property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
 #ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+    call h5pset_fapl_mpio_f90(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
 #endif
 
     ! open HDF5 observation file
@@ -905,7 +905,9 @@ contains
                    extent, h5_err)
     ! create property list for write
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
+#endif
 
     ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, v_data, dset_size, &
@@ -973,7 +975,9 @@ contains
                    extent, h5_err)
     ! create property list for write
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
+#endif
 
     ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, v_data, dset_size, &

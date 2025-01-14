@@ -1,12 +1,11 @@
 program pflotran_derivative
+#include "petsc/finclude/petscsys.h"
 
   use Option_module
   use General_Derivative_module
   use EOS_module
 
   implicit none
-
-#include "petsc/finclude/petscsys.h"
 
   type(option_type), pointer :: option
 

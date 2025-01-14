@@ -1,10 +1,9 @@
 module Variables_module
+#include "petsc/finclude/petscsys.h"
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   ! variables definitions
   PetscInt, parameter, public :: X_COORDINATE =             1
