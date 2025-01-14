@@ -2032,7 +2032,11 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
         if (.not.Equal(cur_mineral%tstrxn%surf_area_vol_frac_pwr, &
-                       0.d0)) then
+                       0.d0) .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
           found = PETSC_TRUE
           exit
         endif
@@ -2040,9 +2044,8 @@ subroutine ReactionDBInitBasis(reaction,option)
       cur_mineral => cur_mineral%next
     enddo
 !gehmnrl
-!    if (any(reaction%mineral%kinmnrl_surf_area_function == &
-!            MINERAL_SURF_AREA_F_POROSITY) .or. found) then
-    if (reaction%update_mineral_surface_area .or. found) then
+!    if (reaction%update_mineral_surface_area .or. found) then
+    if (found) then
       allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0
     endif

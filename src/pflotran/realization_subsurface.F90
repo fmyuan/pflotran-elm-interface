@@ -1956,27 +1956,19 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call RealizationCalcMineralPorosity(realization)
   endif
 
-  if (reaction%update_mineral_surface_area) then
-!gehmnrl  if (any(reaction%mineral%kinmnrl_surf_area_function /= &
-!gehmnrl      MINERAL_SURF_AREA_F_NULL)) then
+  if (reaction%mineral%update_surface_area) then
     nullify(porosity0_p)
-    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-
-    ! placing the get/restore array calls within the condition will
-    ! avoid improper access.
     call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     temp_porosity = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      do imnrl = 1, reaction%mineral%nkinmnrl
-        if (associated(porosity0_p)) then
-          temp_porosity = porosity0_p(local_id)
-        endif
-        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
-                                            material_auxvars(ghosted_id), &
-                                            temp_porosity,option)
-      enddo
+      if (associated(porosity0_p)) then
+        temp_porosity = porosity0_p(local_id)
+      endif
+      call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                          material_auxvars(ghosted_id), &
+                                          temp_porosity,option)
     enddo
 
     call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &

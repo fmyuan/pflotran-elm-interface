@@ -20,8 +20,10 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_MNRL_VOL = 3
 
   PetscInt, parameter, public :: MINERAL_SURF_AREA_F_NULL = 1
-  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_POROSITY = 2
-  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_VOLFRAC = 3
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_POR_RATIO = 2
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_VF_RATIO = 3
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_POR_VF_RATIO = 4
+  PetscInt, parameter, public :: MINERAL_SURF_AREA_F_MNRL_MASS = 5
 
   type, public :: mineral_rxn_type
     PetscInt :: id
@@ -117,6 +119,8 @@ module Reaction_Mineral_Aux_module
     PetscBool, pointer :: mnrl_print(:)
 
     ! for kinetic reactions
+    PetscBool :: update_surface_area
+
     PetscInt :: nkinmnrl
     character(len=MAXWORDLENGTH), pointer :: kinmnrl_names(:)
     character(len=MAXWORDLENGTH), pointer :: kinmnrl_armor_min_names(:)
@@ -171,6 +175,7 @@ module Reaction_Mineral_Aux_module
             ReactionMnrlGetMnrlIDFromName, &
             ReactionMnrlGetKinMnrlIDFromName, &
             ReactionMnrlGetMnrlPtrFromName, &
+            ReactionMnrlAnyUpdatePorosity, &
             ReactionMnrlCreateTSTRxn, &
             ReactionMnrlCreateTSTPrefactor, &
             ReactionMnrlCreateTSTPrefSpec, &
@@ -224,6 +229,7 @@ function ReactionMnrlCreateAux()
 
   ! for kinetic mineral reactions
   mineral%nkinmnrl = 0
+  mineral%update_surface_area = PETSC_FALSE
   nullify(mineral%kinmnrl_names)
   nullify(mineral%kinmnrl_print)
   nullify(mineral%kinmnrlspecid)
@@ -649,6 +655,41 @@ function ReactionMnrlGetKinMnrlIDFromName(name,mineral,option)
   endif
 
 end function ReactionMnrlGetKinMnrlIDFromName
+
+! ************************************************************************** !
+
+function ReactionMnrlAnyUpdatePorosity(mineral)
+  !
+  ! Indicates whethern any mineral surface areas are based on porosity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/13/25
+  !
+  implicit none
+
+  type(mineral_type) :: mineral
+
+  type(mineral_rxn_type), pointer :: cur_mineral
+
+  PetscBool :: ReactionMnrlAnyUpdatePorosity
+
+  ReactionMnrlAnyUpdatePorosity = PETSC_FALSE
+  cur_mineral => mineral%mineral_list
+  do
+    if (.not.associated(cur_mineral)) exit
+    if (associated(cur_mineral%tstrxn)) then
+      if (cur_mineral%tstrxn%surf_area_function == &
+          MINERAL_SURF_AREA_F_POR_RATIO .or. &
+          cur_mineral%tstrxn%surf_area_function == &
+          MINERAL_SURF_AREA_F_POR_VF_RATIO) then
+        ReactionMnrlAnyUpdatePorosity = PETSC_TRUE
+        return
+      endif
+    endif
+    cur_mineral => cur_mineral%next
+  enddo
+
+end function ReactionMnrlAnyUpdatePorosity
 
 ! ************************************************************************** !
 

@@ -800,17 +800,21 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('UPDATE_MINERAL_SURFACE_AREA')
 !gehmnrl
         option%io_buffer = 'UPDATE_MINERAL_SURFACE_AREA has been updated to &
-          &"SURFACE_AREA_FUNCTION [CONSTANT,POROSITY,VOLUME_FRACTION]" &
+          &"SURFACE_AREA_FUNCTION [CONSTANT,POROSITY_RATIO,&
+          &VOLUME_FRACTION_RATIO,POROSITY_VOLUME_FRACTION_RATIO,&
+          &MINERAL_MASS]" &
           &within each mineral block under MINERAL_KINETICS.'
-!        call PrintErrMsg(option)
-        reaction%update_mineral_surface_area = PETSC_TRUE
+        call PrintErrMsg(option)
+!        reaction%update_mineral_surface_area = PETSC_TRUE
       case('UPDATE_MNRL_SURF_AREA_WITH_POR')
 !gehmnrl
         option%io_buffer = 'UPDATE_MINERAL_SURFACE_AREA has been updated to &
-          &"SURFACE_AREA_FUNCTION POROSITY" within each mineral &
-          &block under MINERAL_KINETICS.'
-!        call PrintErrMsg(option)
-        reaction%update_mnrl_surf_with_porosity = PETSC_TRUE
+          &"SURFACE_AREA_FUNCTION [CONSTANT,POROSITY_RATIO,&
+          &VOLUME_FRACTION_RATIO,POROSITY_VOLUME_FRACTION_RATIO,&
+          &MINERAL_MASS]" &
+          &within each mineral block under MINERAL_KINETICS.'
+        call PrintErrMsg(option)
+!        reaction%update_mnrl_surf_with_porosity = PETSC_TRUE
       case('UPDATE_ARMOR_MINERAL_SURFACE')
         reaction%update_armor_mineral_surface = PETSC_TRUE
       case('UPDATE_ARMOR_MINERAL_SURFACE_FLAG')
@@ -951,18 +955,16 @@ subroutine ReactionReadPass1(reaction,input,option)
   if (.not.reaction%update_porosity .and. &
       (reaction%update_tortuosity .or. &
        reaction%update_permeability .or. &
+       ReactionMnrlAnyUpdatePorosity(reaction%mineral))) then
+    option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY &
+      &card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or &
+      &MINERAL_KINETICS,<mineral name>,SURFACE_AREA_FUNCTION POROSITY &
+      &are listed.'
 !gehmnrl
-!       any(reaction%mineral%kinmnrl_surf_area_function == &
-!              MINERAL_SURF_AREA_F_POROSITY))) then
-!    option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY &
-!      &card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or &
-!      &MINERAL_KINETICS,<mineral name>,SURFACE_AREA_FUNCTION POROSITY &
-!      &are listed.'
-!gehmnrl
-       reaction%update_mnrl_surf_with_porosity)) then
-    option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY ' // &
-      'card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or ' // &
-      'UPDATE_MNRL_SURF_WITH_POR are listed.'
+!       reaction%update_mnrl_surf_with_porosity)) then
+!    option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY ' // &
+!      'card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or ' // &
+!      'UPDATE_MNRL_SURF_WITH_POR are listed.'
     call PrintErrMsg(option)
   endif
 

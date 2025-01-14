@@ -328,20 +328,25 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                 enddo
               endif
             case('SURFACE_AREA_FUNCTION')
+              mineral%update_surface_area = PETSC_TRUE
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,keyword,error_string)
               call StringToUpper(word)
               select case(word)
                 case('CONSTANT')
                   tstrxn%surf_area_function = MINERAL_SURF_AREA_F_NULL
-                case('POROSITY')
-                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POROSITY
-                case('VOLUME_FRACTION')
-                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_VOLFRAC
+                case('POROSITY_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POR_RATIO
+                case('VOLUME_FRACTION_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_VF_RATIO
+                case('POROSITY_VOLUME_FRACTION_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POR_VF_RATIO
+                case('MINERAL_MASS')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_MNRL_MASS
                 case default
                   error_string = error_string // ',' // &
                                  trim(keyword) // ',' // word
-                  call InputKeywordUnrecognized(input,keyword, &
+                  call InputKeywordUnrecognized(input,word, &
                                                 error_string,option)
               end select
             case default
@@ -846,7 +851,7 @@ subroutine ReactionMnrlSetup(reaction,option)
   error_found = PETSC_FALSE
   do imnrl = 1, mineral%nkinmnrl
     select case(mineral%kinmnrl_surf_area_function(imnrl))
-      case(MINERAL_SURF_AREA_F_VOLFRAC)
+      case(MINERAL_SURF_AREA_F_MNRL_MASS)
         if (Uninitialized(mineral%kinmnrl_spec_surf_area)) then
           error_found = PETSC_TRUE
           option%io_buffer = 'A specific surface area must be defined in &
@@ -1631,10 +1636,13 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
   PetscReal :: volfrac_scale
   PetscReal :: mnrl_volfrac0
   PetscReal :: mnrl_volfrac
+  PetscBool :: calc_porosity
+  PetscBool :: calc_volfrac
 
   mineral => reaction%mineral
 
 !gehmnrl - remove this block
+#if 0
   do imnrl = 1, mineral%nkinmnrl
 
     porosity_scale = 1.d0
@@ -1696,26 +1704,42 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
 
   enddo
 !gehmnrl - (end) remove this block
-
+#endif
   do imnrl = 1, mineral%nkinmnrl
 
     select case(mineral%kinmnrl_surf_area_function(imnrl))
-      case(MINERAL_SURF_AREA_F_POROSITY)
-#if 0
-        porosity_scale = 1.d0
-        porosity_scale = &
-            ((1.d0-material_auxvar%porosity_base) / &
-            (1.d0-porosity0))** &
-            mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
-
-        volfrac_scale = 1.d0
-        mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+      case(MINERAL_SURF_AREA_F_POR_VF_RATIO, &
+           MINERAL_SURF_AREA_F_POR_RATIO, &
+           MINERAL_SURF_AREA_F_VF_RATIO)
+        select case(mineral%kinmnrl_surf_area_function(imnrl))
+          case(MINERAL_SURF_AREA_F_POR_RATIO)
+            calc_porosity = PETSC_TRUE
+            calc_volfrac = PETSC_FALSE
+            volfrac_scale = 1.d0
+          case(MINERAL_SURF_AREA_F_VF_RATIO)
+            calc_porosity = PETSC_FALSE
+            calc_volfrac = PETSC_TRUE
+            porosity_scale = 1.d0
+          case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            calc_porosity = PETSC_TRUE
+            calc_volfrac = PETSC_TRUE
+        end select
+#if 1
+        if (calc_porosity) then
+          porosity_scale = &
+              ((1.d0-material_auxvar%porosity_base) / &
+              (1.d0-porosity0))** &
+              mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
+        endif
+        if (calc_volfrac) then
+          mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+                              mineral%kinmnrl_vol_frac_epsilon(imnrl))
+          mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
                             mineral%kinmnrl_vol_frac_epsilon(imnrl))
-        mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
-                          mineral%kinmnrl_vol_frac_epsilon(imnrl))
-        if (mnrl_volfrac0 > 0.d0) then
-          volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
-                          mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+          if (mnrl_volfrac0 > 0.d0) then
+            volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
+                            mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+          endif
         endif
 
         rt_auxvar%mnrl_area(imnrl) = &
@@ -1757,7 +1781,7 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
           endif
         endif
 #endif
-      case(MINERAL_SURF_AREA_F_VOLFRAC)
+      case(MINERAL_SURF_AREA_F_MNRL_MASS)
         rt_auxvar%mnrl_area(imnrl) = &
           mineral%kinmnrl_spec_surf_area(imnrl) * &
           rt_auxvar%mnrl_volfrac(imnrl)
