@@ -833,7 +833,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         subsurf_field => pmc%realization%field
 
 
-        ! Extract pressure, temperature and porosity from subsurface realization
+        ! Extract pressure, temperature, density, and porosity from
+        ! subsurface realization
         call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
@@ -845,7 +846,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p, &
                             ierr);CHKERRQ(ierr)
 
-        ! jaa testing
         global_auxvars => pmc%realization%patch%aux%global%auxvars
         material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
@@ -861,7 +861,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
           endif
-          ! jaa: use for bulk density
+          ! need fluid density and porosity for bulk density calculations
           fluid_den_p(local_id) = global_auxvars(ghosted_id)%den_kg(1)
           por_p(local_id) = material_auxvars(ghosted_id)%porosity
         enddo
@@ -878,7 +878,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                 ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
-          !material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
           call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &

@@ -31,11 +31,10 @@ module Geomechanics_Field_module
     Vec :: strain_subsurf_loc
     Vec :: stress_subsurf_loc
 
-    Vec :: porosity ! jaa
-    Vec :: porosity_loc! jaa
+    Vec :: porosity ! store porosity from subsurf
+    Vec :: porosity_loc
     Vec :: porosity_init_loc
 
-    ! jaa testing
     Vec :: fluid_density ! store density from subsurf
     Vec :: fluid_density_loc
     Vec :: fluid_density_init_loc
@@ -100,7 +99,6 @@ function GeomechFieldCreate()
   geomech_field%porosity_loc = PETSC_NULL_VEC
   geomech_field%porosity_init_loc = PETSC_NULL_VEC
 
-  ! jaa testing
   geomech_field%fluid_density = PETSC_NULL_VEC
   geomech_field%fluid_density_loc = PETSC_NULL_VEC
   geomech_field%fluid_density_init_loc = PETSC_NULL_VEC
@@ -209,7 +207,6 @@ subroutine GeomechFieldDestroy(geomech_field)
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
   endif
 
-  ! jaa testing
   if (geomech_field%fluid_density /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%fluid_density,ierr);CHKERRQ(ierr)
   endif

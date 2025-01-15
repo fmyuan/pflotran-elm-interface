@@ -517,7 +517,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   PetscReal, pointer :: press(:), temp(:)
   PetscReal, pointer :: fluid_density(:), porosity(:)
   PetscReal, pointer :: press_init(:), temp_init(:)
-  PetscReal, pointer :: fluid_density_init(:)!, porosity_init(:)
+  PetscReal, pointer :: fluid_density_init(:)
   PetscReal, allocatable :: beta_vec(:), alpha_vec(:)
   PetscReal, allocatable :: density_rock_vec(:), density_fluid_vec(:)
   PetscReal, allocatable :: density_bulk_vec(:)
@@ -560,8 +560,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecGetArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%fluid_density_init_loc,fluid_density_init, &
                       ierr);CHKERRQ(ierr)
-  !call VecGetArrayF90(field%porosity_init_loc,porosity_init, &
-  !                    ierr);CHKERRQ(ierr)
 
   ! Loop over elements on a processor
   do ielem = 1, grid%nlmax_elem
@@ -604,14 +602,10 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
         GeomechParam%thermal_exp_coef(nint(imech_loc_p(ghosted_id)))
       beta_vec(ivertex) = &
         GeomechParam%biot_coef(int(imech_loc_p(ghosted_id)))
-      ! rock density
       density_rock_vec(ivertex) = &
         GeomechParam%density(int(imech_loc_p(ghosted_id)))
-      ! jaa fluid density
       density_fluid_vec(ivertex) = fluid_density(ghosted_id)
-      ! jaa for now use init porosity then update later
       porosity_vec(ivertex) = porosity(ghosted_id)
-      ! bulk density
       density_bulk_vec(ivertex) = (porosity_vec(ivertex) * &
                                    density_fluid_vec(ivertex)) + &
                                   ((1.d0 - porosity_vec(ivertex)) * &
@@ -660,14 +654,13 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecRestoreArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%fluid_density_loc,fluid_density, &
+                          ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%fluid_density_init_loc,fluid_density_init, &
                           ierr);CHKERRQ(ierr)
-  !call VecRestoreArrayF90(field%porosity_init_loc,porosity_init, &
-  !                        ierr);CHKERRQ(ierr)
 
 #if 0
   call MPI_Allreduce(error_H1_global,error_H1_global,ONE_INTEGER_MPI, &
@@ -2273,13 +2266,10 @@ subroutine GeomechStoreInitialPressTemp(geomech_realization)
   call VecCopy(geomech_realization%geomech_field%temp_loc, &
                geomech_realization%geomech_field%temp_init_loc, &
                ierr);CHKERRQ(ierr)
-  ! jaa testing
+
   call VecCopy(geomech_realization%geomech_field%fluid_density_loc, &
                geomech_realization%geomech_field%fluid_density_init_loc, &
                ierr);CHKERRQ(ierr)
-  !call VecCopy(geomech_realization%geomech_field%porosity_loc, &
-  !             geomech_realization%geomech_field%porosity_init_loc, &
-  !             ierr);CHKERRQ(ierr)
 
 end subroutine GeomechStoreInitialPressTemp
 
