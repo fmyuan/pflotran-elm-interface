@@ -274,10 +274,6 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx_loc, &
-                                            geomech_field%work_loc)
-
-  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
-                                            geomech_field%disp_xx_loc, &
                                             geomech_field%disp_xx_init_loc)
 
   ! 1 degree of freedom, local
