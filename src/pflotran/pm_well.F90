@@ -261,6 +261,8 @@ module PM_Well_class
     PetscReal, pointer :: Q(:)
     ! flag for output
     PetscBool :: output_Q
+    ! cumulative fluid source/sink in/out of well [kmol/s]
+    PetscReal, pointer :: Q_cumulative(:)
   end type well_fluid_type
 
   ! primary variables necessary to reset flow solution
@@ -725,6 +727,7 @@ subroutine PMWellVarCreate(well)
   nullify(well%liq%H)
   nullify(well%liq%Q)
   well%liq%output_Q = PETSC_FALSE
+  nullify(well%liq%Q_cumulative)
 
   ! create the fluid/gas objects:
   allocate(well%gas)
@@ -4611,6 +4614,8 @@ subroutine PMWellInitFluidVars(well,nsegments,reference_density,option)
   well%liq%H = 0.d0
   allocate(well%liq%Q(nsegments))
   well%liq%Q = 0.d0
+  allocate(well%liq%Q_cumulative(nsegments))
+  well%liq%Q_cumulative = 0.d0
   allocate(well%liq%kr(nsegments))
   well%liq%kr = 0.d0
   allocate(well%liq%xmass(nsegments,option%nflowspec))
@@ -5857,6 +5862,8 @@ subroutine PMWellFinalizeTimestep(this)
   if (this%transport) then
     call PMWellUpdateReservoirSrcSinkTran(this)
   endif
+
+  call PMWellCalcCumulativeFlux(this)
 
   call PMWellUpdateMass(this)
 
@@ -11472,11 +11479,15 @@ subroutine PMWellOutputHeader(pm_well)
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Well Q-liq'
-      units_string = 'kg/s'
+      units_string = 'kmol/s'
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Well Q-gas'
-      units_string = 'kg/s'
+      units_string = 'kmol/s'
+      call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                               icolumn)
+      variable_string = 'Well Q-liq-cumu'
+      units_string = 'kmol'
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = 'Well q-liq'
@@ -11603,7 +11614,8 @@ subroutine PMWellOutput(pm_well)
                                   pm_well%well%liq%s(j), &
                                   pm_well%well%gas%s(j), &
                                   pm_well%well%liq%Q(j), &
-                                  pm_well%well%gas%Q(j)
+                                  pm_well%well%gas%Q(j), &
+                                  pm_well%well%liq%Q_cumulative(j)
       if (j == 1) then
         write(fid,100,advance="no") pm_well%well%ql_bc(1), &
                                     pm_well%well%qg_bc(1)
@@ -11632,6 +11644,45 @@ subroutine PMWellOutput(pm_well)
   enddo
 
 end subroutine PMWellOutput
+
+! ************************************************************************** !
+
+subroutine PMWellCalcCumulativeFlux(pm_well)
+  !
+  ! Calculates the cumulative flux in the well process model.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 01/10/2025
+  !
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+
+  PetscInt :: k, nsegments
+  PetscReal :: dt
+
+  nsegments = pm_well%well_grid%nsegments
+
+  dt = pm_well%option%flow_dt
+
+  ! (+) Q is into the well [kmol-liq/sec]
+  ! (-) Q is out of the well [kmol-liq/sec]
+
+  do k = 1,nsegments
+    ! Q_cumulative [kmol-liq]
+    pm_well%well%liq%Q_cumulative(k) = pm_well%well%liq%Q_cumulative(k) + &
+                                       (pm_well%well%liq%Q(k)*dt)
+  enddo
+
+  ! Note: For getting the cumulative flux of species, you will need to sum 
+  ! the term in the residual for src/sink, prior to the solution, so you know 
+  ! how much went in/out. It might require you to save the aqueous mass, or 
+  ! actually calculate the cumulative flux prior to solving for transport in
+  ! the well, since those concentrations will be the ones you need to use, and 
+  ! not the ones after the new solution is calculated.
+
+end subroutine PMWellCalcCumulativeFlux
 
 ! ************************************************************************** !
 
@@ -11888,6 +11939,7 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%liq%visc)
   call DeallocateArray(this%well%liq%s)
   call DeallocateArray(this%well%liq%Q)
+  call DeallocateArray(this%well%liq%Q_cumulative)
   call DeallocateArray(this%well%gas%den)
   call DeallocateArray(this%well%gas%visc)
   call DeallocateArray(this%well%gas%s)
