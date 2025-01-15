@@ -305,7 +305,7 @@ subroutine OutputGetCellVerticesGeomech(grid,vec)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call GeomechGridVecGetArrayF90(grid,vec,vec_ptr,ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! initialize
   vec_ptr = UNINITIALIZED_DOUBLE
@@ -380,7 +380,7 @@ subroutine OutputGetCellVerticesGeomech(grid,vec)
     end select
   enddo
 
-  call GeomechGridVecRestoreArrayF90(grid,vec,vec_ptr,ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine OutputGetCellVerticesGeomech
 

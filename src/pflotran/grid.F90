@@ -102,10 +102,6 @@ module Grid_module
             GridComputeAreas, &
             GridLocalizeRegions, &
             GridPopulateConnection, &
-            GridCopyIntegerArrayToVec, &
-            GridCopyRealArrayToVec, &
-            GridCopyVecToIntegerArray, &
-            GridCopyVecToRealArray, &
             GridCreateNaturalToGhostedHash, &
             GridDestroyHashTable, &
             GridGetLocalIDFromCoordinate, &
@@ -1008,6 +1004,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   PetscReal, allocatable :: real_array_2d(:,:)
   PetscErrorCode :: ierr
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
+
   explicit_grid => ugrid%explicit_grid
   faceset => region%explicit_faceset
 
@@ -1106,117 +1106,6 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
 #endif
 
 end subroutine GridLocalizeExplicitFaceset
-
-! ************************************************************************** !
-
-subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
-  !
-  ! Copies values from an integer array into a
-  ! PETSc Vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscInt :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  vec_ptr(1:num_values) = array(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyIntegerArrayToVec
-
-! ************************************************************************** !
-
-subroutine GridCopyRealArrayToVec(grid,array,vector,num_values)
-  !
-  ! Copies values from an integer array into a
-  ! PETSc Vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscReal :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  vec_ptr(1:num_values) = array(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyRealArrayToVec
-
-! ************************************************************************** !
-
-subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
-  !
-  ! Copies values from a PETSc Vec to an
-  ! integer array
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscInt :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscInt :: i
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  do i=1,num_values
-    if (vec_ptr(i) > 0.d0) then
-      array(i) = int(vec_ptr(i)+1.d-4)
-    else
-      array(i) = int(vec_ptr(i)-1.d-4)
-    endif
-  enddo
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyVecToIntegerArray
-
-! ************************************************************************** !
-
-subroutine GridCopyVecToRealArray(grid,array,vector,num_values)
-  !
-  ! Copies values from a PETSc Vec to an integer
-  ! array
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscReal :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  array(1:num_values) = vec_ptr(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyVecToRealArray
 
 ! ************************************************************************** !
 

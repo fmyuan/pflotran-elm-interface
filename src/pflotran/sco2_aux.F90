@@ -1314,6 +1314,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
       ! Populate all pressures, even though gas phase is not present.
       sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + Pc_entry/beta_gl
+      sco2_auxvar%pres(gid) = max(sco2_auxvar%pres(gid),SCO2_REFERENCE_PRESSURE)
       sco2_auxvar%xmass(co2_id,gid) = 1.d0
 
       ! Update the liquid mole fractions

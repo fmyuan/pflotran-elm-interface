@@ -172,7 +172,9 @@ module Condition_module
     type(geop_condition_ptr_type), pointer :: array(:)
   end type geop_condition_list_type
 
-  public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
+  public :: FlowConditionCreate, &
+            FlowConditionDestroy, &
+            FlowConditionRead, &
             FlowSubConditionCreate, &
             FlowGeneralConditionCreate, &
             FlowSCO2ConditionCreate, &
@@ -183,26 +185,33 @@ module Condition_module
             FlowGeneralSubConditionPtr, &
             FlowSCO2SubConditionPtr, &
             FlowHydrateSubConditionPtr, &
-            FlowConditionAddToList, FlowConditionInitList, &
+            FlowConditionAddToList, &
+            FlowConditionInitList, &
             FlowConditionDestroyList, &
-            FlowConditionGetPtrFromList, FlowConditionUpdate, &
+            FlowConditionGetPtrFromList, &
+            FlowConditionUpdate, &
             FlowConditionPrint, &
-            TranConditionCreate, &
-            TranConditionAddToList, TranConditionInitList, &
-            TranConditionDestroyList, TranConditionGetPtrFromList, &
-            TranConditionRead, &
-            TranConditionUpdate, &
+            FlowSubCondEnsureCompatibility, &
             FlowConditionIsTransient, &
             FlowConditionIsHydrostatic, &
             FlowConditionHasRateOrFlux, &
-            ConditionReadValues, &
-            GetSubConditionType, &
             FlowConditionUnknownItype, &
             FlowCondInputRecord, &
+            TranConditionCreate, &
+            TranConditionAddToList, &
+            TranConditionInitList, &
+            TranConditionDestroyList, &
+            TranConditionGetPtrFromList, &
+            TranConditionRead, &
+            TranConditionUpdate, &
             TranCondInputRecord, &
+            ConditionReadValues, &
+            FlowSubConditionGetType, &
             GeopConditionCreate, &
-            GeopConditionAddToList, GeopConditionInitList, &
-            GeopConditionDestroyList, GeopConditionGetPtrFromList, &
+            GeopConditionAddToList, &
+            GeopConditionInitList, &
+            GeopConditionDestroyList, &
+            GeopConditionGetPtrFromList, &
             GeopConditionRead
 
 contains
@@ -1012,6 +1021,43 @@ end subroutine FlowConditionVerify
 
 ! ************************************************************************** !
 
+subroutine FlowSubCondEnsureCompatibility(flow_condition,flow_sub_condition, &
+                                          option)
+  !
+  ! Ensures that dataset types are compatible with flow sub condition types
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/19/24
+  !
+  use Option_module
+  use Dataset_Map_HDF5_class
+
+  implicit none
+
+  type(flow_condition_type) :: flow_condition
+  type(flow_sub_condition_type) :: flow_sub_condition
+  type(option_type) :: option
+
+  class(dataset_map_hdf5_type), pointer :: map_dataset
+
+  ! ensure that mapped dataset are used with HETEROGENEOUS conditions only
+  map_dataset => DatasetMapHDF5Cast(flow_sub_condition%dataset)
+  if (associated(map_dataset)) then
+    select case(flow_sub_condition%itype)
+      case(HET_ENERGY_RATE_SS,HET_VOL_RATE_SS,HET_MASS_RATE_SS, &
+           HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+           HET_HYDROSTATIC_CONDUCTANCE_BC, HET_SURF_HYDROSTATIC_SEEPAGE_BC)
+      case default
+        option%io_buffer = 'Mapped dataset "' // trim(map_dataset%name) // &
+          '" can only be used in HETEROGENEOUS flow conditions.'
+        call PrintErrMsg(option)
+    end select
+  endif
+
+end subroutine FlowSubCondEnsureCompatibility
+
+! ************************************************************************** !
+
 subroutine FlowConditionRead(condition,input,option)
   !
   ! Reads a condition from the input file
@@ -1448,8 +1494,26 @@ subroutine FlowConditionRead(condition,input,option)
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,word,'CONDITION')
       case('THRESHOLD_PRESSURE')
+        string = word
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,string,'CONDITION')
         call InputReadDouble(input,option,rate%aux_real(1))
-        call InputErrorMsg(input,option,word,'CONDITION')
+        call InputErrorMsg(input,option,string,'CONDITION')
+        call StringToUpper(word)
+        if (rate%aux_real(1) < 0.d0) then
+          option%io_buffer = 'A PRESSURE_REGULATED_MASS_RATE must have a &
+            &positive THRESHOLD_PRESSURE.'
+          call PrintErrMsg(option)
+        endif
+        select case(word)
+          case('PREVENT_FLOW_ABOVE')
+          case('PREVENT_FLOW_BELOW')
+            rate%aux_real(1) = -1.d0*rate%aux_real(1)
+          case default
+            string = 'flow condition "' // trim(condition%name) // &
+              '" ' // trim(string)
+            call InputKeywordUnrecognized(input,word,string,option)
+        end select
       case('THRESHOLD_PRESSURE_SPAN')
         call InputReadDouble(input,option,rate%aux_real(2))
         call InputErrorMsg(input,option,word,'CONDITION')
@@ -1474,6 +1538,13 @@ subroutine FlowConditionRead(condition,input,option)
   endif
   if (rate%itype == NULL_CONDITION) then
     call FlowSubConditionDestroy(rate)
+  else if (rate%itype == PRES_REG_MASS_RATE_SS) then
+    if (Uninitialized(rate%aux_real(1)) .or. &
+        Uninitialized(rate%aux_real(2))) then
+      option%io_buffer = 'A PRESSURE_REGULATED_MASS_RATE must have a &
+        &THRESHOLD_PRESSURE and THRESHOLD_PRESSURE_SPAN defined.'
+      call PrintErrMsg(option)
+    endif
   endif
   if (energy_rate%itype == NULL_CONDITION) then
     call FlowSubConditionDestroy(energy_rate)
@@ -4311,7 +4382,7 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   write(option%fid_out,'(/,4x,''Sub Condition: '',a)') trim(subcondition%name)
-  string = GetSubConditionType(subcondition%itype)
+  string = FlowSubConditionGetType(subcondition%itype)
 
   105 format(6x,'Type: ',a)
   write(option%fid_out,105) trim(string)
@@ -4332,7 +4403,7 @@ end subroutine FlowConditionPrintSubCondition
 
 ! ************************************************************************** !
 
-function GetSubConditionType(subcon_itype)
+function FlowSubConditionGetType(subcon_itype)
   !
   ! SubConditionName: Return name of subcondition
   !
@@ -4344,7 +4415,7 @@ function GetSubConditionType(subcon_itype)
   PetscInt :: subcon_itype
 
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: GetSubConditionType
+  character(len=MAXSTRINGLENGTH) :: FlowSubConditionGetType
 
   select case(subcon_itype)
     case(DIRICHLET_BC)
@@ -4409,9 +4480,9 @@ function GetSubConditionType(subcon_itype)
       string = 'unknown'
   end select
 
-  GetSubConditionType = trim(string)
+  FlowSubConditionGetType = trim(string)
 
-end function GetSubConditionType
+end function FlowSubConditionGetType
 
 ! ************************************************************************** !
 

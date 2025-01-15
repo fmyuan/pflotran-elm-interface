@@ -22,6 +22,57 @@ block_solve.o :
 block_tridiag.o : \
   pflotran_constants.o \
   utility.o
+carbon_sandbox.o : \
+  carbon_sandbox_base.o \
+  carbon_sandbox_mend.o \
+  carbon_sandbox_mend20.o \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reactive_transport_aux.o \
+  string.o \
+  utility.o
+carbon_sandbox_base.o : \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_equation.o \
+  reaction_inhibition_aux.o \
+  reactive_transport_aux.o \
+  string.o \
+  utility.o
+carbon_sandbox_mend.o : \
+  carbon_sandbox_base.o \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
+  reactive_transport_aux.o \
+  string.o \
+  utility.o
+carbon_sandbox_mend20.o : \
+  carbon_sandbox_base.o \
+  global_aux.o \
+  input_aux.o \
+  material_aux.o \
+  option.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reaction_immobile_aux.o \
+  reaction_inhibition_aux.o \
+  reactive_transport_aux.o \
+  string.o \
+  utility.o
 characteristic_curves.o : \
   characteristic_curves_base.o \
   characteristic_curves_common.o \
@@ -127,6 +178,7 @@ condition.o : \
   dataset.o \
   dataset_ascii.o \
   dataset_base.o \
+  dataset_map_hdf5.o \
   general_aux.o \
   global_aux.o \
   hdf5_aux.o \
@@ -940,7 +992,6 @@ geomechanics_patch.o : \
 geomechanics_realization.o : \
   dataset.o \
   dataset_base.o \
-  geomech_grid.o \
   geomech_grid_aux.o \
   geomechanics_condition.o \
   geomechanics_coupler.o \
@@ -955,6 +1006,7 @@ geomechanics_realization.o : \
   input_aux.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_base.o \
   realization_subsurface.o \
@@ -1233,6 +1285,7 @@ init_subsurface.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   region.o \
@@ -1874,7 +1927,9 @@ patch.o : \
   wipp_flow_aux.o \
   zflow_aux.o
 petsc_utility.o : \
-  pflotran_constants.o
+  option.o \
+  pflotran_constants.o \
+  string.o
 pflotran.o : \
   driver.o \
   factory_pflotran.o \
@@ -2230,6 +2285,7 @@ pm_rt.o : \
   condition_control.o \
   convergence.o \
   data_mediator.o \
+  debug.o \
   discretization.o \
   field.o \
   global.o \
@@ -2243,6 +2299,7 @@ pm_rt.o : \
   option.o \
   output_ekg.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   reaction_aux.o \
@@ -2725,7 +2782,7 @@ print.o : \
   pflotran_constants.o \
   string.o
 reaction.o : \
-  co2_span_wagner.o \
+  carbon_sandbox.o \
   co2eos.o \
   eos_water.o \
   generic.o \
@@ -2733,10 +2790,12 @@ reaction.o : \
   input_aux.o \
   material_aux.o \
   option.o \
+  option_transport.o \
   output_aux.o \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_clm.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_gas_aux.o \
   reaction_immobile.o \
@@ -2790,6 +2849,17 @@ reaction_clm.o : \
   string.o \
   units.o \
   utility.o
+reaction_co2.o : \
+  co2_span_wagner.o \
+  co2eos.o \
+  eos_water.o \
+  global_aux.o \
+  material_aux.o \
+  option.o \
+  option_transport.o \
+  pflotran_constants.o \
+  reaction_aux.o \
+  reactive_transport_aux.o
 reaction_database.o : \
   input_aux.o \
   option.o \
@@ -2797,6 +2867,7 @@ reaction_database.o : \
   reaction.o \
   reaction_aux.o \
   reaction_database_aux.o \
+  reaction_equation.o \
   reaction_gas_aux.o \
   reaction_immobile.o \
   reaction_immobile_aux.o \
@@ -2811,6 +2882,7 @@ reaction_database.o : \
   string.o \
   utility.o
 reaction_database_aux.o : \
+  input_aux.o \
   option.o \
   pflotran_constants.o \
   reaction_equation.o \
@@ -2823,8 +2895,6 @@ reaction_equation.o : \
   string.o \
   utility.o
 reaction_gas.o : \
-  co2eos.o \
-  eos_water.o \
   global_aux.o \
   input_aux.o \
   option.o \
@@ -3129,7 +3199,9 @@ reaction_sandbox_ufd_wp.o : \
   reactive_transport_aux.o \
   string.o
 reaction_setup.o : \
+  carbon_sandbox.o \
   option.o \
+  option_transport.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
@@ -3176,8 +3248,6 @@ reaction_surf_complex_aux.o : \
   reaction_database_aux.o \
   utility.o
 reactive_transport.o : \
-  co2_span_wagner.o \
-  co2eos.o \
   condition.o \
   connection.o \
   coupler.o \
@@ -3204,6 +3274,7 @@ reactive_transport.o : \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_surf_complex_aux.o \
   reactive_transport_aux.o \
@@ -3284,6 +3355,7 @@ realization_subsurface.o : \
   output_aux.o \
   parameter.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
@@ -3538,6 +3610,7 @@ simulation_multirealization.o : \
   string.o \
   utility.o
 simulation_subsurface.o : \
+  carbon_sandbox.o \
   characteristic_curves.o \
   characteristic_curves_thermal.o \
   checkpoint.o \

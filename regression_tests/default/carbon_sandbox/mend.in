@@ -1,0 +1,192 @@
+#Description: 0D microbial degradation problem with biomass
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+REFERENCE_TEMPERATURE 13.d0
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  # assuming porosity = 0.25, soil particle density = 2600, fmw CH2O = 30
+  # [mg C/g soil] * 1.d-3 [g C/mg C] / fmw [g C/mol C] * 
+  #   (1-por) [m^3 soil/m^3 bulk] * soil particle density [kg soil/m^3 soil] *
+  #   1000 [g soil/kg soil] = 65 [mol C/m^3 bulk]
+  # [mol C/m^3 bulk] / (por*sat) [m^3 water/m^3 bulk] / 
+  #   1000. [L water/m^3 water] = 4d-3 mol/L
+  CONCENTRATIONS
+    MICROBIAL_BIOMASS  0.52   T
+    DISSOLVED          0.26   T
+    PARTICULATE        2.6    T
+    PARTICULATE_ENZYME 2.6d-6 T
+    MINERAL_ENZYME     2.6d-6 T
+    INORGANIC_CARBON   1.d-10 T
+  /
+  IMMOBILE
+    MINERAL_ASSOCIATED 325.
+    ADSORBED_DISSOLVED 6.5
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== useful tranport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2600. kg/m^3
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    MICROBIAL_BIOMASS
+    DISSOLVED
+    PARTICULATE
+    PARTICULATE_ENZYME
+    MINERAL_ENZYME
+    INORGANIC_CARBON
+  /
+  IMMOBILE_SPECIES
+    MINERAL_ASSOCIATED
+    ADSORBED_DISSOLVED
+  /
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    ALL
+    TOTAL
+  /
+  CARBON_SANDBOX MEND
+    CONCENTRATION_UNITS MOLE_PER_KG_SOIL
+    B_SPECIES_NAME MICROBIAL_BIOMASS
+    D_SPECIES_NAME DISSOLVED
+    EM_SPECIES_NAME MINERAL_ENZYME
+    EP_SPECIES_NAME PARTICULATE_ENZYME
+    IC_SPECIES_NAME INORGANIC_CARBON
+    M_SPECIES_NAME MINERAL_ASSOCIATED
+    P_SPECIES_NAME PARTICULATE
+    Q_SPECIES_NAME ADSORBED_DISSOLVED
+    # from Wang et al., 2013. Typical values in Table 5
+    V_P 2.5 mg/mg-h
+    K_P 50 mg/g
+    V_M 1 mg/mg-h
+    K_M 250 mg/g
+    V_D 5.d-4 mg/mg-h
+    K_D 0.26 mg/g
+    M_R 2.8d-4 mg/mg-h
+    E_C 0.47
+    F_D 0.5
+    G_D 0.5
+    P_EP 0.01
+    P_EM 0.01
+    R_EP 1.d-3 mg/mg-h
+    R_EM 1.d-3 mg/mg-h
+    Q_MAX 1.7 mg/g
+    K_ADS 6.d-3 mg/mg-h
+    K_DES 1.d-3 mg/mg-h
+    K_BA 6 g/mg
+    I_P 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
+    I_D 0.8d-4 mg/mg-h  ! I = 1.6d-4 / 2
+    REFERENCE_TEMPERATURE 12.d0
+  /
+END
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y            ! A(aq) at 50m midpoint
+  INITIAL_TIMESTEP_SIZE 1. s
+  MAXIMUM_TIMESTEP_SIZE 0.1 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION pt
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

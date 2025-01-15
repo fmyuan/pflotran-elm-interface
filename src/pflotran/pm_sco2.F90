@@ -1041,11 +1041,27 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
         case(SCO2_LIQUID_STATE)
           ! Limit pressure change
+          Pc_entry = 0.d0
+          select type(sf => characteristic_curves%saturation_function)
+            class is (sat_func_vg_stomp_type)
+              ! Pc_entry = characteristic_curves% &
+              !          saturation_function%GetAlpha_() * &
+              !          LIQUID_REFERENCE_DENSITY * gravity
+            class default
+              Pc_entry = (1.d0 / characteristic_curves% &
+                         saturation_function%GetAlpha_())
+          end select
           dP = 1.d6
           dX_p(liq_pressure_index) = sign( min(dabs(dP), &
           dabs(dX_p(liq_pressure_index))),dX_p(liq_pressure_index) )
           if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) > 5.d8) &
             dX_p(liq_pressure_index) = 5.d8 - X_p(liq_pressure_index)
+
+          if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) < &
+            SCO2_REFERENCE_PRESSURE - Pc_entry) &
+            dX_p(liq_pressure_index) = SCO2_REFERENCE_PRESSURE  - &
+                                       Pc_entry - &
+                                       X_p(liq_pressure_index)
 
           ! Zero negative corrections for zero aqueous CO2
           if (X_p(co2_frac_index) / epsilon < epsilon .and. &

@@ -62,6 +62,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/batch/batch.cfg \
+	default/carbon_sandbox/carbon_sandbox.cfg \
 	default/column/column.cfg \
 	default/constraint/constraint.cfg \
 	default/condition/condition.cfg \

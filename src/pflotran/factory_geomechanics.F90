@@ -281,7 +281,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     geomech_ghosted_id = geomech_realization%geomech_patch%geomech_grid% &
                          nL2G(geomech_local_id)
     if(geomech_realization%geomech_patch%imat(geomech_ghosted_id) /= &
-       int(subsurf_vec_1dof(geomech_local_id)+1.d-5)) then
+       nint(subsurf_vec_1dof(geomech_local_id))) then
        error_found = PETSC_TRUE
     endif
   enddo

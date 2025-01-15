@@ -1,32 +1,32 @@
 -- GENERIC: pH --
-        1:   6.3585671997723E+00
+        1:   6.3585671996844E+00
 -- CONCENTRATION: Total H+ --
-        1:   9.0363596023187E-04
+        1:   9.0363596059311E-04
 -- CONCENTRATION: Total HCO3- --
-        1:   2.6701164488727E-03
+        1:   2.6701164495736E-03
 -- CONCENTRATION: Total Ca++ --
-        1:   9.8335136983854E-02
+        1:   9.8335136983844E-02
 -- CONCENTRATION: Free H+ --
-        1:   5.3733682741845E-07
+        1:   5.3733682752712E-07
 -- CONCENTRATION: Free HCO3- --
-        1:   1.2835779209605E-03
+        1:   1.2835779212099E-03
 -- CONCENTRATION: Free Ca++ --
-        1:   9.7859438060130E-02
+        1:   9.7859438060030E-02
 -- VOLUME_FRACTION: Calcite VF --
-        1:   7.5044882023616E-05
+        1:   7.5044881904389E-05
 -- RATE: Calcite Rate --
-        1:   4.4317140458514E-14
+        1:   4.4313715700292E-14
 -- GENERIC: Calcite SI --
-        1:   1.0000001156177E+00
+        1:   1.0000001156088E+00
 -- VOLUME_FRACTION: Calcite Area --
-        1:   3.8330754666534E-01
+        1:   3.8330754626048E-01
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   6.2358860000131E-03
+   Time (seconds):   7.1420799999942E-03
    Time Steps:           19
-   Newton Iterations:           66
-   Linear Solver Iterations:           66
+   Newton Iterations:           58
+   Linear Solver Iterations:           58
    Time Step Cuts:            0
-   Solution 2-Norm:   9.8146552088849E-02
-   Residual 2-Norm:   1.5945129896722E-18
+   Solution 2-Norm:   9.8146552088751E-02
+   Residual 2-Norm:   9.2324827979916E-22

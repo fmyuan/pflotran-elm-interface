@@ -36,6 +36,7 @@ module Reaction_Aux_module
     PetscInt :: h_ion_id
     PetscInt :: na_ion_id
     PetscInt :: cl_ion_id
+    PetscInt :: pri_co2_id
     PetscInt :: co2_aq_id
     PetscInt :: tracer_aq_id
     PetscInt :: co2_gas_id
@@ -591,6 +592,7 @@ function ReactionAuxCreateAqSpeciesIndex()
   species_idx%h_ion_id = 0
   species_idx%na_ion_id = 0
   species_idx%cl_ion_id = 0
+  species_idx%pri_co2_id = 0
   species_idx%co2_aq_id = 0
   species_idx%tracer_aq_id = 0
   species_idx%co2_gas_id = 0
@@ -932,7 +934,7 @@ end function ReactionAuxGetPriSpecIDFromName1
 
 ! ************************************************************************** !
 
-function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetPriSpecIDFromName2(name,reaction,stop_on_error,option)
   !
   ! Returns the id of named primary species
   !
@@ -953,7 +955,7 @@ function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
 
   type(aq_species_type), pointer :: species
   PetscInt :: i
-  PetscBool :: return_error
+  PetscBool :: stop_on_error
 
   ReactionAuxGetPriSpecIDFromName2 = UNINITIALIZED_INTEGER
 
@@ -980,7 +982,7 @@ function ReactionAuxGetPriSpecIDFromName2(name,reaction,return_error,option)
     enddo
   endif
 
-  if (return_error .and. ReactionAuxGetPriSpecIDFromName2 <= 0) then
+  if (stop_on_error .and. ReactionAuxGetPriSpecIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not found among primary species in &
       &ReactionAuxGetPriSpecIDFromName2().'
@@ -1075,7 +1077,7 @@ end function ReactionAuxGetSecSpecIDFromName1
 
 ! ************************************************************************** !
 
-function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
+function ReactionAuxGetSecSpecIDFromName2(name,reaction,stop_on_error,option)
   !
   ! Returns the id of named secondary species
   !
@@ -1091,7 +1093,7 @@ function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
   PetscInt :: ReactionAuxGetSecSpecIDFromName2
   type(aq_species_type), pointer :: species
   PetscInt :: i
-  PetscBool :: return_error
+  PetscBool :: stop_on_error
 
   ReactionAuxGetSecSpecIDFromName2 = UNINITIALIZED_INTEGER
 
@@ -1118,7 +1120,7 @@ function ReactionAuxGetSecSpecIDFromName2(name,reaction,return_error,option)
     enddo
   endif
 
-  if (return_error .and. ReactionAuxGetSecSpecIDFromName2 <= 0) then
+  if (stop_on_error .and. ReactionAuxGetSecSpecIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // '" not found among &
       &secondary species in ReactionAuxGetSecSpecIDFromName().'
     call PrintErrMsg(option)
@@ -1588,14 +1590,15 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
     cur_rxn => ReactionEquationCreateRxnPtr()
     string = input%buf
     cur_rxn%reaction_equation => &
-      ReactionEquationCreateFromString(string, &
-                                       reaction%naqcomp, &
-                                       reaction%offset_aqueous, &
-                                       reaction%primary_species_names, &
-                                       reaction%nimcomp, &
-                                       reaction%offset_immobile, &
-                                       reaction%immobile%names, &
-                                       PETSC_FALSE,option)
+      ReactionEquationCreateFromString(string,option)
+    call ReactionEquationMapSpeciesNames(cur_rxn%reaction_equation, &
+                                         reaction%naqcomp, &
+                                         reaction%offset_aqueous, &
+                                         reaction%primary_species_names, &
+                                         reaction%nimcomp, &
+                                         reaction%offset_immobile, &
+                                         reaction%immobile%names, &
+                                         PETSC_FALSE,option)
     if (.not.associated(rxn_list)) then
       rxn_list => cur_rxn
     else
@@ -1660,8 +1663,7 @@ subroutine ReactionAuxDestroyAqSpecies(species)
 
   type(aq_species_type), pointer :: species
 
-  if (associated(species%dbaserxn)) &
-    call ReactionDBDestroyRxn(species%dbaserxn)
+  call ReactionDBDestroyRxn(species%dbaserxn)
   deallocate(species)
   nullify(species)
 

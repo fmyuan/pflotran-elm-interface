@@ -1,0 +1,18 @@
+-- CONCENTRATION: Total A --
+        1:   6.0311548469613E-06
+-- CONCENTRATION: Total B --
+        1:   6.0311548469613E-05
+-- CONCENTRATION: Total C --
+        1:   1.9141177930601E-04
+-- CONCENTRATION: Total D --
+        1:   8.4234551839190E-04
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.7846424999334E-02
+   Time Steps:           40
+   Newton Iterations:          178
+   Linear Solver Iterations:          178
+   Time Step Cuts:            0
+   Solution 2-Norm:   8.6840951922212E-04
+   Residual 2-Norm:   2.2484305690127E-17

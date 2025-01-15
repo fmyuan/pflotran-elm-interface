@@ -124,6 +124,11 @@ shared_mode_aux_obj = \
 # DO NOT place any object files that depend on the discretization within
 # util_obj
 chem_obj = \
+	${common_src}carbon_sandbox.o \
+	${common_src}carbon_sandbox_base.o \
+	${common_src}carbon_sandbox_mend.o \
+	${common_src}carbon_sandbox_mend20.o \
+	${common_src}reaction_co2.o \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
 	${common_src}reaction_equation.o \

@@ -142,7 +142,7 @@ subroutine CalciteSetup(this,reaction,option)
     ReactionAuxGetPriSpecIDFromName(word,reaction,option)
   word = 'Calcite'
   this%mineral_id = &
-    ReactionMnrlGetMnrlIDFromName(word,reaction%mineral,option)
+    ReactionMnrlGetKinMnrlIDFromName(word,reaction%mineral,option)
 
 end subroutine CalciteSetup
 
@@ -203,7 +203,6 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscInt, parameter :: iphase = 1
   type(mineral_type), pointer :: mineral
   PetscReal :: volume               ! [m^3 bulk volume]
-  PetscReal :: molality_to_molarity ! [kg water / L water]
 
   PetscReal :: ln_conc(reaction%ncomp)
   PetscReal :: ln_act(reaction%ncomp)
@@ -226,7 +225,6 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
   iauxiliary = this%auxiliary_offset + 1
 
   volume = material_auxvar%volume        ! den_kg [kg fluid / m^3 fluid]
-  molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3  ! kg water/L water
 
   ! Reaction path #1
   ! the code in this block is very similar to the default mineral
@@ -284,8 +282,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
     do j = 1, ncomp
       jcomp = mineral%kinmnrlspecid(j,imnrl)
       ! units = kg water/mol
-      dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))* &
-                molality_to_molarity
+      dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
       do i = 1, ncomp
         icomp = mineral%kinmnrlspecid(i,imnrl)
         ! units = (mol/sec)*(kg water/mol) = kg water/sec
@@ -334,7 +331,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
     ! QK is a function of activities, dividing by conc leaves the
     ! activity coefficient in the derivative
               ! -1.d0 is the H+ stoichiometry in denominator
-    dQK_dmj = -1.d0*exp(lnQK-ln_conc(jcomp))*molality_to_molarity
+    dQK_dmj = -1.d0*exp(lnQK-ln_conc(jcomp))
                                     ! subtract due to -1. H+ stoichiometry
     Jacobian(this%h_ion_id,jcomp) = &
       Jacobian(this%h_ion_id,jcomp) - drate_dQK * dQK_dmj
@@ -347,7 +344,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
     ! derivative wrt Ca++
     jcomp = this%calcium_id
               ! 1.d0 is the Ca++ stoichiometry in denominator
-    dQK_dmj = 1.d0*exp(lnQK-ln_conc(jcomp))*molality_to_molarity
+    dQK_dmj = 1.d0*exp(lnQK-ln_conc(jcomp))
     Jacobian(this%h_ion_id,jcomp) = &
       Jacobian(this%h_ion_id,jcomp) - drate_dQK * dQK_dmj
     Jacobian(this%calcium_id,jcomp) = &
@@ -357,7 +354,7 @@ subroutine CalciteEvaluate(this,Residual,Jacobian,compute_derivative, &
     ! derivative wrt HCO3-
     jcomp = this%bicarbonate_id
               ! 1.d0 is the HCO3- stoichiometry in denominator
-    dQK_dmj = 1.d0*exp(lnQK-ln_conc(jcomp))*molality_to_molarity
+    dQK_dmj = 1.d0*exp(lnQK-ln_conc(jcomp))
     Jacobian(this%h_ion_id,jcomp) = &
       Jacobian(this%h_ion_id,jcomp) - drate_dQK * dQK_dmj
     Jacobian(this%calcium_id,jcomp) = &

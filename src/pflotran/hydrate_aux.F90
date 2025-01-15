@@ -40,6 +40,8 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
   PetscReal, public :: hydrate_bc_reference_pressure = 101325
   PetscReal, public :: hydrate_min_xmol = 1.d-10
+  PetscBool, public :: hydrate_low_p_co2_boundary = PETSC_FALSE
+  PetscBool, public :: hydrate_pressure_controlled_well = PETSC_FALSE
 
   !Salinity
   PetscInt, parameter, public :: HYDRATE_FORMER_NULL = ZERO_INTEGER
@@ -4230,11 +4232,12 @@ end subroutine HydrateCompositeThermalCond
 subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
                      option)
   !
-  ! This subroutine calculates the 3-phase equilibrium pressure of methane
-  ! hydrate in pure water, from polynomial fit (Moridis, 2003)
+  ! This subroutine calculates the 3-phase equilibrium pressure of CH4
+  ! hydrate in pure water from polynomial fit (Moridis, 2003) or CO2
+  ! hydrate from a data fit of Men et al. (2022) and based off STOMP-HYD curve
   !
   ! Author: Michael Nole
-  ! Date: 01/22/19
+  ! Date: 01/22/19, 12/20/24
   !
 
   use Characteristic_Curves_module
@@ -4344,23 +4347,18 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
         dTf = 0.d0
       endif
       T_k = T_k + dTf
-      !Sloan compilation fit (Clathrate Hydrates of Natural Gases)
-    !   if (T < TQD) then
-    !     PE = 1.1046 + 0.04449 * (T_temp - T273K) + 0.000629 * &
-    !          (T_temp - T273K) ** 2
-    !   else
-    !     PE = 1.2241 + 0.13700 * (T_temp - T273K) ** 2 - 0.0015018 * (T_temp - &
-    !           T273K) ** 3 + 0.0001733 * (T_temp - T273K) ** 4
-    !  endif
       if (T_k < 282.65d0) then
         a = 2.5578965d-2
         b = -1.3946940d1
         c = 1.9025194d3
         PE = a * T_k **2 + b * T_k + c
         dP = PE - (a * (T_k-dTf) **2 + b * (T_k-dTf) + c)
-      else
+      elseif (hydrate_low_p_co2_boundary) then
         PE = 11.889d0 * T_k - 3356.4d0
         dP = 11.889d0 * (T_k - dTf) - 3356.4d0
+      else
+        PE = 17.1817d0 * T_k - 4.86193d3
+        dP = 17.1817d0 * (T_k - dTf) - 4.86193d3
       endif
      PE = min(PE,1.d3)
      dP = min(dP,1.d3)

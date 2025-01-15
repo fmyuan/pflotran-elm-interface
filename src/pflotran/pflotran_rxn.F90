@@ -285,7 +285,7 @@ program pflotran_rxn
 
   ! rt_auxvars --> cell by cell chemistry data
   allocate(rt_auxvars)
-  call RTAuxVarInit(rt_auxvars, reaction, option)
+  call RTAuxVarInit(rt_auxvars, reaction, PETSC_FALSE, option)
 
   ! material_auxvars --> cell by cell material property data
   allocate(material_auxvars)

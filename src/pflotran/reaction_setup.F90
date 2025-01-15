@@ -28,6 +28,7 @@ subroutine ReactionSetupKinetics(reaction,option)
   ! Author: Glenn Hammond
   ! Date: 01/29/24
   !
+  use Carbon_Sandbox_module
   use CLM_Rxn_module
   use Option_module
   use Reaction_Equation_module
@@ -92,8 +93,8 @@ subroutine ReactionSetupKinetics(reaction,option)
                                    immobile%print_all
       cur_immobile_spec => cur_immobile_spec%next
     enddo
+    reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
   endif
-  reaction%offset_immobile = reaction%offset_aqueous + reaction%naqcomp
 
   ! radioactive decay reaction
 
@@ -104,14 +105,19 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_radiodecay_rxn)) exit
       cur_radiodecay_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_radiodecay_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_FALSE,option)
+        ReactionEquationCreateFromString(cur_radiodecay_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_radiodecay_rxn% &
+                                             reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_radiodecay_rxn% &
+                                           reaction_equation, &
+                                         h2oname,option)
       cur_radiodecay_rxn => cur_radiodecay_rxn%next
     enddo
     nullify(cur_radiodecay_rxn)
@@ -199,14 +205,17 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_general_rxn)) exit
       cur_general_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_general_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_FALSE,option)
+        ReactionEquationCreateFromString(cur_general_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_general_rxn%reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_general_rxn%reaction_equation, &
+                                         h2oname,option)
       cur_general_rxn => cur_general_rxn%next
     enddo
     nullify(cur_general_rxn)
@@ -330,14 +339,18 @@ subroutine ReactionSetupKinetics(reaction,option)
     do
       if (.not.associated(cur_microbial_rxn)) exit
       cur_microbial_rxn%reaction_equation => &
-        ReactionEquationCreateFromString(cur_microbial_rxn%reaction, &
-                                         reaction%naqcomp, &
-                                         reaction%offset_aqueous, &
-                                         reaction%primary_species_names, &
-                                         reaction%nimcomp, &
-                                         reaction%offset_immobile, &
-                                         reaction%immobile%names, &
-                                         PETSC_TRUE,option)
+        ReactionEquationCreateFromString(cur_microbial_rxn%reaction,option)
+      call ReactionEquationMapSpeciesNames(cur_microbial_rxn% &
+                                             reaction_equation, &
+                                           reaction%naqcomp, &
+                                           reaction%offset_aqueous, &
+                                           reaction%primary_species_names, &
+                                           reaction%nimcomp, &
+                                           reaction%offset_immobile, &
+                                           reaction%immobile%names, &
+                                           PETSC_FALSE,option)
+      call ReactionEquationRemoveSpecies(cur_microbial_rxn%reaction_equation, &
+                                         h2oname,option)
       if (cur_microbial_rxn%activation_energy > 0.d0) then
         activation_energy_count = activation_energy_count + 1
       endif
@@ -760,6 +773,7 @@ subroutine ReactionSetupKinetics(reaction,option)
 
   ! sandbox reactions
   call RSandboxSetup(reaction,option)
+  call CarbonSandboxSetup(reaction,option)
   call ReactionCLMRxnSetup(reaction,option)
 
 end subroutine ReactionSetupKinetics
@@ -774,6 +788,7 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
 ! Date: 01/29/24
 !
   use Option_module
+  use Option_Transport_module
   use String_module
 
   implicit none
@@ -806,6 +821,24 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
       if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
                                   word)) then
         reaction%species_idx%cl_ion_id = ispec
+      endif
+    endif
+    ! this can be CO2(aq), HCO3-, CO3-2
+    if (reaction%species_idx%pri_co2_id == 0) then
+      word = 'CO2(aq)'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
+      endif
+      word = 'HCO3-'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
+      endif
+      word = 'CO3--'
+      if (StringCompareIgnoreCase(reaction%primary_species_names(ispec), &
+                                  word)) then
+        reaction%species_idx%pri_co2_id = ispec
       endif
     endif
     if (reaction%species_idx%co2_aq_id == 0) then
@@ -902,6 +935,20 @@ subroutine ReactionSetupSpecificSpecies(reaction,option)
     endif
 
   enddo
+
+  select case(option%iflowmode)
+    case(MPH_MODE,SCO2_MODE)
+      option%transport%couple_co2 = &
+        (reaction%species_idx%pri_co2_id /= 0 .and. &
+         reaction%species_idx%co2_aq_id /= 0)
+      option%transport%couple_co2_salinity = &
+        (reaction%species_idx%na_ion_id /= 0 .and. &
+         reaction%species_idx%cl_ion_id /= 0)
+  end select
+  if (option%transport%force_decouple_co2) then
+    option%transport%couple_co2 = PETSC_FALSE
+    option%transport%couple_co2_salinity = PETSC_FALSE
+  endif
 
 end subroutine ReactionSetupSpecificSpecies
 
@@ -1062,12 +1109,14 @@ subroutine ReactionSetupSpeciesSummary(reaction,option)
     do imnrl = 1, mineral%nkinmnrl
       write(86,'(a," = ")',advance='no') trim(mineral%kinmnrl_names(imnrl))
       if (mineral%kinmnrlh2oid(imnrl) > 0) then
-        write(86,'(f6.2," H2O ")',advance='no') mineral%kinmnrlh2ostoich(imnrl)
+        write(86,'(f6.2," H2O ")',advance='no') &
+          mineral%kinmnrlh2ostoich(imnrl)
       endif
       do i = 1, mineral%kinmnrlspecid(0,imnrl)
         temp_tin = mineral%kinmnrlspecid(i,imnrl)
-        write(86,'(f6.2,x,a,x)',advance='no') mineral%kinmnrlstoich(i,imnrl), &
-                                 trim(reaction%primary_species_names(temp_int))
+        write(86,'(f6.2,x,a,x)',advance='no') &
+          mineral%kinmnrlstoich(i,imnrl), &
+          trim(reaction%primary_species_names(temp_int))
       enddo
       !molar volume has been converted to m^3/mol!
       write(86,'(4(" ; ",1es13.5))') mineral%kinmnrl_logK(imnrl), &

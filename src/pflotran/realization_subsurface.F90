@@ -1034,7 +1034,6 @@ subroutine RealProcessFlowConditions(realization)
   ! Author: Glenn Hammond
   ! Date: 10/26/11
   !
-
   use Dataset_Base_class
   use Dataset_module
 
@@ -1071,6 +1070,8 @@ subroutine RealProcessFlowConditions(realization)
                  cur_flow_condition%sub_condition_ptr(i)%ptr%gradient, &
                  cur_flow_condition%default_time_storage, &
                  string,option)
+          call FlowSubCondEnsureCompatibility(cur_flow_condition, &
+                     cur_flow_condition%sub_condition_ptr(i)%ptr,option)
         enddo
     end select
     cur_flow_condition => cur_flow_condition%next
@@ -2230,7 +2231,7 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
 
   use Discretization_module
   use Field_module
-  use Grid_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -2238,26 +2239,20 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
   PetscInt :: array_id
 
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
   type(field_type), pointer :: field
 
   field => realization%field
   patch => realization%patch
 
-  grid => patch%grid
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%imat,field%work_loc, &
-                                     grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%imat)
     case(CC_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%cc_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%cc_id)
     case(CCT_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%cct_id)
     case(MTF_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%mtf_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%mtf_id)
   end select
 
   call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
@@ -2265,17 +2260,13 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
 
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%imat,field%work_loc, &
-                                      grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%imat)
     case(CC_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%cc_id, &
-                                      field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%cc_id)
     case(CCT_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%cct_id, &
-                                      field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%cct_id)
     case(MTF_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%mtf_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%mtf_id)
   end select
 
 end subroutine RealLocalToLocalWithArray
@@ -2449,11 +2440,11 @@ subroutine RealizationPrintGridStatistics(realization)
            global_active_count, &
            option%comm%size, &
            i1,i2,i3, &
-           int(total_max+1.d-4), &
-           int(total_min+1.d-4), &
+           nint(total_max), &
+           nint(total_min), &
            total_mean, sqrt(total_variance), &
-           int(active_max+1.d-4), &
-           int(active_min+1.d-4), &
+           nint(active_max), &
+           nint(active_min), &
            active_mean, sqrt(active_variance), &
            inactive_percentages(1), &
            inactive_percentages(2), &
@@ -2500,11 +2491,11 @@ subroutine RealizationPrintGridStatistics(realization)
            global_active_count, &
            option%comm%size, &
            i1,i2,i3, &
-           int(total_max+1.d-4), &
-           int(total_min+1.d-4), &
+           nint(total_max), &
+           nint(total_min), &
            total_mean, sqrt(total_variance), &
-           int(active_max+1.d-4), &
-           int(active_min+1.d-4), &
+           nint(active_max), &
+           nint(active_min), &
            active_mean, sqrt(active_variance), &
            inactive_percentages(1), &
            inactive_percentages(2), &

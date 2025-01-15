@@ -1,0 +1,35 @@
+#Description: 1D Calcite dissolution problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE calcite_base.txt
+
+CHEMISTRY
+  EXTERNAL_FILE calcite_chem_base.txt
+  MINERAL_KINETICS
+    Calcite
+      PRECIPITATION_RATE_CONSTANT 1.d-6
+      DISSOLUTION_RATE_CONSTANT 0.d0
+    /
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET_ZERO_GRADIENT
+  TIME_UNITS y
+  CONSTRAINT_LIST
+    0.d0 supersaturated
+    10.d0 undersaturated
+  /
+END
+
+END_SUBSURFACE
