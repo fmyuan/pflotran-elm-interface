@@ -14,16 +14,8 @@
        13:   2.5001475027061E+01
        18:   2.5001583868897E+01
        23:   2.5001608439340E+01
--- GENERIC: Thermal Conductivity --
-      Max:  -9.9900000000000E+02
-      Min:  -9.9900000000000E+02
-     Mean:  -9.9900000000000E+02
-        8:  -9.9900000000000E+02
-       13:  -9.9900000000000E+02
-       18:  -9.9900000000000E+02
-       23:  -9.9900000000000E+02
 -- SOLUTION: Flow --
-   Time (seconds):   1.1908126799995E-01
+   Time (seconds):   1.1812511499988E-01
    Time Steps:           10
    Newton Iterations:           27
    Linear Solver Iterations:           67
