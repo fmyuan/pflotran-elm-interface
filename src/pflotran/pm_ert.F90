@@ -1135,6 +1135,8 @@ subroutine PMERTSolve(this,time,ierr)
       !         grid%y(grid%nL2G(elec_id)),grid%z(grid%nL2G(elec_id))
       ! it should qualify on only one proc
       val = -1.0
+      ! check for ghosted sink electrodes
+      if (survey%flag_electrode(ielec) == -1) val = -val
       vec_ptr(elec_id) = val
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
