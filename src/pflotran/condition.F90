@@ -1494,8 +1494,26 @@ subroutine FlowConditionRead(condition,input,option)
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,word,'CONDITION')
       case('THRESHOLD_PRESSURE')
+        string = word
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,string,'CONDITION')
         call InputReadDouble(input,option,rate%aux_real(1))
-        call InputErrorMsg(input,option,word,'CONDITION')
+        call InputErrorMsg(input,option,string,'CONDITION')
+        call StringToUpper(word)
+        if (rate%aux_real(1) < 0.d0) then
+          option%io_buffer = 'A PRESSURE_REGULATED_MASS_RATE must have a &
+            &positive THRESHOLD_PRESSURE.'
+          call PrintErrMsg(option)
+        endif
+        select case(word)
+          case('PREVENT_FLOW_ABOVE')
+          case('PREVENT_FLOW_BELOW')
+            rate%aux_real(1) = -1.d0*rate%aux_real(1)
+          case default
+            string = 'flow condition "' // trim(condition%name) // &
+              '" ' // trim(string)
+            call InputKeywordUnrecognized(input,word,string,option)
+        end select
       case('THRESHOLD_PRESSURE_SPAN')
         call InputReadDouble(input,option,rate%aux_real(2))
         call InputErrorMsg(input,option,word,'CONDITION')
@@ -1520,6 +1538,13 @@ subroutine FlowConditionRead(condition,input,option)
   endif
   if (rate%itype == NULL_CONDITION) then
     call FlowSubConditionDestroy(rate)
+  else if (rate%itype == PRES_REG_MASS_RATE_SS) then
+    if (Uninitialized(rate%aux_real(1)) .or. &
+        Uninitialized(rate%aux_real(2))) then
+      option%io_buffer = 'A PRESSURE_REGULATED_MASS_RATE must have a &
+        &THRESHOLD_PRESSURE and THRESHOLD_PRESSURE_SPAN defined.'
+      call PrintErrMsg(option)
+    endif
   endif
   if (energy_rate%itype == NULL_CONDITION) then
     call FlowSubConditionDestroy(energy_rate)
