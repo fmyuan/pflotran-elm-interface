@@ -601,9 +601,9 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
       alpha_vec(ivertex) = &
         GeomechParam%thermal_exp_coef(nint(imech_loc_p(ghosted_id)))
       beta_vec(ivertex) = &
-        GeomechParam%biot_coef(int(imech_loc_p(ghosted_id)))
+        GeomechParam%biot_coef(nint(imech_loc_p(ghosted_id)))
       density_rock_vec(ivertex) = &
-        GeomechParam%density(int(imech_loc_p(ghosted_id)))
+        GeomechParam%density(nint(imech_loc_p(ghosted_id)))
       density_fluid_vec(ivertex) = fluid_density(ghosted_id)
       porosity_vec(ivertex) = porosity(ghosted_id)
       density_bulk_vec(ivertex) = (porosity_vec(ivertex) * &
