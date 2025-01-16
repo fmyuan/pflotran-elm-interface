@@ -1,6 +1,9 @@
 module Reaction_Sandbox_Chromium_class
 
-! Sandbox reaction for Cr(VI) reduction using bio-reduction with reduced permeability
+#include "petsc/finclude/petscsys.h"
+
+! Sandbox reaction for Cr(VI) reduction using bio-reduction with reduced
+! permeability
 
   use Reaction_Sandbox_Base_class
 
@@ -12,8 +15,6 @@ module Reaction_Sandbox_Chromium_class
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_chromium_type

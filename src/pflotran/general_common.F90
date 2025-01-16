@@ -1,5 +1,7 @@
 module General_Common_module
 
+#include "petsc/finclude/petscsys.h"
+
   use General_Aux_module
   use Global_Aux_module
 
@@ -9,8 +11,6 @@ module General_Common_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
 #define CONVECTION
 #define LIQUID_DARCY_FLUX
