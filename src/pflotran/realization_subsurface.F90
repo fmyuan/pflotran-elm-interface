@@ -1926,7 +1926,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imat
+  PetscInt :: imat
   PetscReal :: scale
   PetscBool :: porosity_updated
   PetscReal, pointer :: porosity0_p(:)

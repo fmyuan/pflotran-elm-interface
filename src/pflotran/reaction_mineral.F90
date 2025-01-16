@@ -1689,70 +1689,6 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
 
   mineral => reaction%mineral
 
-!gehmnrl - remove this block
-#if 0
-  do imnrl = 1, mineral%nkinmnrl
-
-    porosity_scale = 1.d0
-    if (reaction%update_mnrl_surf_with_porosity) then
-      porosity_scale = &
-        ((1.d0-material_auxvar%porosity_base) / &
-         (1.d0-porosity0))** &
-         mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
-    endif
-
-    volfrac_scale = 1.d0
-    mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
-                        mineral%kinmnrl_vol_frac_epsilon(imnrl))
-    mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
-                       mineral%kinmnrl_vol_frac_epsilon(imnrl))
-    if (mnrl_volfrac0 > 0.d0) then
-      volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
-                      mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-    endif
-
-    rt_auxvar%mnrl_area(imnrl) = &
-        max(rt_auxvar%mnrl_area0(imnrl), &
-            mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
-        porosity_scale*volfrac_scale
-
-    if (reaction%update_armor_mineral_surface .and. &
-        mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
-      imnrl_armor = imnrl
-      do imnrl1 = 1, mineral%nkinmnrl
-        if (mineral%kinmnrl_armor_min_names(imnrl) == &
-            mineral%kinmnrl_names(imnrl1)) then
-          imnrl_armor = imnrl1
-          exit
-        endif
-      enddo
-
-      ! check for negative surface area armoring correction
-      if (mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
-          rt_auxvar%mnrl_volfrac(imnrl_armor)) then
-
-        if (reaction%update_armor_mineral_surface_flag == 0) then
-          ! surface unarmored
-          rt_auxvar%mnrl_area(imnrl) = &
-            rt_auxvar%mnrl_area(imnrl) * &
-            ((mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
-            - rt_auxvar%mnrl_volfrac(imnrl_armor))/ &
-            mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
-            mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-        else
-          rt_auxvar%mnrl_area(imnrl) = &
-            rt_auxvar%mnrl_area0(imnrl)
-          reaction%update_armor_mineral_surface_flag = 0
-        endif
-      else
-        rt_auxvar%mnrl_area(imnrl) = 0.d0
-        reaction%update_armor_mineral_surface_flag = 1 ! surface armored
-      endif
-    endif
-
-  enddo
-!gehmnrl - (end) remove this block
-#endif
   do imnrl = 1, mineral%nkinmnrl
 
     select case(mineral%kinmnrl_surf_area_function(imnrl))
@@ -1772,7 +1708,6 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
             calc_porosity = PETSC_TRUE
             calc_volfrac = PETSC_TRUE
         end select
-#if 1
         if (calc_porosity) then
           porosity_scale = &
               ((1.d0-material_auxvar%porosity_base) / &
@@ -1828,7 +1763,6 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
             reaction%update_armor_mineral_surface_flag = 1 ! surface armored
           endif
         endif
-#endif
       case(MINERAL_SURF_AREA_F_MNRL_MASS)
         rt_auxvar%mnrl_area(imnrl) = &
           mineral%kinmnrl_spec_surf_area(imnrl) * &

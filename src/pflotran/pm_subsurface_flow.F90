@@ -348,7 +348,6 @@ subroutine PMSubsurfaceFlowSetup(this)
   class(pm_subsurface_flow_type) :: this
 
   class(characteristic_curves_type), pointer :: cur_cc
-  PetscBool :: found
 
   ! assign initial conditionsRealizAssignFlowInitCond
   call CondControlAssignFlowInitCond(this%realization)

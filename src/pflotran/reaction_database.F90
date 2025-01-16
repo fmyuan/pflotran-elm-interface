@@ -2041,8 +2041,6 @@ subroutine ReactionDBInitBasis(reaction,option)
       endif
       cur_mineral => cur_mineral%next
     enddo
-!gehmnrl
-!    if (reaction%update_mineral_surface_area .or. found) then
     if (found) then
       allocate(mineral%kinmnrl_surf_area_porosity_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_surf_area_porosity_pwr = UNINITIALIZED_DOUBLE

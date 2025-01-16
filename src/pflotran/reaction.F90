@@ -798,23 +798,19 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('UPDATE_PERMEABILITY')
         reaction%update_permeability = PETSC_TRUE
       case('UPDATE_MINERAL_SURFACE_AREA')
-!gehmnrl
         option%io_buffer = 'UPDATE_MINERAL_SURFACE_AREA has been updated to &
           &"SURFACE_AREA_FUNCTION [CONSTANT,POROSITY_RATIO,&
           &VOLUME_FRACTION_RATIO,POROSITY_VOLUME_FRACTION_RATIO,&
           &MINERAL_MASS]" &
           &within each mineral block under MINERAL_KINETICS.'
         call PrintErrMsg(option)
-!        reaction%update_mineral_surface_area = PETSC_TRUE
       case('UPDATE_MNRL_SURF_AREA_WITH_POR')
-!gehmnrl
-        option%io_buffer = 'UPDATE_MINERAL_SURFACE_AREA has been updated to &
-          &"SURFACE_AREA_FUNCTION [CONSTANT,POROSITY_RATIO,&
+        option%io_buffer = 'UPDATE_MNRL_SURF_AREA_WITH_POR has been updated &
+          &to "SURFACE_AREA_FUNCTION [CONSTANT,POROSITY_RATIO,&
           &VOLUME_FRACTION_RATIO,POROSITY_VOLUME_FRACTION_RATIO,&
           &MINERAL_MASS]" &
           &within each mineral block under MINERAL_KINETICS.'
         call PrintErrMsg(option)
-!        reaction%update_mnrl_surf_with_porosity = PETSC_TRUE
       case('UPDATE_ARMOR_MINERAL_SURFACE')
         reaction%update_armor_mineral_surface = PETSC_TRUE
       case('UPDATE_ARMOR_MINERAL_SURFACE_FLAG')
@@ -960,11 +956,6 @@ subroutine ReactionReadPass1(reaction,input,option)
       &card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or &
       &MINERAL_KINETICS,<mineral name>,SURFACE_AREA_FUNCTION POROSITY &
       &are listed.'
-!gehmnrl
-!       reaction%update_mnrl_surf_with_porosity)) then
-!    option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY ' // &
-!      'card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or ' // &
-!      'UPDATE_MNRL_SURF_WITH_POR are listed.'
     call PrintErrMsg(option)
   endif
 
@@ -1108,8 +1099,7 @@ subroutine ReactionReadPass2(reaction,input,option)
         enddo
       case('MOLAL','MOLALITY', &
             'UPDATE_POROSITY','UPDATE_TORTUOSITY', &
-!gehmnrl
-            'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA', &
+            'UPDATE_PERMEABILITY', &
             'NO_RESTART_MINERAL_VOL_FRAC','USE_FULL_GEOCHEMISTRY', &
            'DECOUPLE_CO2')
         ! dummy placeholder
