@@ -253,9 +253,18 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press, &
                                             geomech_field%temp)
+
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press, &
                                             geomech_field%work)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press, &
+                                            geomech_field%fluid_density)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press, &
+                                            geomech_field%porosity)
 
   ! n degrees of freedom, local
   call GeomechDiscretizationCreateVector(geomech_discretization,NGEODOF, &
@@ -293,6 +302,18 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
                                             geomech_field%work_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%fluid_density_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                     geomech_field%press_loc, &
+                                     geomech_field%fluid_density_init_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%porosity_loc)
 
   ! 6 dof for strain and stress
   call GeomechDiscretizationCreateVector(geomech_discretization,SIX_INTEGER, &
