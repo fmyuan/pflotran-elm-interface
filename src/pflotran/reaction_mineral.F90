@@ -360,10 +360,58 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
             (Initialized(tstrxn%precipitation_rate_constant) .and. &
              Uninitialized(tstrxn%dissolution_rate_constant))) then
           option%io_buffer = 'Both forward and reverse rate constants must &
-            &be specified if either is specified for kinetic mineral ' // &
-            trim(cur_mineral%name) // '.'
+            &be specified if either is specified for kinetic mineral "' // &
+            trim(cur_mineral%name) // '".'
           call PrintErrMsg(option)
         endif
+        ! Ensure that correct surface area parameters are set
+        if (tstrxn%surf_area_porosity_pwr > 0.d0) then
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case default
+              option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
+                &mineral "' // trim(cur_mineral%name) // '" since &
+                &SURFACE_AREA_POROSITY_POWER is specified.'
+              call PrintErrMsg(option)
+          end select
+        endif
+        if (tstrxn%surf_area_vol_frac_pwr > 0.d0) then
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case default
+              option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
+                &mineral "' // trim(cur_mineral%name) // '" since &
+                &SURFACE_AREA_VOL_FRAC_POWER is specified.'
+              call PrintErrMsg(option)
+          end select
+        endif
+        select case(tstrxn%surf_area_function)
+          case(MINERAL_SURF_AREA_F_POR_RATIO)
+            if (Equal(tstrxn%surf_area_porosity_pwr,0.d0)) then
+              option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_VF_RATIO)
+            if (Equal(tstrxn%surf_area_vol_frac_pwr,0.d0)) then
+              option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            if (Equal(tstrxn%surf_area_porosity_pwr,0.d0)) then
+              option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+            if (Equal(tstrxn%surf_area_vol_frac_pwr,0.d0)) then
+              option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+        end select
         ! Loop over prefactors and set kinetic rates and activation energies
         ! equal to the "outer" values if zero.
         cur_prefactor => tstrxn%prefactor
