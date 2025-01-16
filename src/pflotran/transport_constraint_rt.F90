@@ -553,7 +553,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
           if (InputError(input)) then
             mineral_constraint%constraint_area_units(imnrl) = 'm^2/m^3'
             input%err_buf = trim(mineral_constraint%names(imnrl)) // &
-                             ' SPECIFIC SURFACE_AREA UNITS'
+                             ' SPECIFIC_SURFACE_AREA UNITS'
             call InputDefaultMsg(input,option)
           endif
         enddo

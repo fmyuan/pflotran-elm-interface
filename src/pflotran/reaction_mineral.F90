@@ -349,6 +349,11 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   call InputKeywordUnrecognized(input,word, &
                                                 error_string,option)
               end select
+            case('SPECIFIC_SURFACE_AREA')
+              call InputReadDouble(input,option,tstrxn%spec_surf_area)
+              call InputErrorMsg(input,option,keyword,error_string)
+              call InputReadAndConvertUnits(input,tstrxn%spec_surf_area, &
+                        'm^2/kg',trim(error_string)//','//trim(keyword),option)
             case default
               call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
