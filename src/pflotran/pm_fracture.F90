@@ -51,9 +51,6 @@ module PM_Fracture_class
     PetscReal, pointer :: dL(:)
     ! total number of cells this fracture occupies
     PetscInt :: ncells
-    ! maximum distance grid cell center can be from the fracture plane in
-    ! order to mark the cell as being fractured # [m]
-    PetscReal :: max_distance
     ! linked list next object
     type(fracture_type), pointer :: next
   end type fracture_type
@@ -93,9 +90,6 @@ module PM_Fracture_class
     type(point3d_type) :: radius_stdev
     ! fracture family radius seed [-]
     PetscInt :: radius_seed
-    ! maximum distance grid cell center can be from the fracture plane in
-    ! order to mark the cell as being fractured # [m]
-    PetscReal :: max_distance
     ! list of fractures in this family
     type(fracture_type), pointer :: fracture_list
     ! linked list next object
@@ -250,7 +244,6 @@ subroutine FractureInit(this)
   nullify(this%dL)
   nullify(this%hap)
   nullify(this%kx0); nullify(this%ky0); nullify(this%kz0)
-  this%max_distance = 5.0
   this%ncells = UNINITIALIZED_INTEGER
   this%id = UNINITIALIZED_INTEGER
   this%hap0 = UNINITIALIZED_DOUBLE
@@ -286,7 +279,6 @@ subroutine FractureFamInit(this)
   nullify(this%fracture_list)
   this%id = UNINITIALIZED_INTEGER
   this%nfrac_in_fam = 0
-  this%max_distance = 5.0
   this%intensity_fracfam= UNINITIALIZED_DOUBLE
   this%surface_area_fracfam = 0.d0
   this%hap0 = UNINITIALIZED_DOUBLE
@@ -344,11 +336,15 @@ subroutine PMFracSetup(this)
   PetscInt, pointer :: temp_frac_common_cell_ids(:)
   PetscInt :: k,j,i
   PetscInt :: nf,tfc,read_max
+  PetscReal, pointer :: d_vertex(:)
   PetscReal :: D,distance
   PetscReal :: min_x,max_x,min_y,max_y,min_z,max_z
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
+  type(point3d_type) :: grid_center,grid_dh ! grid cell center point and dh
+  type(point3d_type) :: v1,v2,v3,v4,v5,v6,v7,v8 ! grid cell vertices
   PetscBool :: within_x,within_y,within_z
+  PetscBool :: frac_is_within_grid_cell_volume
   PetscBool :: added
 
   call this%SetRealization()
@@ -361,6 +357,7 @@ subroutine PMFracSetup(this)
   allocate(temp_cell_ids(read_max))
   allocate(temp_allfrac_cell_ids(read_max*10))
   allocate(temp_frac_common_cell_ids(read_max))
+  allocate(d_vertex(8))
 
   cur_fracfam => this%fracfam_list
   do
@@ -426,18 +423,86 @@ subroutine PMFracSetup(this)
     ! Ax + By + Cz + D = 0
     ! Get D by knowing the plane must contain the center point (x,y,z)
     D = -1.d0*(cur_fracture%normal%x*cur_fracture%center%x + &
-             cur_fracture%normal%y*cur_fracture%center%y + &
-             cur_fracture%normal%z*cur_fracture%center%z)
+               cur_fracture%normal%y*cur_fracture%center%y + &
+               cur_fracture%normal%z*cur_fracture%center%z)
     j = 0
     do k = 1,res_grid%nlmax
-      distance = cur_fracture%normal%x*res_grid%x(res_grid%nL2G(k)) + &
-                 cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
-                 cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
-      if (abs(distance) < cur_fracture%max_distance) then
-        ! entered here if the center of the grid cell is within a tolerance
-        ! of max_distance of the plane.
-        ! next check if the (x,y) position of the grid cell lies within the
-        ! requested rad(x,y) of the plane from the center point.
+      grid_center%x = res_grid%x(res_grid%nL2G(k)) ! grid cell center point x
+      grid_center%y = res_grid%y(res_grid%nL2G(k)) ! grid cell center point y
+      grid_center%z = res_grid%z(res_grid%nL2G(k)) ! grid cell center point z
+      if (res_grid%itype == STRUCTURED_GRID) then
+        grid_dh%x = res_grid%structured_grid%dx(res_grid%nL2G(k))
+        grid_dh%y = res_grid%structured_grid%dy(res_grid%nL2G(k))
+        grid_dh%z = res_grid%structured_grid%dz(res_grid%nL2G(k))
+        ! calculate cuboid vertex points
+        v1%x = grid_center%x - (grid_dh%x/2.d0)
+        v2%x = grid_center%x + (grid_dh%x/2.d0)
+        v3%x = grid_center%x - (grid_dh%x/2.d0)
+        v4%x = grid_center%x + (grid_dh%x/2.d0)
+        v5%x = grid_center%x - (grid_dh%x/2.d0)
+        v6%x = grid_center%x + (grid_dh%x/2.d0)
+        v7%x = grid_center%x - (grid_dh%x/2.d0)
+        v8%x = grid_center%x + (grid_dh%x/2.d0)
+        v1%y = grid_center%y - (grid_dh%y/2.d0)
+        v2%y = grid_center%y - (grid_dh%y/2.d0)
+        v3%y = grid_center%y + (grid_dh%y/2.d0)
+        v4%y = grid_center%y + (grid_dh%y/2.d0)
+        v5%y = grid_center%y - (grid_dh%y/2.d0)
+        v6%y = grid_center%y - (grid_dh%y/2.d0)
+        v7%y = grid_center%y + (grid_dh%y/2.d0)
+        v8%y = grid_center%y + (grid_dh%y/2.d0)
+        v1%z = grid_center%z - (grid_dh%z/2.d0)
+        v2%z = grid_center%z - (grid_dh%z/2.d0)
+        v3%z = grid_center%z - (grid_dh%z/2.d0)
+        v4%z = grid_center%z - (grid_dh%z/2.d0)
+        v5%z = grid_center%z + (grid_dh%z/2.d0)
+        v6%z = grid_center%z + (grid_dh%z/2.d0)
+        v7%z = grid_center%z + (grid_dh%z/2.d0)
+        v8%z = grid_center%z + (grid_dh%z/2.d0)
+      else
+        option%io_buffer = 'The GEOTHERMAL_FRACTURE_MODEL can only be used &
+          &with structured grids. If you recieve this error message, please &
+          &email jmfrede@sandia.gov with your modeling application.'
+        call PrintErrMsg(option)
+      endif
+      d_vertex(1) = cur_fracture%normal%x*v1%x + &
+                    cur_fracture%normal%y*v1%y + &
+                    cur_fracture%normal%z*v1%z + D
+      d_vertex(2) = cur_fracture%normal%x*v2%x + &
+                    cur_fracture%normal%y*v2%y + &
+                    cur_fracture%normal%z*v2%z + D
+      d_vertex(3) = cur_fracture%normal%x*v3%x + &
+                    cur_fracture%normal%y*v3%y + &
+                    cur_fracture%normal%z*v3%z + D
+      d_vertex(4) = cur_fracture%normal%x*v4%x + &
+                    cur_fracture%normal%y*v4%y + &
+                    cur_fracture%normal%z*v4%z + D
+      d_vertex(5) = cur_fracture%normal%x*v5%x + &
+                    cur_fracture%normal%y*v5%y + &
+                    cur_fracture%normal%z*v5%z + D
+      d_vertex(6) = cur_fracture%normal%x*v6%x + &
+                    cur_fracture%normal%y*v6%y + &
+                    cur_fracture%normal%z*v6%z + D
+      d_vertex(7) = cur_fracture%normal%x*v7%x + &
+                    cur_fracture%normal%y*v7%y + &
+                    cur_fracture%normal%z*v7%z + D
+      d_vertex(8) = cur_fracture%normal%x*v8%x + &
+                    cur_fracture%normal%y*v8%y + &
+                    cur_fracture%normal%z*v8%z + D
+      distance = cur_fracture%normal%x*grid_center%x + &
+                 cur_fracture%normal%y*grid_center%y + &
+                 cur_fracture%normal%z*grid_center%z + D
+      frac_is_within_grid_cell_volume = PETSC_TRUE
+      if ((all(d_vertex > 0.d0)) .or. (all(d_vertex < 0.d0))) then
+        ! if the distances between all vertices and the fracture plane are
+        ! all positive or all negative, then the grid cell volume is on either
+        ! side of the plane, and the fracture plane doesn't go through
+        frac_is_within_grid_cell_volume = PETSC_FALSE
+      elseif (any(d_vertex == 0.d0)) then
+        ! if any vertex is exactly on the plane. . . .
+        frac_is_within_grid_cell_volume = PETSC_TRUE
+      endif
+      if (frac_is_within_grid_cell_volume) then
         min_x = cur_fracture%center%x - cur_fracture%radx
         max_x = cur_fracture%center%x + cur_fracture%radx
         min_y = cur_fracture%center%y - cur_fracture%rady
@@ -446,16 +511,13 @@ subroutine PMFracSetup(this)
         max_z = cur_fracture%center%z + cur_fracture%radz
         within_x = PETSC_FALSE; within_y = PETSC_FALSE
         within_z = PETSC_FALSE
-        if ((res_grid%x(res_grid%nL2G(k)) <= max_x) .and. &
-            (res_grid%x(res_grid%nL2G(k)) >= min_x)) then
+        if ((grid_center%x <= max_x) .and. (grid_center%x >= min_x)) then
           within_x = PETSC_TRUE
         endif
-        if ((res_grid%y(res_grid%nL2G(k)) <= max_y) .and. &
-            (res_grid%y(res_grid%nL2G(k)) >= min_y)) then
+        if ((grid_center%y <= max_y) .and. (grid_center%y >= min_y)) then
           within_y = PETSC_TRUE
         endif
-        if ((res_grid%z(res_grid%nL2G(k)) <= max_z) .and. &
-            (res_grid%z(res_grid%nL2G(k)) >= min_z)) then
+        if ((grid_center%z <= max_z) .and. (grid_center%z >= min_z)) then
           within_z = PETSC_TRUE
         endif
         ! if you want the fracture oriented exactly along an axis, then allow
@@ -611,6 +673,7 @@ subroutine PMFracSetup(this)
 
   deallocate(temp_cell_ids)
   deallocate(temp_allfrac_cell_ids)
+  deallocate(d_vertex)
 
 end subroutine PMFracSetup
 
@@ -1005,10 +1068,6 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
             call InputReadInt(input,option,new_fracture%id)
             call InputErrorMsg(input,option,'ID',error_string)
         !-----------------------------
-          case('MAX_DISTANCE')
-            call InputReadDouble(input,option,new_fracture%max_distance)
-            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
-        !-----------------------------
           case('HYDRAULIC_APERTURE')
             call InputReadDouble(input,option,new_fracture%hap0)
             call InputErrorMsg(input,option,'HYDRAULIC_APERTURE',error_string)
@@ -1178,10 +1237,6 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
           case('ID')
             call InputReadInt(input,option,new_fracfam%id)
             call InputErrorMsg(input,option,'ID',error_string)
-        !-----------------------------
-          case('MAX_DISTANCE')
-            call InputReadDouble(input,option,new_fracfam%max_distance)
-            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
         !-----------------------------
           case('NUMBER_OF_FRACTURES')
             call InputReadInt(input,option,new_fracfam%intensity_fracfam)
@@ -1664,7 +1719,6 @@ subroutine PMFracGenerateFracFam(fracfam)
     fracfam%nfrac_in_fam = fracfam%nfrac_in_fam + 1
     new_fracture => FractureCreate()
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
-    new_fracture%max_distance = fracfam%max_distance
 
     new_fracture%center%x = center_x(fracfam%nfrac_in_fam)
     new_fracture%center%y = center_y(fracfam%nfrac_in_fam)
