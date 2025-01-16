@@ -331,8 +331,8 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%affinity_factor_sigma = UNINITIALIZED_DOUBLE
   tstrxn%affinity_factor_beta = UNINITIALIZED_DOUBLE
   tstrxn%affinity_threshold = 0.d0
-  tstrxn%surf_area_vol_frac_pwr = 0.d0
-  tstrxn%surf_area_porosity_pwr = 0.d0
+  tstrxn%surf_area_vol_frac_pwr = UNINITIALIZED_DOUBLE
+  tstrxn%surf_area_porosity_pwr = UNINITIALIZED_DOUBLE
   tstrxn%rate_limiter = 0.d0
   tstrxn%activation_energy = 0.d0
   tstrxn%armor_min_name = ''

@@ -2025,15 +2025,13 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_affinity_power = 1.d0
     endif
 
-    ! Determine whether surface area volume fraction power defined
+    ! Determine whether surface area porosity power defined
     cur_mineral => mineral%mineral_list
     found = PETSC_FALSE
     do
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_vol_frac_pwr, &
-                       0.d0) .or. &
-            cur_mineral%tstrxn%surf_area_function == &
+        if (cur_mineral%tstrxn%surf_area_function == &
               MINERAL_SURF_AREA_F_POR_RATIO .or. &
             cur_mineral%tstrxn%surf_area_function == &
               MINERAL_SURF_AREA_F_POR_VF_RATIO) then
@@ -2046,8 +2044,8 @@ subroutine ReactionDBInitBasis(reaction,option)
 !gehmnrl
 !    if (reaction%update_mineral_surface_area .or. found) then
     if (found) then
-      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0
+      allocate(mineral%kinmnrl_surf_area_porosity_pwr(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_porosity_pwr = UNINITIALIZED_DOUBLE
     endif
 
     ! Determine whether surface area volume fraction power defined
@@ -2056,8 +2054,10 @@ subroutine ReactionDBInitBasis(reaction,option)
     do
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_porosity_pwr, &
-                       0.d0)) then
+        if (cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_VF_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
           found = PETSC_TRUE
           exit
         endif
@@ -2065,8 +2065,8 @@ subroutine ReactionDBInitBasis(reaction,option)
       cur_mineral => cur_mineral%next
     enddo
     if (found) then
-      allocate(mineral%kinmnrl_surf_area_porosity_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_porosity_pwr = 0.d0
+      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_vol_frac_pwr = UNINITIALIZED_DOUBLE
     endif
 
 #if 0
@@ -2410,16 +2410,21 @@ subroutine ReactionDBInitBasis(reaction,option)
             mineral%kinmnrl_affinity_power(ikinmnrl) = &
               tstrxn%affinity_factor_beta
           endif
-          if (.not.Equal(tstrxn%surf_area_vol_frac_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
-              tstrxn%surf_area_vol_frac_pwr
-          endif
-          if (.not.Equal(tstrxn%surf_area_porosity_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
-              tstrxn%surf_area_porosity_pwr
-          endif
+
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+          end select
+
         endif ! associated(tstrxn)
 
         mineral%kinmnrl_molar_vol(ikinmnrl) = cur_mineral%molar_volume
