@@ -6161,6 +6161,7 @@ subroutine PMWellUpdateReservoirConcTran(pm_well)
   PetscInt :: ghosted_id, k
 
   do k = 1,pm_well%well_grid%nsegments
+    if (pm_well%well_grid%h_rank_id(k) /= pm_well%option%myrank) cycle
     ghosted_id = pm_well%well_grid%h_ghosted_id(k)
     nwt_auxvar => pm_well%realization%patch%aux%nwt%auxvars(ghosted_id)
 
