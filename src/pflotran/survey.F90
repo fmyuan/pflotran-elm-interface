@@ -195,7 +195,8 @@ subroutine SurveyReadERT(survey,grid,input,option)
     call InputErrorMsg(input,option,'flag for electrode ' &
                                      //string_ielec,error_string)
     if (survey%flag_electrode(ielec) /= 0 .and. &
-        survey%flag_electrode(ielec) /= 1) then
+        survey%flag_electrode(ielec) /= 1 .and. &
+        survey%flag_electrode(ielec) /= -1) then
       option%io_buffer = 'Wrong electrode flag -- see electrode #' &
                           & // string_ielec
       call PrintErrMsg(option)

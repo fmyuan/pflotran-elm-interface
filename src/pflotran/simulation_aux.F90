@@ -16,6 +16,7 @@ module Simulation_Aux_module
     ! Size of entire subsurface domain
     Vec :: subsurf_pres
     Vec :: subsurf_temp
+    Vec :: subsurf_fluid_den
 
     Vec :: subsurf_por0
     Vec :: subsurf_por
@@ -58,6 +59,7 @@ function SimAuxCreate()
   allocate(aux)
   aux%subsurf_pres = PETSC_NULL_VEC
   aux%subsurf_temp = PETSC_NULL_VEC
+  aux%subsurf_fluid_den = PETSC_NULL_VEC
   aux%subsurf_por0 = PETSC_NULL_VEC
   aux%subsurf_por = PETSC_NULL_VEC
   aux%subsurf_perm0 = PETSC_NULL_VEC
@@ -120,6 +122,7 @@ subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
 
   call VecDuplicate(subsurf_vec,aux%subsurf_pres,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_temp,ierr);CHKERRQ(ierr)
+  call VecDuplicate(subsurf_vec,aux%subsurf_fluid_den,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por0,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr)
@@ -173,6 +176,9 @@ subroutine SimAuxDestroy(aux)
   endif
   if (aux%subsurf_temp /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_temp,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%subsurf_fluid_den /= PETSC_NULL_VEC) then
+    call VecDestroy(aux%subsurf_fluid_den,ierr);CHKERRQ(ierr)
   endif
   if (aux%subsurf_por0 /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_por0,ierr);CHKERRQ(ierr)

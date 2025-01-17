@@ -781,6 +781,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   use Richards_Aux_module
   use TH_Aux_module
   use Mphase_Aux_module
+  use Global_Aux_module
 
   implicit none
 
@@ -793,6 +794,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
+  PetscScalar, pointer :: por_p(:)
+  PetscScalar, pointer :: fluid_den_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
 
@@ -801,6 +804,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscInt :: pres_dof
   PetscInt :: temp_dof
 
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
@@ -843,13 +847,21 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         subsurf_field => pmc%realization%field
 
 
-        ! Extract pressure, temperature and porosity from subsurface realization
+        ! Extract pressure, temperature, density, and porosity from
+        ! subsurface realization
         call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+                            ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+                            ierr);CHKERRQ(ierr)
+
+        global_auxvars => pmc%realization%patch%aux%global%auxvars
+        material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
         do local_id = 1, subsurf_grid%nlmax
           ghosted_id = subsurf_grid%nL2G(local_id)
@@ -863,6 +875,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
           endif
+          ! need fluid density and porosity for bulk density calculations
+          fluid_den_p(local_id) = global_auxvars(ghosted_id)%den_kg(1)
+          por_p(local_id) = material_auxvars(ghosted_id)%porosity
         enddo
 
         call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
@@ -871,9 +886,12 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                 ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                                 ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+                                ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
-          material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
           call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &

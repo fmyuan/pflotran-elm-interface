@@ -905,7 +905,9 @@ contains
                    extent, h5_err)
     ! create property list for write
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
+#endif
 
     ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, v_data, dset_size, &
@@ -973,7 +975,9 @@ contains
                    extent, h5_err)
     ! create property list for write
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
+#endif
 
     ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, v_data, dset_size, &
