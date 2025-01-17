@@ -1183,7 +1183,11 @@ end subroutine FactSubLinkAddPMCFracture
 
 ! ************************************************************************** !
 
-subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
+! jaa: new routine mimics above pm linkage
+! Large part of this routine was adapted from
+! GeomechanicsInitializePostPETSc (factory_geomechanics.F90)
+subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
+                                           pmc_name,input)
 
   use PMC_Base_class
   use PMC_Third_Party_class
@@ -1194,10 +1198,8 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   use PM_Geomechanics_Force_class
   use Geomechanics_Realization_class
   use Timestepper_Steady_class
-  !use Timestepper_SNES_class ! jaa testing
   use PMC_Geomechanics_class
   use Output_Aux_module
-  !use Factory_Geomechanics_module
   use Factory_Subsurface_Geomechanics_module
   use Waypoint_module
 
@@ -1212,18 +1214,17 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   class(pmc_base_type), pointer :: pmc_dummy
   class(realization_subsurface_type), pointer :: subsurf_realization
   type(option_type), pointer :: option
-  ! jaa
+
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(realization_geomech_type), pointer :: geomech_realization
   class(timestepper_steady_type), pointer :: timestepper
-
-  subsurf_realization => simulation%realization
-  option => subsurf_realization%option
 
   nullify(pmc_dummy)
 
   string = 'GEOMECHANICS_MODEL'
 
+  subsurf_realization => simulation%realization
+  option => subsurf_realization%option
   simulation%geomech_realization_new => GeomechRealizCreate(option)
   geomech_realization => simulation%geomech_realization_new
   subsurf_realization => simulation%realization
@@ -1240,9 +1241,9 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech,pmc_name,input)
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
   pmc_geomech%geomech_realization => simulation%geomech_realization_new
+  pm_geomech%geomech_realization => simulation%geomech_realization_new
   pmc_geomech%subsurf_realization => simulation%realization
   pm_geomech%subsurf_realization => simulation%realization
-  pm_geomech%geomech_realization => simulation%geomech_realization_new ! jaa
 
   ! add time integrator
   timestepper => TimestepperSteadyCreate()

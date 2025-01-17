@@ -90,7 +90,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   use petscsnes
   use Convergence_module
   use Geomechanics_Discretization_module
-  use Timestepper_Base_class
+  !use Timestepper_Base_class
   use Timestepper_Steady_class
   use PM_Base_class
   use PM_Base_Pointer_module

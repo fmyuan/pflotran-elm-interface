@@ -338,8 +338,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   use Simulation_Aux_module
   use Realization_Subsurface_class
   use Realization_Base_class
-  !use Timestepper_Steady_class
-  use Timestepper_Base_class
+  use Timestepper_Steady_class
+  !use Timestepper_Base_class
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
@@ -356,8 +356,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   class(pmc_base_type), pointer :: cur_process_model_coupler
   type(gmdm_ptr_type), pointer :: dm_ptr
   class(pmc_geomechanics_type), pointer :: pmc_geomech
-  !class(timestepper_steady_type), pointer :: timestepper
-  class(timestepper_base_type), pointer :: timestepper
+  class(timestepper_steady_type), pointer :: timestepper
+  !class(timestepper_base_type), pointer :: timestepper
   PetscErrorCode :: ierr
 
   if (.not. associated(pm_geomech)) return
@@ -373,7 +373,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   call pm_geomech%Setup()
 
   pmc_geomech => simulation%geomech_process_model_coupler_new
-  timestepper => simulation%geomech_process_model_coupler_new%timestepper
+  timestepper => TimestepperSteadyCast(simulation% &
+      geomech_process_model_coupler_new%timestepper)
   call pmc_geomech%SetupSolvers()
 
   ! Here I first calculate the linear part of the jacobian and store it

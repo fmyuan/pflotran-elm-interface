@@ -849,6 +849,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   use Logging_module
   use Timestepper_Base_class
+  use Timestepper_Steady_class
   use String_module, only : StringWrite
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use Carbon_Sandbox_module, only : CarbonSandboxDestroy
@@ -865,6 +866,7 @@ subroutine SimSubsurfFinalizeRun(this)
   character(MAXSTRINGLENGTH) :: string
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
+  class(timestepper_steady_type), pointer :: geomech_timestepper
   PetscErrorCode :: ierr
 
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
@@ -894,6 +896,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   nullify(flow_timestepper)
   nullify(tran_timestepper)
+  nullify(geomech_timestepper)
   if (associated(this%flow_process_model_coupler)) then
     flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
@@ -908,11 +911,25 @@ subroutine SimSubsurfFinalizeRun(this)
       call CarbonSandboxDestroy()
     endif
   endif
+  ! jaa testing
+  if (associated(this%geomech_process_model_coupler_new)) then
+    geomech_timestepper => TimestepperSteadyCast( &
+              this%geomech_process_model_coupler_new%timestepper)
+    ! timestepper => TimestepperSteadyCast(this%timestepper)
+    !select type(ts => this%geomech_process_model_coupler%timestepper)
+    !  class is(timestepper_steady_type)
+    !    geomech_timestepper => ts
+    !end select
+  endif
 
   select case(this%stop_flag)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
+      ! jaa testing
+      call GeomechanicsRegressionOutput(this%geomech_regression_new, &
+                                        this%geomech_realization_new, &
+                                        geomech_timestepper)
   end select
 
   call SimulationBaseFinalizeRun(this)

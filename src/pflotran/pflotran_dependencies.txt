@@ -642,7 +642,6 @@ factory_subsurface_geomechanics.o : \
   simulation_subsurface.o \
   solver.o \
   string.o \
-  timestepper_base.o \
   timestepper_steady.o \
   units.o \
   utility.o \
@@ -1904,6 +1903,7 @@ patch.o : \
   reaction.o \
   reaction_aux.o \
   reaction_base.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_mineral.o \
   reaction_mineral_aux.o \
@@ -3652,6 +3652,7 @@ simulation_subsurface.o : \
   strata.o \
   string.o \
   timestepper_base.o \
+  timestepper_steady.o \
   waypoint.o \
   wipp.o
 slatec_pchip.o :
