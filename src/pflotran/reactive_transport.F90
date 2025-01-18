@@ -607,7 +607,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
           &for immobile species in reactive_transport.F90:RTComputeMassBalance'
         call PrintErrMsg(option)
         sum_mol_by_im(i) = sum_mol_by_im(i) * &
-          reaction%immobile%list%molar_weight * 1.d-3
+          reaction%immobile%list%molar_weight
       endif
     enddo
 

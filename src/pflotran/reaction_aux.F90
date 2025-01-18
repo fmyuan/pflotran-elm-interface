@@ -49,7 +49,7 @@ module Reaction_Aux_module
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: a0
-    PetscReal :: molar_weight
+    PetscReal :: molar_weight ! [kg/mol]
     PetscReal :: Z
     PetscBool :: print_me
     PetscBool :: is_redox

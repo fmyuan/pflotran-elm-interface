@@ -374,6 +374,11 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
           select case(tstrxn%surf_area_function)
             case(MINERAL_SURF_AREA_F_POR_RATIO)
             case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_MNRL_MASS)
+              option%io_buffer = 'SURFACE_AREA_FUNCTION MINERAL_MASS is &
+                &not compatible with SURFACE_AREA_POROSITY_POWER for &
+                &mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
             case default
               option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
                 &mineral "' // trim(cur_mineral%name) // '" since &
@@ -385,6 +390,11 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
           select case(tstrxn%surf_area_function)
             case(MINERAL_SURF_AREA_F_VF_RATIO)
             case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_MNRL_MASS)
+              option%io_buffer = 'SURFACE_AREA_FUNCTION MINERAL_MASS is &
+                &not compatible with SURFACE_AREA_VOL_FRAC_POWER for &
+                &mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
             case default
               option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
                 &mineral "' // trim(cur_mineral%name) // '" since &
@@ -394,25 +404,31 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
         endif
         select case(tstrxn%surf_area_function)
           case(MINERAL_SURF_AREA_F_POR_RATIO)
-            if (Equal(tstrxn%surf_area_porosity_pwr,0.d0)) then
+            if (Uninitialized(tstrxn%surf_area_porosity_pwr)) then
               option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
                 &specified for mineral "' // trim(cur_mineral%name) // '".'
               call PrintErrMsg(option)
             endif
           case(MINERAL_SURF_AREA_F_VF_RATIO)
-            if (Equal(tstrxn%surf_area_vol_frac_pwr,0.d0)) then
+            if (Uninitialized(tstrxn%surf_area_vol_frac_pwr)) then
               option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
                 &specified for mineral "' // trim(cur_mineral%name) // '".'
               call PrintErrMsg(option)
             endif
           case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
-            if (Equal(tstrxn%surf_area_porosity_pwr,0.d0)) then
+            if (Uninitialized(tstrxn%surf_area_porosity_pwr)) then
               option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
                 &specified for mineral "' // trim(cur_mineral%name) // '".'
               call PrintErrMsg(option)
             endif
-            if (Equal(tstrxn%surf_area_vol_frac_pwr,0.d0)) then
+            if (Uninitialized(tstrxn%surf_area_vol_frac_pwr)) then
               option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_MNRL_MASS)
+            if (Uninitialized(tstrxn%spec_surf_area)) then
+              option%io_buffer = 'A SPECIFIC_SURFACE_AREA must be &
                 &specified for mineral "' // trim(cur_mineral%name) // '".'
               call PrintErrMsg(option)
             endif
@@ -713,6 +729,8 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
   ! read the molar weight
   call InputReadDouble(input,option,mineral%molar_weight)
   call InputErrorMsg(input,option,'MINERAL molar weight','DATABASE')
+  ! convert from g/mol to kg/mol
+  mineral%molar_weight = mineral%molar_weight*1.d-3
 
 end subroutine ReactionMnrlReadFromDatabase
 
@@ -864,8 +882,9 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
           trim(constraint_name) // '".'
         call PrintErrMsg(option)
       endif
-      ! m^2/m^3 (m^2 mnrl/m^3 mnrl) = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
-      tempreal = tempreal * 1.d-3 * molar_weight / molar_volume
+      ! m^2 mnrl/m^3 mnrl = m^2 mnrl/kg mnrl * kg mnrl/mol mnrl /
+      !                     m^3 mnrl/mol mnrl
+      tempreal = tempreal * molar_weight / molar_volume
     endif
     constraint%constraint_area_conv_factor(imnrl) = tempreal
     constraint%constraint_area_units(imnrl) = internal_units
@@ -918,7 +937,7 @@ subroutine ReactionMnrlSetup(reaction,option)
   do imnrl = 1, mineral%nkinmnrl
     select case(mineral%kinmnrl_surf_area_function(imnrl))
       case(MINERAL_SURF_AREA_F_MNRL_MASS)
-        if (Uninitialized(mineral%kinmnrl_spec_surf_area)) then
+        if (Uninitialized(mineral%kinmnrl_spec_surf_area(imnrl))) then
           error_found = PETSC_TRUE
           option%io_buffer = 'A specific surface area must be defined in &
             &in the MINERAL_KINETICS block for mineral "' // &
@@ -1782,8 +1801,14 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
           endif
         endif
       case(MINERAL_SURF_AREA_F_MNRL_MASS)
+        ! m^2 mnrl/m^3 bulk = m^2 mnrl/kg mnrl *    [specific surface area]
+        !                     kg mnrl/mol mnrl /    [formula weight]
+        !                     m^3 mnrl/mol mnrl *   [molar volume]
+        !                     m^3 mnrl/m^3 bulk     [volume fraction]
         rt_auxvar%mnrl_area(imnrl) = &
           mineral%kinmnrl_spec_surf_area(imnrl) * &
+          mineral%kinmnrl_molar_wt(imnrl) / &
+          mineral%kinmnrl_molar_vol(imnrl) * &
           rt_auxvar%mnrl_volfrac(imnrl)
       case default
     end select

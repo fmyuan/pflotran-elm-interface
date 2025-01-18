@@ -248,7 +248,9 @@ subroutine ReactionDBReadDatabase(reaction,option)
             ! read the molar weight
             call InputReadDouble(input,option,cur_immobile_spec%molar_weight)
             call InputErrorMsg(input,option,'Immobile molar weight','DATABASE')
-
+            ! convert from g/mol to kg/mol
+            cur_immobile_spec%molar_weight = &
+              cur_immobile_spec%molar_weight*1.d-3
             cycle ! avoid the aqueous species parameters below
           endif
           cur_immobile_spec => cur_immobile_spec%next
@@ -295,6 +297,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
           ! read the molar weight
           call InputReadDouble(input,option,cur_aq_spec%molar_weight)
           call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
+          ! convert from g/mol to kg/mol
+          cur_aq_spec%molar_weight = cur_aq_spec%molar_weight*1.d-3
         endif
 
       case(2) ! gas species
@@ -348,6 +352,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
         ! read the molar weight
         call InputReadDouble(input,option,cur_gas_spec%molar_weight)
         call InputErrorMsg(input,option,'GAS molar weight','DATABASE')
+        ! convert from g/mol to kg/mol
+        cur_gas_spec%molar_weight = cur_gas_spec%molar_weight*1.d-3
 
       case(3) ! minerals
         cur_mineral => mineral%mineral_list
@@ -3259,7 +3265,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       endif
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight, ' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3, ' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3302,7 +3308,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       write(option%fid_out,100) '  ' // trim(cur_aq_spec%name)
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight,' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3374,7 +3380,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_gas_spec)) exit
       write(option%fid_out,100) '  ' // trim(cur_gas_spec%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_gas_spec%molar_weight,' [g/mol]'
+        cur_gas_spec%molar_weight*1.d3,' [g/mol]'
       if (associated(cur_gas_spec%dbaserxn)) then
         write(option%fid_out,100) '    Gas Reaction: '
         write(option%fid_out,120) '      ', -1.d0, cur_gas_spec%name
@@ -3409,7 +3415,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_mineral)) exit
       write(option%fid_out,100) '  ' // trim(cur_mineral%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_mineral%molar_weight,' [g/mol]'
+        cur_mineral%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,150) '    Molar Volume: ', &
         cur_mineral%molar_volume,' [m^3/mol]'
       if (associated(cur_mineral%tstrxn)) then

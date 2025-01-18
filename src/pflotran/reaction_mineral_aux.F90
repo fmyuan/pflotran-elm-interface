@@ -29,8 +29,8 @@ module Reaction_Mineral_Aux_module
     PetscInt :: id
     PetscInt :: itype
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: molar_volume
-    PetscReal :: molar_weight
+    PetscReal :: molar_volume ! [m^3/mol]
+    PetscReal :: molar_weight ! [kg/mol]
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn
     type(mass_action_override_type), pointer :: mass_action_override
