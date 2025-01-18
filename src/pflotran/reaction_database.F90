@@ -2382,10 +2382,24 @@ subroutine ReactionDBInitBasis(reaction,option)
             tstrxn%surf_area_epsilon
           mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
             tstrxn%vol_frac_epsilon
+
           mineral%kinmnrl_spec_surf_area(ikinmnrl) = &
             tstrxn%spec_surf_area
           mineral%kinmnrl_surf_area_function(ikinmnrl) = &
             tstrxn%surf_area_function
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+          end select
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
@@ -2408,20 +2422,6 @@ subroutine ReactionDBInitBasis(reaction,option)
             mineral%kinmnrl_affinity_power(ikinmnrl) = &
               tstrxn%affinity_factor_beta
           endif
-
-          select case(tstrxn%surf_area_function)
-            case(MINERAL_SURF_AREA_F_POR_RATIO)
-              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
-                tstrxn%surf_area_porosity_pwr
-            case(MINERAL_SURF_AREA_F_VF_RATIO)
-              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
-                tstrxn%surf_area_vol_frac_pwr
-            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
-              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
-                tstrxn%surf_area_vol_frac_pwr
-              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
-                tstrxn%surf_area_porosity_pwr
-          end select
 
         endif ! associated(tstrxn)
 

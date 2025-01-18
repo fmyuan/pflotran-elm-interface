@@ -739,14 +739,13 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   type(mineral_type), pointer :: mineral
   character(len=MAXWORDLENGTH) :: constraint_name
   type(mineral_constraint_type), pointer :: constraint
-  type(mineral_rxn_type), pointer :: mineral_rxn
   type(option_type) :: option
 
   PetscBool :: found
   PetscInt :: imnrl, jmnrl
   PetscReal, parameter :: epsilon = 1.d-16
 
-  character(len=MAXWORDLENGTH) :: mineral_name(mineral%nkinmnrl)
+  character(len=MAXWORDLENGTH) :: mineral_names(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_vol_frac_string(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_area_string(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_area_units(mineral%nkinmnrl)
@@ -756,11 +755,15 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   PetscBool :: external_area_dataset(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: units
   character(len=MAXWORDLENGTH) :: internal_units
+  character(len=MAXWORDLENGTH) :: mineral_name
   PetscReal :: tempreal
+  PetscReal :: molar_volume
+  PetscReal :: molar_weight
+  PetscReal :: specific_surface_area
 
   if (.not.associated(constraint)) return
 
-  mineral_name = ''
+  mineral_names = ''
   constraint_vol_frac_string = ''
   constraint_area_string = ''
   external_vol_frac_dataset = PETSC_FALSE
@@ -786,7 +789,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         constraint%constraint_vol_frac(imnrl)
       constraint_area(jmnrl) = &
         constraint%constraint_area(imnrl)
-      mineral_name(jmnrl) = constraint%names(imnrl)
+      mineral_names(jmnrl) = constraint%names(imnrl)
       constraint_vol_frac_string(jmnrl) = &
         constraint%constraint_vol_frac_string(imnrl)
       constraint_area_string(jmnrl) = &
@@ -799,7 +802,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         constraint%external_area_dataset(imnrl)
     endif
   enddo
-  constraint%names = mineral_name
+  constraint%names = mineral_names
   constraint%constraint_vol_frac = constraint_vol_frac
   constraint%constraint_area = constraint_area
   constraint%constraint_vol_frac_string = constraint_vol_frac_string
@@ -810,6 +813,11 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
 
   ! set up constraint specific surface area conversion factor
   do imnrl = 1, mineral%nkinmnrl
+    mineral_name = mineral%kinmnrl_names(imnrl)
+    molar_volume = mineral%kinmnrl_molar_vol(imnrl)
+    molar_weight = mineral%kinmnrl_molar_wt(imnrl)
+    specific_surface_area = mineral%kinmnrl_spec_surf_area(imnrl)
+
     units = constraint%constraint_area_units(imnrl)
     call StringToLower(units)
     if (StringEndsWith(units,'m^3_mnrl')) then
@@ -827,33 +835,37 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         &for mineral ' // constraint%names(imnrl) // '.'
       call PrintErrMsg(option)
     endif
+    ! convert to m^2/m^3 (mnrl or bulk) or m^2/kg mnrl
     tempreal = UnitsConvertToInternal(units,internal_units, &
                          trim(constraint%names(imnrl))// &
                          ',specific surface area', &
                          option)
     if (constraint%area_units_type(imnrl) == &
         MINERAL_SURF_AREA_PER_MNRL_MASS) then
-      mineral_rxn => &
-        ReactionMnrlGetMnrlPtrFromName(constraint%names(imnrl),mineral)
-      if (mineral_rxn%molar_weight < epsilon .or. &
-          Equal(mineral_rxn%molar_weight,500.d0)) then
+      ! m^2 mnrl/kg mnrl -> m^2 mnrl/m^3 mnrl
+      ! if a different specific surface area is specified in constraint, scale
+      ! to be wrt the specific surface are specified under mineral kinetics
+      if (Initialized(specific_surface_area) .and. &
+          .not.Equal(specific_surface_area,tempreal)) then
+        tempreal = tempreal / specific_surface_area
+      endif
+
+      if (molar_weight < epsilon .or. Equal(molar_weight,500.d0)) then
         option%io_buffer = 'Zero or undefined molar weight for mineral "' // &
-          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          trim(mineral_name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
         call PrintErrMsg(option)
       endif
-      if (mineral_rxn%molar_volume < epsilon .or. &
-          Equal(mineral_rxn%molar_volume,500.d0)) then
+      if (molar_volume < epsilon .or. Equal(molar_volume,500.d0)) then
         option%io_buffer = 'Zero or undefined molar volume for mineral "' // &
-          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          trim(mineral_name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
         call PrintErrMsg(option)
       endif
       ! m^2/m^3 (m^2 mnrl/m^3 mnrl) = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
-      tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
-                 mineral_rxn%molar_volume
+      tempreal = tempreal * 1.d-3 * molar_weight / molar_volume
     endif
     constraint%constraint_area_conv_factor(imnrl) = tempreal
     constraint%constraint_area_units(imnrl) = internal_units
@@ -864,7 +876,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
         if (tempreal < epsilon) then
           option%io_buffer = 'The zero volume fraction assigned to &
-            &mineral "' // trim(mineral_rxn%name) // '" in constraint "' // &
+            &mineral "' // trim(mineral_name) // '" in constraint "' // &
             trim(constraint_name) // '" prevents the use of a mass-based &
             &surface area in the constraint.'
           call PrintErrMsg(option)
@@ -872,6 +884,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       endif
     endif
     if (Initialized(constraint%constraint_area(imnrl))) then
+      ! tempreal converts input value to m^2 mnrl/m^3 bulk
       constraint%constraint_area(imnrl) = tempreal * &
         constraint%constraint_area(imnrl)
     endif

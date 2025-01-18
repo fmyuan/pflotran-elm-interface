@@ -1551,10 +1551,13 @@ subroutine CondControlAssignRTTranInitCond(realization)
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                                  vec1_loc,LOCAL)
+            ! vec1_loc holds mineral specific surface area in units prescribed
+            ! in constraint
             call VecScale(vec1_loc, &
                           constraint%minerals% &
                             constraint_area_conv_factor(imnrl), &
                           ierr);CHKERRQ(ierr)
+            ! vec1_loc holds mineral surface area in m^2 mnrl / m^3 bulk
             if (constraint%minerals%area_units_type(imnrl) == &
                 MINERAL_SURF_AREA_PER_MNRL_MASS .or. &
                 constraint%minerals%area_units_type(imnrl) == &
@@ -1592,6 +1595,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
                 call PrintErrMsg(option)
               endif
             endif
+            ! vec1_loc holds mineral volume fraction [m^3 mnrl / m^3 bulk]
             call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells
               local_id = initial_condition%region%cell_ids(icell)
