@@ -926,10 +926,11 @@ subroutine SimSubsurfFinalizeRun(this)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
-      ! jaa testing
-      call GeomechanicsRegressionOutput(this%geomech_regression_new, &
-                                        this%geomech_realization_new, &
-                                        geomech_timestepper)
+      if (associated(this%geomech_process_model_coupler_new)) then
+        call GeomechanicsRegressionOutput(this%geomech_regression_new, &
+                                          this%geomech_realization_new, &
+                                          geomech_timestepper)
+      endif
   end select
 
   call SimulationBaseFinalizeRun(this)
