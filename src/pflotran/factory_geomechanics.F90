@@ -338,7 +338,7 @@ subroutine GeomechanicsJumpStart(simulation)
   class(realization_geomech_type), pointer :: geomch_realization
   class(timestepper_steady_type), pointer :: master_timestepper
   class(timestepper_steady_type), pointer :: geomech_timestepper
-  type(option_type), pointer :: option
+  !type(option_type), pointer :: option
 
   PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
   PetscBool :: geomech_read
@@ -353,7 +353,7 @@ subroutine GeomechanicsJumpStart(simulation)
   end select
   nullify(master_timestepper)
 
-  option => geomch_realization%option
+  !option => geomch_realization%option
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
