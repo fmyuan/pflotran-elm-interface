@@ -865,6 +865,9 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       ! to be wrt the specific surface are specified under mineral kinetics
       if (Initialized(specific_surface_area) .and. &
           .not.Equal(specific_surface_area,tempreal)) then
+        option%io_buffer = 'Use of differing specific surface areas &
+          &(mineral kinetics vs. constraint) is currently not supported.'
+        call PrintErrMsg(option)
         tempreal = tempreal / specific_surface_area
       endif
 
