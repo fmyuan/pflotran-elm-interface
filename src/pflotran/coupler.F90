@@ -391,7 +391,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
   region => coupler%region
 
   select case(grid%itype)
-    case(EXPLICIT_UNSTRUCTURED_GRID)
+    case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       ! this check must come before
       if (connection_itype == BOUNDARY_FACE_CONNECTION_TYPE .and. &
           region%def_type /= DEFINED_BY_FACE_UGRID_EXP) then

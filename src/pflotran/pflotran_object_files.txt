@@ -183,6 +183,8 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_custom.o \
 	${common_src}grid.o \
+	${common_src}grid_eclipse.o \
+	${common_src}grid_eclipse_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \

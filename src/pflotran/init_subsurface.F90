@@ -307,6 +307,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                TORTUOSITY_Y,TORTUOSITY_Z
 
   use HDF5_module
+  use Grid_Eclipse_module
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -336,6 +337,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id, material_id, i
+  PetscInt :: natural_id, rprnc
+  PetscReal :: poro, permx, permy, permz
+  PetscInt, pointer :: inatsend(:)
   Vec :: tort_yy
   Vec :: tort_zz
   PetscErrorCode :: ierr
@@ -414,6 +418,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
 
+  if (discretization%grid%itype == ECLIPSE_UNSTRUCTURED_GRID) then
+    if (.not.OptionIsIORank(option)) then
+      allocate(inatsend(grid%nlmax))
+    endif
+  endif
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -487,7 +497,45 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call MaterialAssignPropertyToAux(material_auxvars(ghosted_id), &
                                        material_property,option)
     endif
+
+    !MAN: this needs to be refactored
+    if (discretization%grid%itype == ECLIPSE_UNSTRUCTURED_GRID) then
+
+      natural_id = grid%nG2A(ghosted_id)
+
+      if (OptionIsIORank(option)) then
+  !  Simply set up the values on the I/O proc
+        call GridEclipseGetPorPerm(natural_id,poro,permx,permy,permz)
+        por0_p(local_id)    = poro
+        perm_xx_p(local_id) = permx
+        perm_yy_p(local_id) = permy
+        perm_zz_p(local_id) = permz
+      else
+  !  Add to the request list on other procs
+        inatsend(local_id)=natural_id
+      endif
+
+    endif
+
   enddo
+
+  !MAN: this needs to be refactored
+  if (discretization%grid%itype == ECLIPSE_UNSTRUCTURED_GRID) then
+
+    call GridEclipsePorPermExchangeAndSet(por0_p,perm_xx_p,perm_yy_p, &
+                                          perm_zz_p,inatsend,grid%nlmax, &
+                                          option)
+
+    rprnc = GridEcilpseGetProcnumFlag()
+    if( rprnc>0 ) then
+      call GridEclipseProcnumExchangeAndSet(inatsend, grid%nlmax, option)
+    endif
+    if (.not.OptionIsIORank(option)) then
+      call DeallocateArray(inatsend)
+    endif
+
+    call GridEcipseDeallocatePorPermArrays(PETSC_FALSE,option)
+  endif
 
   call MaterialPropertyDestroy(null_material_property)
 
