@@ -6102,6 +6102,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   use NW_Transport_Aux_module
   use NWT_Equilibrium_module
   use Reaction_Aux_module
+  use Reaction_CO2_module
   use Global_Aux_module
   use Material_Aux_module
   use Mphase_Aux_module
@@ -8072,6 +8073,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                             ghosted_id)%effective_porosity, & !effective porosity
                             vec_ptr(local_id),dummy1,dummy2,option)
           enddo
+        case default
+          call PatchUnsupportedVariable(ivar,option)
       end select
     case(COMPUTED_ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
@@ -9402,6 +9405,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                             ghosted_id)%effective_porosity, & !effective porosity
                             value,dummy1,dummy2,option)
           enddo
+        case default
+          call PatchUnsupportedVariable(ivar,option)
       end select
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(abs(patch%imat(ghosted_id)))

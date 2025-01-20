@@ -31,7 +31,13 @@ module Geomechanics_Field_module
     Vec :: strain_subsurf_loc
     Vec :: stress_subsurf_loc
 
+    Vec :: porosity ! store porosity from subsurf
+    Vec :: porosity_loc
     Vec :: porosity_init_loc
+
+    Vec :: fluid_density ! store density from subsurf
+    Vec :: fluid_density_loc
+    Vec :: fluid_density_init_loc
 
     ! Solution vectors (xx = current iterate)
     Vec :: disp_xx, disp_xx_loc
@@ -89,7 +95,13 @@ function GeomechFieldCreate()
   geomech_field%strain_subsurf_loc = PETSC_NULL_VEC
   geomech_field%stress_subsurf_loc = PETSC_NULL_VEC
 
+  geomech_field%porosity = PETSC_NULL_VEC
+  geomech_field%porosity_loc = PETSC_NULL_VEC
   geomech_field%porosity_init_loc = PETSC_NULL_VEC
+
+  geomech_field%fluid_density = PETSC_NULL_VEC
+  geomech_field%fluid_density_loc = PETSC_NULL_VEC
+  geomech_field%fluid_density_init_loc = PETSC_NULL_VEC
 
   GeomechFieldCreate => geomech_field
 
@@ -185,8 +197,24 @@ subroutine GeomechFieldDestroy(geomech_field)
     call VecDestroy(geomech_field%stress_subsurf_loc,ierr);CHKERRQ(ierr)
   endif
 
+  if (geomech_field%porosity /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%porosity,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%porosity_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%porosity_loc,ierr);CHKERRQ(ierr)
+  endif
   if (geomech_field%porosity_init_loc /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
+  endif
+
+  if (geomech_field%fluid_density /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%fluid_density_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density_loc,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%fluid_density_init_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%fluid_density_init_loc,ierr);CHKERRQ(ierr)
   endif
 
   if (associated(geomech_field)) deallocate(geomech_field)

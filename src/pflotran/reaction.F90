@@ -8,6 +8,7 @@ module Reaction_module
   use Global_Aux_module
   use Material_Aux_module
 
+  use Reaction_CO2_module
   use Reaction_Surface_Complexation_module
   use Reaction_Mineral_module
   use Reaction_Microbial_module
@@ -35,8 +36,6 @@ module Reaction_module
 
   private
 
-  PetscReal, parameter :: perturbation_tolerance = 1.d-5
-
   public :: ReactionInit, &
             ReactionReadPass1, &
             ReactionReadPass2, &
@@ -44,7 +43,6 @@ module Reaction_module
             ReactionReadDecoupledSpecies, &
             RTotal, &
             RTotalAqueous, &
-            CO2AqActCoeff, &
             RActivityCoefficients, &
             RReaction, &
             RReactionDerivative, &
@@ -64,9 +62,7 @@ module Reaction_module
             RTSetPlotVariables, &
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
-            RTotalSorb, &
-            RCO2MoleFraction, &
-            RCalculateSCO2Solubility
+            RTotalSorb
 
 contains
 
@@ -1634,7 +1630,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
       if (option%transport%couple_co2) then
-        call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
+        call RCO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
       endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
@@ -1851,8 +1847,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           if (abs(reaction%species_idx%co2_gas_id) == igas) then
 
             global_auxvar%pres(2) = conc(icomp)*1.d5
-            call RCalculateSCO2Solubility(rt_auxvar,global_auxvar,reaction, &
-                                          gas_solubility,option)
+            call RCO2CalculateSCO2Solubility(rt_auxvar,global_auxvar, &
+                                             reaction,gas_solubility,option)
 
             Res(icomp) = rt_auxvar%pri_molal(icomp) - gas_solubility
             Jac(icomp,:) = 0.d0
@@ -4154,138 +4150,6 @@ end subroutine RReactionDerivative
 
 ! ************************************************************************** !
 
-subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
-  !
-  ! Computes activity coefficients of aqueous CO2
-  !
-  ! Author: Chuan Lu
-  ! Date: 07/13/09
-  !
-
-  use Option_module
-  use Option_Transport_module
-  use co2eos_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-
-  PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, pco2
-  PetscReal :: sat_pressure
-
-! print *,'CO2AqActCoeff: ', global_auxvar%pres(:)
-
-  tc = global_auxvar%temp
-  pco2 = global_auxvar%pres(2)
-  sat_pressure =0D0
-
-  m_na = option%m_nacl; m_cl = m_na
-  if (option%transport%couple_co2_salinity) then
-    m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
-    m_cl = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
-  endif
-
-  call Henry_duan_sun(tc,pco2*1D-5,henry,lngamco2, &
-                      m_na,m_cl,co2aqact)
-
-  if (reaction%species_idx%co2_aq_id > 0) then
-    rt_auxvar%pri_act_coef(reaction%species_idx%co2_aq_id) = co2aqact
-  elseif (reaction%species_idx%co2_aq_id < 0) then
-    rt_auxvar%sec_act_coef(-reaction%species_idx%co2_aq_id) = co2aqact
-  else
-    co2aqact = 1.d0
-  endif
- ! print *, 'CO2AqActCoeff', tc, pco2, m_na,m_cl, sat_pressure,co2aqact
-end subroutine CO2AqActCoeff
-
-! ************************************************************************** !
-
-function RSumMoles(rt_auxvar,reaction,option)
-  !
-  ! Sums the total moles of primary and secondary aqueous species
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/01/14
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  PetscReal :: RSumMoles
-
-  PetscInt :: i
-
-  RSumMoles = 0.d0
-  do i = 1, reaction%naqcomp
-    RSumMoles = RSumMoles + rt_auxvar%pri_molal(i)
-  enddo
-
-  do i = 1, reaction%neqcplx
-    RSumMoles = RSumMoles + rt_auxvar%sec_molal(i)
-  enddo
-
-end function RSumMoles
-
-! ************************************************************************** !
-
-function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
-  !
-  ! Sums the total moles of primary and secondary aqueous species
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/01/14
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  PetscReal :: RCO2MoleFraction
-
-  PetscInt :: ico2
-  PetscReal :: sum_co2, sum_mol
-
-  if (associated(reaction%species_idx)) then
-    ico2 = reaction%species_idx%co2_aq_id
-  else
-    option%io_buffer = 'reaction%species_idx not set in RCO2MoleFraction(). &
-      &Have you defined CO2(aq) as a species in the input deck?'
-    call PrintErrMsg(option)
-  endif
-  if (ico2 == 0) then
-    option%io_buffer = 'CO2 is not set in RCO2MoleFraction(). Have you &
-      &defined CO2(aq) as a species in the input deck?'
-    call PrintErrMsg(option)
-  endif
-
-  if (ico2 > 0) then
-    sum_co2 = rt_auxvar%pri_molal(ico2)
-  else
-    sum_co2 = rt_auxvar%sec_molal(-ico2)
-  endif
-  sum_mol = RSumMoles(rt_auxvar,reaction,option)
-  ! sum_co2 and sum_mol are both in units mol/kg water
-  ! FMWH2O is in units g/mol
-  ! therefore, scale by 1.d-3 to convert from mol/kg water - g water/mol water
-  ! to mol/mol water -- kg water / 1000g water
-  RCO2MoleFraction = sum_co2 * FMWH2O * 1.d-3 / &
-                     (1.d0 + FMWH2O * sum_mol * 1.d-3)
-
-end function RCO2MoleFraction
-
-! ************************************************************************** !
-
 subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
   !
   ! Computes the ionic strength and activity coefficients
@@ -4565,7 +4429,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
                     reaction,reaction%isotherm%isotherm_rxn,option)
   endif
   if (option%transport%couple_co2) then
-    call ReactionGasTotalCO2(rt_auxvar,global_auxvar,reaction,option)
+    call RCO2TotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call ReactionGasTotalGas(rt_auxvar,global_auxvar,reaction,option)
   endif
@@ -5444,76 +5308,8 @@ recursive subroutine RTAuxVarCompute(rt_auxvar,global_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
 
-#if 0
-  PetscReal :: Res_orig(reaction%ncomp)
-  PetscReal :: Res_pert(reaction%ncomp)
-  PetscInt :: icomp, jcomp, iphase
-  PetscReal :: dtotal(reaction%naqcomp,reaction%naqcomp,2)
-  PetscReal :: dtotalsorb(reaction%naqcomp,reaction%naqcomp)
-  PetscReal :: pert
-  PetscInt :: nphase
-  type(reactive_transport_auxvar_type) :: rt_auxvar_pert
-#endif
-
   !already set  rt_auxvar%pri_molal = x
   call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
-
-#if 0
-! numerical check for RTotal
-  nphase = reaction%nphase
-  Res_orig = 0.d0
-  dtotal = 0.d0
-  dtotalsorb = 0.d0
-  option%iflag = 0 ! be sure not to allocate mass_balance array
-  call RTAuxVarInit(rt_auxvar_pert,reaction,option)
-  do jcomp = 1, reaction%naqcomp
-    Res_pert = 0.d0
-    call RTAuxVarCopy(rt_auxvar,rt_auxvar_pert,option)
-    if (reaction%neqcplx > 0) then
-      rt_auxvar%sec_molal = 0.d0
-    endif
-    if (reaction%gas%nactive_gas > 0) then
-      rt_auxvar%gas_pp = 0.d0
-    endif
-    if (reaction%surface_complexation%neqsrfcplxrxn > 0) then
-      rt_auxvar_pert%srfcplxrxn_free_site_conc = 1.d-9
-      rt_auxvar_pert%eqsrfcplx_conc = 0.d0
-    endif
-    if (reaction%neqionxrxn > 0) then
-      rt_auxvar%eqionx_ref_cation_sorbed_conc = 1.d-9
-    endif
-    pert = rt_auxvar_pert%pri_molal(jcomp)*perturbation_tolerance
-    rt_auxvar_pert%pri_molal(jcomp) = rt_auxvar_pert%pri_molal(jcomp) + pert
-
-    call RTotal(rt_auxvar_pert,global_auxvar,material_auxvar,reaction,option)
-    dtotal(:,jcomp,1) = (rt_auxvar_pert%total(:,1) - &
-                         rt_auxvar%total(:,1))/pert
-    if (reaction%neqsorb > 0) then
-      dtotalsorb(:,jcomp) = (rt_auxvar_pert%total_sorb_eq(:) - &
-                             rt_auxvar%total_sorb_eq(:))/pert
-    endif
-    if (option%iflowmode == MPH_MODE) then
-        reaction%gas%nactive_gas > 0) then
-      dtotal(:,jcomp,2) = (rt_auxvar_pert%total(:,2) - &
-                           rt_auxvar%total(:,2))/pert
-    endif
-  enddo
-  do iphase = 1, nphase
-    do icomp = 1, reaction%naqcomp
-      do jcomp = 1, reaction%naqcomp
-        if (dabs(dtotal(icomp,jcomp,iphase)) < 1.d-16) &
-          dtotal(icomp,jcomp,iphase) = 0.d0
-      enddo
-      if (reaction%neqsorb > 0) then
-        if (dabs(dtotalsorb(icomp,jcomp)) < 1.d-16) &
-          dtotalsorb(icomp,jcomp) = 0.d0
-      endif
-    enddo
-  enddo
-  rt_auxvar%aqueous%dtotal(:,:,:) = dtotal
-  if (reaction%neqsorb > 0) rt_auxvar%dtotal_sorb_eq = dtotalsorb
-  call RTAuxVarStrip(rt_auxvar_pert)
-#endif
 
   if (associated(rt_auxvar%auxvar_pert)) then
     call RTAuxVarComputePerturbed(rt_auxvar,global_auxvar,material_auxvar, &
@@ -5941,102 +5737,6 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
   endif
 
 end subroutine RUpdateTempDependentCoefs
-
-! ************************************************************************** !
-
-subroutine RCalculateSCO2Solubility(rt_auxvar,global_auxvar,reaction, &
-                                    gas_solubility,option)
-
-  ! RCalculateSCO2Solubility: Calculates the solubility of supercritical CO2
-  ! in water
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/12/24
-
-  use Global_Aux_module
-  use Material_Aux_module
-  use Option_module
-
-  use co2eos_module, only: Henry_duan_sun
-  use co2_span_wagner_module, only: co2_span_wagner, co2_sw_itable
-
-  implicit none
-
-  class(reaction_rt_type) :: reaction
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  PetscReal :: gas_solubility
-  type(option_type) :: option
-
-  PetscReal :: temperature_C
-  PetscReal :: temperature_K
-  PetscReal :: gas_pressure_Pa
-  PetscReal :: gas_pressure_MPa
-  PetscReal :: gas_pressure_bar
-  PetscReal :: Henrys_constant
-  PetscReal :: fugacity_MPa
-  PetscReal :: na_molality, cl_molality
-  PetscReal :: lngamco2
-#if 0
-  PetscReal :: fugacity_coefficient
-  PetscReal :: saturation_pressure_Pa
-  PetscReal :: saturation_pressure_MPa
-  PetscReal :: co2_molality
-  PetscReal :: co2_partial_pressure_bar
-  PetscReal :: effective_Henrys_constant
-  PetscReal :: mole_fraction_co2
-  PetscErrorCode :: ierr
-#endif
-  PetscReal :: dummy
-  PetscInt :: iflag
-
-  temperature_C = global_auxvar%temp
-  temperature_K = temperature_C + T273K
-  gas_pressure_Pa = global_auxvar%pres(2)
-  gas_pressure_MPa = gas_pressure_Pa*1.d-6
-  gas_pressure_bar = gas_pressure_Pa*1.d-5
-  if (option%transport%couple_co2_salinity) then
-    na_molality = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
-    cl_molality = rt_auxvar%pri_molal(reaction%species_idx%cl_ion_id)
-  else
-    na_molality = option%m_nacl
-    cl_molality = option%m_nacl
-  endif
-
-  call Henry_duan_sun(temperature_C,gas_pressure_bar,Henrys_constant, &
-                      lngamco2,na_molality,cl_molality)
-  iflag = 1
-  call co2_span_wagner(gas_pressure_MPa,temperature_K,dummy,dummy,dummy, &
-                       fugacity_MPa,dummy,dummy,dummy,dummy,dummy,dummy, &
-                       dummy,dummy,dummy,iflag,co2_sw_itable)
-
-#if 0
-  call EOSWaterSaturationPressure(temperature_C,saturation_pressure_Pa,ierr)
-
-  ! yco2 in Duan and Sun, 2003
-  mole_fraction_co2 = 1.d0-saturation_pressure_Pa/gas_pressure_Pa
-  !
-  fugacity_coefficient = fugacity_MPa/gas_pressure_MPa/mole_fraction_co2
-  effective_Henrys_constant = Henrys_constant*fugacity_coefficient
-
-!     sat_pressure = sat_pressure * 1.D5
-  co2_partial_pressure_bar = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5
-  co2_molality = co2_partial_pressure_bar * effective_Henrys_constant
-
-
-  co2_molality = co2_partial_pressure_bar * effective_Henrys_constant
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_coefficient
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa*(1.d0-saturation_pressure_Pa/gas_pressure_Pa ))
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa-saturation_pressure_MPa)
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/((gas_pressure_Pa-saturation_pressure_Pa)*1.d-6)
-  co2_molality = 1.d-5 * Henrys_constant*fugacity_MPa/(1.d-6)
-  co2_molality = Henrys_constant*fugacity_MPa*10
-#endif
-
-  ! based on comments in co2eos.F90, Henry's constant has lngamco2 built in.
-  gas_solubility = fugacity_MPa*10.d0*Henrys_constant
-
-end subroutine RCalculateSCO2Solubility
 
 ! ************************************************************************** !
 

@@ -262,11 +262,11 @@ subroutine SimulationMRInitializeRun(this)
   ! offset is initialized above after check for '-realization_offset'
   do i = 1, this%mrcomm%group_id-1
     delta = this%num_local_realizations
-    if (i < remainder) delta = delta + 1
+    if (i <= remainder) delta = delta + 1
     offset = offset + delta
   enddo
 
-  if (this%mrcomm%group_id < remainder) &
+  if (this%mrcomm%group_id <= remainder) &
     this%num_local_realizations = this%num_local_realizations + 1
   allocate(this%realization_ids(this%num_local_realizations))
   this%realization_ids = 0

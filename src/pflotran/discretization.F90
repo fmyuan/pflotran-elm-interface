@@ -130,6 +130,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Input_Aux_module
   use String_module
   use Material_Aux_module
+  use Grid_Eclipse_module, only : GridEclipseRead
 
   implicit none
 
@@ -188,7 +189,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                 structured_grid_itype = CARTESIAN_GRID
                 structured_grid_ctype = 'CARTESIAN'
             end select
-          case('UNSTRUCTURED','UNSTRUCTURED_EXPLICIT','UNSTRUCTURED_POLYHEDRA')
+          case('UNSTRUCTURED','UNSTRUCTURED_EXPLICIT','UNSTRUCTURED_POLYHEDRA', &
+               'ECLIPSE')
             discretization%itype = UNSTRUCTURED_GRID
             word = discretization%ctype
             discretization%ctype = 'UNSTRUCTURED'
@@ -202,6 +204,9 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
               case('UNSTRUCTURED_POLYHEDRA')
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
                 unstructured_grid_ctype = 'POLYHEDRA UNSTRUCTURED'
+              case('ECLIPSE')
+                unstructured_grid_itype = ECLIPSE_UNSTRUCTURED_GRID
+                unstructured_grid_ctype = 'ECLIPSE UNSTRUCTURED'
             end select
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
@@ -283,6 +288,11 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           else
             call UGridPolyhedraRead(un_str_grid,discretization%filename,option)
           endif
+          grid%unstructured_grid => un_str_grid
+        case(ECLIPSE_UNSTRUCTURED_GRID)
+          un_str_grid%explicit_grid => UGridExplicitCreate()
+          call GridEclipseRead(un_str_grid, &
+                                     discretization%filename,option)
           grid%unstructured_grid => un_str_grid
       end select
       grid%itype = unstructured_grid_itype
@@ -498,7 +508,7 @@ subroutine DiscretizationRead(discretization,input,option)
         end select
       case('DOMAIN_FILENAME')
         select case(discretization%grid%itype)
-          case(EXPLICIT_UNSTRUCTURED_GRID)
+          case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
              call InputReadFilename(input,option,discretization%grid% &
                                     unstructured_grid%explicit_grid% &
                                     domain_filename)
@@ -648,6 +658,13 @@ subroutine DiscretizationDecomposeDomain(discretization,option)
             call PrintErrMsg(option)
 #endif
           call UGridPolyhedraDecompose(discretization%grid%unstructured_grid,option)
+        case(ECLIPSE_UNSTRUCTURED_GRID)
+#if !defined(PETSC_HAVE_PARMETIS) && !defined(PETSC_HAVE_PTSCOTCH)
+            option%io_buffer = &
+             'Must compile with either Parmetis or PTSCOTCH in order to use Eclipse grids.'
+            call PrintErrMsg(option)
+#endif
+          call UGridExplicitDecompose(discretization%grid%unstructured_grid,option)
       end select
 
       discretization%grid%nmax = discretization%grid%unstructured_grid%nmax
@@ -702,6 +719,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
         case(IMPLICIT_UNSTRUCTURED_GRID)
         case(EXPLICIT_UNSTRUCTURED_GRID)
         case(POLYHEDRA_UNSTRUCTURED_GRID)
+        case(ECLIPSE_UNSTRUCTURED_GRID)
       end select
   end select
 
@@ -1377,7 +1395,7 @@ subroutine DiscretizationInputRecord(discretization)
       write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
       write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
     case(EXPLICIT_UNSTRUCTURED_GRID,IMPLICIT_UNSTRUCTURED_GRID, &
-         POLYHEDRA_UNSTRUCTURED_GRID)
+         POLYHEDRA_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       write(id,'(a)') trim(grid%ctype)
   end select
 
