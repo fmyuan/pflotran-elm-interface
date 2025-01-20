@@ -1857,8 +1857,8 @@ subroutine PMGeneralMaxChange(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal, pointer :: max_change_local(:)
-  PetscReal, pointer :: max_change_global(:)
+  PetscReal, allocatable :: max_change_local(:)
+  PetscReal, allocatable :: max_change_global(:)
   PetscReal :: max_change
   PetscInt :: i, j, max_change_index
   PetscInt :: ghosted_id
