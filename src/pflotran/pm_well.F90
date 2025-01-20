@@ -9028,7 +9028,6 @@ subroutine PMWellPostSolveFlow(pm_well)
                     cur_time_converted,pm_well%output_option%tunit, &
                     pm_well%flow_soln%n_newton
   call PrintMsg(pm_well%option,out_string)
-  call PrintMsg(pm_well%option,'')
 
 end subroutine PMWellPostSolveFlow
 
