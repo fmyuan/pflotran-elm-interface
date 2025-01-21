@@ -212,6 +212,8 @@ subroutine GeomechRegionRead(region,input,option)
   type(gm_region_type) :: region
   type(input_type), pointer :: input
 
+  PetscInt :: vertex_index
+
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = INPUT_ERROR_NONE
@@ -248,6 +250,12 @@ subroutine GeomechRegionRead(region,input,option)
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','GEOMECHANICS_REGION')
         call GeomechRegionReadFromFilename(region,option,region%filename)
+      case('VERTEX')
+        call InputReadInt(input,option,vertex_index)
+        call InputErrorMsg(input,option,'VERTEX','GEOMECHANICS_REGION')
+        region%num_verts = 1
+        allocate(region%vertex_ids(1))
+        region%vertex_ids(1:1) = vertex_index
       case('LIST')
         option%io_buffer = 'GEOMECHANICS_REGION LIST currently not implemented'
         call PrintErrMsg(option)
