@@ -52,6 +52,7 @@ module Simulation_Subsurface_class
     class(geomechanics_base_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
+    PetscBool :: new_geomech_pmc
 
   contains
     procedure, public :: JumpStart => SimSubsurfJumpStart
@@ -140,7 +141,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
   !nullify(this%geomech_process_model_coupler_new)
-  nullify(this%geomech)
+  !nullify(this%geomech)
   nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
@@ -450,7 +451,9 @@ subroutine SimSubsurfJumpStart(this)
 
   ! jaa testing.. want to set the geomech dt equal to flow dt
   !if (associated(this%geomech_process_model_coupler_new)) then
-  if (associated(this%geomech%process_model_coupler)) then
+  !if (associated(this%geomech%process_model_coupler)) then
+  !if (associated(this%geomech)) then
+  if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) then
      this%geomech%process_model_coupler%timestepper%dt = &
          this%process_model_coupler_list%timestepper%dt
   endif
@@ -917,22 +920,25 @@ subroutine SimSubsurfFinalizeRun(this)
     endif
   endif
   ! jaa testing
-  !if (associated(this%geomech_process_model_coupler_new)) then
-  if (associated(this%geomech%process_model_coupler)) then
-    geomech_timestepper => TimestepperSteadyCast( &
-              this%geomech%process_model_coupler%timestepper)
-    ! timestepper => TimestepperSteadyCast(this%timestepper)
-    !select type(ts => this%geomech_process_model_coupler%timestepper)
-    !  class is(timestepper_steady_type)
-    !    geomech_timestepper => ts
-    !end select
-  endif
+!  !if (associated(this%geomech_process_model_coupler_new)) then
+!  if (associated(this%geomech%process_model_coupler)) then
+!    geomech_timestepper => TimestepperSteadyCast( &
+!              this%geomech%process_model_coupler%timestepper)
+!    ! timestepper => TimestepperSteadyCast(this%timestepper)
+!    !select type(ts => this%geomech_process_model_coupler%timestepper)
+!    !  class is(timestepper_steady_type)
+!    !    geomech_timestepper => ts
+!    !end select
+!  endif
 
   select case(this%stop_flag)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
-      if (associated(this%geomech%process_model_coupler)) then
+      !if (associated(this%geomech)) then
+      if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) then
+        geomech_timestepper => TimestepperSteadyCast( &
+            this%geomech%process_model_coupler%timestepper)
         call GeomechanicsRegressionOutput(this%geomech%regression, &
                                           this%geomech%realization, &
                                           geomech_timestepper)

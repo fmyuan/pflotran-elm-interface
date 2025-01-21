@@ -137,20 +137,11 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   PetscErrorCode :: ierr
 
   if (.not. associated(pm_geomech)) return
-  !select type(s => simulation)
-  !  class is(simulation_geomechanics_type)
-  !    print *, 'simulation geomech'
-  !  class is(simulation_subsurface_type)
-  !     print *, 'simulation subsurf'
-  !  class default
-  !     print *, 'simulation base'
-  !end select
+
   option => simulation%option
-  !geomech_realization => GeomechRealization(simulation) ! test this
   geomech_realization => simulation%geomech%realization
   subsurf_realization => simulation%realization
 
-  !geomech_regression => GeomechRegression(simulation)
   geomech_regression => simulation%geomech%regression
 
   ! initialize geomech realization
@@ -544,7 +535,7 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
   type(geomech_coupler_type), pointer :: coupler
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
-  type(geomechanics_regression_type), pointer :: geomech_regression
+  !type(geomechanics_regression_type), pointer :: geomech_regression
 
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: card

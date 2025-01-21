@@ -93,6 +93,8 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   nullify(this%geomech_regression)
   this%waypoint_list_geomechanics => WaypointListCreate()
 
+  !this%geomech => GeomechCreate()
+
 end subroutine GeomechanicsSimulationInit
 
 ! ************************************************************************** !
