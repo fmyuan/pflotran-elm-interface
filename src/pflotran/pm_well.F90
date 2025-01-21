@@ -8152,6 +8152,10 @@ subroutine PMWellSolve(this,time,ierr)
     this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     this%tran_soln%prev_soln%resr_aqueous_conc = &
                                   this%well%reservoir%aqueous_conc
+    if (this%dt_tran < this%dt_flow) then
+      ! make sure well-flow doesn't get re-solved:
+      this%update_for_wippflo_qi_coupling = PETSC_TRUE
+    endif
   endif
 
 end subroutine PMWellSolve
@@ -8868,6 +8872,9 @@ subroutine PMWellCutTimestepTran(pm_well)
   pm_well%well%aqueous_mass = pm_well%tran_soln%prev_soln%aqueous_mass
   pm_well%well%aqueous_conc = pm_well%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(pm_well)
+
+  ! make sure well-flow doesn't get re-solved:
+  pm_well%update_for_wippflo_qi_coupling = PETSC_TRUE
 
 end subroutine PMWellCutTimestepTran
 
