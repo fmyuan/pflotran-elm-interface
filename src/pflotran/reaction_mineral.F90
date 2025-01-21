@@ -1104,8 +1104,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: ln_sec(reaction%neqcplx)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: ln_sec_act(reaction%neqcplx)
-  PetscReal :: QK, lnQK, dQK_dmj, den
-
+  PetscReal :: QK, lnQK, lnQK2, dQK_dmj, dlnQK_dQK
+  PetscReal :: den
   PetscReal :: ln_spec_act, spec_act_coef
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
   PetscReal :: prefactor(10), ln_prefactor_spec(5,10)
@@ -1120,6 +1120,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: TREF = 25.d0
   PetscBool :: precipitation
   PetscReal :: rate_constant
+  PetscReal :: nucleation_rate, dnucleation_rate_dlnQK
 
 #ifdef SOLID_SOLUTION
   PetscBool :: cycle_
@@ -1342,6 +1343,22 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
     enddo
 
+    ! nucleation
+    if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
+      i = mineral%kinmnrl_nucleation_id(imnrl)
+      call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+                                  mineral%kinmnrl_molar_vol(imnrl), &
+                                  global_auxvar%temp,lnQK, &
+                                  nucleation_rate,dnucleation_rate_dlnQK, &
+                                  option)
+      do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+        icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+        Res(icomp) = Res(icomp) + &
+                     mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+                     nucleation_rate
+      enddo
+    endif
+
     if (.not. compute_derivative) cycle
 
     ! calculate derivatives of rate with respect to free
@@ -1485,24 +1502,24 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
             icplx = -icomp
 
             ! compute secondary species concentration
-            lnQK = -reaction%eqcplx_logK(icplx)*LOG_TO_LN
+            lnQK2 = -reaction%eqcplx_logK(icplx)*LOG_TO_LN
 
             ! activity of water
             if (reaction%eqcplxh2oid(icplx) > 0) then
-              lnQK = lnQK + reaction%eqcplxh2ostoich(icplx) * &
-                            rt_auxvar%ln_act_h2o
+              lnQK2 = lnQK2 + reaction%eqcplxh2ostoich(icplx) * &
+                              rt_auxvar%ln_act_h2o
             endif
 
             do i = 1, reaction%eqcplxspecid(0,icplx)
               icomp = reaction%eqcplxspecid(i,icplx)
-              lnQK = lnQK + reaction%eqcplxstoich(i,icplx)*ln_act(icomp)
+              lnQK2 = lnQK2 + reaction%eqcplxstoich(i,icplx)*ln_act(icomp)
             enddo
             ! add contribution to derivatives secondary prefactor with
             ! respect to free
             do j = 1, reaction%eqcplxspecid(0,icplx)
               jcomp = reaction%eqcplxspecid(j,icplx)
               dspec_dprimary = reaction%eqcplxstoich(j,icplx) * &
-                               exp(lnQK-ln_conc(jcomp)) / &
+                               exp(lnQK2-ln_conc(jcomp)) / &
                                rt_auxvar%sec_act_coef(icplx)
               do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
                 icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
@@ -1516,6 +1533,24 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       enddo  ! loop over prefactors
 #endif
     endif
+
+    ! nucleation
+    if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
+      dlnQK_dQK = 1.d0/QK
+      do j = 1, mineral%kinmnrlspecid(0,imnrl)
+        jcomp = mineral%kinmnrlspecid(j,imnrl)
+        ! unit = kg water/mol
+        dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
+        do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+          icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+          ! units = (mol/sec)*(kg water/mol) = kg water/sec
+          Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
+            mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+            dnucleation_rate_dlnQK * dlnQK_dQK * dQK_dmj
+        enddo
+      enddo
+    endif
+
   enddo  ! loop over minerals
 
 end subroutine ReactionMnrlKineticRate
@@ -1734,6 +1769,7 @@ subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
   exp_term = exp_term1 * exp_term2**2
   rate = nucleation%rate_constant * exp(exp_term)
   drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+  print *, lnQK, exp_term
 
 end subroutine ReactionMnrlNucleation
 
