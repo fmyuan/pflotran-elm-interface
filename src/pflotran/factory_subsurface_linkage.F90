@@ -1202,6 +1202,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   use Output_Aux_module
   use Factory_Subsurface_Geomechanics_module
   use Waypoint_module
+  use Geomechanics_base_module
 
   implicit none
 
@@ -1220,13 +1221,19 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   class(timestepper_steady_type), pointer :: timestepper
 
   nullify(pmc_dummy)
+  simulation%geomech => GeomechCreate()
+  !nullify(simulation%geomech%realization)
 
   string = 'GEOMECHANICS_MODEL'
 
   subsurf_realization => simulation%realization
   option => subsurf_realization%option
-  simulation%geomech_realization_new => GeomechRealizCreate(option)
-  geomech_realization => simulation%geomech_realization_new
+  !simulation%geomech_realization_new => GeomechRealizCreate(option)
+  !geomech_realization => simulation%geomech%realization
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+  !geomech_realization => simulation%geomech_realization_new
+  !geomech_realization => simulation%geomech%realization
   subsurf_realization => simulation%realization
   subsurf_realization%output_option => OutputOptionDuplicate( &
                               simulation%output_option)
@@ -1236,12 +1243,15 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
 
   call pmc_geomech%SetName(pmc_name)
   call pmc_geomech%SetOption(option)
-  simulation%geomech_process_model_coupler_new => pmc_geomech
+  !simulation%geomech_process_model_coupler_new => pmc_geomech
+  simulation%geomech%process_model_coupler => pmc_geomech
   pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
-  pmc_geomech%geomech_realization => simulation%geomech_realization_new
-  pm_geomech%geomech_realization => simulation%geomech_realization_new
+  !pmc_geomech%geomech_realization => simulation%geomech_realization_new
+  !pm_geomech%geomech_realization => simulation%geomech_realization_new
+  pmc_geomech%geomech_realization => geomech_realization
+  pm_geomech%geomech_realization => geomech_realization
   pmc_geomech%subsurf_realization => simulation%realization
   pm_geomech%subsurf_realization => simulation%realization
 
@@ -1277,9 +1287,8 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
 
   ! link geomech and flow timestepper waypoints to geomech way point list
-  if (associated(simulation%geomech_process_model_coupler_new)) then
-    call simulation%geomech_process_model_coupler_new% &
-           SetWaypointPtr(pmc_geomech%waypoint_list)
+  if (associated(pmc_geomech)) then
+    call pmc_geomech%SetWaypointPtr(pmc_geomech%waypoint_list)
     if (associated(simulation%flow_process_model_coupler)) then
       call simulation%flow_process_model_coupler% &
              SetWaypointPtr(pmc_geomech%waypoint_list)

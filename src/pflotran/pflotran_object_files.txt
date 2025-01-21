@@ -315,6 +315,7 @@ geomech_obj = \
         ${common_src}factory_subsurface_geomechanics.o \
 	${common_src}gauss.o \
 	${common_src}geomechanics_auxiliary.o \
+        ${common_src}geomechanics_base.o \
 	${common_src}geomechanics_realization.o \
 	${common_src}geomechanics_discretization.o \
 	${common_src}geomech_grid.o \

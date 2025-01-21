@@ -649,6 +649,7 @@ factory_subsurface_geomechanics.o : \
 factory_subsurface_linkage.o : \
   factory_subsurface_geomechanics.o \
   factory_subsurface_read.o \
+  geomechanics_base.o \
   geomechanics_realization.o \
   input_aux.o \
   logging.o \
@@ -898,6 +899,10 @@ geomech_grid_aux.o : \
 geomechanics_auxiliary.o : \
   geomechanics_global_aux.o \
   pflotran_constants.o
+geomechanics_base.o : \
+  geomechanics_realization.o \
+  geomechanics_regression.o \
+  pmc_geomechanics.o
 geomechanics_condition.o : \
   condition.o \
   dataset.o \
@@ -2686,6 +2691,7 @@ pmc_subsurface.o : \
   discretization.o \
   field.o \
   general_aux.o \
+  global_aux.o \
   grid.o \
   material.o \
   material_aux.o \
@@ -3618,6 +3624,7 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
+  geomechanics_base.o \
   geomechanics_realization.o \
   geomechanics_regression.o \
   init_subsurface.o \

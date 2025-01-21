@@ -18,78 +18,80 @@ contains
 
 ! ************************************************************************** !
 
-function GeomechRealization(simulation)
-
-  use Simulation_Geomechanics_class
-  use Simulation_Subsurface_class
-  use Simulation_Base_class
-  use Geomechanics_Realization_class
-
-  implicit none
-
-  class(simulation_base_type) :: simulation
-
-  class(realization_geomech_type), pointer :: GeomechRealization
-
-  nullify(GeomechRealization)
-  select type(simulation)
-    class is(simulation_subsurface_type)
-      GeomechRealization => simulation%geomech_realization_new
-    class is(simulation_geomechanics_type)
-      GeomechRealization => simulation%geomech_realization
-  end select
-
-end function GeomechRealization
-
-! ************************************************************************** !
-
-function GeomechPMC(simulation)
-
-  use Simulation_Geomechanics_class
-  use Simulation_Subsurface_class
-  use Simulation_Base_class
-  use PMC_Geomechanics_class
-
-  implicit none
-
-  class(simulation_base_type) :: simulation
-
-  class(pmc_geomechanics_type), pointer :: GeomechPMC
-
-  nullify(GeomechPMC)
-  select type(simulation)
-    class is(simulation_subsurface_type)
-      GeomechPMC => simulation%geomech_process_model_coupler_new
-    class is(simulation_geomechanics_type)
-      GeomechPMC => simulation%geomech_process_model_coupler
-  end select
-
-end function GeomechPMC
-
-! ************************************************************************** !
-
-function GeomechRegression(simulation)
-
-  use Simulation_Geomechanics_class
-  use Simulation_Subsurface_class
-  use Simulation_Base_class
-  use Geomechanics_Regression_module
-
-  implicit none
-
-  class(simulation_base_type) :: simulation
-
-  class(geomechanics_regression_type), pointer :: GeomechRegression
-
-  nullify(GeomechRegression)
-  select type(simulation)
-    class is(simulation_subsurface_type)
-      GeomechRegression => simulation%geomech_regression_new
-    class is(simulation_geomechanics_type)
-      GeomechRegression => simulation%geomech_regression
-  end select
-
-end function GeomechRegression
+!function GeomechRealization(simulation)
+!
+!  use Simulation_Geomechanics_class
+!  use Simulation_Subsurface_class
+!  use Simulation_Base_class
+!  use Geomechanics_Realization_class
+!
+!  implicit none
+!
+!  class(simulation_base_type) :: simulation
+!
+!  class(realization_geomech_type), pointer :: GeomechRealization
+!
+!  nullify(GeomechRealization)
+!  select type(simulation)
+!    class is(simulation_subsurface_type)
+!      GeomechRealization => simulation%geomech_realization_new
+!    class is(simulation_geomechanics_type)
+!      GeomechRealization => simulation%geomech_realization
+!  end select
+!
+!end function GeomechRealization
+!
+!! ************************************************************************** !
+!
+!function GeomechPMC(simulation)
+!
+!  use Simulation_Geomechanics_class
+!  use Simulation_Subsurface_class
+!  use Simulation_Base_class
+!  use PMC_Geomechanics_class
+!
+!  implicit none
+!
+!  class(simulation_base_type) :: simulation
+!
+!  class(pmc_geomechanics_type), pointer :: GeomechPMC
+!
+!  nullify(GeomechPMC)
+!  select type(simulation)
+!    class is(simulation_subsurface_type)
+!      GeomechPMC => simulation%geomech_process_model_coupler_new
+!    class is(simulation_geomechanics_type)
+!      GeomechPMC => simulation%geomech_process_model_coupler
+!  end select
+!
+!end function GeomechPMC
+!
+!! ************************************************************************** !
+!
+!function GeomechRegression(simulation)
+!
+!  use Simulation_Geomechanics_class
+!  use Simulation_Subsurface_class
+!  use Simulation_Base_class
+!  use Geomechanics_Regression_module
+!
+!  implicit none
+!
+!  class(simulation_base_type) :: simulation
+!
+!  class(geomechanics_regression_type), pointer :: GeomechRegression
+!
+!  nullify(GeomechRegression)
+!  select type(s => simulation)
+!    class is(simulation_geomechanics_type)
+!      GeomechRegression => s%geomech_regression
+!    class is(simulation_subsurface_type)
+!      GeomechRegression => s%geomech_regression_new
+!    !class default
+!    !  print *, 'PRINTING DEFAULT'
+!  end select
+!
+!end function GeomechRegression
 
 ! ************************************************************************** !
 
@@ -135,11 +137,21 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   PetscErrorCode :: ierr
 
   if (.not. associated(pm_geomech)) return
-
+  !select type(s => simulation)
+  !  class is(simulation_geomechanics_type)
+  !    print *, 'simulation geomech'
+  !  class is(simulation_subsurface_type)
+  !     print *, 'simulation subsurf'
+  !  class default
+  !     print *, 'simulation base'
+  !end select
   option => simulation%option
-  geomech_realization => GeomechRealization(simulation) ! test this
+  !geomech_realization => GeomechRealization(simulation) ! test this
+  geomech_realization => simulation%geomech%realization
   subsurf_realization => simulation%realization
-  geomech_regression => GeomechRegression(simulation)
+  
+  !geomech_regression => GeomechRegression(simulation)
+  geomech_regression => simulation%geomech%regression
 
   ! initialize geomech realization
   call SubsurfGeomechInitSetupRealization(simulation)
@@ -147,7 +159,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   call pm_geomech%Setup()
 
-  pmc_geomech => GeomechPMC(simulation)
+  !pmc_geomech => GeomechPMC(simulation)
+  pmc_geomech => simulation%geomech%process_model_coupler
   timestepper => TimestepperSteadyCast(pmc_geomech%timestepper)
   call pmc_geomech%SetupSolvers()
 
@@ -253,12 +266,14 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
   use Logging_module
   use Condition_Control_module
   use Simulation_Subsurface_class
+  use PMC_Geomechanics_class
 
   implicit none
 
   type(simulation_subsurface_type) :: simulation
 
-  class(realization_geomech_type), pointer :: geomch_realization
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(pmc_geomechanics_type), pointer :: geomech_pmc
   class(timestepper_steady_type), pointer :: geomech_timestepper
 
   PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
@@ -266,10 +281,9 @@ subroutine SubsurfGeomechanicsJumpStart(simulation)
   PetscBool :: failure
   PetscErrorCode :: ierr
 
-  !geomch_realization => simulation%geomech_realization_new
-  geomch_realization => GeomechRealization(simulation)
-  geomech_timestepper => TimestepperSteadyCast(simulation% &
-      geomech_process_model_coupler_new%timestepper)
+  geomech_realization => simulation%geomech%realization
+  geomech_pmc => simulation%geomech%process_model_coupler
+  geomech_timestepper => TimestepperSteadyCast(geomech_pmc%timestepper)
 
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                            "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
@@ -485,7 +499,7 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  !use Simulation_Geomechanics_class
+  use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -542,10 +556,21 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  select type(s => simulation)
+    class is(simulation_geomechanics_type)
+      print *, 'simulation geomech'
+    class is(simulation_subsurface_type)
+       print *, 'simulation subsurf'
+    class default
+       print *, 'simulation base'
+  end select
+
   waypoint_list => simulation%waypoint_list_subsurface
   !geomech_realization => simulation%geomech_realization_new
-  geomech_realization => GeomechRealization(simulation)
-  geomech_regression => GeomechRegression(simulation)
+  geomech_realization => simulation%geomech%realization
+  !geomech_realization => GeomechRealization(simulation)
+  !geomech_regression => GeomechRegression(simulation)
+  !geomech_regression => simulation%geomech%regression
   option => simulation%option
   geomech_discretization => geomech_realization%geomech_discretization
   output_option => simulation%output_option
@@ -646,7 +671,7 @@ subroutine SubsurfGeomechanicsInitReadInput(simulation,geomech_solver, &
 
       !.....................
       case ('GEOMECHANICS_REGRESSION')
-        call GeomechanicsRegressionRead(geomech_regression,input,option)
+        call GeomechanicsRegressionRead(simulation%geomech%regression,input,option)
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
@@ -944,7 +969,8 @@ subroutine SubsurfGeomechInitSetupRealization(simulation)
 
   subsurf_realization => simulation%realization
   !geomech_realization => simulation%geomech_realization_new
-  geomech_realization => GeomechRealization(simulation)
+  !geomech_realization => GeomechRealization(simulation)
+  geomech_realization => simulation%geomech%realization
   option => subsurf_realization%option
 
   call GeomechRealizCreateDiscretization(geomech_realization)

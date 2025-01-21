@@ -18,6 +18,7 @@ module Simulation_Subsurface_class
   use Regression_module
   use Geomechanics_Realization_class
   use Geomechanics_Regression_module
+  use Geomechanics_base_module
 
   implicit none
 
@@ -37,19 +38,21 @@ module Simulation_Subsurface_class
     ! pointer to geophysics process model coupler
     class(pmc_geophysics_type), pointer :: geop_process_model_coupler
     ! pointer to geomechanics process model coupler
-    class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler_new
+    !class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler_new
     ! pointer to well process model coupler
     class(pm_well_type), pointer :: temp_well_process_model_list
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
     ! jaa test new geomech pmc
-    class(realization_geomech_type), pointer :: geomech_realization_new
+    !class(realization_geomech_type), pointer :: geomech_realization_new
     ! regression object
     type(regression_type), pointer :: regression
     ! jaa test new geomech pmc
-    type(geomechanics_regression_type), pointer :: geomech_regression_new
+    !type(geomechanics_regression_type), pointer :: geomech_regression_new
+    class(geomechanics_base_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
+    
   contains
     procedure, public :: JumpStart => SimSubsurfJumpStart
     procedure, public :: InitializeRun => SimSubsurfInitializeRun
@@ -136,7 +139,8 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
-  nullify(this%geomech_process_model_coupler_new)
+  !nullify(this%geomech_process_model_coupler_new)
+  nullify(this%geomech)
   nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
@@ -445,8 +449,9 @@ subroutine SimSubsurfJumpStart(this)
   endif
 
   ! jaa testing.. want to set the geomech dt equal to flow dt
-  if (associated(this%geomech_process_model_coupler_new)) then
-     this%geomech_process_model_coupler_new%timestepper%dt = &
+  !if (associated(this%geomech_process_model_coupler_new)) then
+  if (associated(this%geomech%process_model_coupler)) then
+     this%geomech%process_model_coupler%timestepper%dt = &
          this%process_model_coupler_list%timestepper%dt
   endif
 
@@ -912,9 +917,10 @@ subroutine SimSubsurfFinalizeRun(this)
     endif
   endif
   ! jaa testing
-  if (associated(this%geomech_process_model_coupler_new)) then
+  !if (associated(this%geomech_process_model_coupler_new)) then
+  if (associated(this%geomech%process_model_coupler)) then
     geomech_timestepper => TimestepperSteadyCast( &
-              this%geomech_process_model_coupler_new%timestepper)
+              this%geomech%process_model_coupler%timestepper)
     ! timestepper => TimestepperSteadyCast(this%timestepper)
     !select type(ts => this%geomech_process_model_coupler%timestepper)
     !  class is(timestepper_steady_type)
@@ -926,9 +932,9 @@ subroutine SimSubsurfFinalizeRun(this)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
-      if (associated(this%geomech_process_model_coupler_new)) then
-        call GeomechanicsRegressionOutput(this%geomech_regression_new, &
-                                          this%geomech_realization_new, &
+      if (associated(this%geomech%process_model_coupler)) then
+        call GeomechanicsRegressionOutput(this%geomech%regression, &
+                                          this%geomech%realization, &
                                           geomech_timestepper)
       endif
   end select
