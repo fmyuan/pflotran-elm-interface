@@ -57,6 +57,7 @@ module Reaction_Mineral_Aux_module
     PetscInt :: surf_area_function
     PetscReal :: spec_surf_area
     type(transition_state_prefactor_type), pointer :: prefactor
+    type(nucleation_type), pointer :: nucleation
     type(transition_state_rxn_type), pointer :: next
   end type transition_state_rxn_type
 
@@ -92,6 +93,15 @@ module Reaction_Mineral_Aux_module
     PetscBool, pointer :: external_vol_frac_dataset(:)
     PetscBool, pointer :: external_area_dataset(:)
   end type mineral_constraint_type
+
+  type, public :: nucleation_type
+    character(len=MAXWORDLENGTH) :: name
+    PetscReal :: rate_constant
+    PetscReal :: geometric_shape_factor
+    PetscReal :: heterogenous_correction_factor
+    PetscReal :: surface_tension
+    type(nucleation_type), pointer :: next
+  end type nucleation_type
 
   type, public :: mineral_type
 
@@ -162,6 +172,10 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_spec_surf_area(:)
     PetscInt, pointer :: kinmnrl_surf_area_function(:)
 
+    PetscInt, pointer :: kinmnrl_nucleation_id(:)
+    type(nucleation_type), pointer :: nucleation_list
+    type(nucleation_type), pointer :: nucleation_array(:)
+
   end type mineral_type
 
   interface ReactionMnrlGetMnrlIDFromName
@@ -179,6 +193,8 @@ module Reaction_Mineral_Aux_module
             ReactionMnrlCreateTSTRxn, &
             ReactionMnrlCreateTSTPrefactor, &
             ReactionMnrlCreateTSTPrefSpec, &
+            ReactionMnrlCreateNucleation, &
+            ReactionMnrlCopyNucleation, &
             ReactionMnrlDestroyTSTRxn, &
             ReactionMnrlCreateMineralRxn, &
             ReactionMnrlDestroyMineralRxn, &
@@ -274,6 +290,11 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrl_spec_surf_area)
   nullify(mineral%kinmnrl_surf_area_function)
 
+  ! for nucleation
+  nullify(mineral%kinmnrl_nucleation_id)
+  nullify(mineral%nucleation_list)
+  nullify(mineral%nucleation_array)
+
   ReactionMnrlCreateAux => mineral
 
 end function ReactionMnrlCreateAux
@@ -345,6 +366,7 @@ function ReactionMnrlCreateTSTRxn()
   tstrxn%precipitation_rate_constant = UNINITIALIZED_DOUBLE
   tstrxn%dissolution_rate_constant = UNINITIALIZED_DOUBLE
   nullify(tstrxn%prefactor)
+  nullify(tstrxn%nucleation)
   nullify(tstrxn%next)
 
   ReactionMnrlCreateTSTRxn => tstrxn
@@ -408,6 +430,57 @@ function ReactionMnrlCreateTSTPrefSpec()
   ReactionMnrlCreateTSTPrefSpec => species
 
 end function ReactionMnrlCreateTSTPrefSpec
+
+! ************************************************************************** !
+
+function ReactionMnrlCreateNucleation()
+  !
+  ! Allocate and initialize a nucleation reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/20/25
+  !
+  implicit none
+
+  type(nucleation_type), pointer :: ReactionMnrlCreateNucleation
+
+  type(nucleation_type), pointer :: nucleation
+
+  allocate(nucleation)
+  nucleation%name = ''
+  nucleation%rate_constant = UNINITIALIZED_DOUBLE
+  nucleation%geometric_shape_factor = UNINITIALIZED_DOUBLE
+  nucleation%heterogenous_correction_factor = UNINITIALIZED_DOUBLE
+  nucleation%surface_tension = UNINITIALIZED_DOUBLE
+  nullify(nucleation%next)
+
+  ReactionMnrlCreateNucleation => nucleation
+
+end function ReactionMnrlCreateNucleation
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlCopyNucleation(nucleation1,nucleation2)
+  !
+  ! Allocate and initialize a nucleation reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/20/25
+  !
+  implicit none
+
+  type(nucleation_type) :: nucleation1
+  type(nucleation_type) :: nucleation2
+
+  nucleation2%name = nucleation1%name
+  nucleation2%rate_constant = nucleation1%rate_constant
+  nucleation2%geometric_shape_factor = nucleation1%geometric_shape_factor
+  nucleation2%heterogenous_correction_factor = &
+    nucleation1%heterogenous_correction_factor
+  nucleation2%surface_tension = nucleation1%surface_tension
+  nucleation2%next => nucleation1%next
+
+end subroutine ReactionMnrlCopyNucleation
 
 ! ************************************************************************** !
 
@@ -732,6 +805,7 @@ recursive subroutine ReactionMnrlDestroyTSTRxn(tstrxn)
 
   call ReactionMnrlDestroyTSTRxn(tstrxn%next)
   call ReactionMnrlDestroyTSTPrefactor(tstrxn%prefactor)
+  call ReactionMnrlDestroyNucleation(tstrxn%nucleation)
 
   deallocate(tstrxn)
   nullify(tstrxn)
@@ -784,6 +858,29 @@ recursive subroutine ReactionMnrlDestroyTSTPrefSpec(species)
   nullify(species)
 
 end subroutine ReactionMnrlDestroyTSTPrefSpec
+
+! ************************************************************************** !
+
+recursive subroutine ReactionMnrlDestroyNucleation(nucleation)
+  !
+  ! Deallocates a transition state reaction
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/29/08
+  !
+
+  implicit none
+
+  type(nucleation_type), pointer :: nucleation
+
+  if (.not.associated(nucleation)) return
+
+  call ReactionMnrlDestroyNucleation(nucleation%next)
+
+  deallocate(nucleation)
+  nullify(nucleation)
+
+end subroutine ReactionMnrlDestroyNucleation
 
 ! ************************************************************************** !
 
@@ -904,6 +1001,13 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)
   call DeallocateArray(mineral%kinmnrl_spec_surf_area)
   call DeallocateArray(mineral%kinmnrl_surf_area_function)
+
+  call DeallocateArray(mineral%kinmnrl_nucleation_id)
+  call ReactionMnrlDestroyNucleation(mineral%nucleation_list)
+  if (associated(mineral%nucleation_array)) then
+    deallocate(mineral%nucleation_array)
+    nullify(mineral%nucleation_array)
+  endif
 
   deallocate(mineral)
   nullify(mineral)

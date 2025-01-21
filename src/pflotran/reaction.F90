@@ -514,6 +514,25 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputPopBlock(input,option)
         reaction%mineral%nkinmnrl = reaction%mineral%nkinmnrl + temp_int
 
+      case('NUCLEATION_KINETICS')
+        error_string = 'CHEMISTRY,NUCLEATION_KINETICS'
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,name)
+          call InputErrorMsg(input,option,name,error_string)
+          call InputPushBlock(input,option)
+          do
+            call InputReadPflotranString(input,option)
+            call InputReadStringErrorMsg(input,option,card)
+            if (InputCheckExit(input,option)) exit
+          enddo
+          call InputPopBlock(input,option)
+        enddo
+        call InputPopBlock(input,option)
+
       case('OVERRIDE_MINERAL_MASS_ACTION')
         do
           call InputReadPflotranString(input,option)
@@ -1012,6 +1031,8 @@ subroutine ReactionReadPass2(reaction,input,option)
         call ReactionReadOutput(reaction,input,option)
       case('MINERAL_KINETICS')
         call ReactionMnrlReadKinetics(reaction%mineral,input,option)
+      case('NUCLEATION_KINETICS')
+        call ReactionMnrlReadNucleation(reaction%mineral,input,option)
       case('OVERRIDE_MINERAL_MASS_ACTION')
         call ReactionMnrlReadMassActOverride(reaction%mineral,input,option)
       case('REACTION_SANDBOX')

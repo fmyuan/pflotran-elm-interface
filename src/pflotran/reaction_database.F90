@@ -836,6 +836,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(transition_state_rxn_type), pointer :: tstrxn
   type(transition_state_prefactor_type), pointer :: cur_prefactor
+  type(nucleation_type), pointer :: cur_nucleation
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
   type(reaction_equation_type), pointer :: reaction_equation
@@ -1914,8 +1915,27 @@ subroutine ReactionDBInitBasis(reaction,option)
       else
         allocate(mineral%kinmnrl_logKcoef(num_logKs,mineral%nkinmnrl))
       endif
-
       mineral%kinmnrl_logKcoef = 0.d0
+
+      ! Nucleation
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        cur_nucleation => cur_nucleation%next
+      enddo
+      if (icount > 0) allocate(mineral%nucleation_array(icount))
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        call ReactionMnrlCopyNucleation(cur_nucleation, &
+                                        mineral%nucleation_array(icount))
+        nullify(mineral%nucleation_array(icount)%next)
+        cur_nucleation => cur_nucleation%next
+      enddo
 
       ! TST Rxn variables
       allocate(mineral%kinmnrl_affinity_threshold(mineral%nkinmnrl))
@@ -1949,6 +1969,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_spec_surf_area = UNINITIALIZED_DOUBLE
       allocate(mineral%kinmnrl_surf_area_function(mineral%nkinmnrl))
       mineral%kinmnrl_surf_area_function = UNINITIALIZED_INTEGER
+
+      allocate(mineral%kinmnrl_nucleation_id(mineral%nkinmnrl))
+      mineral%kinmnrl_nucleation_id = 0
 
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
@@ -2427,6 +2450,22 @@ subroutine ReactionDBInitBasis(reaction,option)
           if (Initialized(tstrxn%affinity_factor_beta)) then
             mineral%kinmnrl_affinity_power(ikinmnrl) = &
               tstrxn%affinity_factor_beta
+          endif
+
+          if (associated(tstrxn%nucleation)) then
+            do i = 1, size(mineral%nucleation_array)
+              if (StringCompare(tstrxn%nucleation%name, &
+                                mineral%nucleation_array(i)%name)) then
+                mineral%kinmnrl_nucleation_id(ikinmnrl) = i
+                exit
+              endif
+            enddo
+            if (mineral%kinmnrl_nucleation_id(ikinmnrl) == 0) then
+              option%io_buffer = 'No nucleation reaction "' // &
+                trim(tstrxn%nucleation%name) // '" found for &
+                &mineral "' // trim(mineral%kinmnrl_names(ikinmnrl)) // '".'
+              call PrintErrMsg(option)
+            endif
           endif
 
         endif ! associated(tstrxn)

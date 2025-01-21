@@ -17,6 +17,7 @@ module Reaction_Mineral_module
 
   public :: ReactionMnrlRead, &
             ReactionMnrlReadKinetics, &
+            ReactionMnrlReadNucleation, &
             ReactionMnrlReadFromDatabase, &
             ReactionMnrlReadMassActOverride, &
             ReactionMnrlProcessConstraint, &
@@ -158,7 +159,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
             case('RATE_CONSTANT','PRECIPITATION_RATE_CONSTANT', &
                  'DISSOLUTION_RATE_CONSTANT')
               rate_constant = UNINITIALIZED_DOUBLE
-              call ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+              call ReactionMnrlReadRateConstant(input,cur_mineral%name, &
                                                 rate_constant,error_string, &
                                                 '',option)
               select case(keyword)
@@ -238,8 +239,8 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   case('RATE_CONSTANT','PRECIPITATION_RATE_CONSTANT', &
                        'DISSOLUTION_RATE_CONSTANT')
                     rate_constant = UNINITIALIZED_DOUBLE
-                    call ReactionMnrlReadRateConstant(mineral,input, &
-                                                      cur_mineral, &
+                    call ReactionMnrlReadRateConstant(input, &
+                                                      cur_mineral%name, &
                                                       rate_constant, &
                                                       error_string, &
                                                       'PREFACTOR',option)
@@ -354,6 +355,10 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
               call InputErrorMsg(input,option,keyword,error_string)
               call InputReadAndConvertUnits(input,tstrxn%spec_surf_area, &
                         'm^2/kg',trim(error_string)//','//trim(keyword),option)
+            case('NUCLEATION_KINETICS')
+              tstrxn%nucleation => ReactionMnrlCreateNucleation()
+              call InputReadWord(input,option,tstrxn%nucleation%name,PETSC_TRUE)
+              call InputErrorMsg(input,option,keyword,error_string)
             case default
               call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
@@ -519,7 +524,7 @@ end subroutine ReactionMnrlReadKinetics
 
 ! ************************************************************************** !
 
-subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+subroutine ReactionMnrlReadRateConstant(input,mineral_name, &
                                         rate_constant,error_string, &
                                         error_string2,option)
   !
@@ -537,9 +542,8 @@ subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
 
   implicit none
 
-  type(mineral_type) :: mineral
   type(input_type), pointer :: input
-  type(mineral_rxn_type) :: cur_mineral
+  character(len=MAXWORDLENGTH) :: mineral_name
   PetscReal :: rate_constant
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=*) :: error_string2
@@ -557,7 +561,7 @@ subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
   internal_units = 'mol/m^2-sec'
   call InputReadWord(input,option,word,PETSC_TRUE)
   if (InputError(input)) then
-    input%err_buf = trim(cur_mineral%name) // ' ' // trim(error_string2) // &
+    input%err_buf = trim(mineral_name) // ' ' // trim(error_string2) // &
       ' RATE_CONSTANT UNITS'
     call InputDefaultMsg(input,option)
   else
@@ -670,6 +674,108 @@ subroutine ReactionMnrlReadMassActOverride(mineral,input,option)
   call InputPopBlock(input,option)
 
 end subroutine ReactionMnrlReadMassActOverride
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlReadNucleation(mineral,input,option)
+  !
+  ! Reads parameters for overriding mineral mass action and log Ks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  type(mineral_type) :: mineral
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  type(nucleation_type), pointer :: nucleation
+  type(nucleation_type), pointer :: last_nucleation
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword
+
+  ! find last in list, if the list exists
+  last_nucleation => mineral%nucleation_list
+  if (associated(last_nucleation)) then
+    do
+      if (associated(last_nucleation%next)) then
+        last_nucleation => last_nucleation%next
+      else
+        exit
+      endif
+    enddo
+  endif
+
+  input%ierr = 0
+  call InputPushBlock(input,'MINERAL_NUCLEATION_KINETICS',option)
+  do
+
+    error_string = 'CHEMISTRY,MINERAL_NUCLEATION_KINETICS'
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    nucleation => ReactionMnrlCreateNucleation()
+    call InputReadWord(input,option,nucleation%name,PETSC_TRUE)
+    call InputErrorMsg(input,option,'nucleation name',error_string)
+
+    call InputPushBlock(input,nucleation%name,option)
+    do
+      error_string = trim(error_string) // ',' // nucleation%name
+      call InputReadPflotranString(input,option)
+      call InputReadStringErrorMsg(input,option,error_string)
+      if (InputCheckExit(input,option)) exit
+      call InputReadCard(input,option,keyword)
+      call InputErrorMsg(input,option,'keyword',error_string)
+      call StringToUpper(keyword)
+
+      select case(keyword)
+        case('RATE_CONSTANT')
+          call ReactionMnrlReadRateConstant(input,nucleation%name, &
+                                            nucleation%rate_constant, &
+                                            error_string, &
+                                            'NUCLEATION',option)
+        case('GEOMETRIC_SHAPE_FACTOR')
+          call InputReadDouble(input,option,nucleation%geometric_shape_factor)
+          call InputErrorMsg(input,option,keyword,error_string)
+        case('HETEROGENEOUS_CORRECTION_FACTOR')
+          call InputReadDouble(input,option, &
+                               nucleation%heterogenous_correction_factor)
+          call InputErrorMsg(input,option,keyword,error_string)
+        case('SURFACE_TENSION')
+          call InputReadDouble(input,option,nucleation%surface_tension)
+          call InputErrorMsg(input,option,keyword,error_string)
+      end select
+    enddo
+    call InputPopBlock(input,option)
+
+    if (len_trim(nucleation%name) == 0 .or. &
+        Uninitialized(nucleation%rate_constant) .or. &
+        Uninitialized(nucleation%geometric_shape_factor) .or. &
+        Uninitialized(nucleation%heterogenous_correction_factor) .or. &
+        Uninitialized(nucleation%surface_tension)) then
+      option%io_buffer = 'Uninitialized values in nucleation reaction "' // &
+        trim(nucleation%name) // '".'
+      call PrintErrMsg(option)
+    endif
+
+    if (associated(last_nucleation)) then
+      last_nucleation%next => nucleation
+    else
+      mineral%nucleation_list => nucleation
+    endif
+    last_nucleation => nucleation
+    nullify(nucleation)
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine ReactionMnrlReadNucleation
 
 ! ************************************************************************** !
 
@@ -1591,6 +1697,45 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
   endif
 
 end subroutine ReactionMnrlKineticRateSingle
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
+                                  temperature_C,lnQK, &
+                                  rate,drate_dlnQK,option)
+  !
+  ! Calculates the mineral saturation index
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/29/11
+  !
+  use Option_module
+
+  implicit none
+
+  type(nucleation_type) :: nucleation
+  PetscReal :: molar_volume
+  PetscReal :: temperature_C
+  PetscReal :: lnQK
+  PetscReal :: rate
+  PetscReal :: drate_dlnQK
+  type(option_type) :: option
+
+  PetscReal, parameter :: Avogadros_number = 6.02d23
+  PetscReal :: exp_term, exp_term1, exp_term2
+
+  exp_term1 = -1.d0 * nucleation%geometric_shape_factor * &
+              Avogadros_number * &
+              nucleation%heterogenous_correction_factor * &
+              molar_volume**2 * &
+              nucleation%surface_tension**3 / &
+              ((IDEAL_GAS_CONSTANT * (temperature_C + T273K))**3)
+  exp_term2 = 1.d0/lnQK
+  exp_term = exp_term1 * exp_term2**2
+  rate = nucleation%rate_constant * exp(exp_term)
+  drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+
+end subroutine ReactionMnrlNucleation
 
 ! ************************************************************************** !
 
