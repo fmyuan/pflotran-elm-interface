@@ -1903,17 +1903,17 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
              end select
         !--------------------------
           case('SPECIES')
-            allocate(temp_species_array(50))
+            allocate(temp_species_array(100))
             do
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
               k = k + 1
-              if (k > 50) then
-                option%io_buffer = 'More than 50 radionuclide species are &
+              if (k > 100) then
+                option%io_buffer = 'More than 100 radionuclide species are &
                   &provided in the ' // trim(error_string) // &
                   ', SPECIES block.'
                 call PrintErrMsgToDev(option, &
-                                       'if reducing to less than 50 is not &
+                                       'if reducing to less than 100 is not &
                                        &an option.')
               endif
               call PMWFRadSpeciesInit(temp_species_array(k))
