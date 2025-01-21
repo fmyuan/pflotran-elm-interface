@@ -15,7 +15,8 @@ module Geomechanics_base_module
     type(geomechanics_regression_type), pointer :: regression
   end type geomechanics_base_type
 
-  public :: GeomechCreate
+  public :: GeomechCreate, &
+            GeomechDestroy
 
 contains
 
@@ -39,5 +40,22 @@ function GeomechCreate()
   GeomechCreate => geomech
 
 end function GeomechCreate
+
+! ************************************************************************** !
+
+subroutine GeomechDestroy(geomech)
+
+  ! Destroys geomech object
+
+  implicit none
+
+  type (geomechanics_base_type),pointer :: geomech
+
+  if (.not.associated(geomech)) return
+
+  deallocate(geomech)
+  nullify(geomech)
+
+end subroutine GeomechDestroy
 
 end module Geomechanics_base_module

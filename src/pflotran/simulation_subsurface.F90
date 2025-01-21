@@ -980,6 +980,10 @@ subroutine SimSubsurfStrip(this)
   call PrintMsg(this%option,'SimSubsurfStrip()')
 #endif
 
+  ! jaa testing.. once geomech is generalized, remove this if statement
+  if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) &
+    call GeomechDestroy(this%geomech) ! jaa testing
+
   call SimulationBaseStrip(this)
   call SimAuxDestroy(this%sim_aux)
   call OutputOptionDestroy(this%output_option)
