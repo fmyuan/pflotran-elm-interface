@@ -52,7 +52,7 @@ module Simulation_Subsurface_class
     class(geomechanics_base_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
-    
+
   contains
     procedure, public :: JumpStart => SimSubsurfJumpStart
     procedure, public :: InitializeRun => SimSubsurfInitializeRun

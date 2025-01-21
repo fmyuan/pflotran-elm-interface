@@ -149,7 +149,7 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   !geomech_realization => GeomechRealization(simulation) ! test this
   geomech_realization => simulation%geomech%realization
   subsurf_realization => simulation%realization
-  
+
   !geomech_regression => GeomechRegression(simulation)
   geomech_regression => simulation%geomech%regression
 
