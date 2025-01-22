@@ -1351,6 +1351,17 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
                                   global_auxvar%temp,lnQK, &
                                   nucleation_rate,dnucleation_rate_dlnQK, &
                                   option)
+#if 0
+print *, 'analytical derivative: ', dnucleation_rate_dlnQK
+      Im_const = lnQK+1.d-6*lnQK
+      call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+                                  mineral%kinmnrl_molar_vol(imnrl), &
+                                  global_auxvar%temp,Im_const, &
+                                  Im,dnucleation_rate_dlnQK, &
+                                  option)
+print *, 'numerical derivative: ',  (Im-nucleation_rate)/(Im_const-lnQK)
+stop
+#endif
       do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
         icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
         Res(icomp) = Res(icomp) + &
@@ -1769,7 +1780,16 @@ subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
   exp_term = exp_term1 * exp_term2**2
   rate = nucleation%rate_constant * exp(exp_term)
   drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
-  print *, lnQK, exp_term
+#if 0
+  print *, rate, lnQK, exp_term
+  print *, 'rate_constant: ', nucleation%rate_constant
+  print *, 'lnQK: ', lnQK
+  print *, 'geom: ', nucleation%geometric_shape_factor
+  print *, 'hetero: ', nucleation%heterogenous_correction_factor
+  print *, 'molvol: ', molar_volume
+  print *, 'surf_tens: ', nucleation%surface_tension
+  print *, 'TC: ', temperature_C
+#endif
 
 end subroutine ReactionMnrlNucleation
 
