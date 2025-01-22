@@ -116,6 +116,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
 
   option => this%option
   geomech_realization => this%geomech_realization
+  !geomech_realization => this%geomech%realization
   geomech_discretization => geomech_realization%geomech_discretization
   select type(ts => this%timestepper)
     class is (timestepper_steady_type)

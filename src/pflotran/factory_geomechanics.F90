@@ -117,20 +117,22 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
   if (option%geomech_on) then
-    simulation%geomech_realization => GeomechRealizCreate(option)
-    geomech_realization => simulation%geomech_realization
+    !simulation%geomech_realization => GeomechRealizCreate(option)
+    simulation%geomech%realization => GeomechRealizCreate(option)
+    !geomech_realization => simulation%geomech_realization
+    geomech_realization => simulation%geomech%realization
     subsurf_realization => simulation%realization
     subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
     input => InputCreate(IN_UNIT,option%input_filename,option)
     call GeomechicsInitReadRequiredCards(geomech_realization,input)
     pmc_geomech => PMCGeomechanicsCreate()
     pmc_geomech%name = 'PMCGeomech'
-    simulation%geomech_process_model_coupler => pmc_geomech
+    simulation%geomech%process_model_coupler => pmc_geomech
     pmc_geomech%option => option
     pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
     pmc_geomech%pm_list => pm_geomech
     pmc_geomech%pm_ptr%pm => pm_geomech
-    pmc_geomech%geomech_realization => simulation%geomech_realization
+    pmc_geomech%geomech_realization => simulation%geomech%realization
     pmc_geomech%subsurf_realization => simulation%realization
     pm_geomech%subsurf_realization => simulation%realization
 
@@ -166,8 +168,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
 
     ! link geomech and flow timestepper waypoints to geomech way point list
-    if (associated(simulation%geomech_process_model_coupler)) then
-      call simulation%geomech_process_model_coupler% &
+    if (associated(simulation%geomech%process_model_coupler)) then
+      call simulation%geomech%process_model_coupler% &
              SetWaypointPtr(pmc_geomech%waypoint_list)
       if (associated(simulation%flow_process_model_coupler)) then
         call simulation%flow_process_model_coupler% &
@@ -229,7 +231,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
                               GEOMECHANICS_TO_SUBSURF)
   endif
 
-  call GeomechanicsRegressionCreateMapping(simulation%geomech_regression, &
+  call GeomechanicsRegressionCreateMapping(simulation%geomech%regression, &
                                            geomech_realization)
 
   ! sim_aux: Set pointer
@@ -237,14 +239,14 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   if (associated(simulation%tran_process_model_coupler)) &
     simulation%tran_process_model_coupler%sim_aux => simulation%sim_aux
   if (option%ngeomechdof>0 .and. &
-     associated(simulation%geomech_process_model_coupler)) &
-    simulation%geomech_process_model_coupler%sim_aux => simulation%sim_aux
+     associated(simulation%geomech%process_model_coupler)) &
+    simulation%geomech%process_model_coupler%sim_aux => simulation%sim_aux
 
   ! set geomech as not master
-  simulation%geomech_process_model_coupler%is_master = PETSC_FALSE
+  simulation%geomech%process_model_coupler%is_master = PETSC_FALSE
   ! link geomech and master
   simulation%process_model_coupler_list => &
-    simulation%geomech_process_model_coupler
+    simulation%geomech%process_model_coupler
   ! link subsurface flow as peer
   simulation%process_model_coupler_list%peer => &
     simulation%flow_process_model_coupler
@@ -345,9 +347,9 @@ subroutine GeomechanicsJumpStart(simulation)
   PetscBool :: failure
   PetscErrorCode :: ierr
 
-  geomch_realization => simulation%geomech_realization
+  geomch_realization => simulation%geomech%realization
 
-  select type(ts => simulation%geomech_process_model_coupler%timestepper)
+  select type(ts => simulation%geomech%process_model_coupler%timestepper)
     class is(timestepper_steady_type)
       geomech_timestepper => ts
   end select
@@ -626,7 +628,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   word = ''
 
   waypoint_list => simulation%waypoint_list_geomechanics
-  geomech_realization => simulation%geomech_realization
+  !geomech_realization => simulation%geomech_realization
+  geomech_realization => simulation%geomech%realization
   option => simulation%option
   geomech_discretization => geomech_realization%geomech_discretization
   output_option => simulation%output_option
@@ -727,7 +730,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
       !.....................
       case ('GEOMECHANICS_REGRESSION')
-        call GeomechanicsRegressionRead(simulation%geomech_regression,input,option)
+        call GeomechanicsRegressionRead(simulation%geomech%regression,input,option)
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
@@ -1023,7 +1026,8 @@ subroutine GeomechInitSetupRealization(simulation)
   type(option_type), pointer :: option
 
   subsurf_realization => simulation%realization
-  geomech_realization => simulation%geomech_realization
+  !geomech_realization => simulation%geomech_realization
+  geomech_realization => simulation%geomech%realization
   option => subsurf_realization%option
 
   call GeomechRealizCreateDiscretization(geomech_realization)
