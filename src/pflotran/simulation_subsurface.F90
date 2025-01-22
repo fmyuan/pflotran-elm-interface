@@ -18,7 +18,7 @@ module Simulation_Subsurface_class
   use Regression_module
   use Geomechanics_Realization_class
   use Geomechanics_Regression_module
-  use Geomechanics_base_module
+  use Geomechanics_linkage_module
 
   implicit none
 
@@ -37,19 +37,14 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: tran_process_model_coupler
     ! pointer to geophysics process model coupler
     class(pmc_geophysics_type), pointer :: geop_process_model_coupler
-    ! pointer to geomechanics process model coupler
-    !class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler_new
     ! pointer to well process model coupler
     class(pm_well_type), pointer :: temp_well_process_model_list
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
-    ! jaa test new geomech pmc
-    !class(realization_geomech_type), pointer :: geomech_realization_new
     ! regression object
     type(regression_type), pointer :: regression
     ! jaa test new geomech pmc
-    !type(geomechanics_regression_type), pointer :: geomech_regression_new
-    class(geomechanics_base_type), pointer :: geomech
+    type(geomechanics_linkage_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
     PetscBool :: new_geomech_pmc

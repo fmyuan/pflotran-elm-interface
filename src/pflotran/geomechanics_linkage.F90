@@ -1,4 +1,4 @@
-module Geomechanics_base_module
+module Geomechanics_linkage_module
 
 #include "petsc/finclude/petscvec.h"
   use Geomechanics_Regression_module
@@ -9,53 +9,55 @@ module Geomechanics_base_module
 
   private
 
-  type, public :: geomechanics_base_type
+  type, public :: geomechanics_linkage_type
     class(pmc_geomechanics_type), pointer :: process_model_coupler
     class(realization_geomech_type), pointer :: realization
     type(geomechanics_regression_type), pointer :: regression
-  end type geomechanics_base_type
+  end type geomechanics_linkage_type
 
-  public :: GeomechCreate, &
-            GeomechDestroy
+  public :: GeomechLinkageCreate, &
+            GeomechLinkageDestroy
 
 contains
 
 ! ************************************************************************** !
 
-function GeomechCreate()
+function GeomechLinkageCreate()
 
   ! Create a geomech object
 
   implicit none
 
-  type (geomechanics_base_type),pointer :: GeomechCreate
+  type (geomechanics_linkage_type),pointer :: GeomechLinkageCreate
 
-  type (geomechanics_base_type),pointer :: geomech
+  type (geomechanics_linkage_type),pointer :: geomech
 
   allocate(geomech)
   nullify(geomech%process_model_coupler)
   nullify(geomech%realization)
   nullify(geomech%regression)
 
-  GeomechCreate => geomech
+  GeomechLinkageCreate => geomech
 
-end function GeomechCreate
+end function GeomechLinkageCreate
 
 ! ************************************************************************** !
 
-subroutine GeomechDestroy(geomech)
+subroutine GeomechlinkageDestroy(geomech)
 
   ! Destroys geomech object
 
   implicit none
 
-  type (geomechanics_base_type),pointer :: geomech
+  type (geomechanics_linkage_type),pointer :: geomech
 
   if (.not.associated(geomech)) return
 
   deallocate(geomech)
   nullify(geomech)
 
-end subroutine GeomechDestroy
+end subroutine GeomechLinkageDestroy
 
-end module Geomechanics_base_module
+! ************************************************************************** !
+
+end module Geomechanics_linkage_module

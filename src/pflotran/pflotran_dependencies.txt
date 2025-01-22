@@ -650,7 +650,7 @@ factory_subsurface_geomechanics.o : \
 factory_subsurface_linkage.o : \
   factory_subsurface_geomechanics.o \
   factory_subsurface_read.o \
-  geomechanics_base.o \
+  geomechanics_linkage.o \
   geomechanics_realization.o \
   input_aux.o \
   logging.o \
@@ -900,10 +900,6 @@ geomech_grid_aux.o : \
 geomechanics_auxiliary.o : \
   geomechanics_global_aux.o \
   pflotran_constants.o
-geomechanics_base.o : \
-  geomechanics_realization.o \
-  geomechanics_regression.o \
-  pmc_geomechanics.o
 geomechanics_condition.o : \
   condition.o \
   dataset.o \
@@ -973,6 +969,10 @@ geomechanics_global_aux.o : \
   option.o \
   pflotran_constants.o \
   utility.o
+geomechanics_linkage.o : \
+  geomechanics_realization.o \
+  geomechanics_regression.o \
+  pmc_geomechanics.o
 geomechanics_material.o : \
   input_aux.o \
   option.o \
@@ -1111,8 +1111,7 @@ grid_eclipse_util.o : \
   characteristic_curves.o \
   option.o \
   pflotran_constants.o \
-  string.o \
-  utility.o
+  string.o
 grid_structured.o : \
   connection.o \
   input_aux.o \
@@ -3591,6 +3590,7 @@ simulation_base.o : \
   waypoint.o
 simulation_geomechanics.o : \
   driver.o \
+  geomechanics_linkage.o \
   geomechanics_realization.o \
   geomechanics_regression.o \
   option.o \
@@ -3640,7 +3640,7 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
-  geomechanics_base.o \
+  geomechanics_linkage.o \
   geomechanics_realization.o \
   geomechanics_regression.o \
   init_subsurface.o \

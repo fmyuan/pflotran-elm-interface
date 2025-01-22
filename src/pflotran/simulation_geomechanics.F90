@@ -81,7 +81,8 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   use Waypoint_module
   use Driver_class
   use Option_module
-  use Geomechanics_base_module
+  use Geomechanics_linkage_module
+
 
   implicit none
 
@@ -90,7 +91,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   type(option_type), pointer :: option
 
   call SimSubsurfInit(this,driver,option)
-  this%geomech => GeomechCreate()
+  this%geomech => GeomechLinkageCreate()
   !nullify(this%geomech_realization)
   !nullify(this%geomech_regression)
   this%waypoint_list_geomechanics => WaypointListCreate()
