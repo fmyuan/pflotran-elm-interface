@@ -1057,7 +1057,7 @@ subroutine PMERTSolve(this,time,ierr)
   PetscInt :: ielec,nelec
   PetscInt :: elec_id
   PetscInt :: local_id
-  PetscInt :: ghosted_id
+  PetscInt :: ghosted_id, ghost_elec_id
   PetscInt :: num_linear_iterations
   PetscReal :: val
   PetscReal :: average_cond
@@ -1102,6 +1102,8 @@ subroutine PMERTSolve(this,time,ierr)
   this%option%io_buffer = '  Solving for electrode:'
   call PrintMsgNoAdvance(this%option)
   do ielec=1,nelec
+    ! cycle if it's a ghost electrode
+    if (survey%flag_electrode(ielec) == -1) cycle
     write(this%option%io_buffer,'(x,a)') trim(StringWrite(ielec))
     call PrintMsgNoAdvance(this%option)
     if (this%analytical_potential) then
@@ -1135,9 +1137,13 @@ subroutine PMERTSolve(this,time,ierr)
       !         grid%y(grid%nL2G(elec_id)),grid%z(grid%nL2G(elec_id))
       ! it should qualify on only one proc
       val = -1.0
-      ! check for ghosted sink electrodes
-      if (survey%flag_electrode(ielec) == -1) val = -val
       vec_ptr(elec_id) = val
+      ! check for ghosted sink electrode and modify RHS
+      if (survey%ghost_electrode_exist) then
+        ! get the local id of the ghosted electrode
+        ghost_elec_id = survey%ipos_electrode(survey%ghost_electrode_id)
+        vec_ptr(ghost_elec_id) = -val
+      endif
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
 
