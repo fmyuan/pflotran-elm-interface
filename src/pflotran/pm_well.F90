@@ -11750,8 +11750,8 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
   PetscReal :: Qin,Qout
   PetscInt :: k,nsegments
   PetscInt :: i,nspecies
-  PetscReal :: dt,den_avg,area,q_liq,conc 
-  PetscReal :: diffusion 
+  PetscReal :: dt,den_avg,area,q_liq,conc
+  PetscReal :: diffusion
 
   nsegments = pm_well%well_grid%nsegments
   nspecies = pm_well%nspecies
@@ -11770,16 +11770,16 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
 
   do k = 1,nsegments
     do i = 1,nspecies
-      if (k == nsegments) then 
+      if (k == nsegments) then
         area = pm_well%well%area(k) ! [m2]
         q_liq = pm_well%well%ql_bc(2) ! [m3-liq/m2-bulk-sec]=[m/s]
-      else 
+      else
         area = 0.5d0*(pm_well%well%area(k)+pm_well%well%area(k+1))
         q_liq = pm_well%well%ql(k) ! [m3-liq/m2-bulk-sec]=[m/s]
-      endif 
+      endif
 
-      if (q_liq < 0.d0) then ! flow is down the well 
-        if (k == nsegments) then 
+      if (q_liq < 0.d0) then ! flow is down the well
+        if (k == nsegments) then
           conc = pm_well%well%aqueous_conc_th(i) ! [mol-species/m3-liq]
         else
           conc = pm_well%tran_soln%prev_soln%aqueous_conc(i,k+1) ! [mol-species/m3-liq]
@@ -11794,7 +11794,7 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
         ! [mol-species]                      + [m2*[m/s]*[mol/m3]*s]
         well%aqueous_mass_q_cumulative(i,k) + (dt*area*(q_liq*conc-diffusion))
     enddo
-    
+
     den_avg = 0.5d0*(well%liq%den(k)+resr%den_l(k))
     ! units of coef = [m^3-liq/sec]
     if (well%liq%Q(k) < 0.d0) then ! Q out of well
