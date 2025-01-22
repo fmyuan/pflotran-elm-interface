@@ -89,8 +89,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscInt :: subsurf_ghosted_id
   PetscReal, pointer :: subsurf_vec_1dof(:)
 
-  error_found = PETSC_FALSE
-
   option => simulation%option
   nullify(timestepper)
 
@@ -278,14 +276,12 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(geomech_realization%geomech_field%press, &
                       subsurf_vec_1dof, ierr);CHKERRQ(ierr)
+  error_found = PETSC_FALSE
   do geomech_local_id = 1, geomech_realization%geomech_patch%geomech_grid% &
                            nlmax_node
     geomech_ghosted_id = geomech_realization%geomech_patch%geomech_grid% &
                          nL2G(geomech_local_id)
-    if(geomech_realization%geomech_patch%imat(geomech_ghosted_id) /= &
-       nint(subsurf_vec_1dof(geomech_local_id))) then
-       error_found = PETSC_TRUE
-    endif
+    if (nint(subsurf_vec_1dof(geomech_local_id)) <= 0) error_found = PETSC_TRUE
   enddo
   call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
                      MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)

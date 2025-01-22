@@ -28,6 +28,9 @@ module Survey_module
     PetscReal :: apparent_conductivity          ! app cond for an ERT survey
     PetscReal :: average_conductivity           ! avg cond of given cond model
 
+    PetscBool :: ghost_electrode_exist
+    PetscInt :: ghost_electrode_id
+
   end type survey_type
 
 
@@ -157,6 +160,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
   PetscInt :: ielec, idata, iconfig
   PetscInt :: itemp
   PetscReal :: wd
+  PetscBool :: ghost_electrode_found
   character(len=MAXWORDLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: string_ielec,string_idata
 
@@ -171,6 +175,10 @@ subroutine SurveyReadERT(survey,grid,input,option)
   survey%pos_electrode = 0.d0
   allocate(survey%flag_electrode(survey%num_electrode))
   survey%flag_electrode = 1
+
+  survey%ghost_electrode_exist = .false.
+  survey%ghost_electrode_id = -1
+  ghost_electrode_found = .false.
 
   do ielec=1,survey%num_electrode
     write(string_ielec,*) ielec
@@ -197,10 +205,24 @@ subroutine SurveyReadERT(survey,grid,input,option)
     if (survey%flag_electrode(ielec) /= 0 .and. &
         survey%flag_electrode(ielec) /= 1 .and. &
         survey%flag_electrode(ielec) /= -1) then
-      option%io_buffer = 'Wrong electrode flag -- see electrode #' &
+      option%io_buffer = 'Invalid electrode flag -- see electrode #' &
                           & // string_ielec
       call PrintErrMsg(option)
     endif
+
+    !check for any ghosted electrode
+    if (survey%flag_electrode(ielec) == -1) then
+      if (ghost_electrode_found) then
+        option%io_buffer = 'Multiple ghosted electrode detected -- &
+          &see electrode #' // string_ielec
+        call PrintErrMsg(option)
+      else
+        ghost_electrode_found = .true.
+        survey%ghost_electrode_exist = .true.
+        survey%ghost_electrode_id = ielec
+      endif
+    endif
+
   enddo
 
   call InputReadPflotranString(input,option)
@@ -247,6 +269,12 @@ subroutine SurveyReadERT(survey,grid,input,option)
     if (wd <= 0) wd = 1.d15
     survey%Wd(idata) = 1 / wd
     do iconfig=1,4
+      ! Check if any configuration electrodes include the ghosted electrode
+      if (survey%config(iconfig, idata) == survey%ghost_electrode_id) then
+        option%io_buffer = 'Ghosted electrode cannot be part of measurement -- &
+                          &see measurement #' // string_idata
+        call PrintErrMsg(option)
+      endif
       if (survey%config(iconfig,idata) < 0 .or. &
           survey%config(iconfig,idata) > survey%num_electrode) then
         option%io_buffer = 'Configuration electrodes not exist -- see &

@@ -1923,8 +1923,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
 
   PetscBool :: converged_liquid_equation
   PetscBool :: converged_gas_equation
-  PetscReal :: max_res_liq_
-  PetscReal :: max_res_gas_
+  PetscReal :: max_res_liq_ = 0.d0
+  PetscReal :: max_res_gas_ = 0.d0
   PetscReal :: max_normal_res_liq_
   PetscReal :: max_normal_res_gas_
   PetscReal :: min_gas_pressure

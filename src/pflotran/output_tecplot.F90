@@ -164,7 +164,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
                     ', E=' // &
                     trim(StringFormatInt(grid%unstructured_grid%nmax))
           string2 = trim(string2) // ', ZONETYPE=FEBRICK'
-        case (EXPLICIT_UNSTRUCTURED_GRID)
+        case (EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
           string2 = ', N=' // &
                     trim(StringFormatInt(grid%unstructured_grid%nmax)) // &
                     ', E=' // &
@@ -192,7 +192,8 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
           call PrintErrMsg(option)
       end select
 
-      if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
+      if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID .or. &
+          grid%itype == ECLIPSE_UNSTRUCTURED_GRID) then
         string3 = ', VARLOCATION=(NODAL)'
       else
         if (variable_count > 4) then
@@ -308,7 +309,9 @@ subroutine OutputTecplotBlock(realization_base)
   endif
 
   if (realization_base%discretization%grid%itype ==  &
-        EXPLICIT_UNSTRUCTURED_GRID) then
+        EXPLICIT_UNSTRUCTURED_GRID .or. &
+        realization_base%discretization%grid%itype ==  &
+        ECLIPSE_UNSTRUCTURED_GRID) then
     call WriteTecplotExpGridElements(OUTPUT_UNIT,realization_base)
   endif
 
@@ -571,9 +574,10 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
     call WriteTecplotUGridElements(OUTPUT_UNIT,realization_base)
   endif
 
-  if (realization_base%discretization%itype == UNSTRUCTURED_GRID .and. &
+  if (realization_base%discretization%grid%itype ==  &
+      EXPLICIT_UNSTRUCTURED_GRID .or. &
       realization_base%discretization%grid%itype ==  &
-      EXPLICIT_UNSTRUCTURED_GRID) then
+      ECLIPSE_UNSTRUCTURED_GRID) then
     call WriteTecplotExpGridElements(OUTPUT_UNIT,realization_base)
   endif
 
@@ -1506,7 +1510,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
       call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
       call VecDestroy(global_vertex_vec,ierr);CHKERRQ(ierr)
-    case (EXPLICIT_UNSTRUCTURED_GRID)
+    case (EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       if (OptionIsIORank(option)) then
         if (output_option%print_explicit_primal_grid) then
         num_cells = grid%unstructured_grid%explicit_grid%num_cells_global
