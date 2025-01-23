@@ -721,6 +721,18 @@ subroutine ReactionMnrlReadNucleation(mineral,input,option)
     if (InputCheckExit(input,option)) exit
 
     nucleation => ReactionMnrlCreateNucleation()
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,keyword,error_string)
+    call StringToUpper(keyword)
+    select case(keyword)
+      case('CLASSICAL')
+        nucleation%itype = MINERAL_NUCLEATION_CLASSICAL
+      case('SIMPLIFIED')
+        nucleation%itype = MINERAL_NUCLEATION_SIMPLIFIED
+      case default
+        error_string = trim(error_string)//',TYPE'
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
     call InputReadWord(input,option,nucleation%name,PETSC_TRUE)
     call InputErrorMsg(input,option,'nucleation name',error_string)
 
@@ -734,35 +746,66 @@ subroutine ReactionMnrlReadNucleation(mineral,input,option)
       call InputErrorMsg(input,option,'keyword',error_string)
       call StringToUpper(keyword)
 
-      select case(keyword)
-        case('RATE_CONSTANT')
-          call ReactionMnrlReadRateConstant(input,nucleation%name, &
-                                            nucleation%rate_constant, &
-                                            error_string, &
-                                            'NUCLEATION',option)
-        case('GEOMETRIC_SHAPE_FACTOR')
-          call InputReadDouble(input,option,nucleation%geometric_shape_factor)
-          call InputErrorMsg(input,option,keyword,error_string)
-        case('HETEROGENEOUS_CORRECTION_FACTOR')
-          call InputReadDouble(input,option, &
-                               nucleation%heterogenous_correction_factor)
-          call InputErrorMsg(input,option,keyword,error_string)
-        case('SURFACE_TENSION')
-          call InputReadDouble(input,option,nucleation%surface_tension)
-          call InputErrorMsg(input,option,keyword,error_string)
+      select case(nucleation%itype)
+        case(MINERAL_NUCLEATION_CLASSICAL)
+          select case(keyword)
+            case('RATE_CONSTANT')
+              call ReactionMnrlReadRateConstant(input,nucleation%name, &
+                                                nucleation%rate_constant, &
+                                                error_string, &
+                                                'NUCLEATION',option)
+            case('GEOMETRIC_SHAPE_FACTOR')
+              call InputReadDouble(input,option, &
+                                  nucleation%geometric_shape_factor)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case('HETEROGENEOUS_CORRECTION_FACTOR')
+              call InputReadDouble(input,option, &
+                                  nucleation%heterogenous_correction_factor)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case('SURFACE_TENSION')
+              call InputReadDouble(input,option,nucleation%surface_tension)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case default
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
+          end select
+        case(MINERAL_NUCLEATION_SIMPLIFIED)
+          select case(keyword)
+            case('RATE_CONSTANT')
+              call ReactionMnrlReadRateConstant(input,nucleation%name, &
+                                                nucleation%rate_constant, &
+                                                error_string, &
+                                                'NUCLEATION',option)
+            case('GAMMA')
+              call InputReadDouble(input,option,nucleation%gamma)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case default
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
+          end select
       end select
     enddo
     call InputPopBlock(input,option)
 
-    if (len_trim(nucleation%name) == 0 .or. &
-        Uninitialized(nucleation%rate_constant) .or. &
-        Uninitialized(nucleation%geometric_shape_factor) .or. &
-        Uninitialized(nucleation%heterogenous_correction_factor) .or. &
-        Uninitialized(nucleation%surface_tension)) then
-      option%io_buffer = 'Uninitialized values in nucleation reaction "' // &
-        trim(nucleation%name) // '".'
-      call PrintErrMsg(option)
-    endif
+    ! error checking
+    select case(nucleation%itype)
+      case(MINERAL_NUCLEATION_CLASSICAL)
+        if (len_trim(nucleation%name) == 0 .or. &
+            Uninitialized(nucleation%rate_constant) .or. &
+            Uninitialized(nucleation%geometric_shape_factor) .or. &
+            Uninitialized(nucleation%heterogenous_correction_factor) .or. &
+            Uninitialized(nucleation%surface_tension)) then
+          option%io_buffer = 'Uninitialized values in classical &
+            &nucleation reaction "' // trim(nucleation%name) // '".'
+          call PrintErrMsg(option)
+        endif
+      case(MINERAL_NUCLEATION_SIMPLIFIED)
+        if (len_trim(nucleation%name) == 0 .or. &
+            Uninitialized(nucleation%rate_constant) .or. &
+            Uninitialized(nucleation%gamma)) then
+          option%io_buffer = 'Uninitialized values in simplified &
+            &nucleation reaction "' // trim(nucleation%name) // '".'
+          call PrintErrMsg(option)
+        endif
+    end select
 
     if (associated(last_nucleation)) then
       last_nucleation%next => nucleation
@@ -1768,18 +1811,29 @@ subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
   type(option_type) :: option
 
   PetscReal, parameter :: Avogadros_number = 6.02d23
+  PetscReal :: T_K
   PetscReal :: exp_term, exp_term1, exp_term2
 
-  exp_term1 = -1.d0 * nucleation%geometric_shape_factor * &
-              Avogadros_number * &
-              nucleation%heterogenous_correction_factor * &
-              molar_volume**2 * &
-              nucleation%surface_tension**3 / &
-              ((IDEAL_GAS_CONSTANT * (temperature_C + T273K))**3)
-  exp_term2 = 1.d0/lnQK
-  exp_term = exp_term1 * exp_term2**2
-  rate = nucleation%rate_constant * exp(exp_term)
-  drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+  T_K = temperature_C + T273K
+  select case(nucleation%itype)
+    case(MINERAL_NUCLEATION_CLASSICAL)
+      exp_term1 = -1.d0 * nucleation%geometric_shape_factor * &
+                  Avogadros_number * &
+                  nucleation%heterogenous_correction_factor * &
+                  molar_volume**2 * &
+                  nucleation%surface_tension**3 / &
+                  ((IDEAL_GAS_CONSTANT * T_K)**3)
+      exp_term2 = 1.d0/lnQK
+      exp_term = exp_term1 * exp_term2**2
+      rate = nucleation%rate_constant * exp(exp_term)
+      drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+    case(MINERAL_NUCLEATION_SIMPLIFIED)
+      exp_term1 = -1.d0 * nucleation%gamma / (T_K**3)
+      exp_term2 = 1.d0/lnQK
+      exp_term = exp_term1 * exp_term2**2
+      rate = nucleation%rate_constant * exp(exp_term)
+      drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+  end select
 #if 0
   print *, rate, lnQK, exp_term
   print *, 'rate_constant: ', nucleation%rate_constant

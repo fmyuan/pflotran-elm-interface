@@ -25,6 +25,9 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_SURF_AREA_F_POR_VF_RATIO = 4
   PetscInt, parameter, public :: MINERAL_SURF_AREA_F_MNRL_MASS = 5
 
+  PetscInt, parameter, public :: MINERAL_NUCLEATION_CLASSICAL = 1
+  PetscInt, parameter, public :: MINERAL_NUCLEATION_SIMPLIFIED = 2
+
   type, public :: mineral_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -96,10 +99,12 @@ module Reaction_Mineral_Aux_module
 
   type, public :: nucleation_type
     character(len=MAXWORDLENGTH) :: name
+    PetscInt :: itype
     PetscReal :: rate_constant
     PetscReal :: geometric_shape_factor
     PetscReal :: heterogenous_correction_factor
     PetscReal :: surface_tension
+    PetscReal :: gamma
     type(nucleation_type), pointer :: next
   end type nucleation_type
 
@@ -448,10 +453,12 @@ function ReactionMnrlCreateNucleation()
 
   allocate(nucleation)
   nucleation%name = ''
+  nucleation%itype = UNINITIALIZED_INTEGER
   nucleation%rate_constant = UNINITIALIZED_DOUBLE
   nucleation%geometric_shape_factor = UNINITIALIZED_DOUBLE
   nucleation%heterogenous_correction_factor = UNINITIALIZED_DOUBLE
   nucleation%surface_tension = UNINITIALIZED_DOUBLE
+  nucleation%gamma = UNINITIALIZED_DOUBLE
   nullify(nucleation%next)
 
   ReactionMnrlCreateNucleation => nucleation
@@ -473,11 +480,13 @@ subroutine ReactionMnrlCopyNucleation(nucleation1,nucleation2)
   type(nucleation_type) :: nucleation2
 
   nucleation2%name = nucleation1%name
+  nucleation2%itype = nucleation1%itype
   nucleation2%rate_constant = nucleation1%rate_constant
   nucleation2%geometric_shape_factor = nucleation1%geometric_shape_factor
   nucleation2%heterogenous_correction_factor = &
     nucleation1%heterogenous_correction_factor
   nucleation2%surface_tension = nucleation1%surface_tension
+  nucleation2%gamma = nucleation1%gamma
   nucleation2%next => nucleation1%next
 
 end subroutine ReactionMnrlCopyNucleation
