@@ -1138,11 +1138,14 @@ subroutine PMERTSolve(this,time,ierr)
       ! it should qualify on only one proc
       val = -1.0
       vec_ptr(elec_id) = val
-      ! check for ghosted sink electrode and modify RHS
-      if (survey%ghost_electrode_exist) then
-        ! get the local id of the ghosted electrode
-        ghost_elec_id = survey%ipos_electrode(survey%ghost_electrode_id)
-        vec_ptr(ghost_elec_id) = -val
+    endif
+    ! check for ghosted sink electrode and modify RHS
+    if (survey%ghost_electrode_exist) then
+      ! get the local id of the ghosted electrode
+      ghost_elec_id = survey%ipos_electrode(survey%ghost_electrode_id)
+      if (ghost_elec_id > 0) then
+        val = 1.0
+        vec_ptr(ghost_elec_id) = val
       endif
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
