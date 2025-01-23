@@ -212,8 +212,6 @@ subroutine GeomechRegionRead(region,input,option)
   type(gm_region_type) :: region
   type(input_type), pointer :: input
 
-  PetscInt :: vertex_index
-
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = INPUT_ERROR_NONE
@@ -250,15 +248,8 @@ subroutine GeomechRegionRead(region,input,option)
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','GEOMECHANICS_REGION')
         call GeomechRegionReadFromFilename(region,option,region%filename)
-      case('VERTEX')
-        call InputReadInt(input,option,vertex_index)
-        call InputErrorMsg(input,option,'VERTEX','GEOMECHANICS_REGION')
-        region%num_verts = 1
-        allocate(region%vertex_ids(1))
-        region%vertex_ids(1:1) = vertex_index
       case('LIST')
-        option%io_buffer = 'GEOMECHANICS_REGION LIST currently not implemented'
-        call PrintErrMsg(option)
+        call GeomechRegionReadList(region,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword, &
                                       'GEOMECHANICS_REGION',option)
@@ -267,6 +258,70 @@ subroutine GeomechRegionRead(region,input,option)
   call InputPopBlock(input,option)
 
 end subroutine GeomechRegionRead
+
+
+! ************************************************************************** !
+
+subroutine GeomechRegionReadList(region, input, option)
+  !
+  ! Reads a list of regions from the input file
+  !
+  ! Author: Joe Eyles
+  ! Date: 23/01/25
+  !
+
+  use Input_Aux_module
+  use Option_module
+  use Utility_module
+
+  type(option_type) :: option
+  type(gm_region_type) :: region
+  type(input_type), pointer :: input
+
+
+  PetscInt, pointer :: vertex_ids(:)
+  PetscInt :: max_size
+  PetscInt :: count
+  PetscInt :: temp_int
+  PetscInt :: istart
+  PetscInt :: iend
+  PetscInt :: remainder
+  PetscErrorCode :: ierr
+
+  max_size = 1000
+
+  ! Read list of vertex ids
+  allocate(vertex_ids(max_size))
+  vertex_ids = 0
+  count = 0
+  do
+    call InputReadInt(input, option, temp_int)
+    if (InputError(input)) exit
+    count = count + 1
+    vertex_ids(count) = temp_int
+    if (count+1 > size(vertex_ids)) then ! resize temporary array
+      call ReallocateArray(vertex_ids, size(vertex_ids))
+    endif
+  enddo
+
+  ! Depending on processor rank, save only a portion of data
+  region%num_verts = count/option%comm%size
+    remainder = count - region%num_verts*option%comm%size
+  if (option%myrank < remainder) region%num_verts = region%num_verts + 1
+  istart = 0
+  iend   = 0
+  call MPI_Exscan(region%num_verts,istart,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                  MPI_SUM,option%mycomm,ierr);CHKERRQ(ierr)
+  call MPI_Scan(region%num_verts,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                option%mycomm,ierr);CHKERRQ(ierr)
+
+  ! Allocate memory and save the data
+  region%num_verts = iend - istart
+  allocate(region%vertex_ids(region%num_verts))
+  region%vertex_ids(1:region%num_verts) = vertex_ids(istart+1:iend)
+  deallocate(vertex_ids)
+
+end subroutine GeomechRegionReadList
 
 ! ************************************************************************** !
 
