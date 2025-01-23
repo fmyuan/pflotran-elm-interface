@@ -49,6 +49,9 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: iphase, icomp
   PetscReal :: porosity
   PetscReal :: volume_over_dt
+  PetscInt :: gid
+
+  gid = option%gas_phase
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
@@ -96,13 +99,15 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
                                       volume_over_dt
   endif
 
-  if (option%ntrandof > 0 .and. &
-      option%iflag == SCO2_UPDATE_FOR_FIXED_ACCUM) then
+  if (option%ntrandof > 0 .and. sco2_auxvar%sat(gid) > 0.d0 .and. &
+      option%iflag /= SCO2_UPDATE_FOR_FIXED_ACCUM) then
     select case(option%itranmode)
       case(RT_MODE)
         do icomp = 1, option%nflowspec - 1
+          if (.not. option%flow%update_transport_h2o_src .and. &
+            icomp == 1) cycle
           ! Water and CO2 source/sinks from reaction.
-          Res(icomp) = Res(icomp) - material_auxvar%volume * &
+          Res(icomp) = Res(icomp) + material_auxvar%volume * &
                       global_auxvar%reaction_rate(icomp) * 1.d-3 * &
                       fmw_comp(icomp)
         enddo

@@ -360,6 +360,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         end select
       case('GENERAL_FLUXES')
         sco2_stomp_fluxes = PETSC_FALSE
+      case('NO_H2O_SOURCE_UPDATE_FROM_TRANS')
+        option%flow%update_transport_h2o_src = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
     end select
@@ -1263,6 +1265,13 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                       Pc,rho_b,xsl,Pvb)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
+
+          ! Make sure gas pressure is greater than or equal to liquid pressure
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+              (X_p(liq_pressure_index) + dX_p(liq_pressure_index))) then
+            dX_p(gas_pressure_index) = (X_p(liq_pressure_index) + &
+              dX_p(liq_pressure_index)) - X_p(gas_pressure_index)
+          endif
 
           ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
           !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
