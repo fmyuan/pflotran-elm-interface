@@ -114,94 +114,93 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   call FactorySubsurfaceInitPostPetsc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-  if (option%geomech_on) then
-    !simulation%geomech_realization => GeomechRealizCreate(option)
-    simulation%geomech%realization => GeomechRealizCreate(option)
-    !geomech_realization => simulation%geomech_realization
-    geomech_realization => simulation%geomech%realization
-    subsurf_realization => simulation%realization
-    subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-    input => InputCreate(IN_UNIT,option%input_filename,option)
-    call GeomechicsInitReadRequiredCards(geomech_realization,input)
-    pmc_geomech => PMCGeomechanicsCreate()
-    pmc_geomech%name = 'PMCGeomech'
-    simulation%geomech%process_model_coupler => pmc_geomech
-    pmc_geomech%option => option
-    pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
-    pmc_geomech%pm_list => pm_geomech
-    pmc_geomech%pm_ptr%pm => pm_geomech
-    pmc_geomech%geomech_realization => simulation%geomech%realization
-    pmc_geomech%subsurf_realization => simulation%realization
-    pm_geomech%subsurf_realization => simulation%realization
+  subsurf_realization => simulation%realization
+  subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
+  pm_geomech%subsurf_realization => simulation%realization 
+ 
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  call GeomechicsInitReadRequiredCards(geomech_realization,input)
 
-    ! add time integrator
-    timestepper => TimestepperSteadyCreate()
-    pmc_geomech%timestepper => timestepper
+  pmc_geomech => PMCGeomechanicsCreate()
+  simulation%geomech%process_model_coupler => pmc_geomech
+  pmc_geomech%name = 'PMCGeomech'
+  pmc_geomech%option => option
+  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  pmc_geomech%pm_list => pm_geomech
+  pmc_geomech%pm_ptr%pm => pm_geomech
+  pmc_geomech%geomech_realization => geomech_realization
+  pmc_geomech%subsurf_realization => simulation%realization
 
-    ! add solver
-    call pm_geomech%InitializeSolver()
-    timestepper%solver => pm_geomech%solver
+  ! add time integrator
+  timestepper => TimestepperSteadyCreate()
+  pmc_geomech%timestepper => timestepper
 
-    ! set up logging stage
-    string = trim(pmc_geomech%name) // 'Geomechanics'
-    call LoggingCreateStage(string,pmc_geomech%stage)
+  ! add solver
+  call pm_geomech%InitializeSolver()
+  timestepper%solver => pm_geomech%solver
 
-    string = 'GEOMECHANICS'
-    call InputFindStringInFile(input,option,string)
-    call InputFindStringErrorMsg(input,option,string)
-    geomech_realization%output_option => &
-      OutputOptionDuplicate(simulation%output_option)
-    nullify(geomech_realization%output_option%output_snap_variable_list)
-    nullify(geomech_realization%output_option%output_obs_variable_list)
-    geomech_realization%output_option%output_snap_variable_list => &
-      OutputVariableListCreate()
-    geomech_realization%output_option%output_obs_variable_list => &
-      OutputVariableListCreate()
-    call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
-    pm_geomech%output_option => geomech_realization%output_option
+  ! set up logging stage
+  string = trim(pmc_geomech%name) // 'Geomechanics'
+  call LoggingCreateStage(string,pmc_geomech%stage)
 
-    ! Hijack subsurface waypoint to geomechanics waypoint
-    ! Subsurface controls the output now
-    ! Always have snapshot on at t=0
-    pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+  string = 'GEOMECHANICS'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  geomech_realization%output_option => &
+    OutputOptionDuplicate(simulation%output_option)
+  nullify(geomech_realization%output_option%output_snap_variable_list)
+  nullify(geomech_realization%output_option%output_obs_variable_list)
+  geomech_realization%output_option%output_snap_variable_list => &
+    OutputVariableListCreate()
+  geomech_realization%output_option%output_obs_variable_list => &
+    OutputVariableListCreate()
+  call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
+  pm_geomech%output_option => geomech_realization%output_option
 
-    ! link geomech and flow timestepper waypoints to geomech way point list
-    if (associated(simulation%geomech%process_model_coupler)) then
-      call simulation%geomech%process_model_coupler% &
+  ! Hijack subsurface waypoint to geomechanics waypoint
+  ! Subsurface controls the output now
+  ! Always have snapshot on at t=0
+  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+
+  ! link geomech and flow timestepper waypoints to geomech way point list
+  if (associated(simulation%geomech%process_model_coupler)) then
+    call simulation%geomech%process_model_coupler% &
+           SetWaypointPtr(pmc_geomech%waypoint_list)
+    if (associated(simulation%flow_process_model_coupler)) then
+      call simulation%flow_process_model_coupler% &
              SetWaypointPtr(pmc_geomech%waypoint_list)
-      if (associated(simulation%flow_process_model_coupler)) then
-        call simulation%flow_process_model_coupler% &
-               SetWaypointPtr(pmc_geomech%waypoint_list)
-      endif
     endif
-
-    ! print the waypoints when debug flag is on
-    if (geomech_realization%geomech_debug%print_waypoints) then
-      call WaypointListPrint(pmc_geomech%waypoint_list,option, &
-                             geomech_realization%output_option)
-    endif
-
-    ! initialize geomech realization
-    call GeomechInitSetupRealization(simulation)
-
-    call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
-    call pm_geomech%Setup()
-
-    call pmc_geomech%SetupSolvers()
-
-    ! Here I first calculate the linear part of the jacobian and store it
-    ! since the jacobian is always linear with geomech (even when coupled with
-    ! flow since we are performing sequential coupling). Although
-    ! SNESSetJacobian is called, nothing is done there and PETSc just
-    ! re-uses the linear Jacobian at all iterations and times
-    call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-                      PETSC_FALSE,ierr);CHKERRQ(ierr)
-    call GeomechForceJacobianLinearPart(timestepper%solver%M, &
-                                        geomech_realization)
-    call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-                      PETSC_TRUE,ierr);CHKERRQ(ierr)
-    nullify(simulation%process_model_coupler_list)
   endif
+
+  ! print the waypoints when debug flag is on
+  if (geomech_realization%geomech_debug%print_waypoints) then
+    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+                           geomech_realization%output_option)
+  endif
+
+  ! initialize geomech realization
+  call GeomechInitSetupRealization(simulation)
+
+  call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
+  call pm_geomech%Setup()
+
+  call pmc_geomech%SetupSolvers()
+
+  ! Here I first calculate the linear part of the jacobian and store it
+  ! since the jacobian is always linear with geomech (even when coupled with
+  ! flow since we are performing sequential coupling). Although
+  ! SNESSetJacobian is called, nothing is done there and PETSc just
+  ! re-uses the linear Jacobian at all iterations and times
+  call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+                    PETSC_FALSE,ierr);CHKERRQ(ierr)
+  call GeomechForceJacobianLinearPart(timestepper%solver%M, &
+                                      geomech_realization)
+  call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+                    PETSC_TRUE,ierr);CHKERRQ(ierr)
+  nullify(simulation%process_model_coupler_list)
+
   ! sim_aux: Create PETSc Vectors and VectorScatters
   if (option%ngeomechdof > 0) then
 
@@ -307,6 +306,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   call GeomechanicsJumpStart(simulation)
   call InputDestroy(input)
+  nullify(geomech_realization)
 
 end subroutine GeomechanicsInitializePostPETSc
 
@@ -624,7 +624,6 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   word = ''
 
   waypoint_list => simulation%waypoint_list_geomechanics
-  !geomech_realization => simulation%geomech_realization
   geomech_realization => simulation%geomech%realization
   option => simulation%option
   geomech_discretization => geomech_realization%geomech_discretization
@@ -1022,7 +1021,6 @@ subroutine GeomechInitSetupRealization(simulation)
   type(option_type), pointer :: option
 
   subsurf_realization => simulation%realization
-  !geomech_realization => simulation%geomech_realization
   geomech_realization => simulation%geomech%realization
   option => subsurf_realization%option
 

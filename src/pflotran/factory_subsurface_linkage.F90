@@ -1202,7 +1202,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   use Output_Aux_module
   use Factory_Subsurface_Geomechanics_module
   use Waypoint_module
-  use Geomechanics_linkage_module
+  use Geomechanics_Attr_module
 
   implicit none
 
@@ -1221,7 +1221,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   class(timestepper_steady_type), pointer :: timestepper
 
   nullify(pmc_dummy)
-  simulation%geomech => GeomechLinkageCreate()
+  simulation%geomech => GeomechAttrCreate()
   !nullify(simulation%geomech%realization)
 
   string = 'GEOMECHANICS_MODEL'

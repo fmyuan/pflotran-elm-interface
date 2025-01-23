@@ -81,7 +81,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   use Waypoint_module
   use Driver_class
   use Option_module
-  use Geomechanics_linkage_module
+  use Geomechanics_Attr_module
 
 
   implicit none
@@ -91,7 +91,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   type(option_type), pointer :: option
 
   call SimSubsurfInit(this,driver,option)
-  this%geomech => GeomechLinkageCreate()
+  this%geomech => GeomechAttrCreate()
   !nullify(this%geomech_realization)
   !nullify(this%geomech_regression)
   this%waypoint_list_geomechanics => WaypointListCreate()
@@ -278,7 +278,7 @@ subroutine GeomechanicsSimulationStrip(this)
 #endif
 
   call SimSubsurfStrip(this)
-  call GeomechanicsRegressionDestroy(this%geomech%regression)
+  !call GeomechanicsRegressionDestroy(this%geomech%regression) ! jaa destroyed somewhere else
   call WaypointListDestroy(this%waypoint_list_subsurface)
   call WaypointListDestroy(this%waypoint_list_geomechanics)
 

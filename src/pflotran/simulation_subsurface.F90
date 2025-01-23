@@ -18,7 +18,7 @@ module Simulation_Subsurface_class
   use Regression_module
   use Geomechanics_Realization_class
   use Geomechanics_Regression_module
-  use Geomechanics_linkage_module
+  use Geomechanics_Attr_module
 
   implicit none
 
@@ -44,7 +44,7 @@ module Simulation_Subsurface_class
     ! regression object
     type(regression_type), pointer :: regression
     ! jaa test new geomech pmc
-    type(geomechanics_linkage_type), pointer :: geomech
+    type(geomechanics_attr_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
     PetscBool :: new_geomech_pmc
@@ -136,7 +136,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
   !nullify(this%geomech_process_model_coupler_new)
-  !nullify(this%geomech)
+  nullify(this%geomech)
   nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
@@ -977,7 +977,7 @@ subroutine SimSubsurfStrip(this)
 
   ! jaa testing.. once geomech is generalized, remove this if statement
   !if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) &
-  !  call GeomechDestroy(this%geomech) ! jaa testing
+  call GeomechAttrDestroy(this%geomech) ! jaa testing
 
   call SimulationBaseStrip(this)
   call SimAuxDestroy(this%sim_aux)

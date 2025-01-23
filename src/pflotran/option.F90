@@ -278,6 +278,7 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  ! jaa: add geomech here
   option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
