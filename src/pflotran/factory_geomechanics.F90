@@ -116,8 +116,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   subsurf_realization => simulation%realization
   subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-  pm_geomech%subsurf_realization => simulation%realization 
- 
+  pm_geomech%subsurf_realization => simulation%realization
+
   geomech_realization => GeomechRealizCreate(option)
   simulation%geomech%realization => geomech_realization
   input => InputCreate(IN_UNIT,option%input_filename,option)
