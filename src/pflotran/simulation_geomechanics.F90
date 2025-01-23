@@ -25,7 +25,7 @@ module Simulation_Geomechanics_class
     ! pointer to geomechanics coupler
     !class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler
     !class(realization_geomech_type), pointer :: geomech_realization
-    type(waypoint_list_type), pointer :: waypoint_list_geomechanics
+    !type(waypoint_list_type), pointer :: waypoint_list_geomechanics
     !type(geomechanics_regression_type), pointer :: geomech_regression
   contains
     procedure, public :: InitializeRun => GeomechanicsSimulationInitializeRun
@@ -92,9 +92,10 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
 
   call SimSubsurfInit(this,driver,option)
   this%geomech => GeomechAttrCreate()
+  this%geomech%waypoint_list => WaypointListCreate()
   !nullify(this%geomech_realization)
   !nullify(this%geomech_regression)
-  this%waypoint_list_geomechanics => WaypointListCreate()
+  !this%waypoint_list_geomechanics => WaypointListCreate()
 
 end subroutine GeomechanicsSimulationInit
 
@@ -148,7 +149,7 @@ subroutine GeomechanicsSimInputRecord(this)
   write(id,'(a)') 'geomechanics'
 
   ! print output file information
-  call OutputInputRecord(this%output_option,this%waypoint_list_geomechanics)
+  call OutputInputRecord(this%output_option,this%geomech%waypoint_list)
 
 end subroutine GeomechanicsSimInputRecord
 
@@ -277,10 +278,12 @@ subroutine GeomechanicsSimulationStrip(this)
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
 #endif
 
+  call GeomechanicsRegressionDestroy(this%geomech%regression)
+  call WaypointListDestroy(this%geomech%waypoint_list)
   call SimSubsurfStrip(this)
   !call GeomechanicsRegressionDestroy(this%geomech%regression) ! jaa destroyed somewhere else
   call WaypointListDestroy(this%waypoint_list_subsurface)
-  call WaypointListDestroy(this%waypoint_list_geomechanics)
+  !call WaypointListDestroy(this%geomech%waypoint_list)
 
 end subroutine GeomechanicsSimulationStrip
 

@@ -471,6 +471,7 @@ factory_geomechanics.o : \
   factory_subsurface.o \
   geomech_grid.o \
   geomech_grid_aux.o \
+  geomechanics_attribute.o \
   geomechanics_condition.o \
   geomechanics_coupler.o \
   geomechanics_debug.o \
@@ -605,9 +606,6 @@ factory_subsurface_geomechanics.o : \
   condition_control.o \
   geomech_grid.o \
   geomech_grid_aux.o \
-  geomechanics_condition.o \
-  geomechanics_coupler.o \
-  geomechanics_debug.o \
   geomechanics_discretization.o \
   geomechanics_field.o \
   geomechanics_force.o \
@@ -627,7 +625,6 @@ factory_subsurface_geomechanics.o : \
   output.o \
   output_aux.o \
   output_geomechanics.o \
-  output_tecplot.o \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
@@ -641,14 +638,10 @@ factory_subsurface_geomechanics.o : \
   simulation_aux.o \
   simulation_geomechanics.o \
   simulation_subsurface.o \
-  solver.o \
   string.o \
   timestepper_steady.o \
-  units.o \
-  utility.o \
   waypoint.o
 factory_subsurface_linkage.o : \
-  factory_subsurface_geomechanics.o \
   factory_subsurface_read.o \
   geomechanics_attribute.o \
   geomechanics_realization.o \
@@ -900,7 +893,8 @@ geomech_grid_aux.o : \
 geomechanics_attribute.o : \
   geomechanics_realization.o \
   geomechanics_regression.o \
-  pmc_geomechanics.o
+  pmc_geomechanics.o \
+  waypoint.o
 geomechanics_auxiliary.o : \
   geomechanics_global_aux.o \
   pflotran_constants.o

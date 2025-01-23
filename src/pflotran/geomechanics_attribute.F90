@@ -4,6 +4,7 @@ module Geomechanics_Attr_module
   use Geomechanics_Regression_module
   use PMC_Geomechanics_class
   use Geomechanics_Realization_class
+  use Waypoint_module
 
   implicit none
 
@@ -13,6 +14,7 @@ module Geomechanics_Attr_module
     class(pmc_geomechanics_type), pointer :: process_model_coupler
     class(realization_geomech_type), pointer :: realization
     type(geomechanics_regression_type), pointer :: regression
+    type(waypoint_list_type), pointer :: waypoint_list
   end type geomechanics_attr_type
 
   public :: GeomechAttrCreate, &
@@ -36,6 +38,7 @@ function GeomechAttrCreate()
   nullify(geomech%process_model_coupler)
   nullify(geomech%realization)
   nullify(geomech%regression)
+  nullify(geomech%waypoint_list)
 
   GeomechAttrCreate => geomech
 

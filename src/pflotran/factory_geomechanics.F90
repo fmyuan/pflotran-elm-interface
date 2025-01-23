@@ -4,7 +4,7 @@ module Factory_Geomechanics_module
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
 
-  use Simulation_Geomechanics_class
+!  use Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -12,7 +12,9 @@ module Factory_Geomechanics_module
   private
 
   public :: FactoryGeomechanicsInitialize, &
-            FactoryGeomechReadSimBlock
+            FactoryGeomechReadSimBlock, &
+            GeomechanicsInitReadRequiredCards, &
+            GeomechanicsInitReadInput
 
 contains
 
@@ -25,6 +27,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
+  use Simulation_Geomechanics_class
 
   implicit none
 
@@ -121,7 +124,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   geomech_realization => GeomechRealizCreate(option)
   simulation%geomech%realization => geomech_realization
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call GeomechicsInitReadRequiredCards(geomech_realization,input)
+  call GeomechanicsInitReadRequiredCards(geomech_realization,input)
 
   pmc_geomech => PMCGeomechanicsCreate()
   simulation%geomech%process_model_coupler => pmc_geomech
@@ -156,7 +159,11 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
-  call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
+!  call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
+  call GeomechanicsInitReadInput(simulation%geomech, &
+                                 timestepper%solver, &
+                                 input,option, &
+                                 geomech_realization%output_option)
   pm_geomech%output_option => geomech_realization%output_option
 
   ! Hijack subsurface waypoint to geomechanics waypoint
@@ -328,6 +335,7 @@ subroutine GeomechanicsJumpStart(simulation)
   use Output_Geomechanics_module
   use Logging_module
   use Condition_Control_module
+  use Simulation_Geomechanics_class
 
   implicit none
 
@@ -422,7 +430,7 @@ end subroutine FactoryGeomechReadSimBlock
 
 ! ************************************************************************** !
 
-subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
+subroutine GeomechanicsInitReadRequiredCards(geomech_realization,input)
   !
   ! Reads the required input file cards
   ! related to geomechanics
@@ -448,7 +456,7 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
 
-  option         => geomech_realization%option
+  option => geomech_realization%option
 
 ! Read in select required cards
 !.........................................................................
@@ -465,7 +473,7 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   call GeomechanicsInit(geomech_realization,input,option)
 
 
-end subroutine GeomechicsInitReadRequiredCards
+end subroutine GeomechanicsInitReadRequiredCards
 
 ! ************************************************************************** !
 
@@ -561,15 +569,17 @@ end subroutine GeomechanicsInit
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
-                                     input)
+!subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
+!                                     input)
+subroutine GeomechanicsInitReadInput(geomech,geomech_solver, &
+                                     input,option,output_option)
   !
   ! Reads the geomechanics input data
   !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  use Simulation_Geomechanics_class
+  !use Simulation_Geomechanics_class
   use Option_module
   use Input_Aux_module
   use String_module
@@ -592,17 +602,20 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   use Units_module
   use Waypoint_module
   use Utility_module, only : DeallocateArray, UtilityReadArray
+  use Geomechanics_Attr_module
 
   ! Still need to add other geomech modules for output, etc once created
 
   implicit none
 
-  class(simulation_geomechanics_type) :: simulation
-  type(solver_type) :: geomech_solver
+  !class(simulation_geomechanics_type) :: simulation
+  type(solver_type), pointer :: geomech_solver
   type(input_type), pointer :: input
+  type(geomechanics_attr_type), pointer:: geomech
+  type(option_type), pointer :: option
+  type(output_option_type), pointer :: output_option
 
   class(realization_geomech_type), pointer :: geomech_realization
-  type(option_type), pointer :: option
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_material_property_type),pointer :: geomech_material_property
   type(geomech_grid_type), pointer :: grid
@@ -610,7 +623,6 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   type(geomech_strata_type), pointer :: strata
   type(geomech_condition_type), pointer :: condition
   type(geomech_coupler_type), pointer :: coupler
-  type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
 
   character(len=MAXWORDLENGTH) :: word, internal_units
@@ -623,11 +635,9 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
-  waypoint_list => simulation%waypoint_list_geomechanics
-  geomech_realization => simulation%geomech%realization
-  option => simulation%option
+  waypoint_list => geomech%waypoint_list
+  geomech_realization => geomech%realization
   geomech_discretization => geomech_realization%geomech_discretization
-  output_option => simulation%output_option
 
   if (associated(geomech_realization%geomech_patch)) grid => &
     geomech_realization%geomech_patch%geomech_grid
@@ -725,7 +735,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
       !.....................
       case ('GEOMECHANICS_REGRESSION')
-        call GeomechanicsRegressionRead(simulation%geomech%regression,input,option)
+        call GeomechanicsRegressionRead(geomech%regression,input,option)
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')

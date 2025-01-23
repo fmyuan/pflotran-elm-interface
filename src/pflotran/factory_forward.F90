@@ -324,7 +324,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
         option%geomech_sequential = GEOMECH_FIXED_STRAIN_SPLIT
-        call FactorySubsurfGeomechReadSimBlock(input,new_pm)
+        call FactoryGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOPHYSICS')
         call FactorySubsurfReadGeophysicsPM(input,option,new_pm)
       case('AUXILIARY')

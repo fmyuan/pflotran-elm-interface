@@ -1,6 +1,8 @@
+
 module Factory_Subsurface_Linkage_module
 
 #include "petsc/finclude/petscsys.h"
+
   use petscsys
   use Simulation_Subsurface_class
   use PFLOTRAN_Constants_module
@@ -1200,7 +1202,8 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   use Timestepper_Steady_class
   use PMC_Geomechanics_class
   use Output_Aux_module
-  use Factory_Subsurface_Geomechanics_module
+  !use Factory_Subsurface_Geomechanics_module
+  use Factory_Geomechanics_module
   use Waypoint_module
   use Geomechanics_Attr_module
 
@@ -1219,37 +1222,33 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(realization_geomech_type), pointer :: geomech_realization
   class(timestepper_steady_type), pointer :: timestepper
+  type(geomechanics_attr_type), pointer :: geomech
 
   nullify(pmc_dummy)
   simulation%geomech => GeomechAttrCreate()
-  !nullify(simulation%geomech%realization)
+  geomech => simulation%geomech
 
   string = 'GEOMECHANICS_MODEL'
 
   subsurf_realization => simulation%realization
   option => subsurf_realization%option
-  !simulation%geomech_realization_new => GeomechRealizCreate(option)
-  !geomech_realization => simulation%geomech%realization
-  geomech_realization => GeomechRealizCreate(option)
-  simulation%geomech%realization => geomech_realization
-  !geomech_realization => simulation%geomech_realization_new
-  !geomech_realization => simulation%geomech%realization
-  subsurf_realization => simulation%realization
   subsurf_realization%output_option => OutputOptionDuplicate( &
                               simulation%output_option)
+
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call SubsurfGeomechicsInitReadRequiredCards(geomech_realization,input)
+  !print *, 'EXIT!'; stop
+  call GeomechanicsInitReadRequiredCards(geomech_realization,input)
   pmc_geomech => PMCGeomechanicsCreate()
 
   call pmc_geomech%SetName(pmc_name)
   call pmc_geomech%SetOption(option)
-  !simulation%geomech_process_model_coupler_new => pmc_geomech
   simulation%geomech%process_model_coupler => pmc_geomech
   pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
   pmc_geomech%pm_list => pm_geomech
   pmc_geomech%pm_ptr%pm => pm_geomech
-  !pmc_geomech%geomech_realization => simulation%geomech_realization_new
-  !pm_geomech%geomech_realization => simulation%geomech_realization_new
   pmc_geomech%geomech_realization => geomech_realization
   pm_geomech%geomech_realization => geomech_realization
   pmc_geomech%subsurf_realization => simulation%realization
@@ -1278,7 +1277,11 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
-  call SubsurfGeomechanicsInitReadInput(simulation,timestepper%solver,input)
+  !print *, 'EXIT!'; stop
+  call GeomechanicsInitReadInput(geomech, &
+                               timestepper%solver, &
+                               input,option, &
+                               geomech_realization%output_option)
   pm_geomech%output_option => geomech_realization%output_option
 
   ! Hijack subsurface waypoint to geomechanics waypoint
