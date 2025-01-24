@@ -22,7 +22,7 @@ module Reaction_Mineral_module
             ReactionMnrlReadMassActOverride, &
             ReactionMnrlProcessConstraint, &
             ReactionMnrlSetup, &
-            ReactionMnrlKineticRate, &
+            ReactionMnrlKinetics, &
             ReactionMnrlSaturationIndex, &
             ReactionMnrlUpdateTempDepCoefs, &
             ReactionMnrlUpdateSpecSurfArea, &
@@ -1105,11 +1105,54 @@ subroutine ReactionMnrlSetup(reaction,option)
 
 end subroutine ReactionMnrlSetup
 
+
 ! ************************************************************************** !
 
-subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
-                                   global_auxvar,material_auxvar,reaction, &
-                                   option)
+subroutine ReactionMnrlKinetics(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  !
+  ! Wrapper routine for mineral kinetic reactions
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/24/25
+
+  use Option_module
+  use Material_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(reaction_rt_type) :: reaction
+  PetscBool :: compute_analytical_derivative
+  PetscBool :: store_rate
+  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+
+  rt_auxvar%mnrl_rate(:) = 0.d0
+  call ReactionMnrlKineticRateTST(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  if (associated(reaction%mineral%nucleation_array)) then
+    call ReactionMnrlNucleationKinetics(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  endif
+
+end subroutine ReactionMnrlKinetics
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlKineticRateTST(Res,Jac, &
+                                      compute_derivative,store_rate, &
+                                      rt_auxvar,global_auxvar, &
+                                      material_auxvar,reaction,option)
   !
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -1130,6 +1173,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
+  PetscBool :: store_rate
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -1147,7 +1191,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: ln_sec(reaction%neqcplx)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: ln_sec_act(reaction%neqcplx)
-  PetscReal :: QK, lnQK, lnQK2, dQK_dmj, dlnQK_dQK
+  PetscReal :: QK, lnQK, lnQK2, dQK_dmj
   PetscReal :: den
   PetscReal :: ln_spec_act, spec_act_coef
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
@@ -1163,7 +1207,6 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: TREF = 25.d0
   PetscBool :: precipitation
   PetscReal :: rate_constant
-  PetscReal :: nucleation_rate, dnucleation_rate_dlnQK
 
 #ifdef SOLID_SOLUTION
   PetscBool :: cycle_
@@ -1217,9 +1260,6 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     enddo
   endif
 #endif
-
-  ! Zero all rates as default
-  rt_auxvar%mnrl_rate(:) = 0.d0
 
   do imnrl = 1, mineral%nkinmnrl ! for each mineral
 
@@ -1366,8 +1406,10 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       endif
       ! store volumetric rate to be used in updating mineral volume fractions
       ! at end of time step
-      rt_auxvar%mnrl_rate(imnrl) = Im ! mol/sec/m^3 bulk
-
+      if (store_rate) then
+        ! mol/sec/m^3 bulk
+        rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + Im
+      endif
     else ! rate is already zero by default; move on to next mineral
       cycle
     endif
@@ -1386,6 +1428,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
     enddo
 
+#if 0
     ! nucleation
     if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
       i = mineral%kinmnrl_nucleation_id(imnrl)
@@ -1394,6 +1437,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
                                   global_auxvar%temp,lnQK, &
                                   nucleation_rate,dnucleation_rate_dlnQK, &
                                   option)
+      print *, 'nucleation rate: ', nucleation_rate
 #if 0
 print *, 'analytical derivative: ', dnucleation_rate_dlnQK
       Im_const = lnQK+1.d-6*lnQK
@@ -1412,6 +1456,7 @@ stop
                      nucleation_rate
       enddo
     endif
+#endif
 
     if (.not. compute_derivative) cycle
 
@@ -1588,6 +1633,7 @@ stop
 #endif
     endif
 
+#if 0
     ! nucleation
     if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
       dlnQK_dQK = 1.d0/QK
@@ -1604,10 +1650,11 @@ stop
         enddo
       enddo
     endif
+#endif
 
   enddo  ! loop over minerals
 
-end subroutine ReactionMnrlKineticRate
+end subroutine ReactionMnrlKineticRateTST
 
 ! ************************************************************************** !
 
@@ -1787,16 +1834,127 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
 
 end subroutine ReactionMnrlKineticRateSingle
 
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlNucleationKinetics(Res,Jac, &
+                                          compute_derivative,store_rate, &
+                                          rt_auxvar,global_auxvar, &
+                                          material_auxvar,reaction,option)
+  !
+  ! Calculates mineral precipitation nucleation rates.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/23/25
+  !
+  use Option_module
+  use Material_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(reaction_rt_type) :: reaction
+  PetscBool :: compute_derivative
+  PetscBool :: store_rate
+  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+
+  type(mineral_type), pointer :: mineral
+  PetscInt :: nid
+  PetscInt :: i, j, imnrl, icomp, jcomp
+  PetscReal :: ln_conc(reaction%naqcomp)
+  PetscReal :: ln_act(reaction%naqcomp)
+  PetscReal :: QK, lnQK
+  PetscReal :: dQK_dmj, dlnQK_dQK
+  PetscReal :: nucleation_rate, dnucleation_rate_dlnQK
+
+  mineral => reaction%mineral
+
+  ln_conc = log(rt_auxvar%pri_molal)
+  ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
+
+  do imnrl = 1, mineral%nkinmnrl ! for each mineral
+
+    nid = mineral%kinmnrl_nucleation_id(imnrl)
+    if (nid == 0) cycle
+
+    ! compute ion activity product
+    lnQK = -mineral%kinmnrl_logK(imnrl)*LOG_TO_LN
+
+    ! activity of water
+    if (mineral%kinmnrlh2oid(imnrl) > 0) then
+      lnQK = lnQK + mineral%kinmnrlh2ostoich(imnrl)* &
+                    rt_auxvar%ln_act_h2o
+    endif
+
+    do i = 1, mineral%kinmnrlspecid(0,imnrl)
+      icomp = mineral%kinmnrlspecid(i,imnrl)
+      lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
+    enddo
+
+    QK = exp(lnQK)
+
+    call ReactionMnrlNucleation(mineral%nucleation_array(nid), &
+                                mineral%kinmnrl_molar_vol(imnrl), &
+                                global_auxvar%temp,lnQK, &
+                                nucleation_rate,dnucleation_rate_dlnQK, &
+                                option)
+!    print *, 'nucleation rate: ', nucleation_rate
+#if 0
+print *, 'analytical derivative: ', dnucleation_rate_dlnQK
+    Im_const = lnQK+1.d-6*lnQK
+    call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+                                mineral%kinmnrl_molar_vol(imnrl), &
+                                global_auxvar%temp,Im_const, &
+                                Im,dnucleation_rate_dlnQK, &
+                                option)
+print *, 'numerical derivative: ',  (Im-nucleation_rate)/(Im_const-lnQK)
+stop
+#endif
+    if (store_rate) then
+      rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + &
+                                   nucleation_rate
+    endif
+    do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+      icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+      Res(icomp) = Res(icomp) + &
+                   mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+                   nucleation_rate
+    enddo
+
+    if (.not. compute_derivative) cycle
+
+    dlnQK_dQK = 1.d0/QK
+    do j = 1, mineral%kinmnrlspecid(0,imnrl)
+      jcomp = mineral%kinmnrlspecid(j,imnrl)
+      ! unit = kg water/mol
+      dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
+      do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+        icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
+          mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+          dnucleation_rate_dlnQK * dlnQK_dQK * dQK_dmj
+      enddo
+    enddo
+
+  enddo
+
+end subroutine ReactionMnrlNucleationKinetics
+
 ! ************************************************************************** !
 
 subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
                                   temperature_C,lnQK, &
                                   rate,drate_dlnQK,option)
   !
-  ! Calculates the mineral saturation index
+  ! Calculates individual mineral nucleation rates
   !
   ! Author: Glenn Hammond
-  ! Date: 08/29/11
+  ! Date: Date: 01/23/25
   !
   use Option_module
 
@@ -2103,14 +2261,18 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
   PetscReal :: delta_volfrac
   PetscReal :: res(reaction%ncomp) ! has to be sized accurately
   PetscReal :: jac(1,1) ! strictly a dummy array
+  PetscBool, parameter :: store_rate = PETSC_TRUE
+  PetscBool, parameter :: compute_analytical_derivative = PETSC_FALSE
 
   if (reaction%mineral%nkinmnrl == 0) return
 
   kinetic_state_updated = PETSC_TRUE
 
   ! Updates the mineral rates, res is not needed
-  call ReactionMnrlKineticRate(res,jac,PETSC_FALSE,rt_auxvar,global_auxvar, &
-                               material_auxvar,reaction,option)
+  call ReactionMnrlKinetics(res,jac, &
+                            compute_analytical_derivative,store_rate, &
+                            rt_auxvar,global_auxvar, &
+                            material_auxvar,reaction,option)
 
   do imnrl = 1, reaction%mineral%nkinmnrl
     ! rate = mol/m^3/sec

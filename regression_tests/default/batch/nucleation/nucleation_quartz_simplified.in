@@ -1,0 +1,33 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+  EXTERNAL_FILE nucleation_quartz.txt
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  EXTERNAL_FILE nucleation_quartz_chem.txt
+  MINERAL_KINETICS
+    Quartz
+      RATE_CONSTANT 0. mol/m^2-sec
+      NUCLEATION_KINETICS simplified
+    /
+  /
+  NUCLEATION_KINETICS
+    SIMPLIFIED simplified
+      RATE_CONSTANT 1.d-5
+      GAMMA 1.d10
+    /
+  /
+END
+
+END_SUBSURFACE

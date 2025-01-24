@@ -4057,9 +4057,9 @@ subroutine RReaction(Res,Jac,compute_analytical_derivative, &
   if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
 
   if (reaction%mineral%nkinmnrl > 0) then
-    call ReactionMnrlKineticRate(Res,Jac,compute_analytical_derivative, &
-                                 rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,option)
+    call ReactionMnrlKinetics(Res,Jac,compute_analytical_derivative, &
+                              PETSC_FALSE,rt_auxvar,global_auxvar, &
+                              material_auxvar,reaction,option)
   endif
 
   if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0) then
