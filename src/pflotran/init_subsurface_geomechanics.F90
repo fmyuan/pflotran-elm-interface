@@ -9,7 +9,7 @@ module Init_Subsurface_Geomech_module
   private
 
   public :: InitSubsurfGeomechReadRequiredCards, &
-            InitSubsurfGeomechReadInput 
+            InitSubsurfGeomechReadInput
 
 contains
 
