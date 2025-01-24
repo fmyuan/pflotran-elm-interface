@@ -335,6 +335,7 @@ geomech_obj = \
 	${common_src}geomechanics_regression.o \
 	${common_src}geomechanics_strata.o \
 	${common_src}geomechanics_subsurface_properties.o \
+        ${common_src}init_subsurface_geomechanics.o\
 	${common_src}output_geomechanics.o \
 	${common_src}pm_geomechanics_force.o \
 	${common_src}pmc_geomechanics.o \

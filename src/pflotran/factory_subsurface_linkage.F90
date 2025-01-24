@@ -1202,10 +1202,9 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   use Timestepper_Steady_class
   use PMC_Geomechanics_class
   use Output_Aux_module
-  !use Factory_Subsurface_Geomechanics_module
-  use Factory_Geomechanics_module
   use Waypoint_module
   use Geomechanics_Attr_module
+  use Init_Subsurface_Geomech_module
 
   implicit none
 
@@ -1240,7 +1239,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
 
   input => InputCreate(IN_UNIT,option%input_filename,option)
   !print *, 'EXIT!'; stop
-  call GeomechanicsInitReadRequiredCards(geomech_realization,input)
+  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   pmc_geomech => PMCGeomechanicsCreate()
 
   call pmc_geomech%SetName(pmc_name)
@@ -1278,7 +1277,7 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
   !print *, 'EXIT!'; stop
-  call GeomechanicsInitReadInput(geomech, &
+  call InitSubsurfGeomechReadInput(geomech, &
                                timestepper%solver, &
                                input,option, &
                                geomech_realization%output_option)
