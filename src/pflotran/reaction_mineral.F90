@@ -469,6 +469,12 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
           endif
           cur_prefactor => cur_prefactor%next
         enddo
+        if (.not.associated(tstrxn%prefactor) .and. &
+            Uninitialized(tstrxn%precipitation_rate_constant)) then
+          option%io_buffer = 'A rate constant must be defined for kinetic &
+            &mineral "' // trim(cur_mineral%name) // '".'
+          call PrintErrMsg(option)
+        endif
         ! add tst rxn
         if (.not.associated(cur_mineral%tstrxn)) then
           cur_mineral%tstrxn => tstrxn
@@ -927,6 +933,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   PetscReal :: molar_volume
   PetscReal :: molar_weight
   PetscReal :: specific_surface_area
+  PetscReal :: constraint_surface_area
 
   if (.not.associated(constraint)) return
 
@@ -1003,6 +1010,8 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       call PrintErrMsg(option)
     endif
     ! convert to m^2/m^3 (mnrl or bulk) or m^2/kg mnrl
+    !   tempreal is solely a conversion factor at this point
+    !   DO NOT scale the constraint surface area
     tempreal = UnitsConvertToInternal(units,internal_units, &
                          trim(constraint%names(imnrl))// &
                          ',specific surface area', &
@@ -1012,12 +1021,18 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       ! m^2 mnrl/kg mnrl -> m^2 mnrl/m^3 mnrl
       ! if a different specific surface area is specified in constraint, scale
       ! to be wrt the specific surface are specified under mineral kinetics
-      if (Initialized(specific_surface_area) .and. &
-          .not.Equal(specific_surface_area,tempreal)) then
-        option%io_buffer = 'Use of differing specific surface areas &
-          &(mineral kinetics vs. constraint) is currently not supported.'
-        call PrintErrMsg(option)
-        tempreal = tempreal / specific_surface_area
+      if (Initialized(specific_surface_area)) then
+        ! solely use in scaling below
+        constraint_surface_area = tempreal * constraint%constraint_area(imnrl)
+        if (.not.Equal(specific_surface_area,constraint_surface_area)) then
+          option%io_buffer = 'Use of differing specific surface areas &
+            &(mineral kinetics vs. constraint) is currently not &
+            &supported: ' // StringWrite(specific_surface_area) // ' vs ' // &
+            &StringWrite(constraint_surface_area)
+          call PrintErrMsg(option)
+        endif
+        ! rescale if they differ
+        tempreal = tempreal * constraint_surface_area / specific_surface_area
       endif
 
       if (molar_weight < epsilon .or. Equal(molar_weight,500.d0)) then
@@ -1045,6 +1060,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
           MINERAL_SURF_AREA_PER_MNRL_MASS) then
         ! m^2 mnrl/m^3 mnrl -> m^2 mnrl/m^3 bulk
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
+#if 0
         if (tempreal < epsilon) then
           option%io_buffer = 'The zero volume fraction assigned to &
             &mineral "' // trim(mineral_name) // '" in constraint "' // &
@@ -1052,8 +1068,10 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
             &surface area in the constraint.'
           call PrintErrMsg(option)
         endif
+#endif
       endif
     endif
+    ! this is where we scale the constraint surface area (if initialized)
     if (Initialized(constraint%constraint_area(imnrl))) then
       ! tempreal converts input value to m^2 mnrl/m^3 bulk
       constraint%constraint_area(imnrl) = tempreal * &
@@ -1905,14 +1923,13 @@ subroutine ReactionMnrlNucleationKinetics(Res,Jac, &
 !    print *, 'nucleation rate: ', nucleation_rate
 #if 0
 print *, 'analytical derivative: ', dnucleation_rate_dlnQK
-    Im_const = lnQK+1.d-6*lnQK
-    call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+    call ReactionMnrlNucleation(mineral%nucleation_array(nid), &
                                 mineral%kinmnrl_molar_vol(imnrl), &
-                                global_auxvar%temp,Im_const, &
-                                Im,dnucleation_rate_dlnQK, &
+                                global_auxvar%temp,lnQK+1.d-6*lnQK, &
+                                dlnQK_dQK,dQK_dmj, &
                                 option)
-print *, 'numerical derivative: ',  (Im-nucleation_rate)/(Im_const-lnQK)
-stop
+print *, 'numerical derivative: ',  (dlnQK_dQK-nucleation_rate)/(1.d-6*lnQK)
+!stop
 #endif
     if (store_rate) then
       rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + &
@@ -1972,6 +1989,12 @@ subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
   PetscReal :: T_K
   PetscReal :: exp_term, exp_term1, exp_term2
 
+  if (lnQK <= 0.d0) then
+    rate = 0.d0
+    drate_dlnQK = 0.d0
+    return
+  endif
+
   T_K = temperature_C + T273K
   select case(nucleation%itype)
     case(MINERAL_NUCLEATION_CLASSICAL)
@@ -1993,7 +2016,8 @@ subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
       drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
   end select
 #if 0
-  print *, rate, lnQK, exp_term
+  print *, rate, lnQK
+  print *, 'exp: ', exp_term, exp_term1, exp_term2
   print *, 'rate_constant: ', nucleation%rate_constant
   print *, 'lnQK: ', lnQK
   print *, 'geom: ', nucleation%geometric_shape_factor

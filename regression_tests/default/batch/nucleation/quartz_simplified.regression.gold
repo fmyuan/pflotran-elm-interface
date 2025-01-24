@@ -6,12 +6,12 @@
         1:   9.9960596084760E-09
 -- GENERIC: Quartz SI --
         1:   1.6203258359865E+03
--- VOLUME_FRACTION: Quartz Area --
-        1:   1.0000000000000E+00
+-- GENERIC: Quartz Area --
+        1:   0.0000000000000E+00
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.6394008999205E-02
+   Time (seconds):   2.5986689000206E-02
    Time Steps:          122
    Newton Iterations:          237
    Linear Solver Iterations:          237

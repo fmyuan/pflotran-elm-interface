@@ -11,15 +11,17 @@ END
 
 SUBSURFACE
 
-  EXTERNAL_FILE nucleation_quartz.txt
+  EXTERNAL_FILE quartz.txt
 
 #=========================== chemistry ========================================
 CHEMISTRY
-  EXTERNAL_FILE nucleation_quartz_chem.txt
+  EXTERNAL_FILE quartz_chem.txt
   MINERAL_KINETICS
     Quartz
-      RATE_CONSTANT 0. mol/m^2-sec
+      RATE_CONSTANT 2.d-11 mol/m^2-sec
       NUCLEATION_KINETICS simplified
+      SURFACE_AREA_FUNCTION MINERAL_MASS
+      SPECIFIC_SURFACE_AREA 0.041 m^2/g
     /
   /
   NUCLEATION_KINETICS
@@ -27,6 +29,16 @@ CHEMISTRY
       RATE_CONSTANT 1.d-5
       GAMMA 1.d10
     /
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    SiO2(aq) 2.d-1    F
+  /
+  MINERALS
+    Quartz 0.d0 0.041 m^2/g
   /
 END
 

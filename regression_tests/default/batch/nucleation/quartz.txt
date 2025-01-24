@@ -64,16 +64,6 @@ TRANSPORT_CONDITION background_conc
   /
 END
 
-#=========================== constraints ======================================
-CONSTRAINT initial_constraint
-  CONCENTRATIONS
-    SiO2(aq) 2.d-1    F
-  /
-  MINERALS
-    Quartz 0.d0 1.d0 m^2/m^3
-  /
-END
-
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION

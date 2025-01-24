@@ -2453,7 +2453,13 @@ subroutine ReactionDBInitBasis(reaction,option)
           endif
 
           if (associated(tstrxn%nucleation)) then
-            do i = 1, size(mineral%nucleation_array)
+            temp_int = 0
+            ! if no nucleation reactions have been defined,
+            ! nucleation_array will be null
+            if (associated(mineral%nucleation_array)) then
+              temp_int = size(mineral%nucleation_array)
+            endif
+            do i = 1, temp_int
               if (StringCompare(tstrxn%nucleation%name, &
                                 mineral%nucleation_array(i)%name)) then
                 mineral%kinmnrl_nucleation_id(ikinmnrl) = i

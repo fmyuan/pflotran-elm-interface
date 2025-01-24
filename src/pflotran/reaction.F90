@@ -6093,7 +6093,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
       if (reaction%mineral%kinmnrl_print(i)) then
         name = trim(reaction%mineral%kinmnrl_names(i)) // ' Area'
         units = 'm^2/m^3'
-        call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
+        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                      MINERAL_SURFACE_AREA,i,i)
       endif
     enddo
