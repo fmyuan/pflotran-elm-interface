@@ -481,8 +481,6 @@ factory_geomechanics.o : \
   geomechanics_region.o \
   geomechanics_regression.o \
   geomechanics_strata.o \
-  grid_unstructured.o \
-  grid_unstructured_aux.o \
   init_common.o \
   init_subsurface_geomechanics.o \
   input_aux.o \

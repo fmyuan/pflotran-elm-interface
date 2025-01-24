@@ -705,10 +705,8 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
 #endif
 
-  ! jaa testing
-  ! want to skip initial get aux when using new pmc geomech
+  ! jaa: want to skip initial get aux when using new pmc geomech
   if (associated(this%child)) then
-    !print *, '>> (jaa) new geomech pmc'
     select type (pmc => this%child)
       class is(pmc_geomechanics_type)
         if (this%timestepper%steps < 1) then

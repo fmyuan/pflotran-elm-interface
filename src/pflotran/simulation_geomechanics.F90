@@ -21,12 +21,7 @@ module Simulation_Geomechanics_class
   private
 
   type, public, extends(simulation_subsurface_type) :: &
-    simulation_geomechanics_type
-    ! pointer to geomechanics coupler
-    !class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler
-    !class(realization_geomech_type), pointer :: geomech_realization
-    !type(waypoint_list_type), pointer :: waypoint_list_geomechanics
-    !type(geomechanics_regression_type), pointer :: geomech_regression
+                simulation_geomechanics_type
   contains
     procedure, public :: InitializeRun => GeomechanicsSimulationInitializeRun
     procedure, public :: InputRecord => GeomechanicsSimInputRecord
@@ -93,9 +88,6 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   call SimSubsurfInit(this,driver,option)
   this%geomech => GeomechAttrCreate()
   this%geomech%waypoint_list => WaypointListCreate()
-  !nullify(this%geomech_realization)
-  !nullify(this%geomech_regression)
-  !this%waypoint_list_geomechanics => WaypointListCreate()
 
 end subroutine GeomechanicsSimulationInit
 
@@ -190,7 +182,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
 
     ! If simulation is decoupled subsurfac-geomech simulation, set
     ! dt_coupling to be dt_max
-    !if (Equal(this%geomech_realization%dt_coupling,0.d0)) then
     if (Equal(this%geomech%realization%dt_coupling,0.d0)) then
       this%option%io_buffer = 'Set non-zero COUPLING_TIME_SIZE in GEOMECHANICS_TIME.'
       call PrintErrMsg(this%option)
@@ -281,9 +272,7 @@ subroutine GeomechanicsSimulationStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech%regression)
   call WaypointListDestroy(this%geomech%waypoint_list)
   call SimSubsurfStrip(this)
-  !call GeomechanicsRegressionDestroy(this%geomech%regression) ! jaa destroyed somewhere else
   call WaypointListDestroy(this%waypoint_list_subsurface)
-  !call WaypointListDestroy(this%geomech%waypoint_list)
 
 end subroutine GeomechanicsSimulationStrip
 

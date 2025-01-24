@@ -90,7 +90,6 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   use petscsnes
   use Convergence_module
   use Geomechanics_Discretization_module
-  !use Timestepper_Base_class
   use Timestepper_Steady_class
   use PM_Base_class
   use PM_Base_Pointer_module
@@ -116,7 +115,6 @@ subroutine PMCGeomechanicsSetupSolvers(this)
 
   option => this%option
   geomech_realization => this%geomech_realization
-  !geomech_realization => this%geomech%realization
   geomech_discretization => geomech_realization%geomech_discretization
   select type(ts => this%timestepper)
     class is (timestepper_steady_type)
@@ -239,7 +237,6 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   call SetOutputFlags(this)
   sync_flag = PETSC_FALSE
-  !sync_flag = PETSC_TRUE ! jaa testing
   snapshot_plot_flag = PETSC_FALSE
   observation_plot_flag = PETSC_FALSE
   massbal_plot_flag = PETSC_FALSE
