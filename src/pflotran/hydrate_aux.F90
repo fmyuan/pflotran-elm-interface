@@ -42,6 +42,7 @@ module Hydrate_Aux_module
   PetscReal, public :: hydrate_min_xmol = 1.d-10
   PetscBool, public :: hydrate_low_p_co2_boundary = PETSC_FALSE
   PetscBool, public :: hydrate_pressure_controlled_well = PETSC_FALSE
+  PetscBool, public :: hydrate_update_surface_tension = PETSC_FALSE
 
   !Salinity
   PetscInt, parameter, public :: HYDRATE_FORMER_NULL = ZERO_INTEGER
@@ -833,6 +834,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%xmass(wid,lid) = max(hyd_auxvar%xmass(wid,lid),0.d0)
 
       ! Populate all pressures, even though gas phase is not present.
+      call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
+                                        x_salt_dissolved, sigma)
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       hyd_auxvar%pres(gid) = hyd_auxvar%pres(lid) + Pc_entry/beta_gl
       hyd_auxvar%xmass(acid,gid) = 1.d0
 
@@ -875,7 +880,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       call HydrateComputePcHysteresis(characteristic_curves, &
                                    0.d0, &
                                    hyd_auxvar%sat(tgid), &
@@ -1074,7 +1080,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
@@ -1163,7 +1170,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
@@ -1490,8 +1498,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+                CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
@@ -1711,9 +1719,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      ! MAN: check the reference surface tension
-      !MAN: hyd_auxvar%sat(tgid) should be small?
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
@@ -1792,9 +1799,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      ! MAN: check the reference surface tension
-      !MAN: hyd_auxvar%sat(tgid) should be small?
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
       if (hydrate_no_pc) then
         hyd_auxvar%pres(cpid) = 0.d0
       else
@@ -1896,11 +1902,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       visc_a = hyd_auxvar%visc(gid)
   end select
 
-  ! CO2-water surface tension
-  ! MAN: doesn't do anything here right now
   call HydrateComputeSurfaceTension(hyd_auxvar%temp,hyd_auxvar%xmass(sid,lid), &
                                  sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
 
   if (hydrate_eff_sat_scaling .and. &
       (hyd_auxvar%sat(lid)+ hyd_auxvar%sat(gid) > 0.d0)) then
@@ -2279,8 +2284,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   endif
   call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                  xsl, sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
   beta_gl = 1.d0
+  if (hydrate_update_surface_tension) beta_gl = &
+          CO2_REFERENCE_SURFACE_TENSION / sigma
 
   ! Max effective trapped gas saturation
   ! MAN: need to check how this works with Pc function Webb extensions
@@ -2470,7 +2476,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                                 material_auxvar%porosity)
           call HydrateComputeSurfaceTension(hyd_auxvar%temp, &
                                        xsl, sigma)
-          beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+          if (hydrate_update_surface_tension) beta_gl = &
+              CO2_REFERENCE_SURFACE_TENSION / sigma
           sgt_temp = 0.d0
           call HydrateComputePcHysteresis(characteristic_curves, &
                                           hyd_auxvar%sat(lid), &
@@ -3270,7 +3277,8 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
        min_perturbation)
 
   call HydrateComputeSurfaceTension(hyd_auxvar(ZERO_INTEGER)%temp, xsl, sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  if (hydrate_update_surface_tension) beta_gl = &
+      CO2_REFERENCE_SURFACE_TENSION / sigma
 
   sgt_max = characteristic_curves%saturation_function%Sgt_max
   if(.not. Initialized(sgt_max)) then
@@ -5322,9 +5330,6 @@ subroutine HydrateComputeSurfaceTension(T,x_nacl,surface_tension)
   surface_tension = 1.d-3*(75.6592d0 - 1.40959d-1*T - 2.66317d-4*(T**2))
   ! With salt
   surface_tension = surface_tension + 1.57d-3*molality
-
-  ! MAN: turn off surface tension effects
-  surface_tension = CO2_REFERENCE_SURFACE_TENSION
 
 end subroutine HydrateComputeSurfaceTension
 

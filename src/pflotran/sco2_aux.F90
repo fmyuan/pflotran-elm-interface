@@ -31,7 +31,6 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: sco2_harmonic_diff_density = PETSC_TRUE
   PetscBool, public :: sco2_harmonic_viscosity = PETSC_TRUE
-  ! PetscBool, public :: sco2_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: sco2_allow_state_change = PETSC_TRUE
   PetscBool, public :: sco2_state_changed = PETSC_FALSE
   PetscBool, public :: sco2_force_ts_cut = PETSC_FALSE
@@ -46,6 +45,7 @@ module SCO2_Aux_module
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
   PetscBool, public :: sco2_isothermal_gradient = PETSC_FALSE
   PetscBool, public :: sco2_stomp_fluxes = PETSC_TRUE
+  PetscBool, public :: sco2_update_surface_tension = PETSC_FALSE
 
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
@@ -166,7 +166,7 @@ module SCO2_Aux_module
     PetscReal, pointer :: den_kg(:) ! (iphase) kg/m^3 phase
     PetscReal :: temp
     PetscReal :: m_salt(2)     ! (kg NaCl / kg (brine + precipitate)), kg NaCl
-    PetscReal :: sl_min  ! min liquid saturation for hysteresis
+    PetscReal :: sl_min(2)  ! min liquid saturation for hysteresis
     PetscReal :: sg_trapped !keep track of trapped gas at beginning of timestep
     PetscReal, pointer :: xmass(:,:) ! (icomp,iphase)
     PetscReal, pointer :: xmol(:,:)
@@ -508,7 +508,11 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
        min_perturbation)
 
   call SCO2SurfaceTension(sco2_auxvar(ZERO_INTEGER)%temp, xsl, sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  if (sco2_update_surface_tension) then
+    beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  else
+    beta_gl = 1.d0
+  endif
 
   sgt_max = characteristic_curves%saturation_function%Sgt_max
 
@@ -555,6 +559,13 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     case(SCO2_TRAPPED_GAS_STATE)
 
       dpl = max(1.d-1, 1.d-6 * sco2_auxvar(ZERO_INTEGER)%pres(lid))
+
+      if (characteristic_curves%saturation_function%extended) then
+        sgt_max = characteristic_curves%saturation_function%Sgt_max
+      else
+        sgt_max = characteristic_curves%saturation_function%Sgt_max * &
+                  (1.d0 - characteristic_curves%saturation_function%Sr)
+      endif
 
       dsg = sign(1.d-7, 5.d-1 * sgt_max - sco2_auxvar(ZERO_INTEGER)%sat(gid))
 
@@ -642,6 +653,8 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
                                            pert(SCO2_WELL_DOF)
     sco2_auxvar(SCO2_WELL_DOF)%pert = pert(SCO2_WELL_DOF)
   endif
+
+  sco2_auxvar(:)%sl_min(2) = sco2_auxvar(ZERO_INTEGER)%sl_min(2)
 
   ! SCO2_UPDATE_FOR_DERIVATIVE indicates call from perturbation
 
@@ -744,7 +757,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   PetscReal :: capillary_head
   PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
 
-  state_change_threshold = 0.d0
+  state_change_threshold = 0.d0 !sco2_phase_chng_epsilon
 
   istatechng = PETSC_FALSE
 
@@ -779,7 +792,11 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
   endif
   call SCO2SurfaceTension(sco2_auxvar%temp, &
                                  xsl, sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  if (sco2_update_surface_tension) then
+    beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  else
+    beta_gl = 1.d0
+  endif
 
   ! Max effective trapped gas saturation
   ! MAN: need to check how this works with Pc function Webb extensions
@@ -848,7 +865,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
           call characteristic_curves%saturation_function% &
                             CapillaryPressure(sl_temp, Pc, dpc_dsatl, &
                                               option, sco2_auxvar%sat(tgid), &
-                                              sco2_auxvar%sl_min)
+                                              sco2_auxvar%sl_min(2))
           select type(sf => characteristic_curves%saturation_function)
             class is (sat_func_vg_stomp_type)
               ! Pc is the capillary head
@@ -890,12 +907,16 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                                 material_auxvar%porosity)
         call SCO2SurfaceTension(sco2_auxvar%temp, &
                                        xsl, sigma)
-        beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+        if (sco2_update_surface_tension) then
+          beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+        else
+          beta_gl = 1.d0
+        endif
         sgt_temp = 0.d0
         call characteristic_curves%saturation_function% &
                             CapillaryPressure(sco2_auxvar%sat(lid), Pc, dpc_dsatl, &
                                               option, sco2_auxvar%sat(tgid), &
-                                              sco2_auxvar%sl_min)
+                                              sco2_auxvar%sl_min(2))
         select type(sf => characteristic_curves%saturation_function)
           class is (sat_func_vg_stomp_type)
             ! Pc is the capillary head
@@ -908,7 +929,11 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
     case(SCO2_TRAPPED_GAS_STATE)
       call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      xsl, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (sco2_update_surface_tension) then
+        beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      else
+        beta_gl = 1.d0
+      endif
       Slr = characteristic_curves%saturation_function%Sr
       Sgt = sco2_auxvar%sat(tgid)
 
@@ -942,7 +967,7 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                             CapillaryPressure(sco2_auxvar%sat(lid), Pc, &
                                               dpc_dsatl, option, &
                                               sco2_auxvar%sat(tgid), &
-                                              sco2_auxvar%sl_min)
+                                              sco2_auxvar%sl_min(2))
         select type(sf => characteristic_curves%saturation_function)
           class is (sat_func_vg_stomp_type)
             ! Pc is the capillary head
@@ -967,11 +992,11 @@ subroutine SCO2AuxVarUpdateState(x, sco2_auxvar, global_auxvar, &
                            (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
           call characteristic_curves%saturation_function% &
                         Saturation(capillary_head,sl_temp,dsat_dpres,option, &
-                        sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+                        sco2_auxvar%sat(tgid),sco2_auxvar%sl_min(2))
         class default
           call characteristic_curves%saturation_function% &
                        Saturation(sco2_auxvar%pres(cpid),sl_temp,dsat_dpres, &
-                              option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+                              option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min(2))
       end select
       sgt_temp = sco2_auxvar%sat(tgid)
       sl_temp = sl_temp + sgt_temp
@@ -1170,6 +1195,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: capillary_head
   PetscReal, parameter :: gravity = 9.81d0 !EARTH_GRAVITY
   PetscReal :: sg_min, Pc_entry
+  PetscReal :: Dco2l,Dwg,Dnacl
 
   ! Unused
   PetscReal :: dpor_dp, drho_dp, drho_dT
@@ -1283,7 +1309,9 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
                                    sco2_auxvar%den_kg(pbid), &
-                                   x_salt_dissolved, sco2_auxvar%pres(rvpid))
+                                   x_salt_dissolved, sco2_auxvar%pres(rvpid), &
+                                   characteristic_curves%saturation_function% &
+                                   extended)
 
       ! Pure water density
       call SCO2WaterDensity(sco2_auxvar%temp,sco2_auxvar%pres(rvpid), &
@@ -1293,7 +1321,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       xsl = x_salt_dissolved
       call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (sco2_update_surface_tension) beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       call SCO2Equilibrate(sco2_auxvar%temp,sco2_auxvar%pres(lid), &
                            sco2_auxvar%pres(co2_pressure_id), &
                            sco2_auxvar%pres(vpid), &
@@ -1328,7 +1356,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmol(sid,lid) = sco2_auxvar%xmass(sid,lid)* &
                                   mw_mix/fmw_comp(3)
 
-      sco2_auxvar%sl_min = 1.d0
+      ! sco2_auxvar%sl_min(2) = 1.d0
 
     case (SCO2_GAS_STATE)
       ! Fully unsaturated system with or without trapped gas.
@@ -1358,13 +1386,13 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmass(sid,lid) = x_salt_dissolved
       call SCO2SurfaceTension(sco2_auxvar%temp, &
                                      x_salt_dissolved, sigma)
-      beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+      if (sco2_update_surface_tension) beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
       call characteristic_curves%saturation_function% &
                             CapillaryPressure(sco2_auxvar%sat(lid), &
                                               sco2_auxvar%pres(cpid), &
                                               dpc_dsatl, option, &
                                               sco2_auxvar%sat(tgid), &
-                                              sco2_auxvar%sl_min)
+                                              sco2_auxvar%sl_min(2))
       select type(sf => characteristic_curves%saturation_function)
         class is (sat_func_vg_stomp_type)
           ! Pc is the capillary head
@@ -1404,7 +1432,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                              material_auxvar%volume)
       sco2_auxvar%sat(pid) = max(min(sco2_auxvar%sat(pid),1.d0),0.d0)
       sco2_auxvar%sat(lid) = 0.d0
-      sco2_auxvar%sat(gid) = 1.d0
+      sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(pid)
 
 
       ! Update mass fractions
@@ -1468,7 +1496,9 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
                                    sco2_auxvar%den_kg(pbid), &
-                                   x_salt_dissolved, sco2_auxvar%pres(rvpid))
+                                   x_salt_dissolved, sco2_auxvar%pres(rvpid), &
+                                   characteristic_curves%saturation_function% &
+                                   extended)
 
       ! Pure water density
       call SCO2WaterDensity(sco2_auxvar%temp,sco2_auxvar%pres(rvpid), &
@@ -1531,7 +1561,9 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       call SCO2VaporPressureBrine(sco2_auxvar%temp, sco2_auxvar%pres(spid), &
                                    sco2_auxvar%pres(cpid), &
                                    sco2_auxvar%den_kg(pbid), &
-                                   x_salt_dissolved, sco2_auxvar%pres(rvpid))
+                                   x_salt_dissolved, sco2_auxvar%pres(rvpid), &
+                                   characteristic_curves%saturation_function% &
+                                   extended)
 
       ! Pure water density
       xsl = x_salt_dissolved
@@ -1632,21 +1664,22 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   ! MAN: doesn't do anything here right now
   call SCO2SurfaceTension(sco2_auxvar%temp,sco2_auxvar%xmass(sid,lid), &
                                  sigma)
-  beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
+  if (sco2_update_surface_tension) beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
   if (global_auxvar%istate == SCO2_TRAPPED_GAS_STATE) then
     if (Initialized(characteristic_curves%saturation_function%Sgt_max)) then
       ! Move the reversal point as a function of trapped gas saturation
+      ! MAN: Move this, shouldn't be updated with aux vars
       if (characteristic_curves%saturation_function%Sgt_max - &
           sco2_auxvar%sat(tgid) > epsilon) then
-        sco2_auxvar%sl_min = (characteristic_curves%saturation_function% &
+        sco2_auxvar%sl_min(2) = (characteristic_curves%saturation_function% &
                               Sgt_max - sco2_auxvar%sat(tgid)) / &
                               (characteristic_curves%saturation_function% &
                               Sgt_max + characteristic_curves% &
                               saturation_function%Sgt_max * &
                               sco2_auxvar%sat(tgid) - sco2_auxvar%sat(tgid))
       else
-        sco2_auxvar%sl_min = 0.d0
+        sco2_auxvar%sl_min(2) = 0.d0
       endif
     else
       option%io_buffer = 'Modeling gas trapping requires defining &
@@ -1661,15 +1694,18 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                          (LIQUID_REFERENCE_DENSITY * gravity),1.d-14)
         call characteristic_curves%saturation_function% &
                       Saturation(capillary_head,sl_temp,dsat_dpres,option, &
-                          sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+                          sco2_auxvar%sat(tgid),sco2_auxvar%sl_min(2))
       class default
         call characteristic_curves%saturation_function% &
                       Saturation(sco2_auxvar%pres(cpid),sl_temp,dsat_dpres, &
-                          option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min)
+                          option,sco2_auxvar%sat(tgid),sco2_auxvar%sl_min(2))
     end select
     sco2_auxvar%sat(lid) = min(max(0.d0,sl_temp),1.d0)
     sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid)
   endif
+  ! sco2_auxvar%sl_min(2) = min(sco2_auxvar%sl_min(1),sco2_auxvar%sat(lid))
+  sco2_auxvar%sl_min(2) = min(sco2_auxvar%sl_min(2),sco2_auxvar%sat(lid))
+  sco2_auxvar%sl_min(2) = min(max(sco2_auxvar%sl_min(2),0.d0),1.d0)
   ! sco2_auxvar%sat(gid) is always mobile gas + trapped gas
   !sco2_auxvar%sat(gid) = (1.d0 - sl_temp) + sco2_auxvar%sat(tgid)
   ! Compute relative permeabilities
@@ -1707,8 +1743,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   call SCO2DiffusionCoeff(sco2_auxvar%temp, cell_pressure, &
                           sco2_auxvar%xmass(sid,lid), &
                           sco2_auxvar%visc(lid), &
-                          sco2_parameter, option)
-  call SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
+                          sco2_parameter,Dco2l,Dwg,Dnacl,option)
+  call SCO2EffectiveDiffusion(Dco2l,Dwg,Dnacl,sco2_auxvar, option)
 
   ! Precipitate salt
   sco2_auxvar%xmass(sid,pid) = 1.d0
@@ -1721,6 +1757,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%sat(lid) == 0.d0) then
     sco2_auxvar%sat(pid) = sco2_auxvar%m_salt(2) / (sco2_auxvar%den_kg(pid) * &
                            sco2_auxvar%effective_porosity)
+    sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0)
+    sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(pid)
     !MAN: not sure why we need this:
     sco2_auxvar%m_salt(1) = sco2_auxvar%m_salt(2) * sco2_auxvar%den_kg(pbid) * &
                             epsilon * sco2_auxvar%effective_porosity
@@ -1732,8 +1770,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
     sco2_auxvar%m_salt(2) = sco2_auxvar%m_salt(1) * sco2_auxvar%den_kg(pbid) * &
                             sco2_auxvar%sat(lid) * &
                             sco2_auxvar%effective_porosity
+    sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0)
   endif
-  sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0)
 
   ! Permeability and porosity reduction with salt precipitate effects
   call SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, option)
@@ -1816,7 +1854,7 @@ end subroutine SCO2AuxVarCompute
 
 ! ************************************************************************** !
 
-subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
+subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap,extended)
   !
   ! Computes the reduced vapor pressure of water following the Kelvin equation.
   !
@@ -1832,6 +1870,7 @@ subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
   PetscReal, intent(in) :: rho_kg
   PetscReal, intent(in) :: x_salt
   PetscReal, intent(out) :: P_vap
+  PetscBool, intent(in) :: extended
 
   PetscReal, parameter :: epsilon = 1.d-14
   PetscReal :: T_k, mw_mix
@@ -1840,10 +1879,13 @@ subroutine SCO2VaporPressureBrine(T,P_sat,Pc,rho_kg,x_salt,P_vap)
   mw_mix = x_salt*fmw_comp(3) + (1.d0-x_salt)*fmw_comp(1)
 
   if (Pc > epsilon) then
-    ! P_vap = P_sat * exp(- fmw_comp(1) * (Pc**1.25d0) / &
-    !          (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
-    P_vap = P_sat * exp(-1.d0 *fmw_comp(1) * (Pc ** 1.25d0) / &
-            (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
+    if (extended) then
+      P_vap = P_sat * exp(-1.d0 *fmw_comp(1) * Pc / &
+              (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
+    else
+      P_vap = P_sat * exp(-1.d0 *fmw_comp(1) * (Pc ** 1.25d0) / &
+              (rho_kg * IDEAL_GAS_CONSTANT * 1.d3 * T_k))
+    endif
   else
     P_vap = P_sat
   endif
@@ -2276,9 +2318,6 @@ subroutine SCO2SurfaceTension(T,x_nacl,surface_tension)
   surface_tension = 1.d-3*(75.6592d0 - 1.40959d-1*T - 2.66317d-4*(T**2))
   ! With salt
   surface_tension = surface_tension + 1.57d-3*molality
-
-  ! MAN: turn off surface tension effects
-  surface_tension = CO2_REFERENCE_SURFACE_TENSION
 
 end subroutine SCO2SurfaceTension
 
@@ -3034,7 +3073,8 @@ end function SCO2Henry
 
 ! ************************************************************************** !
 
-subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
+subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,Dco2l,Dwg,Dnacl, &
+                              option)
   !
   ! Computes CO2-Water diffusion coefficient, Cadogan et al., 2014
   !
@@ -3051,6 +3091,9 @@ subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
   PetscReal, intent(in) :: xsl
   PetscReal, intent(in) :: viscl
   type(sco2_parameter_type) :: sco2_parameter
+  PetscReal, intent(out) :: Dco2l
+  PetscReal, intent(out) :: Dwg
+  PetscReal, intent(out) :: Dnacl
   type(option_type) :: option
 
   PetscReal, parameter :: c_a(8) = [1.06036d0,1.5610d-1,1.9300d-1,4.7635d-1, &
@@ -3063,7 +3106,6 @@ subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
 
   PetscReal :: T_k , P_bar, s_molal
   PetscReal :: eps, sig, T_r, omega, w_mix
-  PetscReal :: Dco2l, Dwg, Dnacl
   PetscInt :: lid, gid, co2_id, sid, wid
   PetscReal :: dlng, viscb, viscbr
 
@@ -3114,10 +3156,6 @@ subroutine SCO2DiffusionCoeff(T,P,xsl,viscl,sco2_parameter,option)
   Dnacl = Dnacl * (viscw_ref/viscbr) * (1.d0 + s_molal*(dlng))
   call SCO2ViscosityBrine(T_k,xsl,viscl,viscb)
   Dnacl = Dnacl * (T_k/2.9815d2)*(viscbr/viscb)
-
-  sco2_parameter%diffusion_coefficient(co2_id,lid) = Dco2l
-  sco2_parameter%diffusion_coefficient(wid,gid) = Dwg
-  sco2_parameter%diffusion_coefficient(sid,lid) = Dnacl
 
 end subroutine SCO2DiffusionCoeff
 
@@ -3225,7 +3263,7 @@ end subroutine SCO2Tortuosity
 
 ! ************************************************************************** !
 
-subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
+subroutine SCO2EffectiveDiffusion(Dco2l,Dwg,Dnacl,sco2_auxvar,option)
   !
   ! Compute effective diffusion coefficients
   !
@@ -3237,7 +3275,9 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
 
   implicit none
 
-  type(sco2_parameter_type) :: sco2_parameter
+  PetscReal, intent(in) :: Dco2l
+  PetscReal, intent(in) :: Dwg
+  PetscReal, intent(in) :: Dnacl
   type(sco2_auxvar_type) :: sco2_auxvar
   type(option_type) :: option
 
@@ -3260,7 +3300,7 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
       ! Salt effective_diffusion_coeff in liquid
       T_scaled = (sco2_auxvar%temp + T273K) / SALT_REFERENCE_TEMPERATURE
       sco2_auxvar%effective_diffusion_coeff(sid,lid) = &
-                 sco2_parameter%diffusion_coefficient(sid,lid) * T_scaled * &
+                 Dnacl * T_scaled * &
                 (LIQUID_REFERENCE_VISCOSITY / sco2_auxvar%visc(lid)) * &
                 sco2_auxvar%tortuosity(lid) * sco2_auxvar%sat(lid) * &
                 sco2_auxvar%effective_porosity
@@ -3273,20 +3313,20 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
       sco2_auxvar%effective_diffusion_coeff(sid,lid) = &
                  sco2_auxvar%tortuosity(lid) * &
                  sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity * &
-                 sco2_parameter%diffusion_coefficient(sid,lid)
+                 Dnacl
 
   end select
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = &
                  sco2_auxvar%tortuosity(lid) * &
                  sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity * &
-                 sco2_parameter%diffusion_coefficient(co2_id,lid)
+                 Dco2l
 
   sco2_auxvar%effective_diffusion_coeff(wid,gid) = &
                  sco2_auxvar%tortuosity(gid) * &
                  (sco2_auxvar%sat(gid) - sco2_auxvar%sat(tgid)) * &
                  sco2_auxvar%effective_porosity * &
-                 sco2_parameter%diffusion_coefficient(wid,gid)
+                 Dwg
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = max(&
                      sco2_auxvar%effective_diffusion_coeff(co2_id,lid),epsilon)
