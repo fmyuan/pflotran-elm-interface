@@ -467,7 +467,6 @@ factory_forward.o : \
   units.o \
   waypoint.o
 factory_geomechanics.o : \
-  condition_control.o \
   factory_subsurface.o \
   geomech_grid.o \
   geomech_grid_aux.o \
@@ -486,9 +485,7 @@ factory_geomechanics.o : \
   input_aux.o \
   logging.o \
   option.o \
-  output.o \
   output_aux.o \
-  output_geomechanics.o \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
@@ -593,7 +590,6 @@ factory_subsurface.o : \
   wipp.o \
   zflow_aux.o
 factory_subsurface_geomechanics.o : \
-  condition_control.o \
   geomech_grid.o \
   geomech_grid_aux.o \
   geomechanics_discretization.o \
@@ -609,12 +605,11 @@ factory_subsurface_geomechanics.o : \
   grid_unstructured.o \
   grid_unstructured_aux.o \
   init_common.o \
+  init_subsurface_geomechanics.o \
   input_aux.o \
   logging.o \
   option.o \
-  output.o \
   output_aux.o \
-  output_geomechanics.o \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
@@ -1309,6 +1304,7 @@ init_subsurface_flow.o : \
   pflotran_constants.o \
   realization_subsurface.o
 init_subsurface_geomechanics.o : \
+  condition_control.o \
   geomech_grid.o \
   geomech_grid_aux.o \
   geomechanics_attribute.o \
@@ -1325,14 +1321,20 @@ init_subsurface_geomechanics.o : \
   grid_unstructured.o \
   grid_unstructured_aux.o \
   input_aux.o \
+  logging.o \
   option.o \
+  output.o \
   output_aux.o \
+  output_geomechanics.o \
   output_tecplot.o \
   patch.o \
   pflotran_constants.o \
+  pmc_geomechanics.o \
   realization_base.o \
+  simulation_subsurface.o \
   solver.o \
   string.o \
+  timestepper_steady.o \
   units.o \
   utility.o \
   waypoint.o

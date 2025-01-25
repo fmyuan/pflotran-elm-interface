@@ -9,8 +9,9 @@ module Init_Subsurface_Geomech_module
   private
 
   public :: InitSubsurfGeomechReadRequiredCards, &
-            InitSubsurfGeomechReadInput
-
+            InitSubsurfGeomechReadInput, &
+            GeomechanicsJumpStart!, &
+            !InitSubsurfGeomechSetupRealization
 contains
 
 ! ************************************************************************** !
@@ -349,6 +350,67 @@ end subroutine InitSubsurfGeomechReadInput
 
 ! ************************************************************************** !
 
+subroutine GeomechanicsJumpStart(geomech)
+  !
+  ! This routine
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 01/01/14
+  !
+
+  use Geomechanics_Realization_class
+  use Option_module
+  use Timestepper_Steady_class
+  use Output_Aux_module
+  use Output_module, only : Output, OutputPrintCouplers
+  use Output_Geomechanics_module
+  use Logging_module
+  use Condition_Control_module
+  use Simulation_Subsurface_class
+  use PMC_Geomechanics_class
+  use Geomechanics_Attr_module
+
+  implicit none
+
+  !type(simulation_subsurface_type) :: simulation
+  type(geomechanics_attr_type), pointer :: geomech ! jaa: is pointer ok here?
+
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(pmc_geomechanics_type), pointer :: geomech_pmc
+  class(timestepper_steady_type), pointer :: geomech_timestepper
+
+  PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
+  PetscBool :: geomech_read
+  PetscBool :: failure
+  PetscErrorCode :: ierr
+
+  geomech_realization => geomech%realization
+  geomech_pmc => geomech%process_model_coupler
+  geomech_timestepper => TimestepperSteadyCast(geomech_pmc%timestepper)
+
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
+                           "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
+
+  geomech_timestepper%name = 'GEOMECHANICS'
+
+  snapshot_plot_flag = PETSC_FALSE
+  observation_plot_flag = PETSC_FALSE
+  massbal_plot_flag = PETSC_FALSE
+  geomech_read = PETSC_FALSE
+  failure = PETSC_FALSE
+
+  call OutputGeomechInit(geomech_timestepper%steps)
+
+  ! pushed in INIT_STAGE()
+  call PetscLogStagePop(ierr);CHKERRQ(ierr)
+
+  ! popped in TS_STAGE()
+  call PetscLogStagePush(logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
+
+end subroutine GeomechanicsJumpStart
+
+! ************************************************************************** !
+
 subroutine GeomechanicsInit(geomech_realization,input,option)
   !
   ! Reads the required geomechanics data from input file
@@ -440,5 +502,10 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
 end subroutine GeomechanicsInit
 
 ! ************************************************************************** !
+
+!subroutine InitSubsurfGeomechSetupRealization(simulation)
+!
+!end subroutine InitSubsurfGeomechSetupRealization
+
 
 end module Init_Subsurface_Geomech_module

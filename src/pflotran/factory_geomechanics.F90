@@ -308,74 +308,11 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     end select
   endif
 
-  call GeomechanicsJumpStart(simulation)
+  call GeomechanicsJumpStart(simulation%geomech)
   call InputDestroy(input)
   nullify(geomech_realization)
 
 end subroutine GeomechanicsInitializePostPETSc
-
-! ************************************************************************** !
-
-subroutine GeomechanicsJumpStart(simulation)
-  !
-  ! This routine
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 01/01/14
-  !
-
-  use Geomechanics_Realization_class
-  use Option_module
-  use Timestepper_Steady_class
-  use Output_Aux_module
-  use Output_module, only : Output, OutputPrintCouplers
-  use Output_Geomechanics_module
-  use Logging_module
-  use Condition_Control_module
-
-  implicit none
-
-  type(simulation_geomechanics_type) :: simulation
-
-  class(realization_geomech_type), pointer :: geomch_realization
-  class(timestepper_steady_type), pointer :: master_timestepper
-  class(timestepper_steady_type), pointer :: geomech_timestepper
-
-  PetscBool :: snapshot_plot_flag,observation_plot_flag,massbal_plot_flag
-  PetscBool :: geomech_read
-  PetscBool :: failure
-  PetscErrorCode :: ierr
-
-  geomch_realization => simulation%geomech%realization
-
-  select type(ts => simulation%geomech%process_model_coupler%timestepper)
-    class is(timestepper_steady_type)
-      geomech_timestepper => ts
-  end select
-  nullify(master_timestepper)
-
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
-                           "-vecload_block_size",failure,ierr);CHKERRQ(ierr)
-
-  geomech_timestepper%name = 'GEOMECHANICS'
-
-  master_timestepper => geomech_timestepper
-
-  snapshot_plot_flag = PETSC_FALSE
-  observation_plot_flag = PETSC_FALSE
-  massbal_plot_flag = PETSC_FALSE
-  geomech_read = PETSC_FALSE
-  failure = PETSC_FALSE
-
-  call OutputGeomechInit(master_timestepper%steps)
-
-  ! pushed in INIT_STAGE()
-  call PetscLogStagePop(ierr);CHKERRQ(ierr)
-
-  ! popped in TS_STAGE()
-  call PetscLogStagePush(logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
-
-end subroutine GeomechanicsJumpStart
 
 ! ************************************************************************** !
 
