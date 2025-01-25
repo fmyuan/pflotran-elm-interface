@@ -205,8 +205,10 @@ module PM_Well_class
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
-    ! well species cumulative aqueous mass [mol] (ispecies,mass@segment)
-    PetscReal, pointer :: aqueous_mass_cumulative(:,:)
+    ! well species q cumulative aqueous mass [mol] (ispecies,mass@segment)
+    PetscReal, pointer :: aqueous_mass_q_cumulative(:,:)
+    ! well species Q cumulative aqueous mass [mol] (ispecies,mass@segment)
+    PetscReal, pointer :: aqueous_mass_Qcumulative(:,:)
     ! flag for output
     PetscBool :: output_aqc
     ! flag for output
@@ -699,7 +701,8 @@ subroutine PMWellVarCreate(well)
   nullify(well%species_parent_decay_rate)
   nullify(well%aqueous_conc)
   nullify(well%aqueous_mass)
-  nullify(well%aqueous_mass_cumulative)
+  nullify(well%aqueous_mass_q_cumulative)
+  nullify(well%aqueous_mass_Qcumulative)
   well%output_aqc = PETSC_FALSE
   well%output_aqm = PETSC_FALSE
   nullify(well%aqueous_conc_th)
@@ -4586,8 +4589,10 @@ subroutine PMWellInitWellVars(well,well_grid,with_transport,nsegments,nspecies)
   if (with_transport) then
     allocate(well%aqueous_conc(nspecies,nsegments))
     allocate(well%aqueous_mass(nspecies,nsegments))
-    allocate(well%aqueous_mass_cumulative(nspecies,nsegments))
-    well%aqueous_mass_cumulative(:,:) = 0.d0
+    allocate(well%aqueous_mass_q_cumulative(nspecies,nsegments))
+    allocate(well%aqueous_mass_Qcumulative(nspecies,nsegments))
+    well%aqueous_mass_q_cumulative(:,:) = 0.d0
+    well%aqueous_mass_Qcumulative(:,:) = 0.d0
     allocate(well%aqueous_conc_th(nspecies))
   endif
 
@@ -8152,6 +8157,10 @@ subroutine PMWellSolve(this,time,ierr)
     this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     this%tran_soln%prev_soln%resr_aqueous_conc = &
                                   this%well%reservoir%aqueous_conc
+    if (this%dt_tran < this%dt_flow) then
+      ! make sure well-flow doesn't get re-solved:
+      this%update_for_wippflo_qi_coupling = PETSC_TRUE
+    endif
   endif
 
 end subroutine PMWellSolve
@@ -8868,6 +8877,9 @@ subroutine PMWellCutTimestepTran(pm_well)
   pm_well%well%aqueous_mass = pm_well%tran_soln%prev_soln%aqueous_mass
   pm_well%well%aqueous_conc = pm_well%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(pm_well)
+
+  ! make sure well-flow doesn't get re-solved:
+  pm_well%update_for_wippflo_qi_coupling = PETSC_TRUE
 
 end subroutine PMWellCutTimestepTran
 
@@ -11551,7 +11563,12 @@ subroutine PMWellOutputHeader(pm_well)
           units_string = 'mol'
           call OutputWriteToHeader(fid,variable_string,units_string, &
                                    cell_string,icolumn)
-          variable_string = 'Well Cumu Aqueous Mass. ' &
+          variable_string = 'Well q-Cumu Aqueous Mass. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Well Q-Cumu Aqueous Mass. ' &
                              // trim(pm_well%well%species_names(i))
           units_string = 'mol'
           call OutputWriteToHeader(fid,variable_string,units_string, &
@@ -11664,9 +11681,10 @@ subroutine PMWellOutput(pm_well)
       if (pm_well%transport) then
         do i = 1,pm_well%nspecies
           write(fid,100,advance="no") pm_well%well%aqueous_conc(i,j), &
-                                  pm_well%well%aqueous_mass(i,j), &
-                                  pm_well%well%aqueous_mass_cumulative(i,j), &
-                                  pm_well%well%reservoir%aqueous_conc(i,j)
+                                pm_well%well%aqueous_mass(i,j), &
+                                pm_well%well%aqueous_mass_q_cumulative(i,j), &
+                                pm_well%well%aqueous_mass_Qcumulative(i,j), &
+                                pm_well%well%reservoir%aqueous_conc(i,j)
         enddo
       endif
 
@@ -11732,7 +11750,8 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
   PetscReal :: Qin,Qout
   PetscInt :: k,nsegments
   PetscInt :: i,nspecies
-  PetscReal :: dt,den_avg
+  PetscReal :: dt,den_avg,area,q_liq,conc
+  PetscReal :: diffusion
 
   nsegments = pm_well%well_grid%nsegments
   nspecies = pm_well%nspecies
@@ -11744,10 +11763,38 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
 
   ! (+) Q is into the well [kmol-liq/sec]
   ! (-) Q is out of the well [kmol-liq/sec]
-  ! (+) aqueous_mass_cumulative = net [mol-species] is into well
-  ! (-) aqueous_mass_cumulative = net [mol-species] is out of well
+  ! (+) aqueous_mass_Qcumulative = net [mol-species] is into well
+  ! (-) aqueous_mass_Qcumulative = net [mol-species] is out of well
+
+  diffusion = 0.d0 ! for now, since WIPP has no diffusion
 
   do k = 1,nsegments
+    do i = 1,nspecies
+      if (k == nsegments) then
+        area = pm_well%well%area(k) ! [m2]
+        q_liq = pm_well%well%ql_bc(2) ! [m3-liq/m2-bulk-sec]=[m/s]
+      else
+        area = 0.5d0*(pm_well%well%area(k)+pm_well%well%area(k+1))
+        q_liq = pm_well%well%ql(k) ! [m3-liq/m2-bulk-sec]=[m/s]
+      endif
+
+      if (q_liq < 0.d0) then ! flow is down the well
+        if (k == nsegments) then
+          conc = pm_well%well%aqueous_conc_th(i) ! [mol-species/m3-liq]
+        else
+          conc = pm_well%tran_soln%prev_soln%aqueous_conc(i,k+1) ! [mol-species/m3-liq]
+        endif
+      elseif (q_liq > 0.d0) then ! flow is up the well
+        conc = pm_well%tran_soln%prev_soln%aqueous_conc(i,k) ! [mol-species/m3-liq]
+      else ! q=0
+        conc = 0.d0 ! [mol-species/m3-liq]
+      endif
+
+      well%aqueous_mass_q_cumulative(i,k) = &
+        ! [mol-species]                      + [m2*[m/s]*[mol/m3]*s]
+        well%aqueous_mass_q_cumulative(i,k) + (dt*area*(q_liq*conc-diffusion))
+    enddo
+
     den_avg = 0.5d0*(well%liq%den(k)+resr%den_l(k))
     ! units of coef = [m^3-liq/sec]
     if (well%liq%Q(k) < 0.d0) then ! Q out of well
@@ -11762,9 +11809,9 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
       !     [m^3-liq/sec]*[mol-species/m^3-liq] = [mol-species/sec]
       Qin = coef_Qin*pm_well%tran_soln%prev_soln%resr_aqueous_conc(i,k)
       Qout = coef_Qout*pm_well%tran_soln%prev_soln%aqueous_conc(i,k)
-      well%aqueous_mass_cumulative(i,k) = &
-      ! [mol-species]                     + [mol-species/sec]*[sec]
-        well%aqueous_mass_cumulative(i,k) + ((Qin+Qout)*dt)
+      well%aqueous_mass_Qcumulative(i,k) = &
+      ! [mol-species]                      + [mol-species/sec]*[sec]
+        well%aqueous_mass_Qcumulative(i,k) + ((Qin+Qout)*dt)
     enddo
   enddo
 
@@ -12020,7 +12067,8 @@ subroutine PMWellDestroy(this)
   if (this%transport) then
     call DeallocateArray(this%well%aqueous_conc)
     call DeallocateArray(this%well%aqueous_mass)
-    call DeallocateArray(this%well%aqueous_mass_cumulative)
+    call DeallocateArray(this%well%aqueous_mass_q_cumulative)
+    call DeallocateArray(this%well%aqueous_mass_Qcumulative)
   endif
   call DeallocateArray(this%well%liq%den)
   call DeallocateArray(this%well%liq%visc)

@@ -162,6 +162,12 @@ subroutine THSetup(realization)
     call PrintErrMsg(option)
   endif
 
+  if (.not.associated(patch%char_curves_thermal_array)) then
+    option%io_buffer = 'Thermal properties must be added to all &
+      &material properties (MATERIAL_PROPERTY).'
+    call PrintErrMsg(option)
+  endif
+
   !Copy the values in the th_parameter from the global realization
   error_found = PETSC_FALSE
   do i = 1, size(patch%material_property_array)
@@ -390,7 +396,8 @@ subroutine THSetup(realization)
   do
     if (.not.associated(cur_coupler)) exit
     select case(cur_coupler%flow_condition%pressure%itype)
-      case(DIRICHLET_BC,HYDROSTATIC_BC)
+      case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
       case default
         option%io_buffer = 'FLOW_CONDITION "' // &
           trim(cur_coupler%flow_condition%name) // '" PRESSURE TYPE (' // &

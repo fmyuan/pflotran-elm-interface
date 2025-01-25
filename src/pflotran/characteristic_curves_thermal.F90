@@ -3268,9 +3268,9 @@ function CharCurvesThermalGetID(cc_thermal_array, &
         if (i == j) cycle
         test2 = cc_thermal_array(j)%ptr%name
         if (test1 == test2) then
-          option%io_buffer = 'Duplicate thermal characteristic curve '//&
+          option%io_buffer = 'Duplicate thermal characteristic curve "'//&
                              trim(test2)//&
-                             ' has been detected.'
+                             '" has been detected.'
           call PrintErrMsg(option)
         endif
       enddo
