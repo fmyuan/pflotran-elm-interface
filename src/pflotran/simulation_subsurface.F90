@@ -153,12 +153,13 @@ function SimSubsurfCast(simulation)
   !
   implicit none
 
-  class(simulation_base_type), pointer :: simulation
+  !class(simulation_base_type), pointer :: simulation
+  class(simulation_base_type), target :: simulation
 
   class(simulation_subsurface_type), pointer :: SimSubsurfCast
 
   nullify(SimSubsurfCast)
-  if (.not.associated(simulation)) return
+  !if (.not.associated(simulation)) return
   select type(simulation)
     class is(simulation_subsurface_type)
       SimSubsurfCast=> simulation

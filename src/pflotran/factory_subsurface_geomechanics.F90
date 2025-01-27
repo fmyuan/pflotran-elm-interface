@@ -63,6 +63,10 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   geomech_regression => simulation%geomech%regression
 
   ! initialize geomech realization
+  !call SubsurfGeomechInitSetupRealization(simulation)
+  !call InitSubsurfGeomechSetupRealization(simulation%realization,&
+  !                                        simulation%geomech%realization)
+  !call InitSubsurfGeomechSetupRealization(simulation)
   call SubsurfGeomechInitSetupRealization(simulation)
 
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)

@@ -66,6 +66,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   use Output_Aux_module
   use Waypoint_module
   use Init_Subsurface_Geomech_module
+  use Simulation_Base_class
 
   implicit none
 
@@ -87,6 +88,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscInt :: geomech_local_id, subsurf_local_id, geomech_ghosted_id
   PetscInt :: subsurf_ghosted_id
   PetscReal, pointer :: subsurf_vec_1dof(:)
+
+  ! jaa testing
+  class(simulation_subsurface_type), pointer :: simulation_subsurf
 
   option => simulation%option
   nullify(timestepper)
@@ -186,6 +190,12 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   ! initialize geomech realization
   call GeomechInitSetupRealization(simulation)
+  !call InitSubsurfGeomechSetupRealization(subsurf_realization, &
+  !                                        geomech_realization)
+  ! jaa test casting
+  !nullify(simulation_subsurf)
+  !simulation_subsurf => SimSubsurfCast(simulation)
+  !call InitSubsurfGeomechSetupRealization(simulation)
 
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   call pm_geomech%Setup()
@@ -360,6 +370,33 @@ end subroutine FactoryGeomechReadSimBlock
 
 ! ************************************************************************** !
 
+!function GeomechToSubsurfCast(simulation)
+!  !
+!  ! Casts any simulation_type to simulation_subsurface_type if of that type
+!  !
+!  ! Author: Glenn Hammond
+!  ! Date: 02/23/21
+!  !
+!  use Simulation_Subsurface_class
+!  use Simulation_Geomechanics_class
+!
+!  implicit none
+!
+!  class(simulation_geomechanics_type) :: simulation
+!
+!  class(simulation_subsurface_type), pointer :: GeomechToSubsurfCast
+!
+!  nullify(GeomechToSubsurfCast)
+!  !if (.not.associated(simulation)) return
+!  select type(simulation)
+!    class is(simulation_subsurface_type)
+!      GeomechToSubsurfCast => simulation
+!  end select
+!
+!end function GeomechToSubsurfCast
+
+! ************************************************************************** !
+
 subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   !
   ! This routine assigns geomech material
@@ -521,6 +558,7 @@ subroutine GeomechInitSetupRealization(simulation)
   use Geomechanics_Global_module
   use Geomechanics_Force_module
   use Realization_Subsurface_class
+  use Init_Subsurface_Geomech_module
 
   use Option_module
   use Waypoint_module
@@ -555,6 +593,7 @@ subroutine GeomechInitSetupRealization(simulation)
   call GeomechRealizProcessGeomechCouplers(geomech_realization)
   call GeomechRealizProcessGeomechConditions(geomech_realization)
   call GeomechInitMatPropToGeomechRegions(geomech_realization)
+  !call InitMatPropToGeomechRegions(geomech_realization)
   call GeomechRealizInitAllCouplerAuxVars(geomech_realization)
   call GeomechRealizPrintCouplers(geomech_realization)
   call GeomechGridElemSharedByNodes(geomech_realization,option)
