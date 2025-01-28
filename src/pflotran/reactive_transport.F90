@@ -102,6 +102,7 @@ subroutine RTSetup(realization)
   use Material_module
   use Material_Aux_module
   use Reaction_Surface_Complexation_Aux_module
+  use Reaction_Mineral_module, only : ReactionMnrlSetup
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
   use Secondary_Continuum_Aux_module, only : sec_transport_type, &
@@ -242,6 +243,8 @@ subroutine RTSetup(realization)
       'Material property errors found in RTSetup (reactive transport).'
     call PrintErrMsg(option)
   endif
+
+  call ReactionMnrlSetup(reaction,option)
 
 !============== Create secondary continuum variables - SK 2/5/13 ===============
 
@@ -459,7 +462,7 @@ subroutine RTSetup(realization)
                             realization%output_option%tunit)
   endif
 
-  if (option%transport%reactive_transport_coupling == &
+  if (option%transport%reaction_coupling == &
       GLOBAL_IMPLICIT) then
     ndof = realization%reaction%ncomp
   else
@@ -604,7 +607,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
           &for immobile species in reactive_transport.F90:RTComputeMassBalance'
         call PrintErrMsg(option)
         sum_mol_by_im(i) = sum_mol_by_im(i) * &
-          reaction%immobile%list%molar_weight * 1.d-3
+          reaction%immobile%list%molar_weight
       endif
     enddo
 

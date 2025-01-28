@@ -130,6 +130,8 @@ CHEMISTRY
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Chrysocolla2
+      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
+      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       PREFACTOR
         RATE_CONSTANT 1.d-10 mol/cm^2-sec
         PREFACTOR_SPECIES H+
@@ -138,6 +140,9 @@ CHEMISTRY
       /
     /
     Goethite
+      SURFACE_AREA_FUNCTION POROSITY_VOLUME_FRACTION_RATIO
+      SURFACE_AREA_POROSITY_POWER 0.8d0
+      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Gypsum
@@ -150,21 +155,29 @@ CHEMISTRY
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Kaolinite
+      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
+      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     Muscovite
+      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
+      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     SiO2(am)
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Quartz
+      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
+      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-14 mol/cm^2-sec
     /
   /
-  DATABASE ../../../database/hanford.dat
+  DATABASE ../../../../database/hanford.dat
   LOG_FORMULATION
-#  OPERATOR_SPLITTING
+#  UPDATE_MNRL_SURF_AREA_WITH_POR
+#  UPDATE_MINERAL_SURFACE_AREA
+  UPDATE_POROSITY
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
     PH
@@ -211,11 +224,10 @@ END
 
 #=========================== output options ===================================
 OUTPUT
-  PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT BLOCK
-  VELOCITY_AT_CENTER
-  PRINT_COLUMN_IDS
-  SCREEN PERIODIC 10
+  VARIABLES
+    LIQUID_PRESSURE
+    POROSITY
+  /
 END
 
 #=========================== times ============================================

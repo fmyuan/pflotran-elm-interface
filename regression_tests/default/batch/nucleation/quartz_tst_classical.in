@@ -1,0 +1,47 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+  EXTERNAL_FILE quartz.txt
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  EXTERNAL_FILE quartz_chem.txt
+  MINERAL_KINETICS
+    Quartz
+      RATE_CONSTANT 2.d-11 mol/m^2-sec
+      NUCLEATION_KINETICS classical
+      SURFACE_AREA_FUNCTION MINERAL_MASS
+      SPECIFIC_SURFACE_AREA 0.041 m^2/g
+    /
+  /
+  NUCLEATION_KINETICS
+    CLASSICAL classical
+      RATE_CONSTANT 1.d-5
+      GEOMETRIC_SHAPE_FACTOR 0.65
+      HETEROGENEOUS_CORRECTION_FACTOR 0.15
+      SURFACE_TENSION 0.685
+    /
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    SiO2(aq) 2.d-1    F
+  /
+  MINERALS
+    Quartz 0.d0 0.041 m^2/g
+  /
+END
+
+END_SUBSURFACE

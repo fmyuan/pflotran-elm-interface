@@ -1,0 +1,42 @@
+-- CONCENTRATION: Free HCO3- --
+        1:   2.3218044060495E-04
+-- CONCENTRATION: Free Ca++ --
+        1:   7.7014245926209E-02
+-- CONCENTRATION: Free H+ --
+        1:   1.5993946090780E-07
+-- CONCENTRATION: Free MgHCO3+ --
+        1:   1.8434450345435E-05
+-- VOLUME_FRACTION: Calcite VF --
+        1:   0.0000000000000E+00
+-- VOLUME_FRACTION: Dolomite VF --
+        1:   7.4360838564117E-03
+-- VOLUME_FRACTION: Magnesite VF --
+        1:   7.9792237026244E-04
+-- RATE: Calcite Rate --
+        1:   0.0000000000000E+00
+-- RATE: Dolomite Rate --
+        1:   4.7065081003371E-09
+-- RATE: Magnesite Rate --
+        1:  -9.4067058885674E-09
+-- GENERIC: Calcite SI --
+        1:   4.8242416292055E-01
+-- GENERIC: Dolomite SI --
+        1:   1.0000044193459E+00
+-- GENERIC: Magnesite SI --
+        1:   4.8727358313602E-02
+-- GENERIC: Calcite Area --
+        1:   1.0000000000000E+00
+-- GENERIC: Dolomite Area --
+        1:   5.3248922301595E+04
+-- GENERIC: Magnesite Area --
+        1:   1.0000000000000E+00
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.5282351002024E-02
+   Time Steps:          111
+   Newton Iterations:          332
+   Linear Solver Iterations:          332
+   Time Step Cuts:            0
+   Solution 2-Norm:   7.7233911047226E-02
+   Residual 2-Norm:   9.1473047231373E-18
