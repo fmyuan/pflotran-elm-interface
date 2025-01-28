@@ -17,10 +17,12 @@ module Reaction_Mineral_module
 
   public :: ReactionMnrlRead, &
             ReactionMnrlReadKinetics, &
+            ReactionMnrlReadNucleation, &
             ReactionMnrlReadFromDatabase, &
             ReactionMnrlReadMassActOverride, &
             ReactionMnrlProcessConstraint, &
-            ReactionMnrlKineticRate, &
+            ReactionMnrlSetup, &
+            ReactionMnrlKinetics, &
             ReactionMnrlSaturationIndex, &
             ReactionMnrlUpdateTempDepCoefs, &
             ReactionMnrlUpdateSpecSurfArea, &
@@ -157,7 +159,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
             case('RATE_CONSTANT','PRECIPITATION_RATE_CONSTANT', &
                  'DISSOLUTION_RATE_CONSTANT')
               rate_constant = UNINITIALIZED_DOUBLE
-              call ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+              call ReactionMnrlReadRateConstant(input,cur_mineral%name, &
                                                 rate_constant,error_string, &
                                                 '',option)
               select case(keyword)
@@ -237,8 +239,8 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   case('RATE_CONSTANT','PRECIPITATION_RATE_CONSTANT', &
                        'DISSOLUTION_RATE_CONSTANT')
                     rate_constant = UNINITIALIZED_DOUBLE
-                    call ReactionMnrlReadRateConstant(mineral,input, &
-                                                      cur_mineral, &
+                    call ReactionMnrlReadRateConstant(input, &
+                                                      cur_mineral%name, &
                                                       rate_constant, &
                                                       error_string, &
                                                       'PREFACTOR',option)
@@ -326,6 +328,37 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
                   endif
                 enddo
               endif
+            case('SURFACE_AREA_FUNCTION')
+              mineral%update_surface_area = PETSC_TRUE
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,keyword,error_string)
+              call StringToUpper(word)
+              select case(word)
+                case('CONSTANT')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_NULL
+                case('POROSITY_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POR_RATIO
+                case('VOLUME_FRACTION_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_VF_RATIO
+                case('POROSITY_VOLUME_FRACTION_RATIO')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_POR_VF_RATIO
+                case('MINERAL_MASS')
+                  tstrxn%surf_area_function = MINERAL_SURF_AREA_F_MNRL_MASS
+                case default
+                  error_string = error_string // ',' // &
+                                 trim(keyword) // ',' // word
+                  call InputKeywordUnrecognized(input,word, &
+                                                error_string,option)
+              end select
+            case('SPECIFIC_SURFACE_AREA')
+              call InputReadDouble(input,option,tstrxn%spec_surf_area)
+              call InputErrorMsg(input,option,keyword,error_string)
+              call InputReadAndConvertUnits(input,tstrxn%spec_surf_area, &
+                        'm^2/kg',trim(error_string)//','//trim(keyword),option)
+            case('NUCLEATION_KINETICS')
+              tstrxn%nucleation => ReactionMnrlCreateNucleation()
+              call InputReadWord(input,option,tstrxn%nucleation%name,PETSC_TRUE)
+              call InputErrorMsg(input,option,keyword,error_string)
             case default
               call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
@@ -337,10 +370,74 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
             (Initialized(tstrxn%precipitation_rate_constant) .and. &
              Uninitialized(tstrxn%dissolution_rate_constant))) then
           option%io_buffer = 'Both forward and reverse rate constants must &
-            &be specified if either is specified for kinetic mineral ' // &
-            trim(cur_mineral%name) // '.'
+            &be specified if either is specified for kinetic mineral "' // &
+            trim(cur_mineral%name) // '".'
           call PrintErrMsg(option)
         endif
+        ! Ensure that correct surface area parameters are set
+        if (tstrxn%surf_area_porosity_pwr > 0.d0) then
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_MNRL_MASS)
+              option%io_buffer = 'SURFACE_AREA_FUNCTION MINERAL_MASS is &
+                &not compatible with SURFACE_AREA_POROSITY_POWER for &
+                &mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            case default
+              option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
+                &mineral "' // trim(cur_mineral%name) // '" since &
+                &SURFACE_AREA_POROSITY_POWER is specified.'
+              call PrintErrMsg(option)
+          end select
+        endif
+        if (tstrxn%surf_area_vol_frac_pwr > 0.d0) then
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            case(MINERAL_SURF_AREA_F_MNRL_MASS)
+              option%io_buffer = 'SURFACE_AREA_FUNCTION MINERAL_MASS is &
+                &not compatible with SURFACE_AREA_VOL_FRAC_POWER for &
+                &mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            case default
+              option%io_buffer = 'A SURFACE_AREA_FUNCTION must be set for &
+                &mineral "' // trim(cur_mineral%name) // '" since &
+                &SURFACE_AREA_VOL_FRAC_POWER is specified.'
+              call PrintErrMsg(option)
+          end select
+        endif
+        select case(tstrxn%surf_area_function)
+          case(MINERAL_SURF_AREA_F_POR_RATIO)
+            if (Uninitialized(tstrxn%surf_area_porosity_pwr)) then
+              option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_VF_RATIO)
+            if (Uninitialized(tstrxn%surf_area_vol_frac_pwr)) then
+              option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            if (Uninitialized(tstrxn%surf_area_porosity_pwr)) then
+              option%io_buffer = 'A SURFACE_AREA_POROSITY_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+            if (Uninitialized(tstrxn%surf_area_vol_frac_pwr)) then
+              option%io_buffer = 'A SURFACE_AREA_VOL_FRAC_POWER must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+          case(MINERAL_SURF_AREA_F_MNRL_MASS)
+            if (Uninitialized(tstrxn%spec_surf_area)) then
+              option%io_buffer = 'A SPECIFIC_SURFACE_AREA must be &
+                &specified for mineral "' // trim(cur_mineral%name) // '".'
+              call PrintErrMsg(option)
+            endif
+        end select
         ! Loop over prefactors and set kinetic rates and activation energies
         ! equal to the "outer" values if zero.
         cur_prefactor => tstrxn%prefactor
@@ -372,6 +469,12 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
           endif
           cur_prefactor => cur_prefactor%next
         enddo
+        if (.not.associated(tstrxn%prefactor) .and. &
+            Uninitialized(tstrxn%precipitation_rate_constant)) then
+          option%io_buffer = 'A rate constant must be defined for kinetic &
+            &mineral "' // trim(cur_mineral%name) // '".'
+          call PrintErrMsg(option)
+        endif
         ! add tst rxn
         if (.not.associated(cur_mineral%tstrxn)) then
           cur_mineral%tstrxn => tstrxn
@@ -427,7 +530,7 @@ end subroutine ReactionMnrlReadKinetics
 
 ! ************************************************************************** !
 
-subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
+subroutine ReactionMnrlReadRateConstant(input,mineral_name, &
                                         rate_constant,error_string, &
                                         error_string2,option)
   !
@@ -445,9 +548,8 @@ subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
 
   implicit none
 
-  type(mineral_type) :: mineral
   type(input_type), pointer :: input
-  type(mineral_rxn_type) :: cur_mineral
+  character(len=MAXWORDLENGTH) :: mineral_name
   PetscReal :: rate_constant
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=*) :: error_string2
@@ -465,7 +567,7 @@ subroutine ReactionMnrlReadRateConstant(mineral,input,cur_mineral, &
   internal_units = 'mol/m^2-sec'
   call InputReadWord(input,option,word,PETSC_TRUE)
   if (InputError(input)) then
-    input%err_buf = trim(cur_mineral%name) // ' ' // trim(error_string2) // &
+    input%err_buf = trim(mineral_name) // ' ' // trim(error_string2) // &
       ' RATE_CONSTANT UNITS'
     call InputDefaultMsg(input,option)
   else
@@ -581,6 +683,151 @@ end subroutine ReactionMnrlReadMassActOverride
 
 ! ************************************************************************** !
 
+subroutine ReactionMnrlReadNucleation(mineral,input,option)
+  !
+  ! Reads parameters for overriding mineral mass action and log Ks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/18/24
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  type(mineral_type) :: mineral
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  type(nucleation_type), pointer :: nucleation
+  type(nucleation_type), pointer :: last_nucleation
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword
+
+  ! find last in list, if the list exists
+  last_nucleation => mineral%nucleation_list
+  if (associated(last_nucleation)) then
+    do
+      if (associated(last_nucleation%next)) then
+        last_nucleation => last_nucleation%next
+      else
+        exit
+      endif
+    enddo
+  endif
+
+  input%ierr = 0
+  call InputPushBlock(input,'MINERAL_NUCLEATION_KINETICS',option)
+  do
+
+    error_string = 'CHEMISTRY,MINERAL_NUCLEATION_KINETICS'
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    nucleation => ReactionMnrlCreateNucleation()
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,keyword,error_string)
+    call StringToUpper(keyword)
+    select case(keyword)
+      case('CLASSICAL')
+        nucleation%itype = MINERAL_NUCLEATION_CLASSICAL
+      case('SIMPLIFIED')
+        nucleation%itype = MINERAL_NUCLEATION_SIMPLIFIED
+      case default
+        error_string = trim(error_string)//',TYPE'
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+    call InputReadWord(input,option,nucleation%name,PETSC_TRUE)
+    call InputErrorMsg(input,option,'nucleation name',error_string)
+
+    call InputPushBlock(input,nucleation%name,option)
+    do
+      error_string = trim(error_string) // ',' // nucleation%name
+      call InputReadPflotranString(input,option)
+      call InputReadStringErrorMsg(input,option,error_string)
+      if (InputCheckExit(input,option)) exit
+      call InputReadCard(input,option,keyword)
+      call InputErrorMsg(input,option,'keyword',error_string)
+      call StringToUpper(keyword)
+
+      select case(nucleation%itype)
+        case(MINERAL_NUCLEATION_CLASSICAL)
+          select case(keyword)
+            case('RATE_CONSTANT')
+              call ReactionMnrlReadRateConstant(input,nucleation%name, &
+                                                nucleation%rate_constant, &
+                                                error_string, &
+                                                'NUCLEATION',option)
+            case('GEOMETRIC_SHAPE_FACTOR')
+              call InputReadDouble(input,option, &
+                                  nucleation%geometric_shape_factor)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case('HETEROGENEOUS_CORRECTION_FACTOR')
+              call InputReadDouble(input,option, &
+                                  nucleation%heterogenous_correction_factor)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case('SURFACE_TENSION')
+              call InputReadDouble(input,option,nucleation%surface_tension)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case default
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
+          end select
+        case(MINERAL_NUCLEATION_SIMPLIFIED)
+          select case(keyword)
+            case('RATE_CONSTANT')
+              call ReactionMnrlReadRateConstant(input,nucleation%name, &
+                                                nucleation%rate_constant, &
+                                                error_string, &
+                                                'NUCLEATION',option)
+            case('GAMMA')
+              call InputReadDouble(input,option,nucleation%gamma)
+              call InputErrorMsg(input,option,keyword,error_string)
+            case default
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
+          end select
+      end select
+    enddo
+    call InputPopBlock(input,option)
+
+    ! error checking
+    select case(nucleation%itype)
+      case(MINERAL_NUCLEATION_CLASSICAL)
+        if (len_trim(nucleation%name) == 0 .or. &
+            Uninitialized(nucleation%rate_constant) .or. &
+            Uninitialized(nucleation%geometric_shape_factor) .or. &
+            Uninitialized(nucleation%heterogenous_correction_factor) .or. &
+            Uninitialized(nucleation%surface_tension)) then
+          option%io_buffer = 'Uninitialized values in classical &
+            &nucleation reaction "' // trim(nucleation%name) // '".'
+          call PrintErrMsg(option)
+        endif
+      case(MINERAL_NUCLEATION_SIMPLIFIED)
+        if (len_trim(nucleation%name) == 0 .or. &
+            Uninitialized(nucleation%rate_constant) .or. &
+            Uninitialized(nucleation%gamma)) then
+          option%io_buffer = 'Uninitialized values in simplified &
+            &nucleation reaction "' // trim(nucleation%name) // '".'
+          call PrintErrMsg(option)
+        endif
+    end select
+
+    if (associated(last_nucleation)) then
+      last_nucleation%next => nucleation
+    else
+      mineral%nucleation_list => nucleation
+    endif
+    last_nucleation => nucleation
+    nullify(nucleation)
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine ReactionMnrlReadNucleation
+
+! ************************************************************************** !
+
 subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
                                         input,option)
   !
@@ -637,6 +884,8 @@ subroutine ReactionMnrlReadFromDatabase(mineral,num_dbase_temperatures, &
   ! read the molar weight
   call InputReadDouble(input,option,mineral%molar_weight)
   call InputErrorMsg(input,option,'MINERAL molar weight','DATABASE')
+  ! convert from g/mol to kg/mol
+  mineral%molar_weight = mineral%molar_weight*1.d-3
 
 end subroutine ReactionMnrlReadFromDatabase
 
@@ -663,14 +912,13 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   type(mineral_type), pointer :: mineral
   character(len=MAXWORDLENGTH) :: constraint_name
   type(mineral_constraint_type), pointer :: constraint
-  type(mineral_rxn_type), pointer :: mineral_rxn
   type(option_type) :: option
 
   PetscBool :: found
   PetscInt :: imnrl, jmnrl
   PetscReal, parameter :: epsilon = 1.d-16
 
-  character(len=MAXWORDLENGTH) :: mineral_name(mineral%nkinmnrl)
+  character(len=MAXWORDLENGTH) :: mineral_names(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_vol_frac_string(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_area_string(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_area_units(mineral%nkinmnrl)
@@ -680,12 +928,16 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
   PetscBool :: external_area_dataset(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: units
   character(len=MAXWORDLENGTH) :: internal_units
-  PetscBool :: per_unit_mass
+  character(len=MAXWORDLENGTH) :: mineral_name
   PetscReal :: tempreal
+  PetscReal :: molar_volume
+  PetscReal :: molar_weight
+  PetscReal :: specific_surface_area
+  PetscReal :: constraint_surface_area
 
   if (.not.associated(constraint)) return
 
-  mineral_name = ''
+  mineral_names = ''
   constraint_vol_frac_string = ''
   constraint_area_string = ''
   external_vol_frac_dataset = PETSC_FALSE
@@ -711,7 +963,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         constraint%constraint_vol_frac(imnrl)
       constraint_area(jmnrl) = &
         constraint%constraint_area(imnrl)
-      mineral_name(jmnrl) = constraint%names(imnrl)
+      mineral_names(jmnrl) = constraint%names(imnrl)
       constraint_vol_frac_string(jmnrl) = &
         constraint%constraint_vol_frac_string(imnrl)
       constraint_area_string(jmnrl) = &
@@ -724,7 +976,7 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
         constraint%external_area_dataset(imnrl)
     endif
   enddo
-  constraint%names = mineral_name
+  constraint%names = mineral_names
   constraint%constraint_vol_frac = constraint_vol_frac
   constraint%constraint_area = constraint_area
   constraint%constraint_vol_frac_string = constraint_vol_frac_string
@@ -735,56 +987,93 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
 
   ! set up constraint specific surface area conversion factor
   do imnrl = 1, mineral%nkinmnrl
+    mineral_name = mineral%kinmnrl_names(imnrl)
+    molar_volume = mineral%kinmnrl_molar_vol(imnrl)
+    molar_weight = mineral%kinmnrl_molar_wt(imnrl)
+    specific_surface_area = mineral%kinmnrl_spec_surf_area(imnrl)
+
     units = constraint%constraint_area_units(imnrl)
-    per_unit_mass = StringEndsWith(units,'g')
-    internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 bulk
-    if (per_unit_mass) then
+    call StringToLower(units)
+    if (StringEndsWith(units,'m^3_mnrl')) then
+      units = units(1:index(units,'m^3_mnrl')+2)
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_MNRL_VOL
+      internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 mnrl
+    elseif (StringEndsWith(units,'g')) then
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_MNRL_MASS
       internal_units = 'm^2/kg' ! m^2 mnrl/kg mnrl
+    elseif (StringEndsWith(units,'m^3')) then
+      constraint%area_units_type(imnrl) = MINERAL_SURF_AREA_PER_BULK_VOL
+      internal_units = 'm^2/m^3' ! m^2 mnrl/m^3 bulk
+    else
+      option%io_buffer = 'Unrecognized mineral specific surface area units &
+        &for mineral ' // constraint%names(imnrl) // '.'
+      call PrintErrMsg(option)
     endif
+    ! convert to m^2/m^3 (mnrl or bulk) or m^2/kg mnrl
+    !   tempreal is solely a conversion factor at this point
+    !   DO NOT scale the constraint surface area
     tempreal = UnitsConvertToInternal(units,internal_units, &
                          trim(constraint%names(imnrl))// &
                          ',specific surface area', &
                          option)
-    if (per_unit_mass) then
-      mineral_rxn => &
-        ReactionMnrlGetMnrlPtrFromName(constraint%names(imnrl),mineral)
-      if (mineral_rxn%molar_weight < epsilon .or. &
-          Equal(mineral_rxn%molar_weight,500.d0)) then
+    if (constraint%area_units_type(imnrl) == &
+        MINERAL_SURF_AREA_PER_MNRL_MASS) then
+      ! m^2 mnrl/kg mnrl -> m^2 mnrl/m^3 mnrl
+      ! if a different specific surface area is specified in constraint, scale
+      ! to be wrt the specific surface are specified under mineral kinetics
+      if (Initialized(specific_surface_area)) then
+        ! solely use in scaling below
+        constraint_surface_area = tempreal * constraint%constraint_area(imnrl)
+        if (.not.Equal(specific_surface_area,constraint_surface_area)) then
+          option%io_buffer = 'Use of differing specific surface areas &
+            &(mineral kinetics vs. constraint) is currently not &
+            &supported: ' // StringWrite(specific_surface_area) // ' vs ' // &
+            &StringWrite(constraint_surface_area)
+          call PrintErrMsg(option)
+        endif
+        ! rescale if they differ
+        tempreal = tempreal * constraint_surface_area / specific_surface_area
+      endif
+
+      if (molar_weight < epsilon .or. Equal(molar_weight,500.d0)) then
         option%io_buffer = 'Zero or undefined molar weight for mineral "' // &
-          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          trim(mineral_name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
         call PrintErrMsg(option)
       endif
-      if (mineral_rxn%molar_volume < epsilon .or. &
-          Equal(mineral_rxn%molar_volume,500.d0)) then
+      if (molar_volume < epsilon .or. Equal(molar_volume,500.d0)) then
         option%io_buffer = 'Zero or undefined molar volume for mineral "' // &
-          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          trim(mineral_name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
         call PrintErrMsg(option)
       endif
-      ! m^2/m^3 (m^2 mnrl/m^3 mnrl) = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
-      tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
-                 mineral_rxn%molar_volume
-      constraint%area_per_unit_mass(imnrl) = PETSC_TRUE
+      ! m^2 mnrl/m^3 mnrl = m^2 mnrl/kg mnrl * kg mnrl/mol mnrl /
+      !                     m^3 mnrl/mol mnrl
+      tempreal = tempreal * molar_weight / molar_volume
     endif
     constraint%constraint_area_conv_factor(imnrl) = tempreal
     constraint%constraint_area_units(imnrl) = internal_units
     if (Initialized(constraint%constraint_vol_frac(imnrl))) then
-      if (per_unit_mass) then
+      if (constraint%area_units_type(imnrl) == &
+          MINERAL_SURF_AREA_PER_MNRL_MASS) then
         ! m^2 mnrl/m^3 mnrl -> m^2 mnrl/m^3 bulk
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
+#if 0
         if (tempreal < epsilon) then
           option%io_buffer = 'The zero volume fraction assigned to &
-            &mineral "' // trim(mineral_rxn%name) // '" in constraint "' // &
+            &mineral "' // trim(mineral_name) // '" in constraint "' // &
             trim(constraint_name) // '" prevents the use of a mass-based &
             &surface area in the constraint.'
           call PrintErrMsg(option)
         endif
+#endif
       endif
     endif
+    ! this is where we scale the constraint surface area (if initialized)
     if (Initialized(constraint%constraint_area(imnrl))) then
+      ! tempreal converts input value to m^2 mnrl/m^3 bulk
       constraint%constraint_area(imnrl) = tempreal * &
         constraint%constraint_area(imnrl)
     endif
@@ -794,9 +1083,94 @@ end subroutine ReactionMnrlProcessConstraint
 
 ! ************************************************************************** !
 
-subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
-                                   global_auxvar,material_auxvar,reaction, &
-                                   option)
+subroutine ReactionMnrlSetup(reaction,option)
+  !
+  ! Ensure that the mineral object is properly initialized.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/10/25
+  !
+  use Option_module
+
+  implicit none
+
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  type(mineral_type), pointer :: mineral
+  PetscBool :: error_found
+  PetscInt :: imnrl
+
+  mineral => reaction%mineral
+
+  error_found = PETSC_FALSE
+  do imnrl = 1, mineral%nkinmnrl
+    select case(mineral%kinmnrl_surf_area_function(imnrl))
+      case(MINERAL_SURF_AREA_F_MNRL_MASS)
+        if (Uninitialized(mineral%kinmnrl_spec_surf_area(imnrl))) then
+          error_found = PETSC_TRUE
+          option%io_buffer = 'A specific surface area must be defined in &
+            &in the MINERAL_KINETICS block for mineral "' // &
+            trim(mineral%mineral_names(imnrl)) // '".'
+          call PrintMsg(option)
+        endif
+    end select
+  enddo
+
+  if (error_found) then
+    call PrintErrMsg(option,'Mineral kinetics missing parameters.')
+  endif
+
+end subroutine ReactionMnrlSetup
+
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlKinetics(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  !
+  ! Wrapper routine for mineral kinetic reactions
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/24/25
+
+  use Option_module
+  use Material_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(reaction_rt_type) :: reaction
+  PetscBool :: compute_analytical_derivative
+  PetscBool :: store_rate
+  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+
+  rt_auxvar%mnrl_rate(:) = 0.d0
+  call ReactionMnrlKineticRateTST(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  if (associated(reaction%mineral%nucleation_array)) then
+    call ReactionMnrlNucleationKinetics(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+  endif
+
+end subroutine ReactionMnrlKinetics
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlKineticRateTST(Res,Jac, &
+                                      compute_derivative,store_rate, &
+                                      rt_auxvar,global_auxvar, &
+                                      material_auxvar,reaction,option)
   !
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -817,6 +1191,7 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
+  PetscBool :: store_rate
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -834,8 +1209,8 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: ln_sec(reaction%neqcplx)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: ln_sec_act(reaction%neqcplx)
-  PetscReal :: QK, lnQK, dQK_dmj, den
-
+  PetscReal :: QK, lnQK, lnQK2, dQK_dmj
+  PetscReal :: den
   PetscReal :: ln_spec_act, spec_act_coef
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
   PetscReal :: prefactor(10), ln_prefactor_spec(5,10)
@@ -903,9 +1278,6 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
     enddo
   endif
 #endif
-
-  ! Zero all rates as default
-  rt_auxvar%mnrl_rate(:) = 0.d0
 
   do imnrl = 1, mineral%nkinmnrl ! for each mineral
 
@@ -1052,8 +1424,10 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       endif
       ! store volumetric rate to be used in updating mineral volume fractions
       ! at end of time step
-      rt_auxvar%mnrl_rate(imnrl) = Im ! mol/sec/m^3 bulk
-
+      if (store_rate) then
+        ! mol/sec/m^3 bulk
+        rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + Im
+      endif
     else ! rate is already zero by default; move on to next mineral
       cycle
     endif
@@ -1071,6 +1445,36 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
       Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
     enddo
+
+#if 0
+    ! nucleation
+    if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
+      i = mineral%kinmnrl_nucleation_id(imnrl)
+      call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+                                  mineral%kinmnrl_molar_vol(imnrl), &
+                                  global_auxvar%temp,lnQK, &
+                                  nucleation_rate,dnucleation_rate_dlnQK, &
+                                  option)
+      print *, 'nucleation rate: ', nucleation_rate
+#if 0
+print *, 'analytical derivative: ', dnucleation_rate_dlnQK
+      Im_const = lnQK+1.d-6*lnQK
+      call ReactionMnrlNucleation(mineral%nucleation_array(i), &
+                                  mineral%kinmnrl_molar_vol(imnrl), &
+                                  global_auxvar%temp,Im_const, &
+                                  Im,dnucleation_rate_dlnQK, &
+                                  option)
+print *, 'numerical derivative: ',  (Im-nucleation_rate)/(Im_const-lnQK)
+stop
+#endif
+      do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+        icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+        Res(icomp) = Res(icomp) + &
+                     mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+                     nucleation_rate
+      enddo
+    endif
+#endif
 
     if (.not. compute_derivative) cycle
 
@@ -1215,24 +1619,24 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
             icplx = -icomp
 
             ! compute secondary species concentration
-            lnQK = -reaction%eqcplx_logK(icplx)*LOG_TO_LN
+            lnQK2 = -reaction%eqcplx_logK(icplx)*LOG_TO_LN
 
             ! activity of water
             if (reaction%eqcplxh2oid(icplx) > 0) then
-              lnQK = lnQK + reaction%eqcplxh2ostoich(icplx) * &
-                            rt_auxvar%ln_act_h2o
+              lnQK2 = lnQK2 + reaction%eqcplxh2ostoich(icplx) * &
+                              rt_auxvar%ln_act_h2o
             endif
 
             do i = 1, reaction%eqcplxspecid(0,icplx)
               icomp = reaction%eqcplxspecid(i,icplx)
-              lnQK = lnQK + reaction%eqcplxstoich(i,icplx)*ln_act(icomp)
+              lnQK2 = lnQK2 + reaction%eqcplxstoich(i,icplx)*ln_act(icomp)
             enddo
             ! add contribution to derivatives secondary prefactor with
             ! respect to free
             do j = 1, reaction%eqcplxspecid(0,icplx)
               jcomp = reaction%eqcplxspecid(j,icplx)
               dspec_dprimary = reaction%eqcplxstoich(j,icplx) * &
-                               exp(lnQK-ln_conc(jcomp)) / &
+                               exp(lnQK2-ln_conc(jcomp)) / &
                                rt_auxvar%sec_act_coef(icplx)
               do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
                 icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
@@ -1246,9 +1650,29 @@ subroutine ReactionMnrlKineticRate(Res,Jac,compute_derivative,rt_auxvar, &
       enddo  ! loop over prefactors
 #endif
     endif
+
+#if 0
+    ! nucleation
+    if (mineral%kinmnrl_nucleation_id(imnrl) > 0) then
+      dlnQK_dQK = 1.d0/QK
+      do j = 1, mineral%kinmnrlspecid(0,imnrl)
+        jcomp = mineral%kinmnrlspecid(j,imnrl)
+        ! unit = kg water/mol
+        dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
+        do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+          icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+          ! units = (mol/sec)*(kg water/mol) = kg water/sec
+          Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
+            mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+            dnucleation_rate_dlnQK * dlnQK_dQK * dQK_dmj
+        enddo
+      enddo
+    endif
+#endif
+
   enddo  ! loop over minerals
 
-end subroutine ReactionMnrlKineticRate
+end subroutine ReactionMnrlKineticRateTST
 
 ! ************************************************************************** !
 
@@ -1428,6 +1852,183 @@ subroutine ReactionMnrlKineticRateSingle(imnrl,ln_act,ln_sec_act,rt_auxvar, &
 
 end subroutine ReactionMnrlKineticRateSingle
 
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlNucleationKinetics(Res,Jac, &
+                                          compute_derivative,store_rate, &
+                                          rt_auxvar,global_auxvar, &
+                                          material_auxvar,reaction,option)
+  !
+  ! Calculates mineral precipitation nucleation rates.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/23/25
+  !
+  use Option_module
+  use Material_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(reaction_rt_type) :: reaction
+  PetscBool :: compute_derivative
+  PetscBool :: store_rate
+  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+
+  type(mineral_type), pointer :: mineral
+  PetscInt :: nid
+  PetscInt :: i, j, imnrl, icomp, jcomp
+  PetscReal :: ln_conc(reaction%naqcomp)
+  PetscReal :: ln_act(reaction%naqcomp)
+  PetscReal :: QK, lnQK
+  PetscReal :: dQK_dmj, dlnQK_dQK
+  PetscReal :: nucleation_rate, dnucleation_rate_dlnQK
+
+  mineral => reaction%mineral
+
+  ln_conc = log(rt_auxvar%pri_molal)
+  ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
+
+  do imnrl = 1, mineral%nkinmnrl ! for each mineral
+
+    nid = mineral%kinmnrl_nucleation_id(imnrl)
+    if (nid == 0) cycle
+
+    ! compute ion activity product
+    lnQK = -mineral%kinmnrl_logK(imnrl)*LOG_TO_LN
+
+    ! activity of water
+    if (mineral%kinmnrlh2oid(imnrl) > 0) then
+      lnQK = lnQK + mineral%kinmnrlh2ostoich(imnrl)* &
+                    rt_auxvar%ln_act_h2o
+    endif
+
+    do i = 1, mineral%kinmnrlspecid(0,imnrl)
+      icomp = mineral%kinmnrlspecid(i,imnrl)
+      lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
+    enddo
+
+    QK = exp(lnQK)
+
+    call ReactionMnrlNucleation(mineral%nucleation_array(nid), &
+                                mineral%kinmnrl_molar_vol(imnrl), &
+                                global_auxvar%temp,lnQK, &
+                                nucleation_rate,dnucleation_rate_dlnQK, &
+                                option)
+!    print *, 'nucleation rate: ', nucleation_rate
+#if 0
+print *, 'analytical derivative: ', dnucleation_rate_dlnQK
+    call ReactionMnrlNucleation(mineral%nucleation_array(nid), &
+                                mineral%kinmnrl_molar_vol(imnrl), &
+                                global_auxvar%temp,lnQK+1.d-6*lnQK, &
+                                dlnQK_dQK,dQK_dmj, &
+                                option)
+print *, 'numerical derivative: ',  (dlnQK_dQK-nucleation_rate)/(1.d-6*lnQK)
+!stop
+#endif
+    if (store_rate) then
+      rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + &
+                                   nucleation_rate
+    endif
+    do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+      icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+      Res(icomp) = Res(icomp) + &
+                   mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+                   nucleation_rate
+    enddo
+
+    if (.not. compute_derivative) cycle
+
+    dlnQK_dQK = 1.d0/QK
+    do j = 1, mineral%kinmnrlspecid(0,imnrl)
+      jcomp = mineral%kinmnrlspecid(j,imnrl)
+      ! unit = kg water/mol
+      dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
+      do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+        icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
+          mineral%kinmnrlstoich_in_residual(i,imnrl) * &
+          dnucleation_rate_dlnQK * dlnQK_dQK * dQK_dmj
+      enddo
+    enddo
+
+  enddo
+
+end subroutine ReactionMnrlNucleationKinetics
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlNucleation(nucleation,molar_volume, &
+                                  temperature_C,lnQK, &
+                                  rate,drate_dlnQK,option)
+  !
+  ! Calculates individual mineral nucleation rates
+  !
+  ! Author: Glenn Hammond
+  ! Date: Date: 01/23/25
+  !
+  use Option_module
+
+  implicit none
+
+  type(nucleation_type) :: nucleation
+  PetscReal :: molar_volume
+  PetscReal :: temperature_C
+  PetscReal :: lnQK
+  PetscReal :: rate
+  PetscReal :: drate_dlnQK
+  type(option_type) :: option
+
+  PetscReal, parameter :: Avogadros_number = 6.02d23
+  PetscReal :: T_K
+  PetscReal :: exp_term, exp_term1, exp_term2
+
+  if (lnQK <= 0.d0) then
+    rate = 0.d0
+    drate_dlnQK = 0.d0
+    return
+  endif
+
+  T_K = temperature_C + T273K
+  select case(nucleation%itype)
+    case(MINERAL_NUCLEATION_CLASSICAL)
+      exp_term1 = -1.d0 * nucleation%geometric_shape_factor * &
+                  Avogadros_number * &
+                  nucleation%heterogenous_correction_factor * &
+                  molar_volume**2 * &
+                  nucleation%surface_tension**3 / &
+                  ((IDEAL_GAS_CONSTANT * T_K)**3)
+      exp_term2 = 1.d0/lnQK
+      exp_term = exp_term1 * exp_term2**2
+      rate = nucleation%rate_constant * exp(exp_term)
+      drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+    case(MINERAL_NUCLEATION_SIMPLIFIED)
+      exp_term1 = -1.d0 * nucleation%gamma / (T_K**3)
+      exp_term2 = 1.d0/lnQK
+      exp_term = exp_term1 * exp_term2**2
+      rate = nucleation%rate_constant * exp(exp_term)
+      drate_dlnQK = rate*exp_term*(-2.d0*exp_term2)
+  end select
+#if 0
+  print *, rate, lnQK
+  print *, 'exp: ', exp_term, exp_term1, exp_term2
+  print *, 'rate_constant: ', nucleation%rate_constant
+  print *, 'lnQK: ', lnQK
+  print *, 'geom: ', nucleation%geometric_shape_factor
+  print *, 'hetero: ', nucleation%heterogenous_correction_factor
+  print *, 'molvol: ', molar_volume
+  print *, 'surf_tens: ', nucleation%surface_tension
+  print *, 'TC: ', temperature_C
+#endif
+
+end subroutine ReactionMnrlNucleation
+
 ! ************************************************************************** !
 
 function ReactionMnrlSaturationIndex(imnrl,rt_auxvar,global_auxvar, &
@@ -1560,68 +2161,97 @@ subroutine ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvar, &
   PetscReal :: volfrac_scale
   PetscReal :: mnrl_volfrac0
   PetscReal :: mnrl_volfrac
+  PetscBool :: calc_porosity
+  PetscBool :: calc_volfrac
 
   mineral => reaction%mineral
 
   do imnrl = 1, mineral%nkinmnrl
 
-    porosity_scale = 1.d0
-    if (reaction%update_mnrl_surf_with_porosity) then
-      porosity_scale = &
-        ((1.d0-material_auxvar%porosity_base) / &
-         (1.d0-porosity0))** &
-         mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
-    endif
-
-    volfrac_scale = 1.d0
-    mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
-                        mineral%kinmnrl_vol_frac_epsilon(imnrl))
-    mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
-                       mineral%kinmnrl_vol_frac_epsilon(imnrl))
-    if (mnrl_volfrac0 > 0.d0) then
-      volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
-                      mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-    endif
-
-    rt_auxvar%mnrl_area(imnrl) = &
-        max(rt_auxvar%mnrl_area0(imnrl), &
-            mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
-        porosity_scale*volfrac_scale
-
-    if (reaction%update_armor_mineral_surface .and. &
-        mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
-      imnrl_armor = imnrl
-      do imnrl1 = 1, mineral%nkinmnrl
-        if (mineral%kinmnrl_armor_min_names(imnrl) == &
-            mineral%kinmnrl_names(imnrl1)) then
-          imnrl_armor = imnrl1
-          exit
+    select case(mineral%kinmnrl_surf_area_function(imnrl))
+      case(MINERAL_SURF_AREA_F_POR_VF_RATIO, &
+           MINERAL_SURF_AREA_F_POR_RATIO, &
+           MINERAL_SURF_AREA_F_VF_RATIO)
+        select case(mineral%kinmnrl_surf_area_function(imnrl))
+          case(MINERAL_SURF_AREA_F_POR_RATIO)
+            calc_porosity = PETSC_TRUE
+            calc_volfrac = PETSC_FALSE
+            volfrac_scale = 1.d0
+          case(MINERAL_SURF_AREA_F_VF_RATIO)
+            calc_porosity = PETSC_FALSE
+            calc_volfrac = PETSC_TRUE
+            porosity_scale = 1.d0
+          case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+            calc_porosity = PETSC_TRUE
+            calc_volfrac = PETSC_TRUE
+        end select
+        if (calc_porosity) then
+          porosity_scale = &
+              ((1.d0-material_auxvar%porosity_base) / &
+              (1.d0-porosity0))** &
+              mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
         endif
-      enddo
-
-      ! check for negative surface area armoring correction
-      if (mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
-          rt_auxvar%mnrl_volfrac(imnrl_armor)) then
-
-        if (reaction%update_armor_mineral_surface_flag == 0) then
-          ! surface unarmored
-          rt_auxvar%mnrl_area(imnrl) = &
-            rt_auxvar%mnrl_area(imnrl) * &
-            ((mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
-            - rt_auxvar%mnrl_volfrac(imnrl_armor))/ &
-            mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
-            mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-        else
-          rt_auxvar%mnrl_area(imnrl) = &
-            rt_auxvar%mnrl_area0(imnrl)
-          reaction%update_armor_mineral_surface_flag = 0
+        if (calc_volfrac) then
+          mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+                              mineral%kinmnrl_vol_frac_epsilon(imnrl))
+          mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
+                            mineral%kinmnrl_vol_frac_epsilon(imnrl))
+          if (mnrl_volfrac0 > 0.d0) then
+            volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
+                            mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+          endif
         endif
-      else
-        rt_auxvar%mnrl_area(imnrl) = 0.d0
-        reaction%update_armor_mineral_surface_flag = 1 ! surface armored
-      endif
-    endif
 
+        rt_auxvar%mnrl_area(imnrl) = &
+            max(rt_auxvar%mnrl_area0(imnrl), &
+                mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
+            porosity_scale*volfrac_scale
+
+        if (reaction%update_armor_mineral_surface .and. &
+            mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
+          imnrl_armor = imnrl
+          do imnrl1 = 1, mineral%nkinmnrl
+            if (mineral%kinmnrl_armor_min_names(imnrl) == &
+                mineral%kinmnrl_names(imnrl1)) then
+              imnrl_armor = imnrl1
+              exit
+            endif
+          enddo
+
+          ! check for negative surface area armoring correction
+          if (mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
+              rt_auxvar%mnrl_volfrac(imnrl_armor)) then
+
+            if (reaction%update_armor_mineral_surface_flag == 0) then
+              ! surface unarmored
+              rt_auxvar%mnrl_area(imnrl) = &
+                rt_auxvar%mnrl_area(imnrl) * &
+                ((mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
+                - rt_auxvar%mnrl_volfrac(imnrl_armor))/ &
+                mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
+                mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+            else
+              rt_auxvar%mnrl_area(imnrl) = &
+                rt_auxvar%mnrl_area0(imnrl)
+              reaction%update_armor_mineral_surface_flag = 0
+            endif
+          else
+            rt_auxvar%mnrl_area(imnrl) = 0.d0
+            reaction%update_armor_mineral_surface_flag = 1 ! surface armored
+          endif
+        endif
+      case(MINERAL_SURF_AREA_F_MNRL_MASS)
+        ! m^2 mnrl/m^3 bulk = m^2 mnrl/kg mnrl *    [specific surface area]
+        !                     kg mnrl/mol mnrl /    [formula weight]
+        !                     m^3 mnrl/mol mnrl *   [molar volume]
+        !                     m^3 mnrl/m^3 bulk     [volume fraction]
+        rt_auxvar%mnrl_area(imnrl) = &
+          mineral%kinmnrl_spec_surf_area(imnrl) * &
+          mineral%kinmnrl_molar_wt(imnrl) / &
+          mineral%kinmnrl_molar_vol(imnrl) * &
+          rt_auxvar%mnrl_volfrac(imnrl)
+      case default
+    end select
   enddo
 
 end subroutine ReactionMnrlUpdateSpecSurfArea
@@ -1655,14 +2285,18 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
   PetscReal :: delta_volfrac
   PetscReal :: res(reaction%ncomp) ! has to be sized accurately
   PetscReal :: jac(1,1) ! strictly a dummy array
+  PetscBool, parameter :: store_rate = PETSC_TRUE
+  PetscBool, parameter :: compute_analytical_derivative = PETSC_FALSE
 
   if (reaction%mineral%nkinmnrl == 0) return
 
   kinetic_state_updated = PETSC_TRUE
 
   ! Updates the mineral rates, res is not needed
-  call ReactionMnrlKineticRate(res,jac,PETSC_FALSE,rt_auxvar,global_auxvar, &
-                               material_auxvar,reaction,option)
+  call ReactionMnrlKinetics(res,jac, &
+                            compute_analytical_derivative,store_rate, &
+                            rt_auxvar,global_auxvar, &
+                            material_auxvar,reaction,option)
 
   do imnrl = 1, reaction%mineral%nkinmnrl
     ! rate = mol/m^3/sec

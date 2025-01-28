@@ -1,0 +1,16 @@
+  PRIMARY_SPECIES
+    SiO2(aq)
+  /
+  MINERALS
+    Quartz
+  /
+  DATABASE ../../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    SiO2(aq)
+    FREE_ION
+    Quartz
+    MINERAL_SATURATION_INDEX
+    MINERAL_SURFACE_AREA
+  /

@@ -132,6 +132,15 @@ CHEMISTRY
     Coffinite
   /
   MINERAL_KINETICS
+    Schoepite
+      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+    /
+    Coffinite
+      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+    /
+    Calcite
+      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+    /
     Uraninite
       SURFACE_AREA_VOL_FRAC_POWER 0.666667d0
       PREFACTOR
@@ -145,15 +154,7 @@ CHEMISTRY
           BETA 1.d0
         /
       /
-    /
-    Schoepite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
-    /
-    Coffinite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
-    /
-    Calcite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
     /
     SiO2(am)
       RATE_CONSTANT 1.d-10 mol/cm^2-sec
@@ -167,7 +168,7 @@ CHEMISTRY
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
   MOLAL
-  UPDATE_MINERAL_SURFACE_AREA
+#  UPDATE_MINERAL_SURFACE_AREA
   OUTPUT
     ALL
     PH

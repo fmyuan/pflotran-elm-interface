@@ -474,12 +474,12 @@ subroutine FactorySubsurfSetupRealization(simulation)
       call ReactionSetupSpeciesSummary(realization%reaction,option)
 
       ! SK 09/30/13, Added to check if Mphase is called with OS
-      if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
+      if (option%transport%reaction_coupling == OPERATOR_SPLIT .and. &
           option%iflowmode == MPH_MODE) then
         option%io_buffer = 'Operator splitting currently not implemented with &
                    &MPHASE. Please switch reactive transport to MODE GIRT.'
         call PrintErrMsg(option)
-        option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
+        option%transport%reaction_coupling = GLOBAL_IMPLICIT
       endif
     case(NWT_MODE)
       if (.not.associated(realization%reaction_nw)) then

@@ -248,7 +248,9 @@ subroutine ReactionDBReadDatabase(reaction,option)
             ! read the molar weight
             call InputReadDouble(input,option,cur_immobile_spec%molar_weight)
             call InputErrorMsg(input,option,'Immobile molar weight','DATABASE')
-
+            ! convert from g/mol to kg/mol
+            cur_immobile_spec%molar_weight = &
+              cur_immobile_spec%molar_weight*1.d-3
             cycle ! avoid the aqueous species parameters below
           endif
           cur_immobile_spec => cur_immobile_spec%next
@@ -295,6 +297,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
           ! read the molar weight
           call InputReadDouble(input,option,cur_aq_spec%molar_weight)
           call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
+          ! convert from g/mol to kg/mol
+          cur_aq_spec%molar_weight = cur_aq_spec%molar_weight*1.d-3
         endif
 
       case(2) ! gas species
@@ -348,6 +352,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
         ! read the molar weight
         call InputReadDouble(input,option,cur_gas_spec%molar_weight)
         call InputErrorMsg(input,option,'GAS molar weight','DATABASE')
+        ! convert from g/mol to kg/mol
+        cur_gas_spec%molar_weight = cur_gas_spec%molar_weight*1.d-3
 
       case(3) ! minerals
         cur_mineral => mineral%mineral_list
@@ -830,6 +836,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(transition_state_rxn_type), pointer :: tstrxn
   type(transition_state_prefactor_type), pointer :: cur_prefactor
+  type(nucleation_type), pointer :: cur_nucleation
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
   type(reaction_equation_type), pointer :: reaction_equation
@@ -1908,8 +1915,27 @@ subroutine ReactionDBInitBasis(reaction,option)
       else
         allocate(mineral%kinmnrl_logKcoef(num_logKs,mineral%nkinmnrl))
       endif
-
       mineral%kinmnrl_logKcoef = 0.d0
+
+      ! Nucleation
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        cur_nucleation => cur_nucleation%next
+      enddo
+      if (icount > 0) allocate(mineral%nucleation_array(icount))
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        call ReactionMnrlCopyNucleation(cur_nucleation, &
+                                        mineral%nucleation_array(icount))
+        nullify(mineral%nucleation_array(icount)%next)
+        cur_nucleation => cur_nucleation%next
+      enddo
 
       ! TST Rxn variables
       allocate(mineral%kinmnrl_affinity_threshold(mineral%nkinmnrl))
@@ -1938,6 +1964,14 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_surf_area_epsilon = 0.d0
       allocate(mineral%kinmnrl_vol_frac_epsilon(mineral%nkinmnrl))
       mineral%kinmnrl_vol_frac_epsilon = 0.d0
+
+      allocate(mineral%kinmnrl_spec_surf_area(mineral%nkinmnrl))
+      mineral%kinmnrl_spec_surf_area = UNINITIALIZED_DOUBLE
+      allocate(mineral%kinmnrl_surf_area_function(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_function = UNINITIALIZED_INTEGER
+
+      allocate(mineral%kinmnrl_nucleation_id(mineral%nkinmnrl))
+      mineral%kinmnrl_nucleation_id = 0
 
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
@@ -2020,33 +2054,16 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_affinity_power = 1.d0
     endif
 
-    ! Determine whether surface area volume fraction power defined
+    ! Determine whether surface area porosity power defined
     cur_mineral => mineral%mineral_list
     found = PETSC_FALSE
     do
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_vol_frac_pwr, &
-                       0.d0)) then
-          found = PETSC_TRUE
-          exit
-        endif
-      endif
-      cur_mineral => cur_mineral%next
-    enddo
-    if (reaction%update_mineral_surface_area .or. found) then
-      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0
-    endif
-
-    ! Determine whether surface area volume fraction power defined
-    cur_mineral => mineral%mineral_list
-    found = PETSC_FALSE
-    do
-      if (.not.associated(cur_mineral)) exit
-      if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_porosity_pwr, &
-                       0.d0)) then
+        if (cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
           found = PETSC_TRUE
           exit
         endif
@@ -2055,7 +2072,28 @@ subroutine ReactionDBInitBasis(reaction,option)
     enddo
     if (found) then
       allocate(mineral%kinmnrl_surf_area_porosity_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_porosity_pwr = 0.d0
+      mineral%kinmnrl_surf_area_porosity_pwr = UNINITIALIZED_DOUBLE
+    endif
+
+    ! Determine whether surface area volume fraction power defined
+    cur_mineral => mineral%mineral_list
+    found = PETSC_FALSE
+    do
+      if (.not.associated(cur_mineral)) exit
+      if (associated(cur_mineral%tstrxn)) then
+        if (cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_VF_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
+          found = PETSC_TRUE
+          exit
+        endif
+      endif
+      cur_mineral => cur_mineral%next
+    enddo
+    if (found) then
+      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_vol_frac_pwr = UNINITIALIZED_DOUBLE
     endif
 
 #if 0
@@ -2374,6 +2412,24 @@ subroutine ReactionDBInitBasis(reaction,option)
           mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
             tstrxn%vol_frac_epsilon
 
+          mineral%kinmnrl_spec_surf_area(ikinmnrl) = &
+            tstrxn%spec_surf_area
+          mineral%kinmnrl_surf_area_function(ikinmnrl) = &
+            tstrxn%surf_area_function
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+          end select
+
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
             mineral%kinmnrl_precip_rate_constant(ikinmnrl) = &
@@ -2395,16 +2451,29 @@ subroutine ReactionDBInitBasis(reaction,option)
             mineral%kinmnrl_affinity_power(ikinmnrl) = &
               tstrxn%affinity_factor_beta
           endif
-          if (.not.Equal(tstrxn%surf_area_vol_frac_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
-              tstrxn%surf_area_vol_frac_pwr
+
+          if (associated(tstrxn%nucleation)) then
+            temp_int = 0
+            ! if no nucleation reactions have been defined,
+            ! nucleation_array will be null
+            if (associated(mineral%nucleation_array)) then
+              temp_int = size(mineral%nucleation_array)
+            endif
+            do i = 1, temp_int
+              if (StringCompare(tstrxn%nucleation%name, &
+                                mineral%nucleation_array(i)%name)) then
+                mineral%kinmnrl_nucleation_id(ikinmnrl) = i
+                exit
+              endif
+            enddo
+            if (mineral%kinmnrl_nucleation_id(ikinmnrl) == 0) then
+              option%io_buffer = 'No nucleation reaction "' // &
+                trim(tstrxn%nucleation%name) // '" found for &
+                &mineral "' // trim(mineral%kinmnrl_names(ikinmnrl)) // '".'
+              call PrintErrMsg(option)
+            endif
           endif
-          if (.not.Equal(tstrxn%surf_area_porosity_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
-              tstrxn%surf_area_porosity_pwr
-          endif
+
         endif ! associated(tstrxn)
 
         mineral%kinmnrl_molar_vol(ikinmnrl) = cur_mineral%molar_volume
@@ -3241,7 +3310,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       endif
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight, ' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3, ' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3284,7 +3353,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       write(option%fid_out,100) '  ' // trim(cur_aq_spec%name)
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight,' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3356,7 +3425,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_gas_spec)) exit
       write(option%fid_out,100) '  ' // trim(cur_gas_spec%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_gas_spec%molar_weight,' [g/mol]'
+        cur_gas_spec%molar_weight*1.d3,' [g/mol]'
       if (associated(cur_gas_spec%dbaserxn)) then
         write(option%fid_out,100) '    Gas Reaction: '
         write(option%fid_out,120) '      ', -1.d0, cur_gas_spec%name
@@ -3391,7 +3460,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_mineral)) exit
       write(option%fid_out,100) '  ' // trim(cur_mineral%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_mineral%molar_weight,' [g/mol]'
+        cur_mineral%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,150) '    Molar Volume: ', &
         cur_mineral%molar_volume,' [m^3/mol]'
       if (associated(cur_mineral%tstrxn)) then
