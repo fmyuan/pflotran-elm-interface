@@ -1,8 +1,6 @@
-
 module Factory_Subsurface_Linkage_module
 
 #include "petsc/finclude/petscsys.h"
-
   use petscsys
   use Simulation_Subsurface_class
   use PFLOTRAN_Constants_module
@@ -291,7 +289,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCFracture(simulation,pm_fracture,'PMC3PFracture', &
                                    input)
   endif
-  if (associated(pm_geomech)) then ! jaa
+  if (associated(pm_geomech)) then
     call FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
                                       'PMCSubsurfaceGeomechanics', input)
   endif
@@ -1186,7 +1184,7 @@ end subroutine FactSubLinkAddPMCFracture
 ! ************************************************************************** !
 
 ! jaa: new routine mimics above pm linkage
-! Large part of this routine was adapted from
+! Large portion of this routine was adapted from
 ! GeomechanicsInitializePostPETSc (factory_geomechanics.F90)
 subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
                                            pmc_name,input)
