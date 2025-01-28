@@ -25,6 +25,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
+
   implicit none
 
   class(simulation_geomechanics_type) :: simulation
@@ -89,9 +90,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscInt :: subsurf_ghosted_id
   PetscReal, pointer :: subsurf_vec_1dof(:)
 
-  ! jaa testing
-  !class(simulation_subsurface_type), pointer :: simulation_subsurf
-
   option => simulation%option
   nullify(timestepper)
 
@@ -119,7 +117,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   subsurf_realization => simulation%realization
   subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-  pm_geomech%subsurf_realization => simulation%realization
 
   geomech_realization => GeomechRealizCreate(option)
   simulation%geomech%realization => geomech_realization
@@ -135,6 +132,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   pmc_geomech%pm_ptr%pm => pm_geomech
   pmc_geomech%geomech_realization => geomech_realization
   pmc_geomech%subsurf_realization => simulation%realization
+  pm_geomech%subsurf_realization => simulation%realization
 
   ! add time integrator
   timestepper => TimestepperSteadyCreate()
@@ -159,8 +157,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
-!  call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
-!  call GeomechanicsInitReadInput(simulation%geomech, &
   call InitSubsurfGeomechReadInput(simulation%geomech, &
                                  timestepper%solver, &
                                  input,option, &
@@ -189,13 +185,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   endif
 
   ! initialize geomech realization
-  !call GeomechInitSetupRealization(simulation)
   call InitSubsurfGeomechSetupRealization(subsurf_realization, &
                                           geomech_realization)
-  ! jaa test casting
-  !nullify(simulation_subsurf)
-  !simulation_subsurf => SimSubsurfCast(simulation)
-  !call InitSubsurfGeomechSetupRealization(simulation)
 
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   call pm_geomech%Setup()
@@ -320,7 +311,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   call GeomechanicsJumpStart(simulation%geomech)
   call InputDestroy(input)
-  nullify(geomech_realization)
 
 end subroutine GeomechanicsInitializePostPETSc
 
@@ -369,243 +359,6 @@ subroutine FactoryGeomechReadSimBlock(input,pm)
 end subroutine FactoryGeomechReadSimBlock
 
 ! ************************************************************************** !
-
-!function GeomechToSubsurfCast(simulation)
-!  !
-!  ! Casts any simulation_type to simulation_subsurface_type if of that type
-!  !
-!  ! Author: Glenn Hammond
-!  ! Date: 02/23/21
-!  !
-!  use Simulation_Subsurface_class
-!  use Simulation_Geomechanics_class
-!
-!  implicit none
-!
-!  class(simulation_geomechanics_type) :: simulation
-!
-!  class(simulation_subsurface_type), pointer :: GeomechToSubsurfCast
-!
-!  nullify(GeomechToSubsurfCast)
-!  !if (.not.associated(simulation)) return
-!  select type(simulation)
-!    class is(simulation_subsurface_type)
-!      GeomechToSubsurfCast => simulation
-!  end select
-!
-!end function GeomechToSubsurfCast
-
-! ************************************************************************** !
-
-subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
-  !
-  ! This routine assigns geomech material
-  ! properties to associated regions
-  !
-  ! Author: Satish Karra, LANL
-  ! Date: 06/17/13
-  !
-  use Geomechanics_Realization_class
-  use Geomechanics_Discretization_module
-  use Geomechanics_Strata_module
-  use Geomechanics_Region_module
-  use Geomechanics_Material_module
-  use Geomechanics_Grid_module
-  use Geomechanics_Grid_Aux_module
-  use Geomechanics_Field_module
-  use Geomechanics_Patch_module
-  use Realization_Subsurface_class, only : MATERIAL_ID_ARRAY
-  use Option_module
-
-  implicit none
-
-  class(realization_geomech_type) :: geomech_realization
-
-  PetscInt :: ivertex, local_id, ghosted_id, geomech_material_id
-  PetscInt :: istart, iend
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscErrorCode :: ierr
-
-  type(option_type), pointer :: option
-  type(geomech_grid_type), pointer :: grid
-  type(geomech_discretization_type), pointer :: geomech_discretization
-  type(geomech_field_type), pointer :: field
-  type(geomech_strata_type), pointer :: strata
-  type(geomech_patch_type), pointer :: patch
-
-  type(geomech_material_property_type), pointer :: geomech_material_property
-  type(geomech_material_property_type), pointer :: null_geomech_material_property
-  type(gm_region_type), pointer :: region
-  PetscBool :: update_ghosted_material_ids
-  PetscReal, pointer :: imech_loc_p(:)
-
-  option => geomech_realization%option
-  geomech_discretization => geomech_realization%geomech_discretization
-  field => geomech_realization%geomech_field
-  patch => geomech_realization%geomech_patch
-
-  ! loop over all patches and allocation material id arrays
-  if (.not.associated(patch%imat)) then
-    allocate(patch%imat(patch%geomech_grid%ngmax_node))
-    ! initialize to "unset"
-    patch%imat = UNINITIALIZED_INTEGER
-  endif
-
-  ! if material ids are set based on region, as opposed to being read in
-  ! we must communicate the ghosted ids.  This flag toggles this operation.
-  update_ghosted_material_ids = PETSC_FALSE
-  grid => patch%geomech_grid
-  strata => patch%geomech_strata_list%first
-  do
-    if (.not.associated(strata)) exit
-    ! Read in cell by cell material ids if they exist
-    if (.not.associated(strata%region) .and. strata%active) then
-      option%io_buffer = 'Reading of material prop from file for' // &
-        ' geomech is not implemented.'
-      call PrintErrMsgByRank(option)
-    ! Otherwise, set based on region
-    else if (strata%active) then
-      update_ghosted_material_ids = PETSC_TRUE
-      region => strata%region
-      geomech_material_property => strata%material_property
-      if (associated(region)) then
-        istart = 1
-        iend = region%num_verts
-      else
-        istart = 1
-        iend = grid%nlmax_node
-      endif
-      do ivertex = istart, iend
-        if (associated(region)) then
-          local_id = region%vertex_ids(ivertex)
-        else
-          local_id = ivertex
-        endif
-        ghosted_id = grid%nL2G(local_id)
-        patch%imat(ghosted_id) = geomech_material_property%id
-      enddo
-    endif
-    strata => strata%next
-  enddo
-
-  if (update_ghosted_material_ids) then
-    ! update ghosted material ids
-    call GeomechRealizLocalToLocalWithArray(geomech_realization, &
-                                            MATERIAL_ID_ARRAY)
-  endif
-
-  ! set cell by cell material properties
-  ! create null material property for inactive cells
-  null_geomech_material_property => GeomechanicsMaterialPropertyCreate()
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax_node
-    ghosted_id = grid%nL2G(local_id)
-    geomech_material_id = patch%imat(ghosted_id)
-    if (geomech_material_id == 0) then ! accomodate inactive cells
-      geomech_material_property = null_geomech_material_property
-    else if ( geomech_material_id > 0 .and. &
-              geomech_material_id <= &
-              size(geomech_realization%geomech_material_property_array)) then
-      geomech_material_property => &
-         geomech_realization% &
-           geomech_material_property_array(geomech_material_id)%ptr
-      if (.not.associated(geomech_material_property)) then
-        write(dataset_name,*) geomech_material_id
-        option%io_buffer = 'No material property for geomech material id ' // &
-                            trim(adjustl(dataset_name)) &
-                            //  ' defined in input file.'
-        call PrintErrMsgByRank(option)
-      endif
-    else if (Uninitialized(geomech_material_id)) then
-      write(dataset_name,*) grid%nG2A(ghosted_id)
-      option%io_buffer = 'Uninitialized geomech material id in patch at cell ' // &
-                         trim(adjustl(dataset_name))
-      call PrintErrMsgByRank(option)
-    else if (geomech_material_id > size(geomech_realization% &
-      geomech_material_property_array)) then
-      write(option%io_buffer,*) geomech_material_id
-      option%io_buffer = 'Unmatched geomech material id in patch:' // &
-        adjustl(trim(option%io_buffer))
-      call PrintErrMsgByRank(option)
-    else
-      option%io_buffer = 'Something messed up with geomech material ids. ' // &
-        ' Possibly material ids not assigned to all grid cells. ' // &
-        ' Contact Glenn/Satish!'
-      call PrintErrMsgByRank(option)
-    endif
-    imech_loc_p(ghosted_id) = geomech_material_property%id
-  enddo ! local_id - loop
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-
-  call GeomechanicsMaterialPropertyDestroy(null_geomech_material_property)
-  nullify(null_geomech_material_property)
-
-  call GeomechDiscretizationLocalToLocal(geomech_discretization,field%imech_loc, &
-                                         field%imech_loc,ONEDOF)
-
-end subroutine GeomechInitMatPropToGeomechRegions
-
-! ************************************************************************** !
-
-subroutine GeomechInitSetupRealization(simulation)
-  !
-  ! Initializes material property data structres and assign them to the domain.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/04/14
-  !
-  use Geomechanics_Realization_class
-  use Geomechanics_Global_module
-  use Geomechanics_Force_module
-  use Realization_Subsurface_class
-  use Init_Subsurface_Geomech_module
-
-  use Option_module
-  use Waypoint_module
-
-  implicit none
-
-  class(simulation_geomechanics_type) :: simulation
-
-  class(realization_subsurface_type), pointer :: subsurf_realization
-  class(realization_geomech_type), pointer :: geomech_realization
-  type(option_type), pointer :: option
-
-  subsurf_realization => simulation%realization
-  geomech_realization => simulation%geomech%realization
-  option => subsurf_realization%option
-
-  call GeomechRealizCreateDiscretization(geomech_realization)
-
-  if (option%geomech_subsurf_coupling /= 0) then
-    call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
-                                        geomech_realization)
-    call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
-                                              geomech_realization)
-
-    call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
-                                            geomech_realization, &
-                                            option)
-  endif
-  call GeomechRealizLocalizeRegions(geomech_realization)
-  call GeomechRealizPassFieldPtrToPatch(geomech_realization)
-  call GeomechRealizProcessMatProp(geomech_realization)
-  call GeomechRealizProcessGeomechCouplers(geomech_realization)
-  call GeomechRealizProcessGeomechConditions(geomech_realization)
-  call GeomechInitMatPropToGeomechRegions(geomech_realization)
-  !call InitMatPropToGeomechRegions(geomech_realization)
-  call GeomechRealizInitAllCouplerAuxVars(geomech_realization)
-  call GeomechRealizPrintCouplers(geomech_realization)
-  call GeomechGridElemSharedByNodes(geomech_realization,option)
-  call GeomechForceSetup(geomech_realization)
-  call GeomechGlobalSetup(geomech_realization)
-
-  ! SK: We are solving quasi-steady state solution for geomechanics.
-  ! Initial condition is not needed, hence CondControlAssignFlowInitCondGeomech
-  ! is not needed, at this point.
-  call GeomechForceUpdateAuxVars(geomech_realization)
-
-end subroutine GeomechInitSetupRealization
 
 end module Factory_Geomechanics_module
 
