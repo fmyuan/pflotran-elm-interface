@@ -1052,8 +1052,7 @@ grid_eclipse_util.o : \
   characteristic_curves.o \
   option.o \
   pflotran_constants.o \
-  string.o \
-  utility.o
+  string.o
 grid_structured.o : \
   connection.o \
   input_aux.o \
@@ -1865,6 +1864,7 @@ patch.o : \
   reaction.o \
   reaction_aux.o \
   reaction_base.o \
+  reaction_co2.o \
   reaction_gas.o \
   reaction_mineral.o \
   reaction_mineral_aux.o \
@@ -2647,6 +2647,7 @@ pmc_subsurface.o : \
   discretization.o \
   field.o \
   general_aux.o \
+  global_aux.o \
   grid.o \
   material.o \
   material_aux.o \
