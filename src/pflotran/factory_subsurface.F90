@@ -70,7 +70,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
   use Waypoint_module
-  use Factory_Subsurface_Geomechanics_module
+  use Init_Subsurface_Geomech_module
 
   implicit none
 

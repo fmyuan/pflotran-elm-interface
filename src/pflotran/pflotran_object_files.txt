@@ -314,7 +314,6 @@ misc_obj = \
 
 geomech_obj = \
 	${common_src}factory_geomechanics.o \
-        ${common_src}factory_subsurface_geomechanics.o \
 	${common_src}gauss.o \
 	${common_src}geomechanics_auxiliary.o \
         ${common_src}geomechanics_attribute.o \
