@@ -1,0 +1,20 @@
+-- CONCENTRATION: Free SiO2(aq) --
+        1:   1.9949092416630E-01
+-- VOLUME_FRACTION: Quartz VF --
+        1:   2.8874781287386E-06
+-- RATE: Quartz Rate --
+        1:   1.6083666728477E-10
+-- GENERIC: Quartz SI --
+        1:   1.9973681317883E+03
+-- GENERIC: Quartz Area --
+        1:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   2.4588717000086E-02
+   Time Steps:          122
+   Newton Iterations:          230
+   Linear Solver Iterations:          230
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.0005901047864E-01
+   Residual 2-Norm:   4.3675136342800E-22

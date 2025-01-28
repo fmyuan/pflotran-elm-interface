@@ -340,7 +340,7 @@ subroutine RealizationCreateDiscretization(realization)
   endif
 
   if (option%ntrandof > 0) then
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+    if (option%transport%reaction_coupling == GLOBAL_IMPLICIT) then
       ! ndof degrees of freedom, global
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx, &
                                       GLOBAL,option)
@@ -1925,7 +1925,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imat
+  PetscInt :: imat
   PetscReal :: scale
   PetscBool :: porosity_updated
   PetscReal, pointer :: porosity0_p(:)
@@ -1955,32 +1955,24 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call RealizationCalcMineralPorosity(realization)
   endif
 
-  if (reaction%update_mineral_surface_area) then
-
+  if (reaction%mineral%update_surface_area) then
     nullify(porosity0_p)
-    if (reaction%update_mnrl_surf_with_porosity) then
-      ! placing the get/restore array calls within the condition will
-      ! avoid improper access.
-      call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    endif
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     temp_porosity = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      do imnrl = 1, reaction%mineral%nkinmnrl
-        if (associated(porosity0_p)) then
-          temp_porosity = porosity0_p(local_id)
-        endif
-        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
-                                            material_auxvars(ghosted_id), &
-                                            temp_porosity,option)
-      enddo
+      if (associated(porosity0_p)) then
+        temp_porosity = porosity0_p(local_id)
+      endif
+      call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                          material_auxvars(ghosted_id), &
+                                          temp_porosity,option)
     enddo
 
-    if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
-                                  ierr);CHKERRQ(ierr)
-    endif
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
+
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)

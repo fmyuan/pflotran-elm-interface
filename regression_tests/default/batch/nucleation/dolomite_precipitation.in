@@ -1,18 +1,30 @@
-#Description: Calcite precipitation as a secondary mineral
+#Description: Dolomite dissolution scenario for debugging reaction derivatives
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
+      OPTIONS
+      /
     /
   /
 END
 
 SUBSURFACE
 
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+#    NUMERICAL_JACOBIAN
+  /
 
   LINEAR_SOLVER
     SOLVER DIRECT
@@ -20,23 +32,13 @@ NUMERICAL_METHODS TRANSPORT
 
 END
 
-#=========================== regression =======================================
-REGRESSION
-  CELLS_PER_PROCESS 1
-END
-
-#=========================== flow =============================================
-SPECIFIED_VELOCITY
-  UNIFORM? YES
-  DATASET 0.d0 0.d0 0.d0 m/yr
-END
-
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    H+
     HCO3-
     Ca++
+    H+
+    MgHCO3+
   /
   SECONDARY_SPECIES
     OH-
@@ -45,37 +47,67 @@ CHEMISTRY
     CaCO3(aq)
     CaHCO3+
     CaOH+
+    MgCO3(aq)
+    Mg++
+    MgOH+
   /
   PASSIVE_GAS_SPECIES
     CO2(g)
   /
   MINERALS
     Calcite
+    Dolomite
+    Magnesite
   /
   MINERAL_KINETICS
     Calcite
-      RATE_CONSTANT 1.d-6
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
-      SPECIFIC_SURFACE_AREA_EPSILON 1.d-1
-      VOLUME_FRACTION_EPSILON 1.d-5
-      SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
+      RATE_CONSTANT 1.d-7 mol/m^2-sec
+    /
+    Dolomite
+      RATE_CONSTANT 2.d-8 mol/m^2-sec
+      NUCLEATION_KINETICS simplified2
+      SURFACE_AREA_FUNCTION MINERAL_MASS
+      SPECIFIC_SURFACE_AREA 2.5d3 m^2/kg
+    /
+    Magnesite
+      PREFACTOR
+        RATE_CONSTANT 1.d-8 mol/m^2-sec
+        PREFACTOR_SPECIES MgHCO3+
+          ALPHA 0.001d0
+        /
+      /
     /
   /
-  DATABASE ../../../database/hanford.dat
+  NUCLEATION_KINETICS
+    SIMPLIFIED simplified1
+      RATE_CONSTANT 1.d-4
+      GAMMA 1.d11
+    /
+  /
+  NUCLEATION_KINETICS
+    SIMPLIFIED simplified2
+      RATE_CONSTANT 1.d-5
+      GAMMA 1.d10
+    /
+  /
+  NUCLEATION_KINETICS
+    SIMPLIFIED simplified3
+      RATE_CONSTANT 1.d-6
+      GAMMA 1.d19
+    /
+  /
+  DATABASE ../../../../database/hanford.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
-  UPDATE_POROSITY
-#  UPDATE_MINERAL_SURFACE_AREA
   OUTPUT
-    PH
-    TOTAL
     FREE_ION
     ALL
-    MINERALS
     MINERAL_SURFACE_AREA
     MINERAL_SATURATION_INDEX
   /
 END
+
+#=========================== solver options ===================================
 
 #=========================== discretization ===================================
 GRID
@@ -102,54 +134,51 @@ END
 #=========================== output options ===================================
 OUTPUT
   PERIODIC_OBSERVATION TIMESTEP 1
-  FORMAT TECPLOT POINT
-  PRINT_COLUMN_IDS
 END
 
-#=========================== times ============================================
-TIME
-  FINAL_TIME 1.d0 y
-  INITIAL_TIMESTEP_SIZE 1.d0 h
-  MAXIMUM_TIMESTEP_SIZE 1.d-1 y
-END
-
-#=========================== observatoin points ===============================
 OBSERVATION
   REGION all
 END
 
+#=========================== times ============================================
+TIME
+  FINAL_TIME 25.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+END
+
 #=========================== regions ==========================================
 REGION all
-  COORDINATES
-    -1.d20 -1.d20 -1.d20
-    1.d20 1.d20 1.d20
-  /
+  INFINITE
 END
 
 #=========================== transport conditions =============================
-TRANSPORT_CONDITION initial
+TRANSPORT_CONDITION background_conc
   TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
-    0.d0 initial
+    0.d0 initial_constraint
   /
 END
 
 #=========================== constraints ======================================
-CONSTRAINT initial
+CONSTRAINT initial_constraint
   CONCENTRATIONS
-    H+     1.d-8      F
-    HCO3-  1.d-3      G  CO2(g)
-    Ca++   1.d-1      T
+    H+     1.d-7      F
+    HCO3-  1.d-3      G CO2(g)
+    Ca++   1.d-4      M Calcite
+    MgHCO3+ 2.d-4      M Dolomite
   /
   MINERALS
-    Calcite  0.d0 0.d0 m^2/m^3
+    Calcite 1.d-5 1.d0 m^2/m^3
+    Dolomite 0. 2.5d4 cm^2/g
+    Magnesite 1.d-3 1.d0 m^2/m^3
   /
 END
 
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION
-  TRANSPORT_CONDITION initial
+  TRANSPORT_CONDITION background_conc
   REGION all
 END
 

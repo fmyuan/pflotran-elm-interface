@@ -341,6 +341,7 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Option_module
   use Matrix_Zeroing_module
   use Patch_module
+  use Reaction_Mineral_Aux_module
 
   implicit none
 
@@ -360,11 +361,12 @@ subroutine PMSubsurfaceFlowSetup(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
+
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mnrl_surf_with_porosity) then
+        ReactionMnrlAnyUpdatePorosity(this%realization%reaction%mineral)) then
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
@@ -498,7 +500,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     if ((this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) .and. &
+        this%realization%reaction%mineral%update_surface_area) .and. &
         .not.this%option%restart_flag) then
       call RealizationUpdatePropertiesTS(this%realization)
     endif
@@ -733,7 +735,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
+        this%realization%reaction%mineral%update_surface_area) then
       call RealizationUpdatePropertiesTS(this%realization)
     endif
   endif
