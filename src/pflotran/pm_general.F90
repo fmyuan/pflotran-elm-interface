@@ -1439,6 +1439,13 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
   this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
 
+  deallocate(converged_abs_update_flag)
+  deallocate(converged_rel_update_flag)
+  deallocate(converged_abs_update_cell)
+  deallocate(converged_rel_update_cell)
+  deallocate(converged_abs_update_real)
+  deallocate(converged_rel_update_real)
+
 end subroutine PMGeneralCheckUpdatePost
 
 
@@ -1548,9 +1555,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ',&
              'Precipitate Sat. '],shape(dof_string))
   endif
-  call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
 
   if (this%option%flow%using_newtontrdc) then
+    call SNESNewtonTRDCGetRhoFlag(snes,rho_flag,ierr);CHKERRQ(ierr);
     if (general_newtontrdc_prev_iter_num == it) then
       general_sub_newton_iter_num = general_sub_newton_iter_num + 1
     endif
@@ -2078,7 +2085,13 @@ subroutine PMGeneralDestroy(this)
   call DeallocateArray(this%max_change_ivar)
   call DeallocateArray(this%max_change_isubvar)
   call DeallocateArray(this%soluble_materials)
-
+  call DeallocateArray(this%converged_flag)
+  call DeallocateArray(this%converged_cell)
+  call DeallocateArray(this%converged_real)
+  call DeallocateArray(this%residual_abs_inf_tol)
+  call DeallocateArray(this%residual_scaled_inf_tol)
+  call DeallocateArray(this%abs_update_inf_tol)
+  call DeallocateArray(this%rel_update_inf_tol)
   ! preserve this ordering
   call GeneralDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
