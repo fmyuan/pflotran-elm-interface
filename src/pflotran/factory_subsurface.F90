@@ -325,12 +325,10 @@ end subroutine FactorySubsurfaceSetGeopMode
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceSetGeomechMode(pm_geomech,option) ! jaa testing
+subroutine FactorySubsurfaceSetGeomechMode(pm_geomech,option)
 
   use Option_module
-  !use PM_Base_class
   use PM_Geomechanics_Force_class
-  !use PM_ERT_class
 
   implicit none
 
