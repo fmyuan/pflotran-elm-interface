@@ -19,7 +19,9 @@ module Grid_Unstructured_Explicit_module
             UGridExplicitComputeVolumes, &
             UGridExplicitSetBoundaryConnect, &
             UGridExplicitSetConnections, &
-            UGridExplicitGetClosestCellFromPoint
+            UGridExplicitGetClosestCellFromPoint, &
+            UGridExplicitExpandGhostCells
+
 
 contains
 
@@ -1987,5 +1989,123 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
   cell_distance = min_distance
 
 end subroutine UGridExplicitGetClosestCellFromPoint
+
+! ************************************************************************** !
+
+subroutine UGridExplicitExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
+                                 option)
+  !
+  ! Expands arrays assocated with ghost cells due to a change in ghosting
+  ! as prescribed by scatter_gtol
+  !
+  ! Author: Michael Nole
+  ! Date: 01/15/25
+
+  use Option_module
+  use Petsc_Utility_module
+  use Utility_module
+  use Geometry_module
+
+  implicit none
+
+  type(grid_unstructured_type) :: ugrid
+  VecScatter :: scatter_gtol ! global (non-ghosted) to local (ghosted
+  Vec :: global_vec
+  Vec :: local_vec
+  type(option_type) :: option
+
+  PetscReal, allocatable :: real_array(:)
+  PetscInt, allocatable :: int_array(:)
+
+  type(point3d_type), pointer :: cell_centroids_ghosted_new(:)
+
+  PetscReal, pointer :: vec_loc_ptr(:)
+
+  PetscInt :: ghosted_id
+  type(point3d_type) :: centroid_local
+
+  PetscInt :: icell
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  ! cell_ids
+  allocate(int_array(ugrid%nlmax))
+  int_array = ugrid%explicit_grid%cell_ids(1:ugrid%nlmax)
+  call DeallocateArray(ugrid%explicit_grid%cell_ids)
+  allocate(ugrid%explicit_grid%cell_ids(ugrid%ngmax))
+  ugrid%explicit_grid%cell_ids = UNINITIALIZED_INTEGER
+  call PetUtilLoadVec(global_vec,int_array)
+  call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call PetUtilUnloadVec(local_vec,ugrid%explicit_grid%cell_ids)
+  deallocate(int_array)
+
+  ! cell_volumes
+  allocate(real_array(ugrid%nlmax))
+  real_array = ugrid%explicit_grid%cell_volumes(1:ugrid%nlmax)
+  call DeallocateArray(ugrid%explicit_grid%cell_volumes)
+  allocate(ugrid%explicit_grid%cell_volumes(ugrid%ngmax))
+  ugrid%explicit_grid%cell_volumes = UNINITIALIZED_INTEGER
+  call PetUtilLoadVec(global_vec,real_array)
+  call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                       SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                     SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call PetUtilUnloadVec(local_vec,ugrid%explicit_grid%cell_volumes)
+  deallocate(real_array)
+
+  ! cell_centroids
+  allocate(cell_centroids_ghosted_new(ugrid%ngmax))
+  do i = 1, size(cell_centroids_ghosted_new)
+    cell_centroids_ghosted_new(i)%id = 0
+    cell_centroids_ghosted_new(i)%x = UNINITIALIZED_DOUBLE
+    cell_centroids_ghosted_new(i)%y = UNINITIALIZED_DOUBLE
+    cell_centroids_ghosted_new(i)%z = UNINITIALIZED_DOUBLE
+  enddo
+  allocate(real_array(ugrid%nlmax))
+  do i = 1, 3
+    do icell = 1, ugrid%nlmax
+      ! ugrid%cell_vertices is ghosted, but the first nlmax values are local
+      centroid_local = ugrid%explicit_grid%cell_centroids(icell)
+      select case(i)
+        case(1)
+          real_array(icell) = centroid_local%x
+        case(2)
+          real_array(icell) = centroid_local%y
+        case(3)
+          real_array(icell) = centroid_local%z
+      end select
+    enddo
+    call PetUtilLoadVec(global_vec,real_array)
+    call VecScatterBegin(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(scatter_gtol,global_vec,local_vec,INSERT_VALUES, &
+                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+    do ghosted_id = 1, ugrid%ngmax
+      select case(i)
+        case(1)
+          cell_centroids_ghosted_new(ghosted_id)%x = vec_loc_ptr(ghosted_id)
+        case(2)
+          cell_centroids_ghosted_new(ghosted_id)%y = vec_loc_ptr(ghosted_id)
+        case(3)
+          cell_centroids_ghosted_new(ghosted_id)%z = vec_loc_ptr(ghosted_id)
+      end select
+    enddo
+    call VecRestoreArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
+  enddo
+  deallocate(real_array)
+
+  ! connections
+
+  deallocate(ugrid%explicit_grid%cell_centroids)
+  ugrid%explicit_grid%cell_centroids => cell_centroids_ghosted_new
+  nullify(cell_centroids_ghosted_new)
+
+  ugrid%num_vertices_local = size(ugrid%vertex_ids_natural)
+
+end subroutine UGridExplicitExpandGhostCells
 
 end module Grid_Unstructured_Explicit_module
