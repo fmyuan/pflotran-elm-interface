@@ -228,6 +228,7 @@ condition_control.o : \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
+  reaction_mineral_aux.o \
   reactive_transport.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
@@ -583,7 +584,7 @@ factory_subsurface.o : \
   zflow_aux.o
 factory_subsurface_linkage.o : \
   factory_subsurface_read.o \
-  geomechanics_attribute.o \
+  geomechanics_attributes.o \
   geomechanics_realization.o \
   init_subsurface_geomechanics.o \
   input_aux.o \
@@ -831,7 +832,7 @@ geomech_grid_aux.o : \
   option.o \
   pflotran_constants.o \
   utility.o
-geomechanics_attribute.o : \
+geomechanics_attributes.o : \
   geomechanics_realization.o \
   geomechanics_regression.o \
   pmc_geomechanics.o \
@@ -1262,7 +1263,7 @@ init_subsurface_geomechanics.o : \
   condition_control.o \
   geomech_grid.o \
   geomech_grid_aux.o \
-  geomechanics_attribute.o \
+  geomechanics_attributes.o \
   geomechanics_condition.o \
   geomechanics_coupler.o \
   geomechanics_debug.o \
@@ -2368,6 +2369,7 @@ pm_subsurface_flow.o : \
   patch.o \
   pflotran_constants.o \
   pm_base.o \
+  reaction_mineral_aux.o \
   realization_base.o \
   realization_subsurface.o \
   srcsink_sandbox.o \
@@ -3277,6 +3279,7 @@ reactive_transport.o : \
   reaction_aux.o \
   reaction_co2.o \
   reaction_gas.o \
+  reaction_mineral.o \
   reaction_surf_complex_aux.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
@@ -3570,7 +3573,7 @@ simulation_base.o : \
   waypoint.o
 simulation_geomechanics.o : \
   driver.o \
-  geomechanics_attribute.o \
+  geomechanics_attributes.o \
   geomechanics_realization.o \
   geomechanics_regression.o \
   option.o \
@@ -3620,7 +3623,7 @@ simulation_subsurface.o : \
   discretization.o \
   driver.o \
   eos.o \
-  geomechanics_attribute.o \
+  geomechanics_attributes.o \
   geomechanics_realization.o \
   geomechanics_regression.o \
   init_subsurface.o \
