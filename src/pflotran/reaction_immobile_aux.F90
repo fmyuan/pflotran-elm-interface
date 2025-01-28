@@ -14,7 +14,7 @@ module Reaction_Immobile_Aux_module
   type, public :: immobile_species_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: molar_weight
+    PetscReal :: molar_weight ! [kg/mol]
     PetscBool :: print_me
     type(immobile_species_type), pointer :: next
   end type immobile_species_type

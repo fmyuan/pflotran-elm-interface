@@ -49,7 +49,7 @@ module Reaction_Aux_module
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: a0
-    PetscReal :: molar_weight
+    PetscReal :: molar_weight ! [kg/mol]
     PetscReal :: Z
     PetscBool :: print_me
     PetscBool :: is_redox
@@ -299,8 +299,6 @@ module Reaction_Aux_module
     PetscBool :: update_porosity
     PetscBool :: calculate_initial_porosity
     PetscReal :: minimum_porosity
-    PetscBool :: update_mineral_surface_area
-    PetscBool :: update_mnrl_surf_with_porosity
 
     PetscBool :: update_armor_mineral_surface
     PetscInt :: update_armor_mineral_surface_flag
@@ -532,8 +530,6 @@ function ReactionAuxCreateAux()
   reaction%update_porosity = PETSC_FALSE
   reaction%calculate_initial_porosity = PETSC_FALSE
   reaction%minimum_porosity = 0.d0
-  reaction%update_mineral_surface_area = PETSC_FALSE
-  reaction%update_mnrl_surf_with_porosity = PETSC_FALSE
 
   reaction%update_armor_mineral_surface = PETSC_FALSE
   reaction%update_armor_mineral_surface_flag = 0

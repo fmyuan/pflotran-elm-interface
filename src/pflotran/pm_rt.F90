@@ -749,7 +749,7 @@ subroutine PMRTFinalizeTimestep(this)
                                  POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
-  else if (this%realization%reaction%update_mineral_surface_area) then
+  else if (this%realization%reaction%mineral%update_surface_area) then
     call RealizationUpdatePropertiesTS(this%realization)
   endif
 
@@ -1483,7 +1483,7 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
   if (update_kinetics .and. &
       ! for operator splitting, kinetic state is updated at the end of each
       ! reaction step at each grid cell
-      this%option%transport%reactive_transport_coupling /= OPERATOR_SPLIT) &
+      this%option%transport%reaction_coupling /= OPERATOR_SPLIT) &
     call RTUpdateKineticState(this%realization)
 
 !TODO(geh): MassTransfer

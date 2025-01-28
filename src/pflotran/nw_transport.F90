@@ -246,7 +246,7 @@ subroutine NWTSetup(realization)
     enddo
   endif
 
-  if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
+  if (option%transport%reaction_coupling == GLOBAL_IMPLICIT) then
     ndof = realization%reaction_nw%params%nspecies
   else
     ndof = 1

@@ -20,8 +20,8 @@ module Reaction_Gas_Aux_module
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: itype
-    PetscReal :: molar_volume
-    PetscReal :: molar_weight
+    PetscReal :: molar_volume ! [m^3/mol]
+    PetscReal :: molar_weight ! [kg/mol]
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn
     type(gas_species_type), pointer :: next

@@ -604,9 +604,9 @@ subroutine UnitsCategoryCheck(unit_user_cat,unit_internal_cat, &
   do while (k < 4)
     if (.not.category_assigned(k)) then
       error_msg = 'Mismatch between the category of the given units &
-                   &and the expected, internal units. Units of ' &
-                   // trim(unit_internal_cat(k)) // ' were expected, but &
-                   &units of ' // trim(unit_user_cat(k)) // ' were given.'
+                   &and the expected, internal units. Units of [' &
+                   // trim(unit_internal_cat(k)) // '] were expected, but &
+                   &units of [' // trim(unit_user_cat(k)) // '] were given.'
       error = PETSC_TRUE
     endif
     if (error) exit

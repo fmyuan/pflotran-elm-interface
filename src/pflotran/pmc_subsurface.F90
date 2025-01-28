@@ -155,7 +155,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   PetscBool :: add_pre_check, check_update, check_post_convergence
   PetscBool :: keep_non_zero_pattern
   PetscInt :: itranmode
-  PetscInt :: transport_coupling
+  PetscInt :: reactive_transport_coupling
   PetscErrorCode :: ierr
 
   option => this%option
@@ -166,7 +166,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
   check_update = PETSC_FALSE
   itranmode = NULL_MODE
-  transport_coupling = UNINITIALIZED_INTEGER
+  reactive_transport_coupling = UNINITIALIZED_INTEGER
 
   select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
@@ -367,7 +367,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     class is(pm_rt_type)
       check_post_convergence = pm%check_post_convergence
       itranmode = option%itranmode
-      transport_coupling = option%transport%reactive_transport_coupling
+      reactive_transport_coupling = option%transport%reaction_coupling
       check_update = pm%realization%reaction%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -377,7 +377,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     class is(pm_nwt_type)
       check_post_convergence = pm%controls%check_post_convergence
       itranmode = option%itranmode
-      transport_coupling = option%transport%nw_transport_coupling
+      reactive_transport_coupling = option%transport%reaction_coupling
       check_update = pm%controls%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -389,7 +389,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     call PrintMsg(option,"  Beginning setup of TRAN SNES ")
     call SolverCreateSNES(solver,option%mycomm,'tran_',option)
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
       if (Uninitialized(solver%Mpre_mat_type) .and. &
           Uninitialized(solver%M_mat_type)) then
         ! Matrix types not specified, so set to default.
@@ -447,7 +447,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                        option)
     endif
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
 
       if (solver%M_mat_type == MATMFFD) then
         call MatCreateSNESMF(solver%snes,solver%M,ierr);CHKERRQ(ierr)
@@ -472,7 +472,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
     endif
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes,PMCheckConvergencePtr, &
                                   this%pm_ptr,PETSC_NULL_FUNCTION, &
                                   ierr);CHKERRQ(ierr)
