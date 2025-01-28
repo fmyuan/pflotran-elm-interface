@@ -500,7 +500,6 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   use String_module
   use Geomechanics_Realization_class
   use Timestepper_Steady_class
-  !use Timestepper_Base_class ! jaa
   use Option_module
   use Geomechanics_Discretization_module
   use Output_Geomechanics_module, only : OutputGeomechGetVarFromArray
@@ -510,7 +509,6 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   type(geomechanics_regression_type), pointer :: geomechanics_regression
   class(realization_geomech_type) :: geomechanics_realization
   class(timestepper_steady_type), pointer :: geomechanics_timestepper
-  !class(timestepper_base_type), pointer :: geomechanics_timestepper
   ! these must be pointers as they can be null
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec

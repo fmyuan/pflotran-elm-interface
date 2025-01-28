@@ -78,7 +78,7 @@ module Option_module
     PetscInt :: geomech_subsurf_coupling
     PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
-    PetscInt :: geomech_sequential
+    PetscInt :: geomech_split
 
     PetscInt :: air_pressure_id
     PetscInt :: co2_pressure_id
@@ -278,7 +278,6 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
-  ! jaa: add geomech here
   option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
@@ -490,7 +489,7 @@ subroutine OptionInitRealization(option)
   option%n_stress_strain_dof = 0
   option%geomech_time = 0.d0
   option%geomech_subsurf_coupling = 0
-  option%geomech_sequential = 0
+  option%geomech_split = 0
   option%geomech_gravity(:) = 0.d0
   option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
   option%geommode = ""

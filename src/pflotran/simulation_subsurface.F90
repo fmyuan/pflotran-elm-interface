@@ -444,7 +444,7 @@ subroutine SimSubsurfJumpStart(this)
 
   ! jaa testing.. want to set the geomech dt equal to flow dt
   !if (associated(this%geomech)) then
-  if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) then
+  if (this%option%geomech_split == FIXED_STRAIN_SPLIT) then
      this%geomech%process_model_coupler%timestepper%dt = &
          this%process_model_coupler_list%timestepper%dt
   endif
@@ -915,7 +915,7 @@ subroutine SimSubsurfFinalizeRun(this)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
-      if (this%option%geomech_sequential == GEOMECH_FIXED_STRAIN_SPLIT) then
+      if (this%option%geomech_split == FIXED_STRAIN_SPLIT) then
         geomech_timestepper => TimestepperSteadyCast( &
             this%geomech%process_model_coupler%timestepper)
         call GeomechanicsRegressionOutput(this%geomech%regression, &
