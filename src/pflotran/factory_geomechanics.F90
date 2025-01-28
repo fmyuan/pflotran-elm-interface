@@ -90,7 +90,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscReal, pointer :: subsurf_vec_1dof(:)
 
   ! jaa testing
-  class(simulation_subsurface_type), pointer :: simulation_subsurf
+  !class(simulation_subsurface_type), pointer :: simulation_subsurf
 
   option => simulation%option
   nullify(timestepper)
@@ -189,9 +189,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   endif
 
   ! initialize geomech realization
-  call GeomechInitSetupRealization(simulation)
-  !call InitSubsurfGeomechSetupRealization(subsurf_realization, &
-  !                                        geomech_realization)
+  !call GeomechInitSetupRealization(simulation)
+  call InitSubsurfGeomechSetupRealization(subsurf_realization, &
+                                          geomech_realization)
   ! jaa test casting
   !nullify(simulation_subsurf)
   !simulation_subsurf => SimSubsurfCast(simulation)

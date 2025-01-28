@@ -1,7 +1,10 @@
 module Init_Subsurface_Geomech_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+!#include "petsc/finclude/petscvec.h"
+!  use petscsys
+
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -504,9 +507,9 @@ end subroutine GeomechanicsInit
 
 ! ************************************************************************** !
 
-!subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
-!                                              geomech_realization)
-subroutine InitSubsurfGeomechSetupRealization(simulation)
+subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
+                                              geomech_realization)
+!subroutine InitSubsurfGeomechSetupRealization(simulation)
 
   !use Simulation_Geomechanics_class
   use Geomechanics_Realization_class
@@ -520,7 +523,7 @@ subroutine InitSubsurfGeomechSetupRealization(simulation)
 
   implicit none
 
-  class(simulation_subsurface_type) :: simulation
+  !class(simulation_subsurface_type) :: simulation
   !class(simulation_geomechanics_type) :: simulation
 
   class(realization_subsurface_type), pointer :: subsurf_realization
@@ -528,8 +531,8 @@ subroutine InitSubsurfGeomechSetupRealization(simulation)
 
   type(option_type), pointer :: option
 
-  subsurf_realization => simulation%realization
-  geomech_realization => simulation%geomech%realization
+  !subsurf_realization => simulation%realization
+  !geomech_realization => simulation%geomech%realization
 
   option => subsurf_realization%option
 
@@ -551,7 +554,6 @@ subroutine InitSubsurfGeomechSetupRealization(simulation)
   call GeomechRealizProcessGeomechCouplers(geomech_realization)
   call GeomechRealizProcessGeomechConditions(geomech_realization)
   call InitMatPropToGeomechRegions(geomech_realization)
-  !call GeomechInitMatPropToGeomechRegions(geomech_realization)
   call GeomechRealizInitAllCouplerAuxVars(geomech_realization)
   call GeomechRealizPrintCouplers(geomech_realization)
   call GeomechGridElemSharedByNodes(geomech_realization,option)
