@@ -696,7 +696,7 @@ recursive subroutine PMERTInitializeRun(this)
     cur_connection_set => cur_coupler%connection_set
     do iconn = 1, cur_connection_set%num_connections
       local_id = cur_connection_set%id_dn(iconn)
-      vec_ptr(local_id) = 1
+      vec_ptr(local_id) = 1.d0
     enddo
     cur_coupler => cur_coupler%next
   enddo
@@ -719,7 +719,7 @@ recursive subroutine PMERTInitializeRun(this)
       flag = PETSC_TRUE
     else
       ! Check if the electrode is in a prescribed condition cell
-      if (vec_ptr(local_id) == 1) then
+      if (vec_ptr(local_id) > 0.d0) then
         option%io_buffer = 'Electrode in prescribed condition cell: ' // &
           trim(StringWrite(grid%nG2A(ghosted_id)))
         call PrintErrMsgNoStopByRank(option)
