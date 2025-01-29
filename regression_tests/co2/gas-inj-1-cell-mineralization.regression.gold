@@ -1,33 +1,33 @@
 -- PRESSURE: Liquid Pressure --
-        1:   4.1487058158771E+07
+        1:   4.1487057825640E+07
 -- PRESSURE: Gas Pressure --
-        1:   4.1501330124029E+07
+        1:   4.1501329791044E+07
 -- PRESSURE: CO2 Partial Pressure --
-        1:   4.1332443765613E+07
+        1:   4.1332443432959E+07
 -- PRESSURE: Vapor Pressure --
-        1:   1.6888635841547E+05
+        1:   1.6888635808465E+05
 -- SATURATION: Liquid Saturation --
-        1:   8.1652400333394E-01
+        1:   8.1652400081394E-01
 -- SATURATION: Gas Saturation --
-        1:   1.8347599666606E-01
+        1:   1.8347599918606E-01
 -- SATURATION: Salt Precipitate Saturation --
         1:   0.0000000000000E+00
 -- SATURATION: Trapped Gas Saturation --
         1:   0.0000000000000E+00
 -- GENERIC: Liquid Density --
-        1:   1.1218367554927E+03
+        1:   1.1218367482906E+03
 -- GENERIC: Gas Density --
-        1:   1.0074747254281E+03
+        1:   1.0074747243600E+03
 -- GENERIC: X_g^l --
-        1:   1.5914367210322E-02
+        1:   1.5914367929198E-02
 -- GENERIC: X_l^l --
-        1:   9.3463198494931E-01
+        1:   9.3463198789596E-01
 -- GENERIC: X_s^l --
-        1:   4.9453647840365E-02
+        1:   4.9453644174843E-02
 -- GENERIC: X_g^g --
-        1:   9.9593057962454E-01
+        1:   9.9593057959986E-01
 -- GENERIC: X_l^g --
-        1:   4.0694203754613E-03
+        1:   4.0694204001409E-03
 -- GENERIC: Temperature --
         1:   2.5000000000000E+01
 -- GENERIC: Liquid Energy --
@@ -37,55 +37,55 @@
 -- DISCRETE: Thermodynamic State --
         1:         4
 -- GENERIC: pH --
-        1:   3.3274640780403E+00
+        1:   3.3274640680669E+00
 -- CONCENTRATION: HCO3- --
-        1:   1.6946568645203E-03
+        1:   1.6946568255705E-03
 -- CONCENTRATION: OH- --
-        1:   2.1185692681639E-11
+        1:   2.1185692234112E-11
 -- CONCENTRATION: Al(OH)2+ --
-        1:   7.5507685658887E-10
+        1:   7.5507678075527E-10
 -- CONCENTRATION: AlO2- --
-        1:   1.7543624178863E-15
+        1:   1.7543621611166E-15
 -- CONCENTRATION: AlOH++ --
-        1:   1.8609307286147E-07
+        1:   1.8609305777857E-07
 -- CONCENTRATION: CO3-- --
-        1:   2.0396186728736E-10
+        1:   2.0396185718480E-10
 -- CONCENTRATION: CaCO3(aq) --
-        1:   2.5408710695725E-11
+        1:   2.5408709444818E-11
 -- CONCENTRATION: CaHCO3+ --
-        1:   1.4235457230778E-06
+        1:   1.4235456839635E-06
 -- CONCENTRATION: Fe+++ --
-        1:   4.2056863341792E-10
+        1:   4.2056860710839E-10
 -- CONCENTRATION: Fe(OH)3(aq) --
-        1:   2.3893404570980E-12
+        1:   2.3893401651739E-12
 -- CONCENTRATION: Fe(OH)4- --
-        1:   1.3589234261082E-18
+        1:   1.3589232272271E-18
 -- CONCENTRATION: FeHCO3+ --
-        1:   1.2195474560471E-06
+        1:   1.2195477792022E-06
 -- CONCENTRATION: HAlO2(aq) --
-        1:   2.1857594598336E-12
+        1:   2.1857591927635E-12
 -- CONCENTRATION: HSiO3- --
-        1:   3.0379026812543E-10
+        1:   3.0379024405971E-10
 -- CONCENTRATION: MgCO3(aq) --
-        1:   1.0365742851669E-11
+        1:   1.0365742509764E-11
 -- CONCENTRATION: MgHCO3+ --
-        1:   1.2623774363127E-06
+        1:   1.2623774221370E-06
 -- CONCENTRATION: MnCO3(aq) --
-        1:   9.6595100742028E-11
+        1:   9.6595097824495E-11
 -- CONCENTRATION: MnHCO3+ --
-        1:   2.3732522007179E-07
+        1:   2.3732521806664E-07
 -- CONCENTRATION: MnOH+ --
-        1:   9.8982374741115E-13
+        1:   9.8982374091088E-13
 -- CONCENTRATION: NaHCO3(aq) --
-        1:   7.4816572783909E-06
+        1:   7.4816566314147E-06
 -- CONCENTRATION: NaHSiO3(aq) --
-        1:   4.1868740066051E-11
+        1:   4.1868734090993E-11
 -- VOLUME_FRACTION: Chalcedony VF --
-        1:   2.3746330088290E-09
+        1:   2.3746328150314E-09
 -- VOLUME_FRACTION: Forsterite VF --
-        1:   3.7909801772064E-02
+        1:   3.7909801772062E-02
 -- VOLUME_FRACTION: Fayalite VF --
-        1:   7.5251032645589E-02
+        1:   7.5251032645587E-02
 -- VOLUME_FRACTION: Tephroite VF --
         1:   4.0091236849420E-01
 -- VOLUME_FRACTION: Wollastonite VF --
@@ -95,34 +95,34 @@
 -- VOLUME_FRACTION: Chrysotile VF --
         1:   2.0000000014717E-02
 -- RATE: Chalcedony Rate --
-        1:   3.5073155121779E-08
+        1:   3.5073152741157E-08
 -- RATE: Forsterite Rate --
-        1:  -1.4767122693895E-06
+        1:  -1.4767122853278E-06
 -- RATE: Fayalite Rate --
         1:  -1.5801580000000E-09
 -- RATE: Tephroite Rate --
-        1:  -4.1194328171612E-07
+        1:  -4.1194328613526E-07
 -- RATE: Wollastonite Rate --
-        1:  -2.5913763022300E-06
+        1:  -2.5913763248214E-06
 -- RATE: Enstatite Rate --
-        1:  -1.9196277526602E-09
+        1:  -1.9196277527929E-09
 -- RATE: Chrysotile Rate --
-        1:  -1.1532048402923E-12
+        1:  -1.1532048394831E-12
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   4.4509254000104E-02
+   Time (seconds):   5.6144243999370E-02
    Time Steps:           94
    Newton Iterations:          224
    Linear Solver Iterations:          224
    Time Step Cuts:            0
-   Solution 2-Norm:   5.8681652982281E+07
-   Residual 2-Norm:   1.3042591568827E-05
+   Solution 2-Norm:   5.8681652511266E+07
+   Residual 2-Norm:   1.4569957647182E-05
 -- SOLUTION: Transport --
-   Time (seconds):   1.6010742200160E-01
+   Time (seconds):   2.1350077200168E-01
    Time Steps:           94
    Newton Iterations:          347
    Linear Solver Iterations:          347
    Time Step Cuts:            0
-   Solution 2-Norm:   1.7887495404262E+00
-   Residual 2-Norm:   3.5575277262947E-12
+   Solution 2-Norm:   1.7887495371489E+00
+   Residual 2-Norm:   3.5575103072636E-12

@@ -335,7 +335,6 @@ module Characteristic_Curves_Common_module
     procedure, public :: Init => RPFModifiedCoreyGasInit
     procedure, public :: Verify => RPFModifiedCoreyGasVerify
     procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
-    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
   end type rpf_modified_corey_gas_type
 
   public :: &! standard char. curves:
@@ -1595,9 +1594,16 @@ subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   PetscReal, intent(out), optional :: trapped_gas_saturation
   PetscReal, intent(in), optional :: Sl_min
+  PetscReal, parameter :: epsilon = 1.d-14
 
   PetscReal :: m,n
-  PetscReal :: asl
+  PetscReal :: asl, Sla, aslm, esgtmx, R
+
+  if (present(Sl_min)) then
+    Sla = (Sl_min - this%Sr) / (1.d0 - this%Sr)
+  else
+    Sla = UNINITIALIZED_DOUBLE
+  endif
 
   if (present(trapped_gas_saturation)) then
     trapped_gas_saturation = 0.d0
@@ -1607,10 +1613,26 @@ subroutine SFVGSTOMPSaturation(this,capillary_pressure, &
 
   n = this%n
   m = 1.d0 - 1.d0 / n
-  ! m = this%m
-  ! n = - 1.d0 / (m - 1.d0)
 
   asl = (1.d0 / (1.d0 + (this%alpha * capillary_pressure)**n))**m
+
+  if (this%Sgt_max > epsilon) then
+    if (this%extended) then
+      esgtmx = this%Sgt_max
+    else
+      esgtmx = this%Sgt_max / (1.d0 - this%Sr)
+    endif
+    aslm = max(min(asl,Sla),0.d0)
+    if (asl > aslm) then
+      R = 1.d0 / esgtmx - 1.d0
+      trapped_gas_saturation = (1.d0 - aslm) / (1.d0 + R * (1.d0 - aslm)) - &
+                               (1.d0 - asl) / (1.d0 + R * (1.d0 - asl))
+      if (trapped_gas_saturation < epsilon) trapped_gas_saturation = 0.d0
+    endif
+    asl = asl - trapped_gas_saturation
+    trapped_gas_saturation = trapped_gas_saturation * (1.d0 - this%Sr)
+  endif
+
   liquid_saturation = asl * (1.d0 - this%Sr) + this%Sr
 
 end subroutine SFVGSTOMPSaturation
@@ -2113,6 +2135,7 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
   PetscReal :: Sgt, Sgf, Sgte, Sle, Sla, Sgtme
+  PetscReal :: R
   PetscReal :: dPc
 
   if (present(trapped_gas_saturation)) then
@@ -2141,13 +2164,13 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
     Sgte = Sgt
     Sla = liquid_saturation + Sgt
     Se = (Sla -this%Sr) / (1.d0 -this%Sr)
-    ! R = 1.d0 / this%Sgt_max - 1.d0
-    ! if (Sl_min < 0.d0) then
-    !   Sl_min = (Sgte * R * Sla + Sgte * (R**2) * Sla + Sla - Sgte - &
-    !             2.d0 * Sgte * R - Sgte * (R**2)) / &
-    !             (1.d0 + Sgte * (R**2) * Sla - Sgte * R - Sgte * (R**2))
-    !   Sl_min = min(max(Sl_min,0.d0),1.d0)
-    ! endif
+    R = 1.d0 / this%Sgt_max - 1.d0
+    if (Sl_min < 0.d0) then
+      Sl_min = (Sgte * R * Sla + Sgte * (R**2) * Sla + Sla - Sgte - &
+                2.d0 * Sgte * R - Sgte * (R**2)) / &
+                (1.d0 + Sgte * (R**2) * Sla - Sgte * R - Sgte * (R**2))
+      Sl_min = min(max(Sl_min,0.d0),1.d0)
+    endif
   else
     dSe_dsatl = 1.d0 / (1.d0-this%Sr)
     Se = (liquid_saturation-this%Sr)*dSe_dsatl
@@ -2240,17 +2263,11 @@ subroutine SFBCSaturation(this,capillary_pressure, &
   PetscReal :: Se
   PetscReal :: dSe_dpc
   PetscReal :: Pc, dPc
-  PetscReal :: Sla, Slam, R, Sgtmax
+  PetscReal :: Sla, Slam, R, esgtmx
   PetscReal, parameter :: dpc_dpres = -1.d0
-  PetscReal, parameter ::epsilon = 1.d-14
+  PetscReal, parameter :: epsilon = 1.d-14
 
   dsat_dpres = 0.d0
-
-  if (present(Sl_min)) then
-    Sla = Sl_min
-  else
-    Sla = UNINITIALIZED_DOUBLE
-  endif
 
   if (present(trapped_gas_saturation)) trapped_gas_saturation = 0.d0
 
@@ -2260,6 +2277,7 @@ subroutine SFBCSaturation(this,capillary_pressure, &
     Pc = min(Pc,this%pcmax)
     dPc = this%Sm / (log10(this%pcmax)-log10(this%Pcm))
     liquid_saturation = - (log10(Pc)-log10(this%pcmax)) * dPc
+    Se = liquid_saturation
     dsat_dpres = 1.d0 / (log(10.d0)*Pc*dPc)
   else
     ! reference #1
@@ -2289,20 +2307,31 @@ subroutine SFBCSaturation(this,capillary_pressure, &
     dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
   endif
 
-  if (this%Sgt_max > 0.d0) then
+  if (this%Sgt_max > 0.d0 .and. present(Sl_min)) then
+    if (this%extended) then
+      esgtmx = this%Sgt_max
+      Sla = Sl_min
+      Se = liquid_saturation
+    else
+      esgtmx = this%Sgt_max / (1.d0 - this%Sr)
+      Sla = (Sl_min - this%Sr) / (1.d0 - this%Sr)
+    endif
     ! Consider gas trapping
-    Slam = max(min(liquid_saturation,Sla),0.d0)
-    if (this%Sgt_max > epsilon .and. liquid_saturation > Slam) then
-      Sgtmax = this%Sgt_max
-      R = 1.d0 / Sgtmax - 1.d0
+    Slam = max(min(Se,Sla),0.d0)
+    if (esgtmx > epsilon .and. Se > Slam) then
+      R = 1.d0 / esgtmx - 1.d0
       trapped_gas_saturation = (1.d0 - Slam) / (1.d0 + R * (1.d0 - Slam)) - &
-                      (1.d0 - liquid_saturation) / &
-                      (1.d0 + R * (1.d0 - liquid_saturation))
+                      (1.d0 - Se) / &
+                      (1.d0 + R * (1.d0 - Se))
       if (trapped_gas_saturation < epsilon) trapped_gas_saturation = 0.d0
+      Se = Se - trapped_gas_saturation
+      if (.not. this%extended) then
+        liquid_saturation = Se * (1.d0-this%Sr) + this%Sr
+        trapped_gas_saturation = trapped_gas_saturation * (1.d0 - this%Sr)
+      endif
     else
       trapped_gas_saturation = 0.d0
     endif
-    liquid_saturation = liquid_saturation - trapped_gas_saturation
   endif
 
 end subroutine SFBCSaturation
@@ -5666,42 +5695,6 @@ subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
 
   relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
 end subroutine
-
-! ************************************************************************** !
-
-subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
-                 trapped_gas_sat, relative_permeability,dkr_sat,option)
-  !
-  ! Computes the relative permeability as a
-  ! function of liquid and trapped gas saturation
-  !
-  ! Author: Michael Nole
-  ! Date: 01/18/24
-  !
-
-  use Option_module
-
-  implicit none
-
-  class(rpf_modified_corey_gas_type) :: this
-  PetscReal, intent(in) :: liquid_saturation
-  PetscReal, intent(in) :: trapped_gas_sat
-  PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_sat
-  type(option_type), intent(inout) :: option
-
-  PetscReal :: Se
-  PetscReal :: Sla
-  PetscReal :: Sgte
-
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  Se = min(max(Se,0.d0),1.d0)
-  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
-  Sla = Se + Sgte
-
-  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
-
-end subroutine RPFModifiedCoreyGasRelPermWTGas
 
 ! ************************************************************************** !
 ! ************************************************************************** !

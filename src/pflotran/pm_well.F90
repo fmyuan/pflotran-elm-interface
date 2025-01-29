@@ -4592,6 +4592,14 @@ subroutine PMWellInitWellVars(well,well_grid,with_transport,nsegments,nspecies)
   allocate(well%liq_cum_mass(nsegments))
   allocate(well%liq_mass(nsegments))
 
+  well%ql = 0.d0
+  well%qg = 0.d0
+  well%ql_bc = 0.d0
+  well%qg_bc = 0.d0
+  well%ql_kmol = 0.d0
+  well%qg_kmol = 0.d0
+  well%ql_kmol_bc = 0.d0
+  well%qg_kmol_bc = 0.d0
   well%liq_cum_mass = 0.d0
   well%liq_mass = 0.d0
 
@@ -10854,7 +10862,7 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
                             xsl, den_kg_brine, option)
       call SCO2VaporPressureBrine(well%temp(i), Ps, &
                                   0.d0, den_kg_brine, &
-                                  xsl, Prvap)
+                                  xsl, Prvap,PETSC_FALSE)
       call SCO2WaterDensity(well%temp(i),Prvap, &
                             TWO_INTEGER,den_kg_water, &
                             den_kg_steam,option)
