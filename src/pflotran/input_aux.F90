@@ -188,7 +188,7 @@ function InputCreate1(fid,path,filename,option)
   input%line_number = 0
   input%path = ''
   input%filename = ''
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   input%buf = ''
   input%err_buf = ''
   input%err_buf2 = ''
@@ -222,7 +222,7 @@ function InputCreate1(fid,path,filename,option)
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
     call PrintErrMsg(option)
     ! for non-blocking case, set error flag
-    input%ierr = 1
+    input%ierr = INPUT_ERROR_DEFAULT
   endif
 
   InputCreate1 => input
@@ -320,7 +320,7 @@ subroutine InputDefaultMsg2(input,option)
     option%io_buffer =  '"' // trim(input%err_buf) // &
                         '" set to default value.'
     call PrintMsg(option)
-    input%ierr = 0
+    input%ierr = INPUT_ERROR_NONE
   endif
 
 end subroutine InputDefaultMsg2
@@ -368,7 +368,7 @@ subroutine InputErrorMsg2(input,option)
     option%io_buffer = 'While reading "' // trim(input%err_buf) // &
                        '" under keyword: ' // trim(input%err_buf2) // '.'
     select case(input%ierr)
-      case(2)
+      case(INPUT_ERROR_KEYWORD_LENGTH)
         option%io_buffer = trim(option%io_buffer) // &
           ' The length of the keyword may be too long (typically, &
           &32 characters).'
@@ -505,7 +505,7 @@ subroutine InputReadInt2(string, option, int, ierr)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   found = PETSC_FALSE
   if (associated(dbase)) then
@@ -572,7 +572,7 @@ subroutine InputReadInt4(string, option, int, ierr)
 
   character(len=MAXWORDLENGTH) :: word
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   call InputReadWord(string,word,PETSC_TRUE,ierr)
 
   if (.not.InputError(ierr)) then
@@ -615,7 +615,7 @@ subroutine InputReadDouble1(input, option, double)
     if (.not.InputError(input)) then
       read(word,*,iostat=input%ierr) double
       ! catch NaNs
-      if (double /= double) input%ierr = 1
+      if (double /= double) input%ierr = INPUT_ERROR_DEFAULT
     endif
   endif
 
@@ -641,7 +641,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   found = PETSC_FALSE
   if (associated(dbase)) then
@@ -654,7 +654,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
     if (.not.InputError(ierr)) then
       read(word,*,iostat=ierr) double
       ! catch NaNs
-      if (double /= double) ierr = 1
+      if (double /= double) ierr = INPUT_ERROR_DEFAULT
     endif
   endif
 
@@ -772,7 +772,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   PetscInt :: i
   PetscInt :: skip_count
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
 
   word = ''
 
@@ -793,7 +793,16 @@ subroutine InputReadPflotranStringSlave(input, option)
     if (input%buf(1:1) == '#' .or. input%buf(1:1) == '!') cycle
 
     tempstring = input%buf
-    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
+    call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
+!    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
+!    if (InputError(input)) then
+!      if (len_trim(input%buf) > 0) then
+!        option%io_buffer = 'Error reading keyword at beginning of input &
+!          &file string' // NL // NL // '"' // trim(input%buf) // '"' // &
+!          NL // NL // 'at line ' // StringWrite(input%line_number)
+!        call PrintErrMsg(option)
+!      endif
+!    endif
     call StringToUpper(word)
 
     if (word(1:13) == 'EXTERNAL_FILE') then
@@ -1214,13 +1223,13 @@ subroutine InputReadNChars2(string, chars, num_chars, return_blank_error, ierr)
   length = len_trim(string)
   if (length == 0) then
     if (return_blank_error) then
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     else
-      ierr = 0
+      ierr = INPUT_ERROR_NONE
     endif
     return
   else
-    ierr = 0
+    ierr = INPUT_ERROR_NONE
 
     ! Remove leading blanks and tabs
     i=1
@@ -1231,9 +1240,9 @@ subroutine InputReadNChars2(string, chars, num_chars, return_blank_error, ierr)
 
     if (i > length) then
       if (return_blank_error) then
-        ierr = 2
+        ierr = INPUT_ERROR_KEYWORD_LENGTH
       else
-        ierr = 0
+        ierr = INPUT_ERROR_NONE
       endif
       return
     endif
@@ -1250,7 +1259,7 @@ subroutine InputReadNChars2(string, chars, num_chars, return_blank_error, ierr)
     ends=i-1
 
     if (ends-begins+1 > num_chars) then ! string read is too large for 'chars'
-      ierr = 2
+      ierr = INPUT_ERROR_KEYWORD_LENGTH
       return
     endif
 
@@ -1325,6 +1334,7 @@ subroutine InputFindStringInFile1(input, option, string)
   ! Author: Glenn Hammond
   ! Date: 03/07/07
   !
+
   use String_module
 
   implicit none
@@ -1393,7 +1403,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: length1, length2
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   found = PETSC_FALSE
 
   length1 = len_trim(string)
@@ -1414,7 +1424,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   ! reading if successive searches for strings are in descending order in
   ! the file.
   if (InputError(input)) then
-    input%ierr = 0
+    input%ierr = INPUT_ERROR_NONE
     call InputRewind(input)
     do
       call InputReadPflotranString(input,option)
@@ -1432,7 +1442,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   if (.not.found .and. print_warning) then
     option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
     call PrintWrnMsg(option)
-    input%ierr = 1
+    input%ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine InputFindStringInFile3
@@ -1543,7 +1553,7 @@ function InputError2(ierr)
 
   PetscBool :: InputError2
 
-  if (ierr == 0) then
+  if (ierr == INPUT_ERROR_NONE) then
     InputError2 = PETSC_FALSE
   else
     InputError2 = PETSC_TRUE
@@ -1616,7 +1626,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize int_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1624,7 +1634,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
       call getCommandLineArgument(index,string2)
       call InputReadInt(string2,option,int_value,ierr)
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'Integer argument for command line argument "' // &
@@ -1660,7 +1670,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1668,7 +1678,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
       call getCommandLineArgument(index,string2)
       call InputReadDouble(string2,option,double_value,ierr)
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'Real argument for command line argument "' // &
@@ -1704,7 +1714,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1721,7 +1731,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
         call PrintErrMsg(option)
       endif
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'String argument for command line argument "' // &
@@ -1758,7 +1768,7 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
   character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -2009,7 +2019,7 @@ subroutine InputReadASCIIDbase(filename,option)
         enddo
         input%buf = string
       endif
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'value','ASCII Dbase')
       select case(StringIntegerDoubleOrWord(word))
@@ -2259,7 +2269,7 @@ subroutine DbaseLookupInt(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2279,7 +2289,7 @@ subroutine DbaseLookupInt(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading an "integer value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupInt
@@ -2305,7 +2315,7 @@ subroutine DbaseLookupDouble(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2325,7 +2335,7 @@ subroutine DbaseLookupDouble(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading a "floating point value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupDouble
@@ -2351,7 +2361,7 @@ subroutine DbaseLookupWord(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2371,7 +2381,7 @@ subroutine DbaseLookupWord(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading a "string value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupWord
