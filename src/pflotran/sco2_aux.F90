@@ -1356,8 +1356,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       sco2_auxvar%xmol(sid,lid) = sco2_auxvar%xmass(sid,lid)* &
                                   mw_mix/fmw_comp(3)
 
-      ! sco2_auxvar%sl_min(2) = 1.d0
-
     case (SCO2_GAS_STATE)
       ! Fully unsaturated system with or without trapped gas.
       ! Primary Variables:
@@ -1669,7 +1667,6 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
   if (global_auxvar%istate == SCO2_TRAPPED_GAS_STATE) then
     if (Initialized(characteristic_curves%saturation_function%Sgt_max)) then
       ! Move the reversal point as a function of trapped gas saturation
-      ! MAN: Move this, shouldn't be updated with aux vars
       if (characteristic_curves%saturation_function%Sgt_max - &
           sco2_auxvar%sat(tgid) > epsilon) then
         sco2_auxvar%sl_min(2) = (characteristic_curves%saturation_function% &
@@ -1703,24 +1700,17 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
     sco2_auxvar%sat(lid) = min(max(0.d0,sl_temp),1.d0)
     sco2_auxvar%sat(gid) = 1.d0 - sco2_auxvar%sat(lid)
   endif
-  ! sco2_auxvar%sl_min(2) = min(sco2_auxvar%sl_min(1),sco2_auxvar%sat(lid))
   sco2_auxvar%sl_min(2) = min(sco2_auxvar%sl_min(2),sco2_auxvar%sat(lid))
   sco2_auxvar%sl_min(2) = min(max(sco2_auxvar%sl_min(2),0.d0),1.d0)
-  ! sco2_auxvar%sat(gid) is always mobile gas + trapped gas
-  !sco2_auxvar%sat(gid) = (1.d0 - sl_temp) + sco2_auxvar%sat(tgid)
   ! Compute relative permeabilities
-  ! MAN: Check if surface tension needs to be incorported into rel perm.
-  ! MAN: Need to check that trapped gas presence is treated properly in
-  !      rel perm calcs
   call characteristic_curves%liq_rel_perm_function% &
            RelativePermeability(sco2_auxvar%sat(lid),sco2_auxvar%kr(lid), &
                                 dkrl_dsatl,option)
   sco2_auxvar%kr(lid) = min(max(sco2_auxvar%kr(lid),1.d-24),1.d0)
-  sl_temp = sco2_auxvar%sat(lid)+sco2_auxvar%sat(tgid)
+  sl_temp = sco2_auxvar%sat(lid) + sco2_auxvar%sat(tgid)
   call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(sl_temp, &
-                                sco2_auxvar%kr(gid), &
-                                dkrg_dsatl,option)
+           RelativePermeability(sl_temp, sco2_auxvar%kr(gid), &
+                               dkrg_dsatl,option)
 
   ! Convert to molar density: liquid
   mw_mix = sco2_auxvar%xmol(wid,lid) * fmw_comp(1) + &

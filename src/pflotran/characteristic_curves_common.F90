@@ -335,7 +335,6 @@ module Characteristic_Curves_Common_module
     procedure, public :: Init => RPFModifiedCoreyGasInit
     procedure, public :: Verify => RPFModifiedCoreyGasVerify
     procedure, public :: RelativePermeability => RPFModifiedCoreyGasRelPerm
-    procedure, public :: RelPermTrapped => RPFModifiedCoreyGasRelPermWTGas
   end type rpf_modified_corey_gas_type
 
   public :: &! standard char. curves:
@@ -2136,7 +2135,7 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
   PetscReal :: dpc_dSe
   PetscReal :: neg_one_over_lambda
   PetscReal :: Sgt, Sgf, Sgte, Sle, Sla, Sgtme
-  ! PetscReal :: R
+  PetscReal :: R
   PetscReal :: dPc
 
   if (present(trapped_gas_saturation)) then
@@ -2165,13 +2164,13 @@ subroutine SFBCCapillaryPressure(this,liquid_saturation, &
     Sgte = Sgt
     Sla = liquid_saturation + Sgt
     Se = (Sla -this%Sr) / (1.d0 -this%Sr)
-    ! R = 1.d0 / this%Sgt_max - 1.d0
-    ! if (Sl_min < 0.d0) then
-    !   Sl_min = (Sgte * R * Sla + Sgte * (R**2) * Sla + Sla - Sgte - &
-    !             2.d0 * Sgte * R - Sgte * (R**2)) / &
-    !             (1.d0 + Sgte * (R**2) * Sla - Sgte * R - Sgte * (R**2))
-    !   Sl_min = min(max(Sl_min,0.d0),1.d0)
-    ! endif
+    R = 1.d0 / this%Sgt_max - 1.d0
+    if (Sl_min < 0.d0) then
+      Sl_min = (Sgte * R * Sla + Sgte * (R**2) * Sla + Sla - Sgte - &
+                2.d0 * Sgte * R - Sgte * (R**2)) / &
+                (1.d0 + Sgte * (R**2) * Sla - Sgte * R - Sgte * (R**2))
+      Sl_min = min(max(Sl_min,0.d0),1.d0)
+    endif
   else
     dSe_dsatl = 1.d0 / (1.d0-this%Sr)
     Se = (liquid_saturation-this%Sr)*dSe_dsatl
@@ -5696,42 +5695,6 @@ subroutine RPFModifiedCoreyGasRelPerm(this,liquid_saturation, &
 
   relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
 end subroutine
-
-! ************************************************************************** !
-
-subroutine RPFModifiedCoreyGasRelPermWTGas(this,liquid_saturation,&
-                 trapped_gas_sat, relative_permeability,dkr_sat,option)
-  !
-  ! Computes the relative permeability as a
-  ! function of liquid and trapped gas saturation
-  !
-  ! Author: Michael Nole
-  ! Date: 01/18/24
-  !
-
-  use Option_module
-
-  implicit none
-
-  class(rpf_modified_corey_gas_type) :: this
-  PetscReal, intent(in) :: liquid_saturation
-  PetscReal, intent(in) :: trapped_gas_sat
-  PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_sat
-  type(option_type), intent(inout) :: option
-
-  PetscReal :: Se
-  PetscReal :: Sla
-  PetscReal :: Sgte
-
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
-  Se = min(max(Se,0.d0),1.d0)
-  Sgte = (trapped_gas_sat) / (1.d0 - this%Sr)
-  Sla = Se + Sgte
-
-  relative_permeability = this%a * ((1.d0-Sla)**2)*(1.d0-Sla**2)
-
-end subroutine RPFModifiedCoreyGasRelPermWTGas
 
 ! ************************************************************************** !
 ! ************************************************************************** !

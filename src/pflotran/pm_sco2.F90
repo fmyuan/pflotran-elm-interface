@@ -1277,28 +1277,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
-          ! Make sure gas pressure is greater than or equal to liquid pressure
-          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
-          !     (X_p(liq_pressure_index) + dX_p(liq_pressure_index))) then
-          !   dX_p(gas_pressure_index) = (X_p(liq_pressure_index) + &
-          !     dX_p(liq_pressure_index)) - X_p(gas_pressure_index)
-          ! endif
-
-          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
-          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-          !    &mode: greater than (or equal to) 500 MPa.'
-          !   call PrintErrMsg(option)
-          ! endif
-          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
-          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-          !    &mode: less than (or equal to) 0 Pa.'
-          !   call PrintErrMsg(option)
-          ! endif
-          ! if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
-          !   option%io_buffer = 'Error: Liquid pressure is out of bounds for &
-          !     &SCO2 mode: greater than (or equal to) 500 MPa.'
-          !   call PrintErrMsg(option)
-          ! endif
       end select
 
       if (sco2_thermal) then

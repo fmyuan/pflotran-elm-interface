@@ -338,11 +338,11 @@ subroutine SCO2UpdateSolution(realization)
   do ghosted_id = 1, grid%ngmax
     sco2_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
       global_auxvars(ghosted_id)%istate
-    if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) < &
+    if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2) < &
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)) then
 
-      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2) = &
-      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid)
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1) = &
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2)
 
       if (global_auxvars(ghosted_id)%istate == SCO2_TRAPPED_GAS_STATE) then
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%sg_trapped = &
