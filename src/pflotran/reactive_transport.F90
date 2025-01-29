@@ -474,6 +474,12 @@ subroutine RTSetup(realization)
                             patch%aux%RT%matrix_zeroing,option)
   deallocate(dof_is_active)
 
+  if (option%use_sc .and. reaction%immobile%nimmobile > 0) then
+    option%io_buffer = 'Immobile species are not currently supported when &
+      &using multi-continuum.'
+    call PrintErrMsg(option)
+  endif
+
 end subroutine RTSetup
 
 ! ************************************************************************** !
