@@ -153,13 +153,12 @@ function SimSubsurfCast(simulation)
   !
   implicit none
 
-  !class(simulation_base_type), pointer :: simulation
-  class(simulation_base_type), target :: simulation
+  class(simulation_base_type), pointer :: simulation
 
   class(simulation_subsurface_type), pointer :: SimSubsurfCast
 
   nullify(SimSubsurfCast)
-  !if (.not.associated(simulation)) return
+  if (.not.associated(simulation)) return
   select type(simulation)
     class is(simulation_subsurface_type)
       SimSubsurfCast=> simulation
@@ -442,8 +441,7 @@ subroutine SimSubsurfJumpStart(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
   endif
 
-  ! jaa testing.. want to set the geomech dt equal to flow dt
-  !if (associated(this%geomech)) then
+  ! jaa: want to set the geomech dt equal to flow dt
   if (this%option%geomech_split == FIXED_STRAIN_SPLIT) then
      this%geomech%process_model_coupler%timestepper%dt = &
          this%process_model_coupler_list%timestepper%dt

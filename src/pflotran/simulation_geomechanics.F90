@@ -78,7 +78,6 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   use Option_module
   use Geomechanics_Attr_module
 
-
   implicit none
 
   class(simulation_geomechanics_type) :: this
@@ -174,7 +173,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   call PrintMsg(this%option,'GeomechanicsSimulationExecuteRun()')
 #endif
 
-  !if (.not.associated(this%geomech_realization)) then
   if (.not.associated(this%geomech%realization)) then
     call this%RunToTime(final_time)
 

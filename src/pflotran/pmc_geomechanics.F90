@@ -223,7 +223,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   if (stop_flag == TS_STOP_FAILURE) return
 
-  ! jaa testing -  want to use dt from flow (master).. it works for now!
+  ! jaa:  want to use dt from flow (master).. this works for now!
   this%timestepper%dt = this%option%dt
 
   call this%PrintHeader()
