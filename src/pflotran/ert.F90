@@ -33,7 +33,9 @@ subroutine ERTSetup(realization)
   use Option_module
   use Patch_module
   use Grid_module
+  use Coupler_module
   use Survey_module
+  use String_module, only : StringWrite
   use Variables_module, only : MATERIAL_ELECTRICAL_CONDUCTIVITY, &
                                ARCHIE_CEMENTATION_EXPONENT, &
                                ARCHIE_SATURATION_EXPONENT, &
@@ -48,6 +50,7 @@ subroutine ERTSetup(realization)
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: cur_coupler
   type(survey_type), pointer :: survey
 
   type(material_auxvar_type), pointer :: material_auxvars(:)
@@ -206,6 +209,20 @@ subroutine ERTSetup(realization)
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
                             patch%aux%ERT%matrix_zeroing,option)
+
+  ! ensure that prescribed_conditions are solely DIRICHLET type
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    if (cur_coupler%geop_condition%itype /= DIRICHLET_BC) then
+      option%io_buffer = 'GEOPHYSICS_CONDITION "' // &
+        trim(cur_coupler%geop_condition%name) // &
+        '" not supported in ERT PRESCRIBED_CONDITION "' // &
+          cur_coupler%name // '".'
+        call PrintErrMsg(option)
+    endif
+    cur_coupler => cur_coupler%next
+  enddo
 
 end subroutine ERTSetup
 
@@ -438,7 +455,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   call MatAssemblyBegin(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-    ! zero out inactive cells
+  ! zero out inactive cells
   call MatrixZeroingZeroMatEntries(patch%aux%ERT%matrix_zeroing,M)
 
   if (realization%debug%matview_Matrix) then
