@@ -5817,7 +5817,7 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
 
   allocate(temp(ntemp))
   temp = UNINITIALIZED_DOUBLE
-  allocate(pres(ntemp))
+  allocate(pres(npres))
   pres = UNINITIALIZED_DOUBLE
   allocate(density_kg(npres,ntemp))
   density_kg = UNINITIALIZED_DOUBLE
