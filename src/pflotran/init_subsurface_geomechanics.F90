@@ -12,7 +12,6 @@ module Init_Subsurface_Geomech_module
             InitSubsurfGeomechReadInput, &
             GeomechanicsJumpStart, &
             InitSubsurfGeomechSetupRealization, &
-            InitMatPropToGeomechRegions, &
             FactorySubsurfGeomechInitSimulation
 contains
 
@@ -26,6 +25,7 @@ subroutine InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -73,9 +73,8 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
 
-  !use Simulation_Geomechanics_class
   use Option_module
   use Input_Aux_module
   use String_module
@@ -359,6 +358,7 @@ subroutine GeomechanicsJumpStart(geomech)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Option_module
@@ -374,7 +374,6 @@ subroutine GeomechanicsJumpStart(geomech)
 
   implicit none
 
-  !type(simulation_subsurface_type) :: simulation
   type(geomechanics_attr_type), pointer :: geomech ! jaa: is pointer ok here?
 
   class(realization_geomech_type), pointer :: geomech_realization
@@ -420,6 +419,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
 
   use Option_module
   use Input_Aux_module
@@ -507,9 +507,14 @@ end subroutine GeomechanicsInit
 
 subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
                                               geomech_realization)
-!subroutine InitSubsurfGeomechSetupRealization(simulation)
+  !
+  ! Initializes material property data structres and assign them to the domain.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/04/14
+  !
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
 
-  !use Simulation_Geomechanics_class
   use Geomechanics_Realization_class
   use Geomechanics_Global_module
   use Geomechanics_Force_module
@@ -517,20 +522,13 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
   use Simulation_Subsurface_class
 
   use Option_module
-  !use Waypoint_module
 
   implicit none
-
-  !class(simulation_subsurface_type) :: simulation
-  !class(simulation_geomechanics_type) :: simulation
 
   class(realization_subsurface_type), pointer :: subsurf_realization
   class(realization_geomech_type), pointer :: geomech_realization
 
   type(option_type), pointer :: option
-
-  !subsurf_realization => simulation%realization
-  !geomech_realization => simulation%geomech%realization
 
   option => subsurf_realization%option
 
@@ -575,6 +573,8 @@ subroutine InitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   !
+  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
   use Geomechanics_Strata_module
@@ -832,22 +832,16 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! set geomech as not master
   pmc_geomech%is_master = PETSC_FALSE
   ! link geomech and master
-  !simulation%process_model_coupler_list => &
-  !  simulation%geomech_process_model_coupler_new
-  ! jaa testing.. set flow as the master
+  ! jaa: set flow as the master
   simulation%process_model_coupler_list => &
     simulation%flow_process_model_coupler
   ! link subsurface flow as peer
-  !simulation%process_model_coupler_list%peer => &
-  !  simulation%flow_process_model_coupler
-  ! jaa testing.. set geomech as a child
+  ! jaa: set geomech as a child
   simulation%process_model_coupler_list%child => &
     pmc_geomech
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
   call cur_process_model_coupler%SetAuxData()
-  !if (associated(cur_process_model_coupler%peer)) then
-  !  cur_process_model_coupler => cur_process_model_coupler%peer
   if (associated(cur_process_model_coupler%child)) then
     cur_process_model_coupler => cur_process_model_coupler%child
     call cur_process_model_coupler%GetAuxData()
