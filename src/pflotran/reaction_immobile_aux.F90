@@ -14,7 +14,7 @@ module Reaction_Immobile_Aux_module
   type, public :: immobile_species_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: molar_weight
+    PetscReal :: molar_weight ! [kg/mol]
     PetscBool :: print_me
     type(immobile_species_type), pointer :: next
   end type immobile_species_type
@@ -243,7 +243,7 @@ end function ReactionImGetSpeciesIDFromName1
 
 ! ************************************************************************** !
 
-function ReactionImGetSpeciesIDFromName2(name,immobile,return_error,option)
+function ReactionImGetSpeciesIDFromName2(name,immobile,stop_on_error,option)
   !
   ! Returns the id of named immobile species
   !
@@ -258,7 +258,7 @@ function ReactionImGetSpeciesIDFromName2(name,immobile,return_error,option)
 
   character(len=MAXWORDLENGTH) :: name
   type(immobile_type) :: immobile
-  PetscBool :: return_error
+  PetscBool :: stop_on_error
   type(option_type) :: option
 
   PetscInt :: ReactionImGetSpeciesIDFromName2
@@ -291,7 +291,7 @@ function ReactionImGetSpeciesIDFromName2(name,immobile,return_error,option)
     enddo
   endif
 
-  if (return_error .and. ReactionImGetSpeciesIDFromName2 <= 0) then
+  if (stop_on_error .and. ReactionImGetSpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not found among immobile species in ReactionImGetSpeciesIDFromName().'
     call PrintErrMsg(option)

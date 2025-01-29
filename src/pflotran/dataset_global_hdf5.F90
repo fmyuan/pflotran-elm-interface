@@ -23,6 +23,7 @@ module Dataset_Global_HDF5_class
   public :: DatasetGlobalHDF5Create, &
             DatasetGlobalHDF5Init, &
             DatasetGlobalHDF5Cast, &
+            DatasetGlobalHDF5Verify, &
             DatasetGlobalHDF5Load, &
             DatasetGlobalHDF5Print, &
             DatasetGlobalHDF5Strip, &
@@ -100,6 +101,39 @@ function DatasetGlobalHDF5Cast(this)
   end select
 
 end function DatasetGlobalHDF5Cast
+
+! ************************************************************************** !
+
+subroutine DatasetGlobalHDF5Verify(this,dataset_error,option)
+  !
+  ! Verifies that data structure is properly set up.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/19/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(dataset_global_hdf5_type) :: this
+  PetscBool :: dataset_error
+  type(option_type) :: option
+
+  call DatasetCommonHDF5Verify(this,dataset_error,option)
+  if (Uninitialized(this%local_size)) then
+    call PrintMsg(option,'local size uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (Uninitialized(this%global_size)) then
+    call PrintMsg(option,'global size uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (.not.associated(this%dm_wrapper)) then
+    call PrintMsg(option,'dm wrapper not allocated')
+    dataset_error = PETSC_TRUE
+  endif
+
+end subroutine DatasetGlobalHDF5Verify
 
 ! ************************************************************************** !
 

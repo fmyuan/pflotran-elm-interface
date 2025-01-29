@@ -13,8 +13,7 @@ module Option_Transport_module
   type, public :: transport_option_type
 
     PetscInt :: rt_idof
-    PetscInt :: reactive_transport_coupling
-    PetscInt :: nw_transport_coupling
+    PetscInt :: reaction_coupling
     PetscInt :: tvd_flux_limiter
     PetscBool :: store_fluxes
     PetscReal :: tran_weight_t0, tran_weight_t1
@@ -27,11 +26,16 @@ module Option_Transport_module
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
     PetscBool :: numerical_derivatives
+    PetscBool :: debug_derivatives
     PetscBool :: steady_state
     PetscBool :: use_np ! nernst-planck diffusion.
     PetscBool :: sc_fixed_water_density
     PetscBool :: anisotropic_tortuosity
     PetscBool :: conservative_transport_only
+
+    PetscBool :: force_decouple_co2
+    PetscBool :: couple_co2
+    PetscBool :: couple_co2_salinity
 
     PetscInt :: nphase
 
@@ -116,9 +120,9 @@ subroutine OptionTransportInitRealization(option)
   option%rt_idof = UNINITIALIZED_INTEGER
   option%store_fluxes = PETSC_FALSE
 
-  option%reactive_transport_coupling = GLOBAL_IMPLICIT
-  option%nw_transport_coupling = GLOBAL_IMPLICIT
+  option%reaction_coupling = GLOBAL_IMPLICIT
   option%numerical_derivatives = PETSC_FALSE
+  option%debug_derivatives = PETSC_FALSE
   option%conservative_transport_only = PETSC_TRUE
 
   option%jumpstart_kinetic_sorption = PETSC_FALSE
@@ -129,6 +133,10 @@ subroutine OptionTransportInitRealization(option)
   option%use_np = PETSC_FALSE
   option%sc_fixed_water_density = PETSC_FALSE
   option%anisotropic_tortuosity = PETSC_FALSE
+
+  option%force_decouple_co2 = PETSC_FALSE
+  option%couple_co2 = PETSC_FALSE
+  option%couple_co2_salinity = PETSC_FALSE
 
   option%tran_weight_t0 = 0.d0
   option%tran_weight_t1 = 0.d0

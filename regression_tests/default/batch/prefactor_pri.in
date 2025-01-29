@@ -1,0 +1,169 @@
+#Description: Dolomite dissolution scenario for debugging reaction derivatives
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+#    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    HCO3-
+    Ca++
+    H+
+    MgHCO3+
+  /
+  SECONDARY_SPECIES
+    OH-
+    CO3--
+    CO2(aq)
+    CaCO3(aq)
+    CaHCO3+
+    CaOH+
+    MgCO3(aq)
+    Mg++
+    MgOH+
+  /
+  PASSIVE_GAS_SPECIES
+    CO2(g)
+  /
+  MINERALS
+    Calcite
+    Dolomite
+    Magnesite
+  /
+  MINERAL_KINETICS
+    Calcite
+      RATE_CONSTANT 1.d-7 mol/m^2-sec
+    /
+    Dolomite
+      RATE_CONSTANT 2.d-8 mol/m^2-sec
+    /
+    Magnesite
+      PREFACTOR
+        RATE_CONSTANT 1.d-8 mol/m^2-sec
+        PREFACTOR_SPECIES MgHCO3+
+          ALPHA 0.001d0
+        /
+      /
+    /
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    PH
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+OBSERVATION
+  REGION all
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 25.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    H+     1.d-7      F
+    HCO3-  1.d-3      G CO2(g)
+    Ca++   1.d-4      M Calcite
+    MgHCO3+ 2.d-4      M Dolomite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0 m^2/m^3
+    Dolomite 1.d-4 1.d0 m^2/m^3
+    Magnesite 1.d-3 1.d0 m^2/m^3
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

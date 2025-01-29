@@ -25,7 +25,8 @@ module Petsc_Utility_module
   public :: PetUtilMatSVBL, &
             PetUtilVecSVBL, &
             PetUtilLoadVec, &
-            PetUtilUnloadVec
+            PetUtilUnloadVec, &
+            PetscUtilCompareMatrices
 
 contains
 
@@ -149,7 +150,7 @@ subroutine PetUtilUnloadVecInt(vec,iarray)
   PetscErrorCode :: ierr
 
   call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
-  iarray(:) = int(vec_ptr(:)+1.d-5)
+  iarray(:) = nint(vec_ptr(:))
   call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecInt
@@ -176,5 +177,90 @@ subroutine PetUtilUnloadVecReal(vec,rarray)
   call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecReal
+
+! ************************************************************************** !
+
+subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,rtol,row_rtol,option)
+  !
+  ! Compares values in matrices pinpointing differences.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/02/25
+  !
+  use Option_module
+  use String_module
+
+  implicit none
+
+  Mat :: A, B
+  PetscInt :: nL2G(:) ! from grid%nL2G
+  PetscInt :: nG2A(:)
+  PetscReal :: rtol
+  PetscReal :: row_rtol
+  type(option_type) :: option
+
+  PetscInt :: nrow, ncol
+  PetscInt, pointer :: irow_ptr(:), icol_ptr(:)
+  PetscReal :: values_a(1,1000), values_b(1,1000)
+  PetscReal :: value_a, value_b, scale, row_scale
+  PetscBool :: success
+  PetscInt :: i, j
+  PetscInt :: irow(1)
+  PetscInt :: irow_local0, icol_local0
+  PetscInt :: irow_cell_local, icol_cell_local
+  PetscInt :: row_cell_natural, col_cell_natural
+  PetscInt :: irow_natural, icol_natural
+  PetscInt :: block_size
+  PetscErrorCode :: ierr
+
+  call MatGetRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                      nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+  if (.not.success) then
+    option%io_buffer = 'Error returned from MatGetRowIJF90() in &
+      &PetscUtilCompareMatrices. I believe that the type of matrix A is not &
+      &supported by that routine.'
+    call PrintErrMsg(option)
+  endif
+  call MatGetBlockSize(A,block_size,ierr);CHKERRQ(ierr)
+
+  do i = 1, nrow
+    irow(1) = i-1
+    irow_local0 = i-1
+    irow_cell_local = irow_local0/block_size+1
+    row_cell_natural = nG2A(nL2G(irow_cell_local))
+    irow_natural = (row_cell_natural-1)*block_size+mod(i-1,block_size)+1
+    ncol = irow_ptr(i+1)-irow_ptr(i)
+    call MatGetValuesLocal(A,ONE_INTEGER,irow,ncol, &
+                           icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
+                           values_a,ierr);CHKERRQ(ierr)
+    call MatGetValuesLocal(B,ONE_INTEGER,irow,ncol, &
+                           icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
+                           values_b,ierr);CHKERRQ(ierr)
+    do j = 1, ncol
+      value_a = values_a(1,j)
+      value_b = values_b(1,j)
+      row_scale = max(maxval(dabs(values_a(1,1:ncol))), &
+                      maxval(dabs(values_b(1,1:ncol))))
+      scale = max(dabs(value_a),dabs(value_b))
+      if (scale > 0.d0) then
+        if (dabs(value_a - value_b)/scale > rtol .and. &
+            dabs(value_a - value_b)/row_scale > row_rtol) then
+          icol_local0 = (icol_ptr(irow_ptr(i)+j)+1)-1
+          icol_cell_local = icol_local0/block_size+1
+          col_cell_natural = nG2A(nL2G(icol_cell_local))
+          icol_natural = (col_cell_natural-1)*block_size+mod(j-1,block_size)+1
+          option%io_buffer = 'Large difference - (' // &
+            StringWrite(irow_natural) // ',' // &
+            StringWrite(icol_natural) // ') : ' // &
+            StringWrite(value_a) // ' vs ' // StringWrite(value_b)
+          call PrintMsgByRank(option)
+        endif
+      endif
+    enddo
+  enddo
+  call MatRestoreRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                          nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+
+end subroutine PetscUtilCompareMatrices
 
 end module Petsc_Utility_module

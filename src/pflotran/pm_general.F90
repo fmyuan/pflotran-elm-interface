@@ -1857,8 +1857,7 @@ subroutine PMGeneralMaxChange(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal, pointer :: max_change_local(:)
-  PetscReal, pointer :: max_change_global(:)
+  PetscReal, allocatable :: max_change_global(:)
   PetscReal :: max_change
   PetscInt :: i, j, max_change_index
   PetscInt :: ghosted_id
@@ -1879,10 +1878,8 @@ subroutine PMGeneralMaxChange(this)
   elseif (option%nflowdof == 4) then
     max_change_index = EIGHT_INTEGER
   endif
-  allocate(max_change_local(max_change_index))
   allocate(max_change_global(max_change_index))
   max_change_global = 0.d0
-  max_change_local = 0.d0
 
   do i = 1, max_change_index
     call RealizationGetVariable(realization,field%work, &
@@ -1910,13 +1907,13 @@ subroutine PMGeneralMaxChange(this)
       endif
     enddo
 
-    max_change_local(i) = max_change
+    max_change_global(i) = max_change
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  call MPI_Allreduce(max_change_local,max_change_global,max_change_index, &
+  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,max_change_index, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
@@ -1955,6 +1952,7 @@ subroutine PMGeneralMaxChange(this)
     this%max_xmol_change = maxval(max_change_global(4:5))
     this%max_saturation_change = maxval(max_change_global(6:7))
   endif
+  deallocate(max_change_global)
 
 end subroutine PMGeneralMaxChange
 ! ************************************************************************** !

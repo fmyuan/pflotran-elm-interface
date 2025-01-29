@@ -633,7 +633,9 @@ subroutine OutputFileRead(input,realization,output_option, &
     endif
     option%flow%store_fluxes = PETSC_TRUE
     if (realization%discretization%grid%itype == &
-        EXPLICIT_UNSTRUCTURED_GRID) then
+        EXPLICIT_UNSTRUCTURED_GRID .or. &
+        realization%discretization%grid%itype == &
+        ECLIPSE_UNSTRUCTURED_GRID) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
     endif
@@ -1064,7 +1066,7 @@ subroutine Output(realization_base,snapshot_plot_flag, &
       call PetscLogEventBegin(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       if (realization_base%discretization%itype == UNSTRUCTURED_GRID) then
         select case (realization_base%discretization%grid%itype)
-          case (EXPLICIT_UNSTRUCTURED_GRID)
+          case (EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
             call OutputHDF5UGridXDMFExplicit(realization_base, &
                                              INSTANTANEOUS_VARS)
           case (IMPLICIT_UNSTRUCTURED_GRID)

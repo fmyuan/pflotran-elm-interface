@@ -405,7 +405,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
       call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec, &
                           vec_ptr,ierr);CHKERRQ(ierr)
       do i = 1, count
-        int_array(i) = int(vec_ptr(i)+0.1d0) ! tolerance to ensure int value
+        int_array(i) = nint(vec_ptr(i)) ! tolerance to ensure int value
       enddo
       call VecRestoreArrayF90(geomechanics_regression% &
                                 vertices_per_process_vec, &
@@ -475,7 +475,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
       call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec, &
                           vec_ptr,ierr);CHKERRQ(ierr)
       geomechanics_regression%vertices_per_process_natural_ids(:) = &
-                                                        int(vec_ptr(:)+0.1)
+                                                        nint(vec_ptr(:))
       call VecRestoreArrayF90(geomechanics_regression% &
                                 vertices_per_process_vec, &
                               vec_ptr,ierr);CHKERRQ(ierr)
@@ -631,7 +631,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
             else
               do i = 1, size(geomechanics_regression%natural_vertex_ids)
                 write(OUTPUT_UNIT,101) &
-                  geomechanics_regression%natural_vertex_ids(i),int(vec_ptr(i))
+                  geomechanics_regression%natural_vertex_ids(i),nint(vec_ptr(i))
               enddo
             endif
             call VecRestoreArrayF90(geomechanics_regression% &
@@ -653,7 +653,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
           else
             do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%size
               write(OUTPUT_UNIT,101) &
-                geomechanics_regression%vertices_per_process_natural_ids(i),int(vec_ptr(i))
+                geomechanics_regression%vertices_per_process_natural_ids(i),nint(vec_ptr(i))
             enddo
           endif
           call VecRestoreArrayF90(geomechanics_regression% &

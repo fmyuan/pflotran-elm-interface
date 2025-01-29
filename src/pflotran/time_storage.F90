@@ -1,12 +1,12 @@
 module Time_Storage_module
 
+#include "petsc/finclude/petscsys.h"
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: time_storage_type
     PetscReal, pointer :: times(:)
@@ -66,7 +66,7 @@ end function TimeStorageCreate
 ! ************************************************************************** !
 
 subroutine TimeStorageVerify(default_time, time_storage, &
-                             default_time_storage, header, option)
+                             default_time_storage, dataset_name, option)
   !
   ! Verifies the data in a time storage
   !
@@ -82,7 +82,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
   PetscReal :: default_time
   type(time_storage_type), pointer :: time_storage
   type(time_storage_type), pointer :: default_time_storage
-  character(len=MAXSTRINGLENGTH) :: header
+  character(len=*) :: dataset_name
   type(option_type) :: option
 
   PetscInt :: array_size
@@ -99,7 +99,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
 
   if (time_storage%time_interpolation_method == INTERPOLATION_NULL) then
     option%io_buffer = 'Time interpolation method must be specified in ' // &
-      trim(header) // '.'
+      trim(dataset_name) // '.'
     call PrintErrMsg(option)
   endif
 
@@ -124,7 +124,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
   else
     if (time_storage%times(1) > 1.d-40) then
       option%io_buffer = 'The first time in transient datasets must be zero. &
-        &See ' // trim(header) // '.'
+        &See ' // trim(dataset_name) // '.'
       call PrintErrMsg(option)
     endif
   endif

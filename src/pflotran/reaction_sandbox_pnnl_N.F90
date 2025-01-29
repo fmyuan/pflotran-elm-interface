@@ -171,7 +171,7 @@ subroutine PNNL_NRead(this,input,option)
   implicit none
 
   class(reaction_sandbox_pnnl_n_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i

@@ -57,6 +57,9 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   PetscErrorCode :: ierr
   PetscReal, allocatable :: temp_real_array(:,:)
   PetscInt :: ivertex, num_vertices, num_grid_vertices
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
 
   explicit_grid => unstructured_grid%explicit_grid
 ! Format of explicit unstructured grid file
@@ -938,13 +941,12 @@ subroutine UGridExplicitDecompose(ugrid,option)
   PetscInt :: icell_up,icell_dn
 
   character(len=MAXSTRINGLENGTH) :: string
-
-  explicit_grid => ugrid%explicit_grid
-
 #if UGRID_DEBUG
+  PetscViewer :: viewer
   call PrintMsg(option,'Adjacency matrix')
 #endif
 
+  explicit_grid => ugrid%explicit_grid
 
   temp_int = minval(explicit_grid%cell_ids)
   call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER, &
@@ -1729,7 +1731,9 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
   PetscBool :: error
 
   num_connections = size(explicit_grid%connections,2)
-  connections => ConnectionCreate(num_connections,INTERNAL_FACE_CONNECTION_TYPE)
+  connections => &
+    ConnectionCreate(num_connections,INTERNAL_FACE_CONNECTION_TYPE, &
+                     EXPLICIT_UNSTRUCTURED_GRID)
 
   error = PETSC_FALSE
   do iconn = 1, num_connections
@@ -1838,7 +1842,9 @@ function UGridExplicitSetBoundaryConnect(explicit_grid,cell_ids, &
   PetscBool :: error
 
   num_connections = size(cell_ids)
-  connections => ConnectionCreate(num_connections,BOUNDARY_FACE_CONNECTION_TYPE)
+  connections => &
+    ConnectionCreate(num_connections,BOUNDARY_FACE_CONNECTION_TYPE, &
+                     EXPLICIT_UNSTRUCTURED_GRID)
 
   error = PETSC_FALSE
   do iconn = 1, num_connections
@@ -1911,7 +1917,8 @@ function UGridExplicitSetConnections(explicit_grid,cell_ids,connection_type, &
   if (associated(cell_ids)) then
     num_connections = size(cell_ids)
   endif
-  connections => ConnectionCreate(num_connections,connection_type)
+  connections => ConnectionCreate(num_connections,connection_type, &
+                                  EXPLICIT_UNSTRUCTURED_GRID)
 
   do iconn = 1, num_connections
     id = cell_ids(iconn)

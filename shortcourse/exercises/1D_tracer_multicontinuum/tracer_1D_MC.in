@@ -186,11 +186,4 @@ CONSTRAINT inlet_constraint
   /
 /
 
-#==================== secondary continuum initial constraint ==================
-SECONDARY_CONSTRAINT sec
-  CONCENTRATIONS
-    Tracer  1.d-20  T 
-  /
-/
-
 END_SUBSURFACE

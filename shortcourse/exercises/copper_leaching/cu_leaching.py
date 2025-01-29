@@ -25,7 +25,7 @@ filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(10,6))
 f.suptitle("Copper Leaching",fontsize=14)
-ax = f.gca(projection='3d')
+ax = f.add_subplot(projection='3d')
 
 ax.set_title('Jurbanite')
 ax.set_xlabel('X [m]')

@@ -1,10 +1,10 @@
 module Variables_module
 
+#include "petsc/finclude/petscsys.h"
+
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   ! variables definitions
   PetscInt, parameter, public :: X_COORDINATE =             1
@@ -208,5 +208,10 @@ module Variables_module
   PetscInt, parameter, public :: PETSC_CELL_ID = 167
   PetscInt, parameter, public :: LOCAL_CELL_ID = 168
   PetscInt, parameter, public :: GHOSTED_CELL_ID = 169
+
+  PetscInt, parameter, public :: GEOMECH_VOLUMETRIC_STRAIN = 170
+
+  PetscInt, parameter, public :: WELL_BHP = 171
+  PetscInt, parameter, public :: TOTAL_LIQUID_HEAD             = 172
 
 end module Variables_module

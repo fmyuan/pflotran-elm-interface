@@ -198,11 +198,6 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       call InputErrorMsg(input,option,'KEYWORD',error_string)
       call StringToUpper(word)
       select case(word)
-        case('HEADER')
-          call InputReadWord(string,word,PETSC_TRUE,ierr)
-          call InputErrorMsg(input,option,'HEADER',error_string)
-          this%header = trim(input%buf)
-          cycle
         case('CYCLIC')
           is_cyclic = PETSC_TRUE
           cycle

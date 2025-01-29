@@ -34,6 +34,7 @@ module Dataset_Gridded_HDF5_class
   public :: DatasetGriddedHDF5Create, &
             DatasetGriddedHDF5Init, &
             DatasetGriddedHDF5Cast, &
+            DatasetGriddedHDF5Verify, &
             DatasetGriddedHDF5Load, &
             DatasetGriddedHDF5InterpolateReal, &
             DatasetGriddedHDF5GetNameInfo, &
@@ -120,6 +121,43 @@ function DatasetGriddedHDF5Cast(this)
   end select
 
 end function DatasetGriddedHDF5Cast
+
+! ************************************************************************** !
+
+subroutine DatasetGriddedHDF5Verify(this,dataset_error,option)
+  !
+  ! Verifies that data structure is properly set up.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/19/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(dataset_gridded_hdf5_type) :: this
+  PetscBool :: dataset_error
+  type(option_type) :: option
+
+  call DatasetCommonHDF5Verify(this,dataset_error,option)
+  if (.not.associated(this%origin)) then
+    call PrintMsg(option,'origin undefined')
+    dataset_error = PETSC_TRUE
+  endif
+  if (.not.associated(this%extent)) then
+    call PrintMsg(option,'extent undefined')
+    dataset_error = PETSC_TRUE
+  endif
+  if (.not.associated(this%discretization)) then
+    call PrintMsg(option,'discretization undefined')
+    dataset_error = PETSC_TRUE
+  endif
+  if (this%data_dim == DIM_NULL) then
+    call PrintMsg(option,'dimension undefined')
+    dataset_error = PETSC_TRUE
+  endif
+
+end subroutine DatasetGriddedHDF5Verify
 
 ! ************************************************************************** !
 

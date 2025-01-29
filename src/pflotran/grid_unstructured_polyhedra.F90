@@ -572,6 +572,11 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   VecScatter :: vec_scatter
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
+
   pgrid => ugrid%polyhedra_grid
   max_nvert_per_cell = ugrid%max_nvert_per_cell
 
@@ -1806,7 +1811,8 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
     enddo
   enddo
 
-  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE, &
+                                  POLYHEDRA_UNSTRUCTURED_GRID)
 
   allocate(ugrid%connection_to_face(nconn))
   ugrid%connection_to_face = 0

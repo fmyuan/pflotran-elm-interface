@@ -34,7 +34,8 @@ module SCO2_Aux_module
   ! PetscBool, public :: sco2_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: sco2_allow_state_change = PETSC_TRUE
   PetscBool, public :: sco2_state_changed = PETSC_FALSE
-  PetscBool, public :: sco2_force_iteration = PETSC_FALSE
+  PetscBool, public :: sco2_force_ts_cut = PETSC_FALSE
+  PetscBool, public :: sco2_pressure_controlled_well = PETSC_FALSE
   PetscBool, public :: sco2_newtontrdc_hold_inner = PETSC_FALSE
   PetscInt, public :: sco2_newton_iteration_number = 0
   PetscInt, public :: sco2_sub_newton_iter_num = 0
@@ -43,6 +44,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_truncate_updates = PETSC_TRUE
   PetscReal, public :: sco2_max_pressure_change = 5.d4
   PetscReal, public :: sco2_isothermal_temperature = 25.d0
+  PetscBool, public :: sco2_isothermal_gradient = PETSC_FALSE
   PetscBool, public :: sco2_stomp_fluxes = PETSC_TRUE
 
   ! Output Control
@@ -652,7 +654,7 @@ subroutine SCO2AuxVarPerturb(sco2_auxvar, global_auxvar, material_auxvar, &
     if (sco2_central_diff_jacobian) then
       x_pert_minus = x
       if (idof == SCO2_SALT_MASS_FRAC_DOF .and. &
-         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < epsilon) then
+         sco2_auxvar(ZERO_INTEGER)%xmass(sid,lid) < pert(idof)) then
         x_pert_minus(idof) = x(idof)
         pert(idof) = pert(idof) / 2.d0
       else
@@ -1312,6 +1314,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
 
       ! Populate all pressures, even though gas phase is not present.
       sco2_auxvar%pres(gid) = sco2_auxvar%pres(lid) + Pc_entry/beta_gl
+      sco2_auxvar%pres(gid) = max(sco2_auxvar%pres(gid),SCO2_REFERENCE_PRESSURE)
       sco2_auxvar%xmass(co2_id,gid) = 1.d0
 
       ! Update the liquid mole fractions
@@ -1324,6 +1327,8 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                      mw_mix/fmw_comp(2)
       sco2_auxvar%xmol(sid,lid) = sco2_auxvar%xmass(sid,lid)* &
                                   mw_mix/fmw_comp(3)
+
+      sco2_auxvar%sl_min = 1.d0
 
     case (SCO2_GAS_STATE)
       ! Fully unsaturated system with or without trapped gas.
@@ -1433,7 +1438,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
       !               Liquid Pressure, Trapped Gas Saturation,
       !               total NaCl brine fraction (kg NaCl/kg brine), Temperature
       sco2_auxvar%pres(lid) = x(SCO2_LIQUID_PRESSURE_DOF)
-      sco2_auxvar%sat(gid) = x(SCO2_GAS_SATURATION_DOF)
+      sco2_auxvar%sat(tgid) = x(SCO2_GAS_SATURATION_DOF)
       sco2_auxvar%m_salt(1) = x(SCO2_SALT_MASS_FRAC_DOF)
       if (sco2_thermal) then
         sco2_auxvar%temp = x(SCO2_TEMPERATURE_DOF)
@@ -1482,7 +1487,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                            xmolco2g, xmolwg, xmolco2l, xmolsl, xmolwl, option)
 
       ! Update trapped gas
-      sco2_auxvar%sat(tgid) = sco2_auxvar%sat(gid)
+      sco2_auxvar%sat(gid) = sco2_auxvar%sat(tgid)
 
       ! Update mass fractions
       sco2_auxvar%xmass(co2_id,lid) = xco2l
@@ -1629,7 +1634,27 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                                  sigma)
   beta_gl = CO2_REFERENCE_SURFACE_TENSION / sigma
 
-  if (global_auxvar%istate /= SCO2_GAS_STATE) then
+  if (global_auxvar%istate == SCO2_TRAPPED_GAS_STATE) then
+    if (Initialized(characteristic_curves%saturation_function%Sgt_max)) then
+      ! Move the reversal point as a function of trapped gas saturation
+      if (characteristic_curves%saturation_function%Sgt_max - &
+          sco2_auxvar%sat(tgid) > epsilon) then
+        sco2_auxvar%sl_min = (characteristic_curves%saturation_function% &
+                              Sgt_max - sco2_auxvar%sat(tgid)) / &
+                              (characteristic_curves%saturation_function% &
+                              Sgt_max + characteristic_curves% &
+                              saturation_function%Sgt_max * &
+                              sco2_auxvar%sat(tgid) - sco2_auxvar%sat(tgid))
+      else
+        sco2_auxvar%sl_min = 0.d0
+      endif
+    else
+      option%io_buffer = 'Modeling gas trapping requires defining &
+                          &MAX_TRAPPED_GAS_SAT with a supported &
+                          &CHARACTERISTIC_CURVE.'
+      call PrintErrMsg(option)
+    endif
+  elseif (global_auxvar%istate /= SCO2_GAS_STATE) then
     select type(sf => characteristic_curves%saturation_function)
       class is (sat_func_vg_stomp_type)
         capillary_head = max(beta_gl * sco2_auxvar%pres(cpid) / &
@@ -1708,6 +1733,7 @@ subroutine SCO2AuxVarCompute(x,sco2_auxvar,global_auxvar,material_auxvar, &
                             sco2_auxvar%sat(lid) * &
                             sco2_auxvar%effective_porosity
   endif
+  sco2_auxvar%sat(pid) = min(max(sco2_auxvar%sat(pid),0.d0),1.d0)
 
   ! Permeability and porosity reduction with salt precipitate effects
   call SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, option)
@@ -3124,6 +3150,7 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
   PetscReal :: theta
   PetscReal :: tao, omega
   PetscInt :: pid
+  PetscReal :: epsilon = 1.d-20
 
   pid = option%precipitate_phase
 
@@ -3155,6 +3182,9 @@ subroutine SCO2ScalePermPhi(sco2_auxvar, material_auxvar, global_auxvar, &
                           (1.d0 - f + f * (theta / (theta + omega - 1.d0)) ** 2)
 
   end select
+
+  sco2_auxvar%effective_permeability = max(epsilon, &
+                                       sco2_auxvar%effective_permeability)
 
 end subroutine SCO2ScalePermPhi
 
@@ -3213,6 +3243,7 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
 
   PetscInt :: lid, gid, wid, co2_id, sid, tgid
   PetscReal :: T_scaled
+  PetscReal :: epsilon = 1.d-20
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -3244,7 +3275,6 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
                  sco2_auxvar%sat(lid) * sco2_auxvar%effective_porosity * &
                  sco2_parameter%diffusion_coefficient(sid,lid)
 
-
   end select
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = &
@@ -3257,6 +3287,13 @@ subroutine SCO2EffectiveDiffusion(sco2_parameter, sco2_auxvar, option)
                  (sco2_auxvar%sat(gid) - sco2_auxvar%sat(tgid)) * &
                  sco2_auxvar%effective_porosity * &
                  sco2_parameter%diffusion_coefficient(wid,gid)
+
+  sco2_auxvar%effective_diffusion_coeff(co2_id,lid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(co2_id,lid),epsilon)
+  sco2_auxvar%effective_diffusion_coeff(wid,gid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(wid,gid),epsilon)
+  sco2_auxvar%effective_diffusion_coeff(sid,lid) = max(&
+                     sco2_auxvar%effective_diffusion_coeff(sid,lid),epsilon)
 
   sco2_auxvar%effective_diffusion_coeff(co2_id,gid) = &
                                sco2_auxvar%effective_diffusion_coeff(wid,gid)

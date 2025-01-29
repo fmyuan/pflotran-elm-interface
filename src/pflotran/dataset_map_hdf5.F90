@@ -27,6 +27,7 @@ module Dataset_Map_HDF5_class
   public :: DatasetMapHDF5Create, &
             DatasetMapHDF5Init, &
             DatasetMapHDF5Cast, &
+            DatasetMapHDF5Verify, &
             DatasetMapHDF5Read, &
             DatasetMapHDF5Load, &
             DatasetMapHDF5Print, &
@@ -76,8 +77,8 @@ subroutine DatasetMapHDF5Init(this)
   this%h5_dataset_map_name = ''
   this%map_filename = ''
   nullify(this%mapping)
-  this%map_dims_global = 0
-  this%map_dims_local = 0
+  this%map_dims_global = UNINITIALIZED_INTEGER
+  this%map_dims_local = UNINITIALIZED_INTEGER
   nullify(this%datatocell_ids)
   nullify(this%cell_ids_local)
   this%first_time = PETSC_TRUE
@@ -109,6 +110,56 @@ function DatasetMapHDF5Cast(this)
   end select
 
 end function DatasetMapHDF5Cast
+
+! ************************************************************************** !
+
+subroutine DatasetMapHDF5Verify(this,dataset_error,option)
+  !
+  ! Verifies that data structure is properly set up.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/19/24
+  !
+  use Option_module
+
+  implicit none
+
+  class(dataset_map_hdf5_type) :: this
+  PetscBool :: dataset_error
+  type(option_type) :: option
+
+  call DatasetCommonHDF5Verify(this,dataset_error,option)
+  if (len_trim(this%h5_dataset_map_name) < 1) then
+    call PrintMsg(option,'hdf5 datset map name uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (len_trim(this%map_filename) < 1) then
+    call PrintMsg(option,'map filename uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (Uninitialized(this%map_dims_global)) then
+    call PrintMsg(option,'map dims global uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (Uninitialized(this%map_dims_local)) then
+    call PrintMsg(option,'map dims local uninitialized')
+    dataset_error = PETSC_TRUE
+  endif
+  if (.not.associated(this%mapping)) then
+    call PrintMsg(option,'mapping array null')
+    dataset_error = PETSC_TRUE
+  endif
+  ! these two arrays are allocated later
+  ! if (.not.associated(this%datatocell_ids)) then
+  !   call PrintMsg(option,'data to cell ids array null')
+  !   dataset_error = PETSC_TRUE
+  ! endif
+  ! if (.not.associated(this%cell_ids_local)) then
+  !   call PrintMsg(option,'cell ids local array null')
+  !   dataset_error = PETSC_TRUE
+  ! endif
+
+end subroutine DatasetMapHDF5Verify
 
 ! ************************************************************************** !
 

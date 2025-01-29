@@ -246,7 +246,7 @@ subroutine NWTSetup(realization)
     enddo
   endif
 
-  if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
+  if (option%transport%reaction_coupling == GLOBAL_IMPLICIT) then
     ndof = realization%reaction_nw%params%nspecies
   else
     ndof = 1
@@ -1237,7 +1237,7 @@ subroutine NWTResidualSrcSink(nwt_auxvar,global_auxvar,source_sink,&
   !---------------------------------------------------------------
     case(WELL_SS)
       ! qsrc, from well model = [kmol-liq/sec]
-      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(3)
       ! FMWH2O is in [kg-liq/kmol-liq]
       qsrc = qsrc*FMWH2O  ! now, qsrc = [kg-liq/sec]
       ! density_avg = [kg-liq/m^3-liq]
@@ -1336,9 +1336,17 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,reaction_nw,Res)
         rad_rxn => rad_rxn%next
       enddo
       ! Add in species decay
-      Res(species%id) = -(rad_rxn%rate_constant * &
-                          nwt_auxvar%total_bulk_conc(species%id))
-      ! units are [mol-species/m^3-bulk/sec] right now
+      if (Initialized(nwt_background_conc)) then
+        ! decay only if above background concentration
+        if (nwt_auxvar%total_bulk_conc(species%id) >= nwt_background_conc) then
+          Res(species%id) = -(rad_rxn%rate_constant * &
+                    nwt_auxvar%total_bulk_conc(species%id))
+        endif
+      else
+        Res(species%id) = -(rad_rxn%rate_constant * &
+                            nwt_auxvar%total_bulk_conc(species%id))
+        ! units are [mol-species/m^3-bulk/sec] right now
+      endif
 
       ! Add in contribution from parent (if exists)
       if (rad_rxn%parent_id > 0.d0) then
@@ -1891,7 +1899,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   !--------------------------------------------------------------
     case(WELL_SS)
       ! qsrc, from well model = [kmol-liq/sec]
-      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(1)
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(3)
       ! FMWH2O is in [kg-liq/kmol-liq]
       qsrc = qsrc*FMWH2O  ! now, qsrc = [kg-liq/sec]
       ! density_avg = [kg-liq/m3]

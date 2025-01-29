@@ -1,5 +1,7 @@
 module General_Common_module
 
+#include "petsc/finclude/petscsys.h"
+
   use General_Aux_module
   use Global_Aux_module
 
@@ -9,8 +11,6 @@ module General_Common_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
 #define CONVECTION
 #define LIQUID_DARCY_FLUX
@@ -2716,7 +2716,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
 
         if (bc_type == DIRICHLET_SEEPAGE_BC) then
-          if (delta_pressure < 0.d0) then
+          if (delta_pressure > 0.d0) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'DIRCHLET_SEEPAGE_BC &

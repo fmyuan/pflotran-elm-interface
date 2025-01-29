@@ -155,7 +155,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   PetscBool :: add_pre_check, check_update, check_post_convergence
   PetscBool :: keep_non_zero_pattern
   PetscInt :: itranmode
-  PetscInt :: transport_coupling
+  PetscInt :: reactive_transport_coupling
   PetscErrorCode :: ierr
 
   option => this%option
@@ -166,7 +166,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
   check_update = PETSC_FALSE
   itranmode = NULL_MODE
-  transport_coupling = UNINITIALIZED_INTEGER
+  reactive_transport_coupling = UNINITIALIZED_INTEGER
 
   select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
@@ -367,7 +367,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     class is(pm_rt_type)
       check_post_convergence = pm%check_post_convergence
       itranmode = option%itranmode
-      transport_coupling = option%transport%reactive_transport_coupling
+      reactive_transport_coupling = option%transport%reaction_coupling
       check_update = pm%realization%reaction%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -377,7 +377,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     class is(pm_nwt_type)
       check_post_convergence = pm%controls%check_post_convergence
       itranmode = option%itranmode
-      transport_coupling = option%transport%nw_transport_coupling
+      reactive_transport_coupling = option%transport%reaction_coupling
       check_update = pm%controls%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -389,7 +389,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
     call PrintMsg(option,"  Beginning setup of TRAN SNES ")
     call SolverCreateSNES(solver,option%mycomm,'tran_',option)
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
       if (Uninitialized(solver%Mpre_mat_type) .and. &
           Uninitialized(solver%M_mat_type)) then
         ! Matrix types not specified, so set to default.
@@ -447,7 +447,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                        option)
     endif
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
 
       if (solver%M_mat_type == MATMFFD) then
         call MatCreateSNESMF(solver%snes,solver%M,ierr);CHKERRQ(ierr)
@@ -472,7 +472,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
 
     endif
 
-    if (transport_coupling == GLOBAL_IMPLICIT) then
+    if (reactive_transport_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes,PMCheckConvergencePtr, &
                                   this%pm_ptr,PETSC_NULL_FUNCTION, &
                                   ierr);CHKERRQ(ierr)
@@ -767,6 +767,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   use Richards_Aux_module
   use TH_Aux_module
   use Mphase_Aux_module
+  use Global_Aux_module
 
   implicit none
 
@@ -779,6 +780,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: xx_loc_p(:)
   PetscScalar, pointer :: pres_p(:)
   PetscScalar, pointer :: temp_p(:)
+  PetscScalar, pointer :: por_p(:)
+  PetscScalar, pointer :: fluid_den_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
 
@@ -787,6 +790,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscInt :: pres_dof
   PetscInt :: temp_dof
 
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
@@ -829,13 +833,21 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
         subsurf_field => pmc%realization%field
 
 
-        ! Extract pressure, temperature and porosity from subsurface realization
+        ! Extract pressure, temperature, density, and porosity from
+        ! subsurface realization
         call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+                            ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+                            ierr);CHKERRQ(ierr)
+
+        global_auxvars => pmc%realization%patch%aux%global%auxvars
+        material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
         do local_id = 1, subsurf_grid%nlmax
           ghosted_id = subsurf_grid%nL2G(local_id)
@@ -849,6 +861,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)
           endif
+          ! need fluid density and porosity for bulk density calculations
+          fluid_den_p(local_id) = global_auxvars(ghosted_id)%den_kg(1)
+          por_p(local_id) = material_auxvars(ghosted_id)%porosity
         enddo
 
         call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
@@ -857,9 +872,12 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                 ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
                                 ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+                                ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
-          material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
           call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &

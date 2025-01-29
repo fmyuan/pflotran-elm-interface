@@ -42,7 +42,6 @@ module PM_Subsurface_Flow_class
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
-    PetscInt :: logging_verbosity
     ! for tracking convergence history to catch and report oscillator behavior
     PetscReal :: norm_history(3,10)
 
@@ -134,7 +133,6 @@ subroutine PMSubsurfaceFlowInit(this)
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
-  this%logging_verbosity = 0
 
   call SSSandboxInit()
 
@@ -176,9 +174,6 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       count_upwind_direction_flip = PETSC_TRUE
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
-    case('LOGGING_VERBOSITY')
-      call InputReadInt(input,option,this%logging_verbosity)
-      call InputErrorMsg(input,option,keyword,error_string)
     case('MULTIPLE_CONTINUUM')
       option%use_sc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
@@ -346,6 +341,7 @@ subroutine PMSubsurfaceFlowSetup(this)
   use Option_module
   use Matrix_Zeroing_module
   use Patch_module
+  use Reaction_Mineral_Aux_module
 
   implicit none
 
@@ -365,11 +361,12 @@ subroutine PMSubsurfaceFlowSetup(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
+
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mnrl_surf_with_porosity) then
+        ReactionMnrlAnyUpdatePorosity(this%realization%reaction%mineral)) then
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
@@ -503,7 +500,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     if ((this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) .and. &
+        this%realization%reaction%mineral%update_surface_area) .and. &
         .not.this%option%restart_flag) then
       call RealizationUpdatePropertiesTS(this%realization)
     endif
@@ -738,7 +735,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
+        this%realization%reaction%mineral%update_surface_area) then
       call RealizationUpdatePropertiesTS(this%realization)
     endif
   endif

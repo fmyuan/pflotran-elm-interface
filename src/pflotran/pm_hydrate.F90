@@ -360,6 +360,10 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_PHASE_BOUNDARY',option)
         end select
+      case('HIGH_P_CO2_PHASE_BOUNDARY')
+        hydrate_low_p_co2_boundary = PETSC_FALSE
+      case('LOW_P_CO2_PHASE_BOUNDARY')
+        hydrate_low_p_co2_boundary = PETSC_TRUE
       case('HENRYS_CONSTANT')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','hydrate henrys constant')
@@ -1255,6 +1259,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Global_Aux_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -1292,6 +1297,7 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, parameter :: eps_sh = 2.d-12 !2.d-12
   PetscReal, parameter :: eps_sl = 2.d-12 !2.d-12
   PetscReal, parameter :: epsilon = 1.d-14
+  PetscReal, parameter :: delta = 1.d-5
   PetscReal, parameter :: gravity = EARTH_GRAVITY
 
   PetscReal, pointer :: X_p(:),dX_p(:),dX_p2(:)
@@ -1829,12 +1835,79 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
               !   endif
               ! endif
               ! MAN: this is a hack to get the well to initialize properly
-              if (X_p(well_index) == hyd_auxvar%pres(option%gas_phase)) then
-                dX_p(well_index) = dX_p(well_index) + (hyd_auxvar%well%bh_p - &
-                                   hyd_auxvar%pres(option%gas_phase))
-              elseif (X_p(well_index) /= cur_well%well%bh_p) then
-                dX_p(well_index) = dX_p(well_index) + &
-                                   (cur_well%well%bh_p - X_p(well_index))
+              if (cur_well%well%total_rate < 0.d0) then
+                if (Equal(X_p(well_index),hyd_auxvar%pres(option%liquid_phase))) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (hyd_auxvar%well%bh_p - &
+                                     hyd_auxvar%pres(option%liquid_phase))
+                elseif (.not. Equal(X_p(well_index), cur_well%well%bh_p)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              elseif (dabs(cur_well%well%th_qg) > epsilon) then
+                if (X_p(well_index) == hyd_auxvar%pres(option%gas_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (hyd_auxvar%well%bh_p - &
+                                     hyd_auxvar%pres(option%gas_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              else
+                if (X_p(well_index) == hyd_auxvar% &
+                                       pres(option%liquid_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                     (hyd_auxvar%well%bh_p - &
+                                     hyd_auxvar% &
+                                     pres(option%liquid_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              endif
+
+              ! Check whether the well should be pressure- or rate-controlled
+              ! Check to see if we flip from pressure to rate-controlled
+              if ((X_p(well_index) + dX_p(well_index)) > &
+                    cur_well%pressure_threshold_max) then
+                ! Hit the fracture pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_max - &
+                                    X_p(well_index)
+              elseif ((X_p(well_index) + dX_p(well_index)) < &
+                      cur_well%pressure_threshold_min) then
+                ! Hit the min pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_min - &
+                                    X_p(well_index)
+              endif
+              if (cur_well%pressure_controlled) then
+                if (cur_well%well%total_rate < 0.d0) then
+                  ! production well
+                  if ((sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       dabs(cur_well%well%total_rate) * (1.d0 + delta)) then
+                    ! Pressure is too low, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                  endif
+                elseif (cur_well%well%th_qg > 0.d0) then
+                  if (dabs(sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       cur_well%well%th_qg * (1.d0 + delta)) then
+                    ! Pressure is too high, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                  endif
+                elseif (cur_well%well%th_ql > 0.d0) then
+                  if (dabs(sum(cur_well%well%liq%Q(:)) + &
+                       sum(cur_well%well%gas%Q(:))) > &
+                       cur_well%well%th_ql * (1.d0 + delta)) then
+                    ! Pressure is too high, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                  endif
+                endif
               endif
               ! dX_p(well_index) = dX_p(well_index) + hyd_auxvar%well%pressure_bump
               ! hyd_auxvar%well%pressure_bump = 0.d0
@@ -2011,6 +2084,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   use String_module
   use EOS_Gas_module
   use Material_Aux_module
+  use PM_Well_class
 
   implicit none
 
@@ -2032,6 +2106,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(material_auxvar_type) :: material_auxvar
+  class(pm_well_type), pointer :: cur_well
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscReal, pointer :: dX_p(:)
@@ -2162,7 +2237,11 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
             endif
             ! res_scaled = dabs(update) / &
             !              (dabs(hyd_auxvar%well%bh_p) + epsilon)
-            res_scaled = dabs(residual/(accumulation + epsilon))
+            if (.not. hydrate_pressure_controlled_well) then
+              res_scaled = dabs(residual/(accumulation + epsilon))
+            else
+              res_scaled = 0.d0
+            endif
             if (dabs(res_scaled) > &
                 this%residual_scaled_inf_tol(ONE_INTEGER)) then
               converged_well = PETSC_FALSE
@@ -2982,6 +3061,22 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       string = '    Exceeded Hydrate Mode EOS max temperature'
       call PrintMsg(option,string)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
+    endif
+
+    ! For now, since convergence isn't determined well-by-well.
+    hydrate_pressure_controlled_well = PETSC_FALSE
+    if (associated(this%pmwell_ptr)) then
+      cur_well => this%pmwell_ptr
+      do
+        if (.not. associated(cur_well)) exit
+        call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
+                        cur_well%well_grid%h_rank_id(1), &
+                        cur_well%option%mycomm, &
+                        ierr); CHKERRQ(ierr)
+        if (cur_well%pressure_controlled) &
+            hydrate_pressure_controlled_well = PETSC_TRUE
+        cur_well => cur_well%next_well
+      enddo
     endif
 
   endif

@@ -102,10 +102,6 @@ module Grid_module
             GridComputeAreas, &
             GridLocalizeRegions, &
             GridPopulateConnection, &
-            GridCopyIntegerArrayToVec, &
-            GridCopyRealArrayToVec, &
-            GridCopyVecToIntegerArray, &
-            GridCopyVecToRealArray, &
             GridCreateNaturalToGhostedHash, &
             GridDestroyHashTable, &
             GridGetLocalIDFromCoordinate, &
@@ -218,7 +214,7 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
       connection_set => &
         UGridComputeInternConnect(grid%unstructured_grid,grid%x,grid%y, &
                                   grid%z,option)
-    case(EXPLICIT_UNSTRUCTURED_GRID)
+    case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       connection_set => &
         UGridExplicitSetInternConnect(grid%unstructured_grid%explicit_grid, &
                                       grid%unstructured_grid% &
@@ -248,7 +244,8 @@ end subroutine GridComputeInternalConnect
 
 ! ************************************************************************** !
 
-function ConnectionSetIntersectRegion(connection_set,region) result(reg_connection_set)
+function ConnectionSetIntersectRegion(connection_set,region,grid_itype) &
+  result(reg_connection_set)
   !
   ! Returns a pointer to a new connection set created from the input
   ! set, where cell ids belong to the input region. Important: the
@@ -263,6 +260,7 @@ function ConnectionSetIntersectRegion(connection_set,region) result(reg_connecti
   implicit none
   type(connection_set_type), pointer :: connection_set,reg_connection_set
   type(region_type),         pointer :: region
+  PetscInt :: grid_itype
 
   PetscInt, allocatable :: ids(:,:)
   PetscInt              :: i,j,up,dn,nconn
@@ -289,16 +287,19 @@ function ConnectionSetIntersectRegion(connection_set,region) result(reg_connecti
   ! second pass to load the information
   nullify(reg_connection_set)
   if (nconn > 0) then
-     reg_connection_set => ConnectionCreate(nconn,connection_set%itype)
-     do i = 1,nconn
-        j = ids(i,1)
-        reg_connection_set%id_up  (  i) = ids(i,2)
-        reg_connection_set%id_dn  (  i) = ids(i,3)
-        reg_connection_set%dist   (:,i) = connection_set%dist   (:,j)
+    reg_connection_set => &
+      ConnectionCreate(nconn,connection_set%itype,grid_itype)
+    do i = 1,nconn
+      j = ids(i,1)
+      reg_connection_set%id_up  (  i) = ids(i,2)
+      reg_connection_set%id_dn  (  i) = ids(i,3)
+      reg_connection_set%dist   (:,i) = connection_set%dist   (:,j)
+      reg_connection_set%area   (  i) = connection_set%area   (  j)
+      if (associated(connection_set%intercp)) then
         reg_connection_set%intercp(:,i) = connection_set%intercp(:,j)
-        reg_connection_set%area   (  i) = connection_set%area   (  j)
         reg_connection_set%face_id(  i) = connection_set%face_id(  j)
-     enddo
+      endif
+    enddo
   endif
 
   ! cleanup and return
@@ -334,9 +335,11 @@ subroutine GridRestrictRegionalConnect(grid,region)
   cur_connection_set => grid%internal_connection_set_list%first
   do
      if (.not.associated(cur_connection_set)) exit
-     reg_connection_set => ConnectionSetIntersectRegion(cur_connection_set,region)
+     reg_connection_set => &
+       ConnectionSetIntersectRegion(cur_connection_set,region,grid%itype)
      if (associated(reg_connection_set)) then
-        call ConnectionAddToList(reg_connection_set,grid%reg_internal_connection_set_list)
+        call ConnectionAddToList(reg_connection_set, &
+                                 grid%reg_internal_connection_set_list)
      endif
      cur_connection_set => cur_connection_set%next
   enddo
@@ -376,13 +379,15 @@ subroutine GridPopulateConnection(grid,connection,iface,iconn,cell_id_local, &
 
   select case(grid%itype)
     case(STRUCTURED_GRID)
-      call StructGridPopulateConnection(grid%x,grid%structured_grid,connection, &
-                                        iface,iconn,cell_id_ghosted,option)
+      call StructGridPopulateConnection(grid%x,grid%structured_grid, &
+                                        connection,iface,iconn, &
+                                        cell_id_ghosted,option)
     case(IMPLICIT_UNSTRUCTURED_GRID)
-      call UGridPopulateConnection(grid%unstructured_grid,connection,iface,&
+      call UGridPopulateConnection(grid%unstructured_grid,connection,iface, &
                                    iconn,cell_id_ghosted,option)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
-      call UGridPolyhedraPopulateConnection(grid%unstructured_grid,connection,iface, &
+      call UGridPolyhedraPopulateConnection(grid%unstructured_grid, &
+                                            connection,iface, &
                                             iconn,cell_id_ghosted,option)
   end select
 
@@ -420,7 +425,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
                                 grid%nG2L,grid%nL2G,grid%nG2A, &
                                 option)
     case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
-         POLYHEDRA_UNSTRUCTURED_GRID)
+         POLYHEDRA_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       call UGridMapIndices(grid%unstructured_grid, &
                            dm_ptr%ugdm, &
                            grid%nG2L,grid%nL2G,grid%nG2A,option)
@@ -498,7 +503,7 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
                              grid%x_min_local,grid%x_max_local, &
                              grid%y_min_local,grid%y_max_local, &
                              grid%z_min_local,grid%z_max_local)
-    case(EXPLICIT_UNSTRUCTURED_GRID)
+    case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       call UGridExplicitSetCellCentroids(grid%unstructured_grid% &
                                          explicit_grid, &
                                          grid%x,grid%y,grid%z, &
@@ -563,7 +568,7 @@ subroutine GridComputeVolumes(grid,volume,option)
     case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridComputeVolumes(grid%unstructured_grid,option,volume)
       call UGridComputeQuality(grid%unstructured_grid,option)
-    case(EXPLICIT_UNSTRUCTURED_GRID)
+    case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       call UGridExplicitComputeVolumes(grid%unstructured_grid, &
                                        option,volume)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
@@ -647,7 +652,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
             call GridLocalizeRegionsFromCellIDs(grid,region,option)
           case(IMPLICIT_UNSTRUCTURED_GRID)
             call GridLocalizeRegionsFromCellIDs(grid,region,option)
-          case(EXPLICIT_UNSTRUCTURED_GRID)
+          case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
             call GridLocalizeRegionsFromCellIDs(grid,region,option)
         end select
       case (DEFINED_BY_CELL_AND_FACE_IDS)
@@ -677,9 +682,11 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%num_cells = size(region%cell_ids)
         endif
       case (DEFINED_BY_FACE_UGRID_EXP)
-        if (grid%itype /= EXPLICIT_UNSTRUCTURED_GRID) then
+        if (grid%itype /= EXPLICIT_UNSTRUCTURED_GRID .and. &
+            grid%itype /= ECLIPSE_UNSTRUCTURED_GRID) then
           option%io_buffer = 'Regions defined through explicit facesets are &
-                             &only supported for EXPLICIT_UNSTRUCTURED_GRIDS.'
+                             &only supported for EXPLICIT_UNSTRUCTURED_GRIDS &
+                             &and ECLIPSE grids.'
           call PrintErrMsg(option)
         endif
         call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
@@ -999,6 +1006,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   PetscReal, allocatable :: real_array_2d(:,:)
   PetscErrorCode :: ierr
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+#endif
+
   explicit_grid => ugrid%explicit_grid
   faceset => region%explicit_faceset
 
@@ -1097,117 +1108,6 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
 #endif
 
 end subroutine GridLocalizeExplicitFaceset
-
-! ************************************************************************** !
-
-subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
-  !
-  ! Copies values from an integer array into a
-  ! PETSc Vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscInt :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  vec_ptr(1:num_values) = array(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyIntegerArrayToVec
-
-! ************************************************************************** !
-
-subroutine GridCopyRealArrayToVec(grid,array,vector,num_values)
-  !
-  ! Copies values from an integer array into a
-  ! PETSc Vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscReal :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  vec_ptr(1:num_values) = array(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyRealArrayToVec
-
-! ************************************************************************** !
-
-subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
-  !
-  ! Copies values from a PETSc Vec to an
-  ! integer array
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscInt :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscInt :: i
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  do i=1,num_values
-    if (vec_ptr(i) > 0.d0) then
-      array(i) = int(vec_ptr(i)+1.d-4)
-    else
-      array(i) = int(vec_ptr(i)-1.d-4)
-    endif
-  enddo
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyVecToIntegerArray
-
-! ************************************************************************** !
-
-subroutine GridCopyVecToRealArray(grid,array,vector,num_values)
-  !
-  ! Copies values from a PETSc Vec to an integer
-  ! array
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/18/07
-  !
-  implicit none
-
-  type(grid_type) :: grid
-  PetscReal :: array(:)
-  Vec :: vector
-  PetscInt :: num_values
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  array(1:num_values) = vec_ptr(1:num_values)
-  call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-
-end subroutine GridCopyVecToRealArray
 
 ! ************************************************************************** !
 
@@ -1465,7 +1365,8 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
                                          stencil_width_j,stencil_width_k, &
                                          x_count,y_count,z_count, &
                                          ghosted_neighbors,option)
-    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
+         ECLIPSE_UNSTRUCTURED_GRID)
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call PrintErrMsg(option)
@@ -1508,7 +1409,8 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
                                          stencil_width_k, &
                                          icount, &
                                          ghosted_neighbors,option)
-    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
+         ECLIPSE_UNSTRUCTURED_GRID)
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call PrintErrMsg(option)
@@ -1540,7 +1442,7 @@ subroutine GridSetupCellNeighbors(grid,option)
       grid%cell_neighbors_local_ghosted => &
         grid%structured_grid%cell_neighbors_local_ghosted
     case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
-        POLYHEDRA_UNSTRUCTURED_GRID)
+        POLYHEDRA_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       grid%cell_neighbors_local_ghosted => &
         grid%unstructured_grid%cell_neighbors_local_ghosted
   end select
@@ -2061,7 +1963,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
             iflag = 1
           endif
         case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
-             POLYHEDRA_UNSTRUCTURED_GRID)
+             POLYHEDRA_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
           del_x = x_max-x_min
           del_y = y_max-y_min
           del_z = z_max-z_min
@@ -2106,9 +2008,10 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
                    del_z > 1.d-10) .or. &
                   (del_x > 1.d-10 .and. del_y > 1.d-10 .and. &
                    del_z < 1.d-10)) then
-            if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
+            if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID .or. &
+                grid%itype == ECLIPSE_UNSTRUCTURED_GRID) then
               option%io_buffer = 'Regions defined with 2D planes are not ' // &
-                'supported with explicit unstructured grids.'
+                'supported with explicit unstructured grids or Eclipse grids.'
               call PrintErrMsg(option)
             endif
             if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
@@ -2252,43 +2155,41 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    coordinate%y, &
                                    coordinate%z, &
                                    grid%unstructured_grid,option,local_id)
-      case(EXPLICIT_UNSTRUCTURED_GRID)
+      case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
         dx = MAX_DOUBLE
         dy = MAX_DOUBLE
         dz = MAX_DOUBLE
         champion = UNINITIALIZED_INTEGER
         champion_distance = UNINITIALIZED_DOUBLE
-        if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
-          call UGridExplicitGetClosestCellFromPoint( &
-                                   coordinate%x, &
-                                   coordinate%y, &
-                                   coordinate%z, &
-                                   grid%unstructured_grid%explicit_grid,&
-                                   grid%nG2L, &
-                                   option,champion,champion_distance)
-          call MPI_Allreduce(champion_distance,min_distance_global, &
-                             ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN, &
-                             option%mycomm,ierr);CHKERRQ(ierr)
-          if (champion_distance == min_distance_global) then
-            dx = coordinate%x - &
-               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%x
-          endif
-          call MPI_Allreduce(dx,min_dx,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-          if (dx == min_dx) then
-            dy = coordinate%y - &
-               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%y
-          endif
-          call MPI_Allreduce(dy,min_dy,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-          if (dy == min_dy) then
-            dz = coordinate%z - &
-               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%z
-          endif
-          call MPI_Allreduce(dz,min_dz,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                             MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
-          if (dz == min_dz) local_id = champion
+        call UGridExplicitGetClosestCellFromPoint( &
+                                  coordinate%x, &
+                                  coordinate%y, &
+                                  coordinate%z, &
+                                  grid%unstructured_grid%explicit_grid,&
+                                  grid%nG2L, &
+                                  option,champion,champion_distance)
+        call MPI_Allreduce(champion_distance,min_distance_global, &
+                            ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN, &
+                            option%mycomm,ierr);CHKERRQ(ierr)
+        if (champion_distance == min_distance_global) then
+          dx = coordinate%x - &
+              grid%unstructured_grid%explicit_grid%cell_centroids(champion)%x
         endif
+        call MPI_Allreduce(dx,min_dx,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                            MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+        if (dx == min_dx) then
+          dy = coordinate%y - &
+              grid%unstructured_grid%explicit_grid%cell_centroids(champion)%y
+        endif
+        call MPI_Allreduce(dy,min_dy,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                            MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+        if (dy == min_dy) then
+          dz = coordinate%z - &
+              grid%unstructured_grid%explicit_grid%cell_centroids(champion)%z
+        endif
+        call MPI_Allreduce(dz,min_dz,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                            MPI_MIN,option%mycomm,ierr);CHKERRQ(ierr)
+        if (dz == min_dz) local_id = champion
       case(POLYHEDRA_UNSTRUCTURED_GRID)
           option%io_buffer = &
             'add code POLYHDERA in GridGetLocalIDFromCoordinate'
@@ -2486,7 +2387,7 @@ subroutine GridExpandGhostCells(grid,option)
       grid%ngmax = grid%structured_grid%ngmax
       grid%global_offset = grid%structured_grid%global_offset
     case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
-         POLYHEDRA_UNSTRUCTURED_GRID)
+         POLYHEDRA_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       grid%nmax = grid%unstructured_grid%nmax
       grid%nlmax = grid%unstructured_grid%nlmax
       grid%ngmax = grid%unstructured_grid%ngmax
@@ -2576,6 +2477,9 @@ subroutine GridExpandGhostCells(grid,option)
       call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
                        &for ' // grid%ctype)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
+      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
+                       &for ' // grid%ctype)
+    case(ECLIPSE_UNSTRUCTURED_GRID)
       call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
                        &for ' // grid%ctype)
   end select

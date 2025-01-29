@@ -46,7 +46,8 @@ module Richards_module
          RichardsResidualSourceSink, &
          RichardsJacobianInternalConn, &
          RichardsJacobianBoundaryConn, &
-         RichardsJacobianSourceSink
+         RichardsJacobianSourceSink, &
+         RichApplyPrescribedConditions
 
 contains
 
@@ -119,6 +120,7 @@ subroutine RichardsSetupPatch(realization)
   use Connection_module
   use Grid_module
   use Region_module
+  use String_module
 
   implicit none
 
@@ -358,6 +360,24 @@ subroutine RichardsSetupPatch(realization)
   dof_is_active = PETSC_TRUE
   call PatchCreateZeroArray(patch,dof_is_active, &
                             patch%aux%Richards%matrix_zeroing,option)
+
+  ! ensure that prescribed_conditions are solely DIRICHLET type
+  coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(coupler)) exit
+    select case(coupler%flow_condition%pressure%itype)
+      case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+      case default
+        option%io_buffer = 'FLOW_CONDITION "' // &
+          trim(coupler%flow_condition%name) // '" PRESSURE TYPE (' // &
+          StringWrite(coupler%flow_condition%pressure%itype) // &
+          ') not supported in RICHARDS PRESCRIBED_CONDITION "' // &
+          coupler%name // '".'
+        call PrintErrMsg(option)
+    end select
+    coupler => coupler%next
+  enddo
 
 end subroutine RichardsSetupPatch
 
@@ -2069,6 +2089,61 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   call VecRestoreArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualAccumulation
+
+! ************************************************************************** !
+
+subroutine RichApplyPrescribedConditions(realization)
+  !
+  ! Update prescribed values in solution vector
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/10/24
+  !
+
+  use Connection_module
+  use Coupler_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(coupler_type), pointer :: cur_coupler
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: local_id
+  PetscInt :: iconn, offset
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  option => realization%option
+
+  if (.not.associated(patch%prescribed_condition_list%first)) return
+
+  call VecGetArrayF90(realization%field%flow_xx, &
+                      vec_ptr,ierr);CHKERRQ(ierr)
+
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      offset = (local_id-1)*option%nflowdof
+      vec_ptr(offset+1) = &
+        cur_coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(realization%field%flow_xx, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+end subroutine RichApplyPrescribedConditions
 
 ! ************************************************************************** !
 

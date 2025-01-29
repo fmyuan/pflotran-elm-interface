@@ -29,6 +29,7 @@ module PMC_Base_class
     PetscLogStage :: stage
     PetscBool :: is_master
     PetscLogDouble :: cumulative_time
+    PetscBool :: print_header
     type(option_type), pointer :: option
     class(timestepper_base_type), pointer :: timestepper
     class(pm_base_type), pointer :: pm_list
@@ -153,6 +154,7 @@ subroutine PMCBaseInit(this)
   this%stage = 0
   this%is_master = PETSC_FALSE
   this%cumulative_time = 0.d0
+  this%print_header = PETSC_TRUE
   nullify(this%option)
   nullify(this%timestepper)
   nullify(this%pm_list)

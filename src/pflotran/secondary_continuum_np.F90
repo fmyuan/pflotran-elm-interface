@@ -210,7 +210,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
   dtotal_prim = auxvar%aqueous%dtotal(:,:,1)
 
   ! Compute totals and its derivatives total_upd dtotal
-  call RTAuxVarInit(rt_auxvar,reaction,option)
+  call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
   do i = 1, ngcells
     call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)
@@ -920,7 +920,7 @@ subroutine SecondaryRTResJacMulti_NP(sec_transport_vars,auxvar, &
 
   if (option%numerical_derivatives_multi_coupling) then
 
-    call RTAuxVarInit(rt_auxvar,reaction,option)
+    call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
     conc_prim = auxvar%pri_molal
     conc_prim_pert = conc_prim
 
@@ -1623,7 +1623,7 @@ subroutine SecondaryRTCheckResidual_np(sec_transport_vars,auxvar, &
   !pordiff = porosity*diffusion_coefficient
   !pordiff = porosity*diffusion_coefficient*tortuosity
 
-  call RTAuxVarInit(rt_auxvar,reaction,option)
+  call RTAuxVarInit(rt_auxvar,reaction,PETSC_FALSE,option)
   do i = 1, ngcells
     call RTAuxVarCopy(sec_transport_vars%sec_rt_auxvar(i),rt_auxvar,option)
     rt_auxvar%pri_molal = conc_upd(:,i)

@@ -615,6 +615,11 @@ subroutine UGridDecompose(unstructured_grid,option)
   PetscInt, allocatable :: needed_vertices_petsc(:)
   PetscInt, pointer :: int_array_pointer(:)
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
+
 !  cell distribution across processors (size = num_cores + 1)
 !  core i owns cells cell_distribution(i):cell_distribution(i+1), note
 !  the zero-based indexing
@@ -1543,7 +1548,8 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
     enddo
   enddo
 
-  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_FACE_CONNECTION_TYPE, &
+                                  IMPLICIT_UNSTRUCTURED_GRID)
 
   allocate(unstructured_grid%face_area(face_count))
   allocate(unstructured_grid%connection_to_face(nconn))
@@ -2597,6 +2603,10 @@ subroutine UGridMapSideSet(unstructured_grid,face_vertices,n_ss_faces, &
   IS :: is_tmp1, is_tmp2
   VecScatter :: scatter_gton
 
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   ! fill matrix with boundary faces of local cells
   ! count up the number of boundary faces
@@ -2915,6 +2925,11 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
 
   PetscBool :: done
   PetscScalar, pointer :: aa_v(:)
+
+#if UGRID_DEBUG
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
+#endif
 
   ! fill matrix with boundary faces of local cells
   ! count up the number of boundary faces
@@ -3408,7 +3423,7 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
     do ghosted_id = 1, ugrid%ngmax
       cell_vertices_natural_new_1d((ghosted_id-1)* &
                                    ugrid%max_nvert_per_cell+ivertex) = &
-        int(vec_loc_ptr(ghosted_id)+1.d-4)
+        nint(vec_loc_ptr(ghosted_id))
     enddo
     call VecRestoreArrayReadF90(local_vec,vec_loc_ptr,ierr);CHKERRQ(ierr)
   enddo

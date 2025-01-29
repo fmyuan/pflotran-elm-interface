@@ -14,6 +14,11 @@ END
 
 SUBSURFACE
 
+EOS WATER
+  DENSITY LINEAR 0.99 103250.0 4.400d-10
+  VISCOSITY CONSTANT 0.00066
+END
+
 GRID
   TYPE UNSTRUCTURED_EXPLICIT ../meshes/uniaxial/tet/1d_tet.uge
 END
@@ -123,49 +128,14 @@ GEOMECHANICS_REGRESSION
   /
   VERTICES
     1
-    2
-    3
-    4
-    5
     6
-    7
-    8
-    9
-    10
     11
-    12
-    13
-    14
-    15
     16
-    17
-    18
-    19
-    20
     21
-    22
-    23
-    24
-    25
     26
-    27
-    28
-    29
-    30
     31
-    32
-    33
-    34
-    35
     36
-    37
-    38
-    39
-    40
     41
-    42
-    43
-    44
   /
 END
 
@@ -245,7 +215,7 @@ END
 
 GEOMECHANICS_MATERIAL_PROPERTY soil1
   ID 1
-  ROCK_DENSITY 1.0
+  ROCK_DENSITY 0.99
   YOUNGS_MODULUS 1000.0
   POISSONS_RATIO 0.0
   BIOT_COEFFICIENT 0.0

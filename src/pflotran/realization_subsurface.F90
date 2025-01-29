@@ -340,7 +340,7 @@ subroutine RealizationCreateDiscretization(realization)
   endif
 
   if (option%ntrandof > 0) then
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+    if (option%transport%reaction_coupling == GLOBAL_IMPLICIT) then
       ! ndof degrees of freedom, global
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx, &
                                       GLOBAL,option)
@@ -1034,7 +1034,6 @@ subroutine RealProcessFlowConditions(realization)
   ! Author: Glenn Hammond
   ! Date: 10/26/11
   !
-
   use Dataset_Base_class
   use Dataset_module
 
@@ -1071,6 +1070,8 @@ subroutine RealProcessFlowConditions(realization)
                  cur_flow_condition%sub_condition_ptr(i)%ptr%gradient, &
                  cur_flow_condition%default_time_storage, &
                  string,option)
+          call FlowSubCondEnsureCompatibility(cur_flow_condition, &
+                     cur_flow_condition%sub_condition_ptr(i)%ptr,option)
         enddo
     end select
     cur_flow_condition => cur_flow_condition%next
@@ -1924,7 +1925,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imat
+  PetscInt :: imat
   PetscReal :: scale
   PetscBool :: porosity_updated
   PetscReal, pointer :: porosity0_p(:)
@@ -1954,32 +1955,24 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call RealizationCalcMineralPorosity(realization)
   endif
 
-  if (reaction%update_mineral_surface_area) then
-
+  if (reaction%mineral%update_surface_area) then
     nullify(porosity0_p)
-    if (reaction%update_mnrl_surf_with_porosity) then
-      ! placing the get/restore array calls within the condition will
-      ! avoid improper access.
-      call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    endif
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     temp_porosity = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      do imnrl = 1, reaction%mineral%nkinmnrl
-        if (associated(porosity0_p)) then
-          temp_porosity = porosity0_p(local_id)
-        endif
-        call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
-                                            material_auxvars(ghosted_id), &
-                                            temp_porosity,option)
-      enddo
+      if (associated(porosity0_p)) then
+        temp_porosity = porosity0_p(local_id)
+      endif
+      call ReactionMnrlUpdateSpecSurfArea(reaction,rt_auxvars(ghosted_id), &
+                                          material_auxvars(ghosted_id), &
+                                          temp_porosity,option)
     enddo
 
-    if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
-                                  ierr);CHKERRQ(ierr)
-    endif
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                ierr);CHKERRQ(ierr)
+
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)
@@ -2230,7 +2223,7 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
 
   use Discretization_module
   use Field_module
-  use Grid_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -2238,26 +2231,20 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
   PetscInt :: array_id
 
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
   type(field_type), pointer :: field
 
   field => realization%field
   patch => realization%patch
 
-  grid => patch%grid
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%imat,field%work_loc, &
-                                     grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%imat)
     case(CC_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%cc_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%cc_id)
     case(CCT_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%cct_id)
     case(MTF_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%mtf_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilLoadVec(field%work_loc,patch%mtf_id)
   end select
 
   call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
@@ -2265,17 +2252,13 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
 
   select case(array_id)
     case(MATERIAL_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%imat,field%work_loc, &
-                                      grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%imat)
     case(CC_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%cc_id, &
-                                      field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%cc_id)
     case(CCT_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%cct_id, &
-                                      field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%cct_id)
     case(MTF_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%mtf_id, &
-                                     field%work_loc, grid%ngmax)
+      call PetUtilUnloadVec(field%work_loc,patch%mtf_id)
   end select
 
 end subroutine RealLocalToLocalWithArray
@@ -2449,11 +2432,11 @@ subroutine RealizationPrintGridStatistics(realization)
            global_active_count, &
            option%comm%size, &
            i1,i2,i3, &
-           int(total_max+1.d-4), &
-           int(total_min+1.d-4), &
+           nint(total_max), &
+           nint(total_min), &
            total_mean, sqrt(total_variance), &
-           int(active_max+1.d-4), &
-           int(active_min+1.d-4), &
+           nint(active_max), &
+           nint(active_min), &
            active_mean, sqrt(active_variance), &
            inactive_percentages(1), &
            inactive_percentages(2), &
@@ -2500,11 +2483,11 @@ subroutine RealizationPrintGridStatistics(realization)
            global_active_count, &
            option%comm%size, &
            i1,i2,i3, &
-           int(total_max+1.d-4), &
-           int(total_min+1.d-4), &
+           nint(total_max), &
+           nint(total_min), &
            total_mean, sqrt(total_variance), &
-           int(active_max+1.d-4), &
-           int(active_min+1.d-4), &
+           nint(active_max), &
+           nint(active_min), &
            active_mean, sqrt(active_variance), &
            inactive_percentages(1), &
            inactive_percentages(2), &

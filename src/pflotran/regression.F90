@@ -385,7 +385,7 @@ subroutine RegressionCreateMapping(regression,realization)
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, count
-        int_array(i) = int(vec_ptr(i)+0.1d0) ! tolerance to ensure int value
+        int_array(i) = nint(vec_ptr(i)) ! tolerance to ensure int value
       enddo
       call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
@@ -444,7 +444,7 @@ subroutine RegressionCreateMapping(regression,realization)
     if (OptionIsIORank(option)) then
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
-      regression%cells_per_process_natural_ids(:) = int(vec_ptr(:)+0.1)
+      regression%cells_per_process_natural_ids(:) = nint(vec_ptr(:))
       call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
     endif
@@ -588,7 +588,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           else
             do i = 1, size(regression%natural_cell_ids)
               write(OUTPUT_UNIT,101) &
-                regression%natural_cell_ids(i),int(vec_ptr(i))
+                regression%natural_cell_ids(i),nint(vec_ptr(i))
             enddo
           endif
           call VecRestoreArrayF90(regression%natural_cell_id_vec,vec_ptr, &
@@ -608,7 +608,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         else
           do i = 1, regression%num_cells_per_process*option%comm%size
             write(OUTPUT_UNIT,101) &
-              regression%cells_per_process_natural_ids(i),int(vec_ptr(i))
+              regression%cells_per_process_natural_ids(i),nint(vec_ptr(i))
           enddo
         endif
         call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &

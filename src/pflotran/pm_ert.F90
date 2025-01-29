@@ -663,7 +663,7 @@ recursive subroutine PMERTInitializeRun(this)
   call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
   ! are all electrodes mapped?
   call VecNorm(natural_vec,NORM_1,tempreal,ierr);CHKERRQ(ierr)
-  i = size(this%survey%ipos_electrode) - int(tempreal+1.d-1)
+  i = size(this%survey%ipos_electrode) - nint(tempreal)
   if (i > 0) then
     option%io_buffer = StringWrite(i) // ' unmapped ERT electrodes.'
     call PrintErrMsg(option)
@@ -672,7 +672,7 @@ recursive subroutine PMERTInitializeRun(this)
     option%io_buffer = 'Over-mapped ERT electrodes.'
     call PrintErrMsg(option)
   endif
-  option%io_buffer = StringWrite(int(tempreal+1.d-1)) // &
+  option%io_buffer = StringWrite(nint(tempreal)) // &
     ' (of ' //  StringWrite(size(this%survey%ipos_electrode)) // &
     ') ERT electrodes mapped to cells.'
   call PrintMsg(option)
@@ -1057,7 +1057,7 @@ subroutine PMERTSolve(this,time,ierr)
   PetscInt :: ielec,nelec
   PetscInt :: elec_id
   PetscInt :: local_id
-  PetscInt :: ghosted_id
+  PetscInt :: ghosted_id, ghost_elec_id
   PetscInt :: num_linear_iterations
   PetscReal :: val
   PetscReal :: average_cond
@@ -1102,6 +1102,8 @@ subroutine PMERTSolve(this,time,ierr)
   this%option%io_buffer = '  Solving for electrode:'
   call PrintMsgNoAdvance(this%option)
   do ielec=1,nelec
+    ! cycle if it's a ghost electrode
+    if (survey%flag_electrode(ielec) == -1) cycle
     write(this%option%io_buffer,'(x,a)') trim(StringWrite(ielec))
     call PrintMsgNoAdvance(this%option)
     if (this%analytical_potential) then
@@ -1136,6 +1138,15 @@ subroutine PMERTSolve(this,time,ierr)
       ! it should qualify on only one proc
       val = -1.0
       vec_ptr(elec_id) = val
+    endif
+    ! check for ghosted sink electrode and modify RHS
+    if (survey%ghost_electrode_exist) then
+      ! get the local id of the ghosted electrode
+      ghost_elec_id = survey%ipos_electrode(survey%ghost_electrode_id)
+      if (ghost_elec_id > 0) then
+        val = 1.0
+        vec_ptr(ghost_elec_id) = val
+      endif
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
 

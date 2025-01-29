@@ -62,6 +62,7 @@ subroutine ReactionDBReadDatabase(reaction,option)
 
   PetscBool :: flag, found, logK_error_flag
   PetscInt :: ispec, itemp, i
+  PetscInt :: num_species_in_rxn
   PetscReal :: stoich
   PetscReal :: temp_real
   type(input_type), pointer :: input
@@ -247,7 +248,9 @@ subroutine ReactionDBReadDatabase(reaction,option)
             ! read the molar weight
             call InputReadDouble(input,option,cur_immobile_spec%molar_weight)
             call InputErrorMsg(input,option,'Immobile molar weight','DATABASE')
-
+            ! convert from g/mol to kg/mol
+            cur_immobile_spec%molar_weight = &
+              cur_immobile_spec%molar_weight*1.d-3
             cycle ! avoid the aqueous species parameters below
           endif
           cur_immobile_spec => cur_immobile_spec%next
@@ -258,12 +261,13 @@ subroutine ReactionDBReadDatabase(reaction,option)
         if (num_nulls > 0) then ! secondary species in database
           ! create aqueous equilibrium reaction
           ! read the number of primary species in secondary rxn
-          call InputReadInt(input,option,itemp)
+          call InputReadInt(input,option,num_species_in_rxn)
           call InputErrorMsg(input,option,'Number of species in aqueous ', &
                           'complex DATABASE')
           if (.not.associated(cur_aq_spec%dbaserxn)) &
-            cur_aq_spec%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
-          cur_aq_spec%dbaserxn%reaction_equation%nspec = itemp
+            cur_aq_spec%dbaserxn => &
+              ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
+          cur_aq_spec%dbaserxn%reaction_equation%nspec = num_species_in_rxn
           ! read in species and stoichiometries
           do ispec = 1, cur_aq_spec%dbaserxn%reaction_equation%nspec
             call InputReadDouble(input,option,cur_aq_spec%dbaserxn% &
@@ -293,6 +297,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
           ! read the molar weight
           call InputReadDouble(input,option,cur_aq_spec%molar_weight)
           call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
+          ! convert from g/mol to kg/mol
+          cur_aq_spec%molar_weight = cur_aq_spec%molar_weight*1.d-3
         endif
 
       case(2) ! gas species
@@ -320,12 +326,13 @@ subroutine ReactionDBReadDatabase(reaction,option)
         cur_gas_spec%molar_volume = cur_gas_spec%molar_volume*1.d-6
         ! create aqueous equilibrium reaction
         ! read the number of aqueous species in secondary rxn
-        call InputReadInt(input,option,itemp)
+        call InputReadInt(input,option,num_species_in_rxn)
         call InputErrorMsg(input,option,'Number of species in gas reaction', &
                         'DATABASE')
         if (.not.associated(cur_gas_spec%dbaserxn)) &
-          cur_gas_spec%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
-        cur_gas_spec%dbaserxn%reaction_equation%nspec = itemp
+          cur_gas_spec%dbaserxn => &
+            ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
+        cur_gas_spec%dbaserxn%reaction_equation%nspec = num_species_in_rxn
         ! read in species and stoichiometries
         do ispec = 1, cur_gas_spec%dbaserxn%reaction_equation%nspec
           call InputReadDouble(input,option,cur_gas_spec%dbaserxn% &
@@ -345,6 +352,8 @@ subroutine ReactionDBReadDatabase(reaction,option)
         ! read the molar weight
         call InputReadDouble(input,option,cur_gas_spec%molar_weight)
         call InputErrorMsg(input,option,'GAS molar weight','DATABASE')
+        ! convert from g/mol to kg/mol
+        cur_gas_spec%molar_weight = cur_gas_spec%molar_weight*1.d-3
 
       case(3) ! minerals
         cur_mineral => mineral%mineral_list
@@ -382,14 +391,15 @@ subroutine ReactionDBReadDatabase(reaction,option)
 
         if (.not.found) cycle ! go to next line in database
         ! read the number of aqueous species in surface complexation rxn
-        call InputReadInt(input,option,itemp)
+        call InputReadInt(input,option,num_species_in_rxn)
         call InputErrorMsg(input,option, &
                      'Number of species in surface complexation reaction', &
                      'DATABASE')
         ! decrement number of species since free site will not be included
-        itemp = itemp - 1
+        num_species_in_rxn = num_species_in_rxn - 1
         if (.not.associated(cur_srfcplx%dbaserxn)) &
-          cur_srfcplx%dbaserxn => ReactionDBCreateRxn(itemp,num_logKs)
+          cur_srfcplx%dbaserxn => &
+            ReactionDBCreateRxn(num_species_in_rxn,num_logKs)
         ! read in species and stoichiometries
         ispec = 0
                                       ! recall that nspec was decremented above
@@ -793,6 +803,7 @@ subroutine ReactionDBInitBasis(reaction,option)
   !
   use Input_Aux_module
   use Option_module
+  use Reaction_Equation_module
   use Reaction_Gas_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Inhibition_Aux_module
@@ -825,13 +836,15 @@ subroutine ReactionDBInitBasis(reaction,option)
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(transition_state_rxn_type), pointer :: tstrxn
   type(transition_state_prefactor_type), pointer :: cur_prefactor
+  type(nucleation_type), pointer :: cur_nucleation
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
   type(mineral_type), pointer :: mineral
+  type(reaction_equation_type), pointer :: reaction_equation
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
   character(len=MAXWORDLENGTH), allocatable :: new_basis_names(:)
 
-  character(len=MAXWORDLENGTH), parameter :: h2oname = 'H2O'
+  character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt, parameter :: h2o_id = 1
@@ -867,6 +880,7 @@ subroutine ReactionDBInitBasis(reaction,option)
 
   PetscBool :: found
   PetscInt :: num_logKs
+  PetscReal :: tempreal
 
   surface_complexation => reaction%surface_complexation
   mineral => reaction%mineral
@@ -1165,9 +1179,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_pri_aq_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_pri_aq_spec%name, &
-                            cur_pri_aq_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_pri_aq_spec%name, &
+                                 cur_pri_aq_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i < 0) then
         option%io_buffer = 'Primary species ' // &
                  trim(cur_pri_aq_spec%name) // &
@@ -1177,10 +1191,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       pri_matrix(icount,i) = -1.d0
       do ispec=1,cur_pri_aq_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                               cur_pri_aq_spec%name, &
-                               cur_pri_aq_spec%dbaserxn% &
-                                 reaction_equation%spec_name(ispec), &
-                               pri_names,sec_names,gas_names)
+                                   cur_pri_aq_spec%name, &
+                                   cur_pri_aq_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_pri_aq_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1200,9 +1214,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_sec_aq_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_sec_aq_spec%name, &
-                            cur_sec_aq_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_sec_aq_spec%name, &
+                                 cur_sec_aq_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i > 0) then
         option%io_buffer = 'Secondary aqueous species ' // &
                  trim(cur_sec_aq_spec%name) // &
@@ -1212,10 +1226,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_sec_aq_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                              cur_sec_aq_spec%name, &
-                              cur_sec_aq_spec%dbaserxn% &
-                                reaction_equation%spec_name(ispec), &
-                              pri_names,sec_names,gas_names)
+                                   cur_sec_aq_spec%name, &
+                                   cur_sec_aq_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_sec_aq_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1235,9 +1249,9 @@ subroutine ReactionDBInitBasis(reaction,option)
       icount = icount + 1
       logKvector(:,icount) = cur_gas_spec%dbaserxn%logK
       i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                            cur_gas_spec%name, &
-                            cur_gas_spec%name, &
-                            pri_names,sec_names,gas_names)
+                                 cur_gas_spec%name, &
+                                 cur_gas_spec%name, &
+                                 pri_names,sec_names,gas_names)
       if (i > 0) then
         option%io_buffer = 'Gas species ' // &
                  trim(cur_gas_spec%name) // &
@@ -1247,10 +1261,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_gas_spec%dbaserxn%reaction_equation%nspec
         i = ReactionDBGetIDInBasis(reaction,option,ncomp_h2o, &
-                              cur_gas_spec%name, &
-                              cur_gas_spec%dbaserxn% &
-                                reaction_equation%spec_name(ispec), &
-                              pri_names,sec_names,gas_names)
+                                   cur_gas_spec%name, &
+                                   cur_gas_spec%dbaserxn% &
+                                     reaction_equation%spec_name(ispec), &
+                                   pri_names,sec_names,gas_names)
         if (i > 0) then
           pri_matrix(icount,i) = &
             cur_gas_spec%dbaserxn%reaction_equation%stoich(ispec)
@@ -1476,7 +1490,7 @@ subroutine ReactionDBInitBasis(reaction,option)
           if (ispec > cur_mineral%dbaserxn%reaction_equation%nspec) exit
           if (StringCompare(cur_sec_aq_spec%name,cur_mineral%dbaserxn% &
                               reaction_equation%spec_name(ispec), &
-                              MAXWORDLENGTH)) then
+                            MAXWORDLENGTH)) then
             call ReactionDBSubSpecInRxn(cur_sec_aq_spec%name, &
                                         cur_sec_aq_spec%dbaserxn, &
                                         cur_mineral%dbaserxn)
@@ -1534,6 +1548,15 @@ subroutine ReactionDBInitBasis(reaction,option)
   cur_srfcplx => surface_complexation%complex_list
   do
     if (.not.associated(cur_srfcplx)) exit
+#if 0
+    if (.not.associated(cur_srfcplx%dbaserxn%spec_ids)) then
+      allocate(cur_srfcplx%dbaserxn%spec_ids(cur_srfcplx%dbaserxn%nspec))
+      cur_srfcplx%dbaserxn%spec_ids = 0
+    endif
+    call ReactionDBAlignSpeciesInRxn(ncomp_h2o,new_basis_names, &
+                                     cur_srfcplx%dbaserxn%reaction_equation, &
+                                     cur_srfcplx%name,option)
+#endif
     call ReactionDBAlignSpeciesInRxn(ncomp_h2o,new_basis_names, &
                                      cur_srfcplx%dbaserxn%reaction_equation, &
                                      cur_srfcplx%name,option)
@@ -1688,10 +1711,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
-                      option%flow%reference_temperature, &
-                      cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
-                      cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
-                      reaction%eqcplx_logK(isec_spec))
+                           option%flow%reference_temperature, &
+                           cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
+                           cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
+                           reaction%eqcplx_logK(isec_spec))
         else
           call ReactionAuxFitLogKCoef(reaction%eqcplx_logKcoef(:,isec_spec), &
                                 cur_sec_aq_spec%dbaserxn%logK, &
@@ -1754,7 +1777,7 @@ subroutine ReactionDBInitBasis(reaction,option)
                             reaction%gas%acteqlogKcoef, &
                             reaction%gas%actmolarwt)
   if (option%nphase > 1 .and. reaction%gas%nactive_gas == 0 .and. &
-      (option%iflowmode == MPH_MODE .or. option%iflowmode == SCO2_MODE)) then
+      option%transport%couple_co2) then
     option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
       &CHEMISTRY to run a CO2 flow mode coupled with reactive transport.'
     call PrintErrMsg(option)
@@ -1862,6 +1885,16 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_names = ''
       allocate(mineral%kinmnrl_print(mineral%nkinmnrl))
       mineral%kinmnrl_print = PETSC_FALSE
+      allocate(mineral%kinmnrlspecid_in_residual(0:max_aq_species, &
+                                                 mineral%nkinmnrl))
+      mineral%kinmnrlspecid_in_residual = 0
+      allocate(mineral%kinmnrlstoich_in_residual(max_aq_species, &
+                                                 mineral%nkinmnrl))
+      mineral%kinmnrlstoich_in_residual = 0.d0
+      allocate(mineral%kinmnrlh2oid_in_residual(mineral%nkinmnrl))
+      mineral%kinmnrlh2oid_in_residual = 0
+      allocate(mineral%kinmnrlh2ostoich_in_residual(mineral%nkinmnrl))
+      mineral%kinmnrlh2ostoich_in_residual = 0.d0
       allocate(mineral%kinmnrlspecid(0:max_aq_species,mineral%nkinmnrl))
       mineral%kinmnrlspecid = 0
       allocate(mineral%kinmnrlstoich(max_aq_species,mineral%nkinmnrl))
@@ -1882,18 +1915,37 @@ subroutine ReactionDBInitBasis(reaction,option)
       else
         allocate(mineral%kinmnrl_logKcoef(num_logKs,mineral%nkinmnrl))
       endif
-
       mineral%kinmnrl_logKcoef = 0.d0
+
+      ! Nucleation
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        cur_nucleation => cur_nucleation%next
+      enddo
+      if (icount > 0) allocate(mineral%nucleation_array(icount))
+      icount = 0
+      cur_nucleation => mineral%nucleation_list
+      do
+        if (.not.associated(cur_nucleation)) exit
+        icount = icount + 1
+        call ReactionMnrlCopyNucleation(cur_nucleation, &
+                                        mineral%nucleation_array(icount))
+        nullify(mineral%nucleation_array(icount)%next)
+        cur_nucleation => cur_nucleation%next
+      enddo
 
       ! TST Rxn variables
       allocate(mineral%kinmnrl_affinity_threshold(mineral%nkinmnrl))
       mineral%kinmnrl_affinity_threshold = 0.d0
       allocate(mineral%kinmnrl_rate_limiter(mineral%nkinmnrl))
       mineral%kinmnrl_rate_limiter = 0.d0
-      allocate(mineral%kinmnrl_irreversible(mineral%nkinmnrl))
-      mineral%kinmnrl_irreversible = 0
-      allocate(mineral%kinmnrl_rate_constant(mineral%nkinmnrl))
-      mineral%kinmnrl_rate_constant = 0.d0
+      allocate(mineral%kinmnrl_precip_rate_constant(mineral%nkinmnrl))
+      mineral%kinmnrl_precip_rate_constant = 0.d0
+      allocate(mineral%kinmnrl_dissol_rate_constant(mineral%nkinmnrl))
+      mineral%kinmnrl_dissol_rate_constant = 0.d0
       allocate(mineral%kinmnrl_activation_energy(mineral%nkinmnrl))
       mineral%kinmnrl_activation_energy = 0.d0
       allocate(mineral%kinmnrl_molar_vol(mineral%nkinmnrl))
@@ -1913,11 +1965,23 @@ subroutine ReactionDBInitBasis(reaction,option)
       allocate(mineral%kinmnrl_vol_frac_epsilon(mineral%nkinmnrl))
       mineral%kinmnrl_vol_frac_epsilon = 0.d0
 
+      allocate(mineral%kinmnrl_spec_surf_area(mineral%nkinmnrl))
+      mineral%kinmnrl_spec_surf_area = UNINITIALIZED_DOUBLE
+      allocate(mineral%kinmnrl_surf_area_function(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_function = UNINITIALIZED_INTEGER
+
+      allocate(mineral%kinmnrl_nucleation_id(mineral%nkinmnrl))
+      mineral%kinmnrl_nucleation_id = 0
+
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
       if (max_num_prefactors > 0) then
-        allocate(mineral%kinmnrl_pref_rate(max_num_prefactors,mineral%nkinmnrl))
-        mineral%kinmnrl_pref_rate = 0.d0
+        allocate(mineral%kinmnrl_pref_precip_rate_const(max_num_prefactors, &
+                                                        mineral%nkinmnrl))
+        mineral%kinmnrl_pref_precip_rate_const = 0.d0
+        allocate(mineral%kinmnrl_pref_dissol_rate_const(max_num_prefactors, &
+                                                        mineral%nkinmnrl))
+        mineral%kinmnrl_pref_dissol_rate_const = 0.d0
         allocate(mineral%kinmnrl_pref_activation_energy(max_num_prefactors, &
                                                          mineral%nkinmnrl))
         mineral%kinmnrl_pref_activation_energy = 0.d0
@@ -1990,33 +2054,16 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_affinity_power = 1.d0
     endif
 
-    ! Determine whether surface area volume fraction power defined
+    ! Determine whether surface area porosity power defined
     cur_mineral => mineral%mineral_list
     found = PETSC_FALSE
     do
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_vol_frac_pwr, &
-                       0.d0)) then
-          found = PETSC_TRUE
-          exit
-        endif
-      endif
-      cur_mineral => cur_mineral%next
-    enddo
-    if (reaction%update_mineral_surface_area .or. found) then
-      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0
-    endif
-
-    ! Determine whether surface area volume fraction power defined
-    cur_mineral => mineral%mineral_list
-    found = PETSC_FALSE
-    do
-      if (.not.associated(cur_mineral)) exit
-      if (associated(cur_mineral%tstrxn)) then
-        if (.not.Equal(cur_mineral%tstrxn%surf_area_porosity_pwr, &
-                       0.d0)) then
+        if (cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
           found = PETSC_TRUE
           exit
         endif
@@ -2025,7 +2072,28 @@ subroutine ReactionDBInitBasis(reaction,option)
     enddo
     if (found) then
       allocate(mineral%kinmnrl_surf_area_porosity_pwr(mineral%nkinmnrl))
-      mineral%kinmnrl_surf_area_porosity_pwr = 0.d0
+      mineral%kinmnrl_surf_area_porosity_pwr = UNINITIALIZED_DOUBLE
+    endif
+
+    ! Determine whether surface area volume fraction power defined
+    cur_mineral => mineral%mineral_list
+    found = PETSC_FALSE
+    do
+      if (.not.associated(cur_mineral)) exit
+      if (associated(cur_mineral%tstrxn)) then
+        if (cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_VF_RATIO .or. &
+            cur_mineral%tstrxn%surf_area_function == &
+              MINERAL_SURF_AREA_F_POR_VF_RATIO) then
+          found = PETSC_TRUE
+          exit
+        endif
+      endif
+      cur_mineral => cur_mineral%next
+    enddo
+    if (found) then
+      allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_vol_frac_pwr = UNINITIALIZED_DOUBLE
     endif
 
 #if 0
@@ -2110,6 +2178,92 @@ subroutine ReactionDBInitBasis(reaction,option)
       enddo
       mineral%mnrlspecid(0,imnrl) = ispec
 
+      ! store original mass action for residual equations
+      if (cur_mineral%itype == MINERAL_KINETIC) then
+        mineral%kinmnrlspecid_in_residual(:,ikinmnrl) =  &
+          mineral%mnrlspecid(:,imnrl)
+        mineral%kinmnrlstoich_in_residual(:,ikinmnrl) =  &
+          mineral%mnrlstoich(:,imnrl)
+        mineral%kinmnrlh2oid_in_residual(ikinmnrl) = mineral%mnrlh2oid(imnrl)
+        mineral%kinmnrlh2ostoich_in_residual(ikinmnrl) =  &
+          mineral%mnrlh2ostoich(imnrl)
+      endif
+
+      ! check for overriding of mass action
+      if (associated(cur_mineral%mass_action_override)) then
+        if (len_trim(cur_mineral%mass_action_override% &
+                       reaction_string) > 0) then
+          reaction_equation => &
+            ReactionEquationCreateFromString(cur_mineral%mass_action_override% &
+                                              reaction_string,option)
+          ! remove the mineral species
+          call ReactionEquationRemoveSpecies(reaction_equation, &
+                                            cur_mineral%name, &
+                                            tempreal,option)
+          if (Initialized(tempreal)) then
+            if (.not.Equal(-1.d0,tempreal)) then
+              option%io_buffer = 'Non-unity reactive mineral stoichiometry &
+                &in mass action override (i.e., \nu_m /= -1.): ' // &
+                StringWrite(tempreal)
+              call PrintErrMsg(option)
+            endif
+          else
+            option%io_buffer = 'Mineral "' // &
+              StringWrite(cur_mineral%name) // &
+              '" not found in mass action override.'
+            call PrintErrMsg(option)
+          endif
+          call ReactionEquationMapSpeciesNames(reaction_equation, &
+                                          reaction%naqcomp, &
+                                          reaction%offset_aqueous, &
+                                          reaction%primary_species_names, &
+                                          reaction%nimcomp, &
+                                          reaction%offset_immobile, &
+                                          reaction%immobile%names, &
+                                          PETSC_FALSE,option)
+          ! extract the water species
+          call ReactionEquationRemoveSpecies(reaction_equation,h2oname, &
+                                             tempreal,option)
+          if (Initialized(tempreal)) then
+            mineral%mnrlh2oid(imnrl) = h2o_id
+            mineral%mnrlh2ostoich(imnrl) = tempreal
+          endif
+          ! fill the arrays
+          mineral%mnrlspecid(:,imnrl) = 0
+          mineral%mnrlstoich(:,imnrl) = 0.d0
+          mineral%mnrlh2oid(imnrl) = 0
+          mineral%mnrlh2ostoich(imnrl) = 0.d0
+          ispec = 0
+          do i = 1, reaction_equation%nspec
+            species_name = reaction_equation%spec_name(i)
+            ispec = ispec + 1
+            mineral%mnrlspecid(ispec,imnrl) = &
+              ReactionAuxGetPriSpecIDFromName(species_name,reaction,option)
+            mineral%mnrlstoich(ispec,imnrl) = reaction_equation%stoich(i)
+          enddo
+          mineral%mnrlspecid(0,imnrl) = ispec
+          cur_mineral%mass_action_override%reaction_equation => &
+            reaction_equation
+          nullify(reaction_equation)
+        endif
+        if (associated(cur_mineral%mass_action_override%logK)) then
+          if (size(cur_mineral%mass_action_override%logK) == 1) then
+            cur_mineral%dbaserxn%logK(:) = &
+              cur_mineral%mass_action_override%logK(1)
+          else if (size(cur_mineral%mass_action_override%logK) == &
+                   reaction%num_dbase_temperatures) then
+            cur_mineral%dbaserxn%logK(:) = &
+              cur_mineral%mass_action_override%logK(:)
+          else
+            option%io_buffer = 'Number of logKs (' // &
+              StringWrite(size(cur_mineral%mass_action_override%logK)) // &
+              ') in mass action override is not equal to 1 or the number &
+              &of database temperatures.'
+            call PrintErrMsg(option)
+          endif
+        endif
+      endif
+
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
@@ -2119,13 +2273,13 @@ subroutine ReactionDBInitBasis(reaction,option)
                            mineral%mnrl_logK(imnrl))
         else
           call ReactionAuxFitLogKCoef(mineral%mnrl_logKcoef(:,imnrl), &
-                                   cur_mineral%dbaserxn%logK, &
-                                   mineral%mineral_names(imnrl), &
-                                   option,reaction)
-          call ReactionAuxInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
                                       cur_mineral%dbaserxn%logK, &
-                                      mineral%mnrl_logK(imnrl), &
+                                      mineral%mineral_names(imnrl), &
                                       option,reaction)
+          call ReactionAuxInitializeLogK(mineral%mnrl_logKcoef(:,imnrl), &
+                                         cur_mineral%dbaserxn%logK, &
+                                         mineral%mnrl_logK(imnrl), &
+                                         option,reaction)
         endif
       else
         mineral%mnrl_logKcoef(:,imnrl) = cur_mineral%dbaserxn%logK
@@ -2142,6 +2296,12 @@ subroutine ReactionDBInitBasis(reaction,option)
         mineral%kinmnrl_names(ikinmnrl) = mineral%mineral_names(imnrl)
         mineral%kinmnrl_print(ikinmnrl) = cur_mineral%print_me .or. &
                                            reaction%mineral%print_all
+
+        mineral%kinmnrlspecid(:,ikinmnrl) = mineral%mnrlspecid(:,imnrl)
+        mineral%kinmnrlstoich(:,ikinmnrl) = mineral%mnrlstoich(:,imnrl)
+        mineral%kinmnrlh2oid(ikinmnrl) = mineral%mnrlh2oid(imnrl)
+        mineral%kinmnrlh2ostoich(ikinmnrl) = mineral%mnrlh2ostoich(imnrl)
+
         mineral%kinmnrlspecid(:,ikinmnrl) = mineral%mnrlspecid(:,imnrl)
         mineral%kinmnrlstoich(:,ikinmnrl) = mineral%mnrlstoich(:,imnrl)
         mineral%kinmnrlh2oid(ikinmnrl) = mineral%mnrlh2oid(imnrl)
@@ -2184,7 +2344,10 @@ subroutine ReactionDBInitBasis(reaction,option)
             ! ith prefactor
             i = i + 1
 
-            mineral%kinmnrl_pref_rate(i,ikinmnrl) = cur_prefactor%rate
+            mineral%kinmnrl_pref_precip_rate_const(i,ikinmnrl) = &
+              cur_prefactor%precipitation_rate_constant
+            mineral%kinmnrl_pref_dissol_rate_const(i,ikinmnrl) = &
+              cur_prefactor%dissolution_rate_constant
             mineral%kinmnrl_pref_activation_energy(i,ikinmnrl) = &
               cur_prefactor%activation_energy
 
@@ -2239,7 +2402,6 @@ subroutine ReactionDBInitBasis(reaction,option)
           mineral%kinmnrl_affinity_threshold(ikinmnrl) = &
             tstrxn%affinity_threshold
           mineral%kinmnrl_rate_limiter(ikinmnrl) = tstrxn%rate_limiter
-          mineral%kinmnrl_irreversible(ikinmnrl) = tstrxn%irreversible
 
           mineral%kinmnrl_armor_min_names(ikinmnrl) = tstrxn%armor_min_name
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr
@@ -2250,9 +2412,30 @@ subroutine ReactionDBInitBasis(reaction,option)
           mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
             tstrxn%vol_frac_epsilon
 
+          mineral%kinmnrl_spec_surf_area(ikinmnrl) = &
+            tstrxn%spec_surf_area
+          mineral%kinmnrl_surf_area_function(ikinmnrl) = &
+            tstrxn%surf_area_function
+          select case(tstrxn%surf_area_function)
+            case(MINERAL_SURF_AREA_F_POR_RATIO)
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+            case(MINERAL_SURF_AREA_F_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+            case(MINERAL_SURF_AREA_F_POR_VF_RATIO)
+              mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
+                tstrxn%surf_area_vol_frac_pwr
+              mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
+                tstrxn%surf_area_porosity_pwr
+          end select
+
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
-            mineral%kinmnrl_rate_constant(ikinmnrl) = tstrxn%rate
+            mineral%kinmnrl_precip_rate_constant(ikinmnrl) = &
+              tstrxn%precipitation_rate_constant
+            mineral%kinmnrl_dissol_rate_constant(ikinmnrl) = &
+              tstrxn%dissolution_rate_constant
             mineral%kinmnrl_activation_energy(ikinmnrl) = &
               tstrxn%activation_energy
           endif
@@ -2268,16 +2451,29 @@ subroutine ReactionDBInitBasis(reaction,option)
             mineral%kinmnrl_affinity_power(ikinmnrl) = &
               tstrxn%affinity_factor_beta
           endif
-          if (.not.Equal(tstrxn%surf_area_vol_frac_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_vol_frac_pwr(ikinmnrl) = &
-              tstrxn%surf_area_vol_frac_pwr
+
+          if (associated(tstrxn%nucleation)) then
+            temp_int = 0
+            ! if no nucleation reactions have been defined,
+            ! nucleation_array will be null
+            if (associated(mineral%nucleation_array)) then
+              temp_int = size(mineral%nucleation_array)
+            endif
+            do i = 1, temp_int
+              if (StringCompare(tstrxn%nucleation%name, &
+                                mineral%nucleation_array(i)%name)) then
+                mineral%kinmnrl_nucleation_id(ikinmnrl) = i
+                exit
+              endif
+            enddo
+            if (mineral%kinmnrl_nucleation_id(ikinmnrl) == 0) then
+              option%io_buffer = 'No nucleation reaction "' // &
+                trim(tstrxn%nucleation%name) // '" found for &
+                &mineral "' // trim(mineral%kinmnrl_names(ikinmnrl)) // '".'
+              call PrintErrMsg(option)
+            endif
           endif
-          if (.not.Equal(tstrxn%surf_area_porosity_pwr, &
-                         0.d0)) then
-            mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
-              tstrxn%surf_area_porosity_pwr
-          endif
+
         endif ! associated(tstrxn)
 
         mineral%kinmnrl_molar_vol(ikinmnrl) = cur_mineral%molar_volume
@@ -2422,10 +2618,10 @@ subroutine ReactionDBInitBasis(reaction,option)
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
           call Interpolate(temp_high,temp_low, &
-                            option%flow%reference_temperature, &
-                            cur_srfcplx%dbaserxn%logK(itemp_high), &
-                            cur_srfcplx%dbaserxn%logK(itemp_low), &
-                            surface_complexation%srfcplx_logK(isrfcplx))
+                           option%flow%reference_temperature, &
+                           cur_srfcplx%dbaserxn%logK(itemp_high), &
+                           cur_srfcplx%dbaserxn%logK(itemp_low), &
+                           surface_complexation%srfcplx_logK(isrfcplx))
         else
           call ReactionAuxFitLogKCoef( &
                           surface_complexation%srfcplx_logKcoef(:,isrfcplx), &
@@ -2789,8 +2985,8 @@ subroutine ReactionDBInitBasis(reaction,option)
         found = PETSC_FALSE
         do i = 1, reaction%naqcomp
           if (StringCompare(cur_cation%name, &
-                              reaction%primary_species_names(i), &
-                              MAXWORDLENGTH)) then
+                            reaction%primary_species_names(i), &
+                            MAXWORDLENGTH)) then
             reaction%eqionx_rxn_cationid(ication,irxn) = i
             found = PETSC_TRUE
           endif
@@ -2869,23 +3065,20 @@ function ReactionDBGetIDInBasis(reaction,option,ncomp_h2o,reaction_name, &
 
   ReactionDBGetIDInBasis = 0
   do i=1,ncomp_h2o
-    if (StringCompare(species_name, &
-                        pri_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,pri_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = i
       return
     endif
   enddo
   ! secondary aqueous and gas species denoted by negative id
   do i=1,reaction%neqcplx
-    if (StringCompare(species_name, &
-                        sec_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,sec_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = -i
       return
     endif
   enddo
   do i=1,reaction%gas%ngas
-    if (StringCompare(species_name, &
-                      gas_names(i),MAXWORDLENGTH)) then
+    if (StringCompare(species_name,gas_names(i),MAXWORDLENGTH)) then
       ReactionDBGetIDInBasis = -(reaction%neqcplx+i)
       return
     endif
@@ -3117,7 +3310,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       endif
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight, ' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3, ' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3160,7 +3353,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       write(option%fid_out,100) '  ' // trim(cur_aq_spec%name)
       write(option%fid_out,140) '    Charge: ', cur_aq_spec%Z
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_aq_spec%molar_weight,' [g/mol]'
+        cur_aq_spec%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,110) '    Debye-Huckel a0: ', &
         cur_aq_spec%a0, ' [Angstrom]'
       if (associated(cur_aq_spec%dbaserxn)) then
@@ -3232,7 +3425,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_gas_spec)) exit
       write(option%fid_out,100) '  ' // trim(cur_gas_spec%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_gas_spec%molar_weight,' [g/mol]'
+        cur_gas_spec%molar_weight*1.d3,' [g/mol]'
       if (associated(cur_gas_spec%dbaserxn)) then
         write(option%fid_out,100) '    Gas Reaction: '
         write(option%fid_out,120) '      ', -1.d0, cur_gas_spec%name
@@ -3267,7 +3460,7 @@ subroutine ReactionDBPrint(reaction,title,option)
       if (.not.associated(cur_mineral)) exit
       write(option%fid_out,100) '  ' // trim(cur_mineral%name)
       write(option%fid_out,110) '    Molar Mass: ', &
-        cur_mineral%molar_weight,' [g/mol]'
+        cur_mineral%molar_weight*1.d3,' [g/mol]'
       write(option%fid_out,150) '    Molar Volume: ', &
         cur_mineral%molar_volume,' [m^3/mol]'
       if (associated(cur_mineral%tstrxn)) then
@@ -3286,6 +3479,30 @@ subroutine ReactionDBPrint(reaction,title,option)
           write(option%fid_out,130) '      logK:', &
             (cur_mineral%dbaserxn%logK(itemp),itemp=1, &
              reaction%num_dbase_temperatures)
+        endif
+      endif
+      if (associated(cur_mineral%mass_action_override)) then
+        write(option%fid_out,100) &
+          '    Mass Action Override: '
+        if (associated(cur_mineral%mass_action_override% &
+                         reaction_equation)) then
+          write(option%fid_out,120) '      ', -1.d0, cur_mineral%name
+          do ispec = 1, cur_mineral%mass_action_override%reaction_equation%nspec
+            write(option%fid_out,120) '      ', &
+              cur_mineral%mass_action_override%reaction_equation%stoich(ispec), &
+              cur_mineral%mass_action_override%reaction_equation%spec_name(ispec)
+          enddo
+        else
+          write(option%fid_out,100) '      ' // &
+            trim(cur_mineral%mass_action_override%reaction_string)
+        endif
+        if (reaction%use_geothermal_hpt)then
+          write(option%fid_out,100) '      logKCoeff(PT): (mass action &
+            &override not implemented)'
+        else
+          write(option%fid_out,130) '      logK:', &
+            (cur_mineral%mass_action_override%logK(itemp),itemp=1, &
+             size(cur_mineral%mass_action_override%logK))
         endif
       endif
       write(option%fid_out,*)

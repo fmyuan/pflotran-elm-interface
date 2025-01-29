@@ -23,6 +23,7 @@ module PM_Base_class
     PetscBool :: print_ekg
     PetscBool :: skip_restart
     PetscBool :: steady_state
+    PetscInt :: logging_verbosity
     ! solver now has to originate in the pm to support pm-dependent defaults
     type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
@@ -104,6 +105,7 @@ subroutine PMBaseInit(this)
   this%print_ekg = PETSC_FALSE
   this%steady_state = PETSC_FALSE
   this%skip_restart = PETSC_FALSE
+  this%logging_verbosity = 0
   nullify(this%next)
 
 end subroutine PMBaseInit
@@ -202,6 +204,9 @@ subroutine PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
       this%steady_state = PETSC_TRUE
     case('SKIP_RESTART')
       this%skip_restart = PETSC_TRUE
+    case('LOGGING_VERBOSITY')
+      call InputReadInt(input,option,this%logging_verbosity)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select
