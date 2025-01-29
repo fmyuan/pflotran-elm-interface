@@ -767,14 +767,16 @@ subroutine InputReadPflotranStringSlave(input, option)
 
   type(input_type), pointer :: input
   type(option_type) :: option
+
   character(len=MAXSTRINGLENGTH) ::  tempstring
-  character(len=MAXWORDLENGTH) :: word
+  PetscInt, parameter :: num_chars = 40
+  character(len=num_chars) :: long_word
   PetscInt :: i
   PetscInt :: skip_count
 
   input%ierr = INPUT_ERROR_NONE
 
-  word = ''
+  long_word = ''
 
   do
     input%line_number = input%line_number + 1
@@ -793,35 +795,28 @@ subroutine InputReadPflotranStringSlave(input, option)
     if (input%buf(1:1) == '#' .or. input%buf(1:1) == '!') cycle
 
     tempstring = input%buf
-    call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
-!    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
-!    if (InputError(input)) then
-!      if (len_trim(input%buf) > 0) then
-!        option%io_buffer = 'Error reading keyword at beginning of input &
-!          &file string' // NL // NL // '"' // trim(input%buf) // '"' // &
-!          NL // NL // 'at line ' // StringWrite(input%line_number)
-!        call PrintErrMsg(option)
-!      endif
-!    endif
-    call StringToUpper(word)
+    call InputReadNChars(tempstring,long_word,num_chars,PETSC_TRUE,input%ierr)
+    call CatchLongKeywordError()
+    call StringToUpper(long_word)
 
-    if (word(1:13) == 'EXTERNAL_FILE') then
-      call InputPushCard(input,word,option)
+    if (long_word(1:13) == 'EXTERNAL_FILE') then
+      call InputPushCard(input,long_word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadNChars(input,option,long_word,num_chars,PETSC_FALSE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
       cycle
-    else if (word(1:4) == 'SKIP') then
-      call InputPushCard(input,word,option)
+    else if (long_word(1:4) == 'SKIP') then
+      call InputPushCard(input,long_word,option)
       ! to avoid keywords that start with SKIP
-      if (len_trim(word) > 4) then
+      if (len_trim(long_word) > 4) then
         exit
       endif
       skip_count = 1
       do
         input%line_number = input%line_number + 1
-        read(input%fid,'(a)',iostat=input%ierr) tempstring
+        read(input%fid,'(a)',iostat=input%ierr) input%buf
+        call StringAdjustl(input%buf)
         if (InputError(input)) then
           call InputPrintKeywordLog(input,option,PETSC_TRUE)
           option%io_buffer = 'End of file reached in ' // &
@@ -829,23 +824,26 @@ subroutine InputReadPflotranStringSlave(input, option)
               'without a matching NOSKIP.'
           call PrintErrMsg(option)
         endif
-        call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
-        call StringToUpper(word)
-        if (word(1:4) == 'SKIP') then
+        tempstring = input%buf
+        call InputReadNChars(tempstring,long_word,num_chars, &
+                             PETSC_TRUE,input%ierr)
+        call CatchLongKeywordError()
+        call StringToUpper(long_word)
+        if (long_word(1:4) == 'SKIP') then
           ! to avoid keywords that start with SKIP
-          if (len_trim(word) == 4) then
+          if (len_trim(long_word) == 4) then
             skip_count = skip_count + 1
-            call InputPushCard(input,word,option)
+            call InputPushCard(input,long_word,option)
           endif
         endif
-        if (word(1:6) == 'NOSKIP') then
-          call InputPushCard(input,word,option)
+        if (long_word(1:6) == 'NOSKIP') then
+          call InputPushCard(input,long_word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
       enddo
       if (InputError(input)) exit
-    else if (word(1:1) /= ' ' .and. word(1:6) /= 'NOSKIP') then
+    else if (long_word(1:1) /= ' ' .and. long_word(1:6) /= 'NOSKIP') then
       exit
     endif
   enddo
@@ -862,6 +860,22 @@ subroutine InputReadPflotranStringSlave(input, option)
       endif
     enddo
   endif
+
+contains
+
+subroutine CatchLongKeywordError()
+
+  if (.not.InputError(input)) return
+  if (len_trim(input%buf) == 0) return
+
+  option%io_buffer = 'Error reading keyword at beginning of input &
+    &file string' // NL // NL // '"' // trim(input%buf) // '"' // &
+    NL // NL // 'at line ' // StringWrite(input%line_number) // &
+    '. Perhaps the keyword is greater than ' // StringWrite(num_chars) // &
+    ' characters.'
+  call PrintErrMsg(option)
+
+end subroutine CatchLongKeywordError
 
 end subroutine InputReadPflotranStringSlave
 
