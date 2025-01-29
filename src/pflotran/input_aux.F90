@@ -1299,78 +1299,18 @@ subroutine InputReadQuotedWord(input, option, word, return_blank_error)
   ! delimited by "'".
   !
   ! Author: Glenn Hammond
-  ! Date: 11/07/00
+  ! Date: 11/07/08
   !
+  use String_module
 
   implicit none
 
   type(input_type) :: input
   type(option_type) :: option
-  PetscInt :: i, begins, ends, realends, len_trim_word
-  PetscBool :: return_blank_error ! Return an error for a blank line
-                                ! Therefore, a blank line is not acceptable.
   character(len=*) :: word
-  PetscBool :: openquotefound
-  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
+  PetscBool :: return_blank_error ! Return an error for a blank line
 
-  if (InputError(input)) return
-
-  openquotefound = PETSC_FALSE
-  ! Initialize character string to blank.
-  len_trim_word = len_trim(word)
-  word(1:len_trim_word) = repeat(' ',len_trim_word)
-
-  if (len_trim(input%buf) == 0) then
-    if (return_blank_error) then
-      input%ierr = 1
-    else
-      input%ierr = 0
-    endif
-    return
-  else
-    input%ierr = 0
-
-    ! Remove leading blanks and tabs
-    i=1
-    do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab)
-      i=i+1
-    enddo
-
-    if (input%buf(i:i) == "'") then
-      openquotefound = PETSC_TRUE
-      i=i+1
-    endif
-
-    begins=i
-
-    if (openquotefound) then
-      do while (input%buf(i:i) /= "'")
-        if (i > (MAXWORDLENGTH-1)) exit
-        i=i+1
-      enddo
-    else
-    ! Count # of continuous characters (no blanks, commas, etc. in between)
-      do while (input%buf(i:i) /= ' ' .and. input%buf(i:i) /= ',' .and. &
-                input%buf(i:i) /= tab .and. &
-                (i == begins .or. input%buf(i:i) /= backslash))
-        i=i+1
-      enddo
-    endif
-
-    realends = i
-    ends=i-1
-
-    ! Avoid copying beyond the end of the word (32 characters).
-    if (ends-begins > (MAXWORDLENGTH-1)) then
-      input%ierr = 2
-      return
-    endif
-
-    ! Copy (ends-begins) characters to 'chars'
-    word = input%buf(begins:ends)
-    ! Remove chars from string
-    input%buf = input%buf(realends+1:)
-  endif
+  call StringReadQuotedWord(input%buf,word,return_blank_error,input%ierr)
 
 end subroutine InputReadQuotedWord
 
@@ -1385,7 +1325,6 @@ subroutine InputFindStringInFile1(input, option, string)
   ! Author: Glenn Hammond
   ! Date: 03/07/07
   !
-
   use String_module
 
   implicit none
