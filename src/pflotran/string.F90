@@ -331,20 +331,20 @@ subroutine StringReadQuotedWord(string, word, return_blank_error, ierr)
   PetscBool :: openquotefound
   PetscInt :: i, begins, ends, realends, word_length, string_length
 
-  if (ierr /= 0) return
+  if (ierr /= INPUT_ERROR_NONE) return
 
   openquotefound = PETSC_FALSE
   ! Initialize character string to blank.
   word_length = len(word)
   word(1:word_length) = repeat(' ',word_length)
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   string_length = len_trim(string)
   if (string_length == 0) then
     if (return_blank_error) then
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     else
-      ierr = 0
+      ierr = INPUT_ERROR_NONE
     endif
     return
   else
@@ -381,7 +381,7 @@ subroutine StringReadQuotedWord(string, word, return_blank_error, ierr)
 
     ! Avoid copying beyond the end of the word (32 characters).
     if (ends-begins > word_length - 1) then
-      ierr = 2
+      ierr = INPUT_ERROR_KEYWORD_LENGTH
       return
     endif
 

@@ -176,7 +176,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   carbon_sandbox_read = PETSC_FALSE
 
   srfcplx_count = 0
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -313,7 +313,9 @@ subroutine ReactionReadPass1(reaction,input,option)
               ! remainder of string should be the reaction equation
               radioactive_decay_rxn%reaction = trim(adjustl(input%buf))
               ! set flag for error message
-              if (len_trim(radioactive_decay_rxn%reaction) < 2) input%ierr = 1
+              if (len_trim(radioactive_decay_rxn%reaction) < 2) then
+                input%ierr = INPUT_ERROR_DEFAULT
+              endif
               call InputErrorMsg(input,option,'reaction', &
                                  trim(error_string)//',REACTION')
             case('RATE_CONSTANT')
@@ -374,7 +376,9 @@ subroutine ReactionReadPass1(reaction,input,option)
               ! remainder of string should be the reaction equation
               general_rxn%reaction = trim(adjustl(input%buf))
               ! set flag for error message
-              if (len_trim(general_rxn%reaction) < 2) input%ierr = 1
+              if (len_trim(general_rxn%reaction) < 2) then
+                input%ierr = INPUT_ERROR_DEFAULT
+              endif
               call InputErrorMsg(input,option,'REACTION',error_string)
 ! For now, the reactants are negative stoich, products positive in reaction equation - geh
 #if 0
@@ -690,7 +694,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       call InputErrorMsg(input,option,'keyword', &
                                          trim(error_string)//'CATIONS,K')
                       call InputReadCard(input,option,word)
-                      if (input%ierr == 0) then
+                      if (.not.InputError(input)) then
                         if (StringCompareIgnoreCase(word,'REFERENCE')) then
                           string = cation%name
                         else
@@ -788,7 +792,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_TIMESTEP
         do
           call InputReadCard(input,option,word)
-          if (input%ierr /= 0) exit
+          if (InputError(input)) exit
           select case(trim(word))
             case('OFF')
               reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
@@ -854,7 +858,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
         call InputReadCard(input,option,word)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           call StringToUpper(word)
           select case(word)
             !TODO(geh): fix these hardwired values.
@@ -1153,7 +1157,7 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
 
   type(aq_species_type), pointer :: cur_species
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -3085,7 +3089,7 @@ subroutine ReactionReadOutput(reaction,input,option)
   nullify(cur_srfcplx)
   nullify(cur_srfcplx_rxn)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

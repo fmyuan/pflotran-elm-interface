@@ -499,7 +499,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
 
   geomech_discretization       => geomech_realization%geomech_discretization
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
@@ -617,7 +617,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 

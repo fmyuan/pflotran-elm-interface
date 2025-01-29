@@ -585,7 +585,7 @@ subroutine SolverReadLinear(solver,input,option)
       prefix = '-geop_'
   end select
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -1007,7 +1007,7 @@ subroutine SolverReadNewton(solver,input,option)
 
   error_string = 'SUBSURFACE,NEWTON_SOLVER'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

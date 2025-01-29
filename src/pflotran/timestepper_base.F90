@@ -215,7 +215,7 @@ subroutine TimestepperBaseRead(this,input,option)
 
   error_string = 'SUBSURFACE,TIMESTEPPER'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -319,7 +319,7 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
       call InputReadAndConvertUnits(input,waypoint%dt_max,internal_units, &
                                     keyword,option)
       call InputReadCard(input,option,word)
-      if (input%ierr == 0) then
+      if (.not.InputError(input)) then
         call StringToUpper(word)
         if (StringCompare(word,'AT',TWO_INTEGER)) then
           call InputReadDouble(input,option,waypoint%time)

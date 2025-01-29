@@ -193,7 +193,7 @@ subroutine TimestepperSNESReadSelectCase(this,input,keyword,found, &
 
     case ('RESCUE_MODE')  ! heeho
       this%rescue_mode = PETSC_TRUE
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)

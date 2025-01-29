@@ -1324,7 +1324,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   allocate(temp_array(temp_array_size))
   temp_array = 0
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   if (len_trim(input%buf) > 0) then
     string2 = trim(input%buf)
     call InputReadWord(input,option,word,PETSC_TRUE)
@@ -1490,7 +1490,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   allocate(temp_array(temp_array_size))
   temp_array = 0.d0
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   if (len_trim(input%buf) > 0) then
     string2 = trim(input%buf)
     call InputReadWord(input,option,word,PETSC_TRUE)

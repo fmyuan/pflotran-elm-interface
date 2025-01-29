@@ -407,7 +407,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       call InputReadInt(input,option,num_grid_vertices)
 
       if (InputError(input)) then
-        input%ierr = 0
+        input%ierr = INPUT_ERROR_NONE
         ! if num_grid_vertices not entered assumes vertex_centered
         ! based - default
         explicit_grid%num_vertices = explicit_grid%num_cells_global

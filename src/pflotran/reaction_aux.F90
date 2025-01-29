@@ -1575,7 +1575,7 @@ subroutine ReactionAuxNetworkToStoich(reaction,filename,spec_ids,stoich,option)
   type(reaction_equation_ptr_type), pointer :: cur_rxn, rxn_list, last_rxn
 
   input => InputCreate(IUNIT_TEMP,filename,option)
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   nullify(rxn_list)
   nrxn = 0

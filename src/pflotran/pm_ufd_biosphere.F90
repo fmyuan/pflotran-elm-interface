@@ -298,7 +298,7 @@ subroutine PMUFDBReadPMBlock(this,input)
   PetscBool :: added
 
   option => this%option
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   option%io_buffer = 'pflotran card:: UFD_BIOSPHERE'
   call PrintMsg(option)
 

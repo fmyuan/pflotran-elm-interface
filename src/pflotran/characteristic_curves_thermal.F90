@@ -1859,7 +1859,7 @@ subroutine CharCurvesThermalRead(this,input,option)
 
   nullify(thermal_conductivity_function_ptr)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'THERMAL_CHARACTERISTIC_CURVES'
   call InputPushBlock(input,option)
   do
@@ -2002,7 +2002,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
        & THERMAL_CONDUCTIVITY_FUNCTION,'
   select type(tcf => thermal_conductivity_function)

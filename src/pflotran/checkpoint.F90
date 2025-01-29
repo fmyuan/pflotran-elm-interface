@@ -1415,7 +1415,7 @@ subroutine CheckpointRead(input,option,waypoint_list)
 #else
         do
           call InputReadDouble(input,option,temp_real)
-          if (input%ierr /= 0) exit
+          if (InputError(input)) exit
           call InputErrorMsg(input,option,'checkpoint time', &
                               'CHECKPOINT,TIMES')
           waypoint => WaypointCreate()

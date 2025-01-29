@@ -371,7 +371,7 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
   call PrintMsg(option)
   option%flow%store_state_variables_in_global = PETSC_TRUE
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
 
   nullify(prev_material_transform)
   call InputPushBlock(input,option)

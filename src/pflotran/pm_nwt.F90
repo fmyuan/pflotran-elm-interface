@@ -223,7 +223,7 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
 
   error_string = 'NUCLEAR_WASTE_TRANSPORT OPTIONS'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

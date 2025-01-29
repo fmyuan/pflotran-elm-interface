@@ -189,7 +189,7 @@ subroutine ObservationRead(observation,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word, var_name, units
   PetscInt :: id, category, subvar, subsubvar
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
