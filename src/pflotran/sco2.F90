@@ -338,11 +338,11 @@ subroutine SCO2UpdateSolution(realization)
   do ghosted_id = 1, grid%ngmax
     sco2_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
       global_auxvars(ghosted_id)%istate
-    if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) < &
-        sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min) then
+    if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2) < &
+        sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)) then
 
-      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min = &
-      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid)
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1) = &
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2)
 
       if (global_auxvars(ghosted_id)%istate == SCO2_TRAPPED_GAS_STATE) then
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%sg_trapped = &
@@ -350,8 +350,16 @@ subroutine SCO2UpdateSolution(realization)
       else
         sco2_auxvars(ZERO_INTEGER,ghosted_id)%sg_trapped = 0.d0
       endif
-
+    else
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2) = &
+      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
     endif
+
+    sco2_auxvars(:,ghosted_id)%sl_min(1) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2)
+
+    sco2_auxvars(:,ghosted_id)%sl_min(2) = &
+                                sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2)
 
     global_auxvars(ghosted_id)%sat(1:option%nphase) = &
                                 sco2_auxvars(ZERO_INTEGER,ghosted_id)% &
@@ -417,6 +425,10 @@ subroutine SCO2TimeCut(realization)
       global_auxvars(ghosted_id)%reaction_rate(:) = &
                       global_auxvars(ghosted_id)%reaction_rate_store(:)
     endif
+    sco2_auxvars(:,ghosted_id)%sl_min(2) = &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
+    sco2_auxvars(:,ghosted_id)%sl_min(1) = &
+                      sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
   enddo
 
   sco2_ts_cut_count = sco2_ts_cut_count + 1
@@ -1380,7 +1392,7 @@ subroutine SCO2GetSlminVecLoc(SCO2, grid, vec_loc)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    vec_loc_p(ghosted_id) = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min
+    vec_loc_p(ghosted_id) = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
   enddo
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
@@ -1416,7 +1428,9 @@ subroutine SCO2SetSlminVecLoc(SCO2, grid, vec_loc)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min = vec_loc_p(ghosted_id)
+    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1) = vec_loc_p(ghosted_id)
+    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(2) = &
+                            sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
   enddo
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)

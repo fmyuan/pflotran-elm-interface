@@ -60,6 +60,7 @@ module Option_Flow_module
     PetscBool :: using_newtontrdc
 
     character(len=MAXSTRINGLENGTH) :: co2_database_filename
+    PetscBool :: update_transport_h2o_src
 
   end type flow_option_type
 
@@ -176,6 +177,7 @@ subroutine OptionFlowInitRealization(option)
   option%using_newtontrdc = PETSC_FALSE
 
   option%co2_database_filename = ''
+  option%update_transport_h2o_src = PETSC_TRUE
 
 end subroutine OptionFlowInitRealization
 

@@ -360,6 +360,10 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         end select
       case('GENERAL_FLUXES')
         sco2_stomp_fluxes = PETSC_FALSE
+      case('NO_H2O_SOURCE_UPDATE_FROM_TRANS')
+        option%flow%update_transport_h2o_src = PETSC_FALSE
+      case('UPDATE_SURFACE_TENSION')
+        sco2_update_surface_tension = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'SCO2 Mode',option)
     end select
@@ -1014,6 +1018,13 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   changed = PETSC_TRUE
 
   if (this%check_post_convergence .and. sco2_truncate_updates) then
+
+    if (this%damping_factor > 0.d0) then
+      dX_p = dX_p * (1.d0 - this%damping_factor) !** sco2_ni_count)
+      dX_p2 = dX_p2 * (1.d0 - this%damping_factor) ! ** sco2_ni_count)
+      changed = PETSC_TRUE
+    endif
+
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1136,7 +1147,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call SCO2BrineDensity(sco2_auxvar%temp,Psb,xsl,rho_b,option)
           Pc = max(Psb - sco2_auxvar%pres(lid),0.d0 )
           call SCO2VaporPressureBrine(sco2_auxvar%temp, Psb, &
-                                      Pc,rho_b,xsl,Pvb)
+                                      Pc,rho_b,xsl,Pvb,characteristic_curves% &
+                                      saturation_function%extended)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < Pvb) &
             dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
@@ -1260,25 +1272,11 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call SCO2BrineDensity(sco2_auxvar%temp,Psb,xsl,rho_b,option)
           Pc = max(Psb-X_p(liq_pressure_index),0.d0)
           call SCO2VaporPressureBrine(sco2_auxvar%temp, Psb, &
-                                      Pc,rho_b,xsl,Pvb)
+                                      Pc,rho_b,xsl,Pvb,characteristic_curves% &
+                                      saturation_function%extended)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
-          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) >= 5.d8) then
-          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-          !    &mode: greater than (or equal to) 500 MPa.'
-          !   call PrintErrMsg(option)
-          ! endif
-          ! if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) <= 0.d0) then
-          !   option%io_buffer = 'Error: Gas pressure is out of bounds for SCO2 &
-          !    &mode: less than (or equal to) 0 Pa.'
-          !   call PrintErrMsg(option)
-          ! endif
-          ! if ((X_p(liq_pressure_index) + dX_p(liq_pressure_index)) >= 5.d8) then
-          !   option%io_buffer = 'Error: Liquid pressure is out of bounds for &
-          !     &SCO2 mode: greater than (or equal to) 500 MPa.'
-          !   call PrintErrMsg(option)
-          ! endif
       end select
 
       if (sco2_thermal) then
@@ -1417,10 +1415,6 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
 
     enddo
 
-    if (this%damping_factor > 0.d0) then
-      dX_p = dX_p*this%damping_factor
-      changed = PETSC_TRUE
-    endif
   elseif (this%check_post_convergence) then
     ! Just impose bounds to prevent nonphysical values.
     do local_id = 1, grid%nlmax
@@ -1519,7 +1513,8 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           call SCO2BrineDensity(sco2_auxvar%temp,Psb,xsl,rho_b,option)
           Pc = max(Psb-X_p(liq_pressure_index),0.d0)
           call SCO2VaporPressureBrine(sco2_auxvar%temp, Psb, &
-                                      Pc,rho_b,xsl,Pvb)
+                                      Pc,rho_b,xsl,Pvb,characteristic_curves% &
+                                      saturation_function%extended)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
           ! Bound changes in gas pressure
