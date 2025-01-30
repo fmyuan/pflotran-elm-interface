@@ -448,7 +448,7 @@ recursive subroutine PMERTInitializeRun(this)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, cur_coupler
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(patch_type), pointer :: patch
@@ -463,6 +463,7 @@ recursive subroutine PMERTInitializeRun(this)
   PetscInt :: i
   Vec :: natural_vec
   PetscErrorCode :: ierr
+  PetscReal, pointer :: vec_ptr(:)
 
   patch => this%realization%patch
   reaction => patch%reaction
@@ -684,8 +685,29 @@ recursive subroutine PMERTInitializeRun(this)
   endif
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
-  ! ensure that electrodes are not placed in inactive cells
+  ! Initialize field%work to zero
+  call VecZeroEntries(this%realization%field%work,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+  ! Loop over connections to set field%work to 1 at the local_id
+  cur_coupler => patch%prescribed_condition_list%first
+  do
+    if (.not.associated(cur_coupler)) exit
+    cur_connection_set => cur_coupler%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      local_id = cur_connection_set%id_dn(iconn)
+      vec_ptr(local_id) = 1.d0
+    enddo
+    cur_coupler => cur_coupler%next
+  enddo
+
+  call VecRestoreArrayF90(this%realization%field%work, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
+  ! ensure that electrodes are not placed in inactive cells or
+  ! prescribed condition cells
   flag = PETSC_FALSE
+  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(this%survey%ipos_electrode)
     local_id = this%survey%ipos_electrode(i)
     if (local_id <= 0) cycle ! not on process
@@ -695,12 +717,24 @@ recursive subroutine PMERTInitializeRun(this)
         trim(StringWrite(grid%nG2A(ghosted_id)))
       call PrintErrMsgNoStopByRank(option)
       flag = PETSC_TRUE
+    else
+      ! Check if the electrode is in a prescribed condition cell
+      if (vec_ptr(local_id) > 0.d0) then
+        option%io_buffer = 'Electrode in prescribed condition cell: ' // &
+          trim(StringWrite(grid%nG2A(ghosted_id)))
+        call PrintErrMsgNoStopByRank(option)
+        flag = PETSC_TRUE
+      endif
     endif
   enddo
+  call VecRestoreArrayF90(this%realization%field%work, &
+                          vec_ptr,ierr);CHKERRQ(ierr)
+
   call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL,MPI_LOR, &
                      option%mycomm,ierr);CHKERRQ(ierr)
   if (flag) then
-    option%io_buffer = 'Electrodes in inactive cells (see above).'
+    option%io_buffer = 'Electrodes in inactive or prescribed condition &
+      &cells (see above).'
     call PrintErrMsg(option)
   endif
 
@@ -853,10 +887,6 @@ subroutine PMERTPreSolve(this)
   grid => patch%grid
   reaction => patch%reaction
 
-  if (associated(patch%prescribed_condition_list%first)) then
-    option%io_buffer = 'PRESCRIBED_CONDITIONs have yet to be set up for ERT.'
-    call PrintErrMsg(option)
-  endif
   if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
 
   option%io_buffer = ' Calculating bulk electrical conductivity'
