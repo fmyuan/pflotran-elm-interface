@@ -358,6 +358,8 @@ subroutine InputErrorMsg2(input,option)
   ! Author: Glenn Hammond
   ! Date: 11/10/08
   !
+  use String_module, only : StringWrite
+
   implicit none
 
   type(input_type) :: input
@@ -370,8 +372,8 @@ subroutine InputErrorMsg2(input,option)
     select case(input%ierr)
       case(INPUT_ERROR_KEYWORD_LENGTH)
         option%io_buffer = trim(option%io_buffer) // &
-          ' The length of the keyword may be too long (typically, &
-          &32 characters).'
+          ' The length of the keyword may be too long (typically, up to ' // &
+          StringWrite(MAXWORDLENGTH) // ' characters).'
       case default
     end select
     call PrintErrMsg(option)
