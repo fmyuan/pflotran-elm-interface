@@ -2471,15 +2471,11 @@ subroutine GridExpandGhostCells(grid,option)
       enddo
       call DeallocateArray(grid%unstructured_grid%cell_ids_natural)
       grid%unstructured_grid%cell_ids_natural => int_array_ptr
-      call UGridExpandGhostCells(grid%unstructured_grid,scatter_gtol, &
+      call UGridImplicitExpandGhostCells(grid%unstructured_grid,scatter_gtol, &
                                  global_vec,local_vec,option)
-    case(EXPLICIT_UNSTRUCTURED_GRID)
-      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
-                       &for ' // grid%ctype)
+    case(EXPLICIT_UNSTRUCTURED_GRID, ECLIPSE_UNSTRUCTURED_GRID)
+      !MAN: Nothing needs to happen here for now.
     case(POLYHEDRA_UNSTRUCTURED_GRID)
-      call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
-                       &for ' // grid%ctype)
-    case(ECLIPSE_UNSTRUCTURED_GRID)
       call PrintErrMsg(option,'Need to implement GridExpandGhostCells &
                        &for ' // grid%ctype)
   end select

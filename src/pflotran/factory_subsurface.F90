@@ -717,17 +717,6 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
         return
       endif
     case(UNSTRUCTURED_GRID)
-      select case(realization%discretization%grid%itype)
-        case(IMPLICIT_UNSTRUCTURED_GRID)
-        case default
-          if (realization%option%comm%size > 1) then
-            option%io_buffer=  'Currently, the well model can only be run in &
-              &parallel using an implicit unstructured grid.'
-            call PrintErrMsg(option)
-          else
-            return
-          endif
-      end select
   end select
 
   nullify (dm_ptr)

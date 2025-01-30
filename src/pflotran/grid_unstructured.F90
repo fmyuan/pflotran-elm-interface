@@ -35,7 +35,7 @@ module Grid_Unstructured_module
             UGridMapSideSet, &
             UGridMapSideSet2, &
             UGridMapBoundFacesInPolVol, &
-            UGridExpandGhostCells
+            UGridImplicitExpandGhostCells
 
 contains
 
@@ -3330,8 +3330,8 @@ end subroutine UGridGetBoundaryFaces
 
 ! ************************************************************************** !
 
-subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
-                                 option)
+subroutine UGridImplicitExpandGhostCells(ugrid,scatter_gtol,global_vec, &
+                                         local_vec,option)
   !
   ! Expands arrays assocated with ghost cells due to a change in ghosting
   ! as prescribed by scatter_gtol
@@ -3491,7 +3491,7 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
       if (vertex_ids_natural_new(cell_vertices_ghosted_new(ivertex,icell)) /= &
           ugrid%vertex_ids_natural(ugrid%cell_vertices(ivertex,icell))) then
         call PrintErrMsgByRank(option,'Mismatch between old and new natural &
-                         &ids in UGridExpandGhostCells')
+                         &ids in UGridImplicitExpandGhostCells')
       endif
     enddo
   enddo
@@ -3552,7 +3552,7 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
                 Equal(ugrid%vertices(i)%y,vertices_new(ii)%y) .and. &
                 Equal(ugrid%vertices(i)%z,vertices_new(ii)%z))) then
         call PrintErrMsgByRank(option,'Mismatch between old and new vertex &
-                          &coordinates for local cells UGridExpandGhostCells')
+                          &coordinates for local cells UGridImplicitExpandGhostCells')
       endif
     enddo
   enddo
@@ -3570,6 +3570,6 @@ subroutine UGridExpandGhostCells(ugrid,scatter_gtol,global_vec,local_vec, &
 
   ugrid%num_vertices_local = size(ugrid%vertex_ids_natural)
 
-end subroutine UGridExpandGhostCells
+end subroutine UGridImplicitExpandGhostCells
 
 end module Grid_Unstructured_module
