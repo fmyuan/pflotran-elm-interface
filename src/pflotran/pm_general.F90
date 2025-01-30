@@ -340,7 +340,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
 
   error_string = 'General Options'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -431,11 +431,11 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         i = 0
         do
           call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr /= 0) exit
+          if (InputError(input)) exit
           i = i + 1
         enddo
         input%buf = string
-        input%ierr = 0
+        input%ierr = INPUT_ERROR_NONE
         allocate(this%soluble_materials(i))
         i = 1
         do i = 1, size(this%soluble_materials)

@@ -317,7 +317,7 @@ subroutine PMUFDDecayReadPMBlock(this,input)
   option%io_buffer = 'pflotran card:: UFD_Decay'
   call PrintMsg(option)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   j = UNINITIALIZED_INTEGER
   nullify(prev_isotope)
   nullify(prev_element)

@@ -190,7 +190,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
 
   new_measurement => InversionMeasurementAuxCreate()
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -207,7 +207,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
         call InputReadDouble(input,option,new_measurement%time)
         call InputErrorMsg(input,option,keyword,error_string)
         call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr /= 0) word = 'sec'
+        if (InputError(input)) word = 'sec'
         new_measurement%time_units = trim(word)
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units, &

@@ -291,6 +291,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   use Option_module
   use Patch_module
   use Logging_module
+  use Input_Aux_module
 
   use HDF5_module
 
@@ -341,13 +342,14 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
       do i=1,read_count
         indices(i) = count+i-1 ! zero-based indexing
       enddo
-      ierr = 0
+      ierr = INPUT_ERROR_NONE
       if (OptionIsIORank(option)) &
         read(fid,*,iostat=ierr) values(1:read_count)
       flag = ierr
       call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%comm%io_rank, &
                      option%mycomm,ierr);CHKERRQ(ierr)
-      if (flag /= 0) then
+      ierr = flag
+      if (InputError(ierr)) then
         option%io_buffer = 'Insufficent data in file: ' // filename
         call PrintErrMsg(option)
       endif

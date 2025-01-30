@@ -66,7 +66,9 @@ subroutine ReactionMicrobReadMicrobial(microbial,input,option)
         ! remainder of string should be the reaction equation
         microbial_rxn%reaction = trim(adjustl(input%buf))
         ! set flag for error message
-        if (len_trim(microbial_rxn%reaction) < 2) input%ierr = 1
+        if (len_trim(microbial_rxn%reaction) < 2) then
+          input%ierr = INPUT_ERROR_DEFAULT
+        endif
         call InputErrorMsg(input,option,'reaction string', &
                             'CHEMISTRY,MICROBIAL_REACTION,REACTION')
       case('CONCENTRATION_UNITS')

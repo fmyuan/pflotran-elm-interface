@@ -118,7 +118,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   PetscInt, pointer :: int_array(:,:)
   PetscReal, pointer :: real_array(:,:)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

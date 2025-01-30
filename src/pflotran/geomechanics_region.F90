@@ -214,7 +214,7 @@ subroutine GeomechRegionRead(region,input,option)
 
   character(len=MAXWORDLENGTH) :: keyword
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -231,7 +231,7 @@ subroutine GeomechRegionRead(region,input,option)
         allocate(region%coordinates(1))
         call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x)
         if (InputError(input)) then
-          input%ierr = 0
+          input%ierr = INPUT_ERROR_NONE
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'GEOMECHANICS_REGION')
           call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x)

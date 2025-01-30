@@ -123,7 +123,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
     cur_mineral => cur_mineral%next
   enddo
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   icount = 0
   call InputPushBlock(input,'MINERAL_KINETICS',option)
   do
@@ -609,7 +609,7 @@ subroutine ReactionMnrlReadMassActOverride(mineral,input,option)
   PetscBool :: found
   PetscInt :: icount
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   icount = 0
   call InputPushBlock(input,'OVERRIDE_MINERAL_MASS_ACTION',option)
   do
@@ -654,7 +654,7 @@ subroutine ReactionMnrlReadMassActOverride(mineral,input,option)
                 if (icount == 1) then ! have to read at least 1
                   call InputErrorMsg(input,option,keyword,error_string)
                 endif
-                if (input%ierr /= 0) then
+                if (InputError(input)) then
                   icount = icount-1 ! decrement
                   exit
                 endif
@@ -717,7 +717,7 @@ subroutine ReactionMnrlReadNucleation(mineral,input,option)
     enddo
   endif
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,'MINERAL_NUCLEATION_KINETICS',option)
   do
 

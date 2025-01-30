@@ -1104,7 +1104,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                                               error_string,option)
                 else
                   input%buf = string
-                  input%ierr = 0
+                  input%ierr = INPUT_ERROR_NONE
                   call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword',error_string)
                   call StringToUpper(word)
@@ -1956,7 +1956,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                                                 internal_units,string,option)
                   output_option%periodic_snap_output_time_incr = temp_real
                   call InputReadCard(input,option,word)
-                  if (input%ierr == 0) then
+                  if (.not.InputError(input)) then
                     if (StringCompareIgnoreCase(word,'between')) then
                       call InputReadDouble(input,option,temp_real)
                       call InputErrorMsg(input,option,'start time',string)
@@ -1967,7 +1967,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                                                 option)
                       call InputReadCard(input,option,word)
                       if (.not.StringCompareIgnoreCase(word,'and')) then
-                        input%ierr = 1
+                        input%ierr = INPUT_ERROR_DEFAULT
                       endif
                       call InputErrorMsg(input,option,'AND',string)
                       call InputReadDouble(input,option,temp_real2)
@@ -1988,7 +1988,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                       enddo
                       output_option%periodic_snap_output_time_incr = 0.d0
                     else
-                      input%ierr = 1
+                      input%ierr = INPUT_ERROR_DEFAULT
                       call InputErrorMsg(input,option,'BETWEEN', &
                                           'OUTPUT,PERIODIC,TIME')
                     endif
@@ -2310,7 +2310,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
               waypoint => WaypointCreate()
               waypoint%dt_max = temp_real
               call InputReadCard(input,option,word)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call StringToUpper(word)
                 if (StringCompare(word,'AT',TWO_INTEGER)) then
                   call InputReadDouble(input,option,waypoint%time)

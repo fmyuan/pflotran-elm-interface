@@ -350,7 +350,8 @@ subroutine GridEclipseRead(unstructured_grid, filename, option)
   character(len = MAXSTRINGLENGTH) :: filename
   type(input_type), pointer :: input
   type(option_type) :: option
-  PetscInt :: fileid, ierr
+  PetscInt :: fileid
+  PetscErrorCode :: ierr
 
   ! Set the grid pointer
 
@@ -380,7 +381,7 @@ subroutine GridEclipseRead(unstructured_grid, filename, option)
 
   call BroadcastInt(g_error_flag, option)
   if (g_error_flag>0) then
-    input%ierr = 1
+    input%ierr = INPUT_ERROR_DEFAULT
     call MPI_Bcast(g_error_string, MAXSTRINGLENGTH, MPI_CHARACTER, &
                     option%comm%io_rank, option%mycomm, ierr)
     call InputErrorMsg(input, option, 'GRDECL file', g_error_string)
@@ -899,7 +900,7 @@ subroutine CheckError(input, zerr, qerr)
 
   ierr = input%ierr
 
-  if (ierr == 0) then
+  if (.not.InputError(ierr)) then
     qerr = PETSC_FALSE
   else
     call SetError(zerr, qerr)
@@ -3977,7 +3978,7 @@ subroutine GrdeclReader(input, option)
   character(len = MAXSTRINGLENGTH) :: zbuf(mzbuf)
   character(len = MAXSTRINGLENGTH) :: zmess, efile_name, wordlong
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   qerr = PETSC_FALSE
   zbuf = ' '
   dimens   = 1.0
@@ -4007,7 +4008,7 @@ subroutine GrdeclReader(input, option)
       call SetError('Unable to read from GRDECL file', qerr)
       exit
     endif
-    if (input%ierr /= 0) exit                   ! Detect eof and leave
+    if (InputError(input)) exit
 
   ! Keyword found
 
@@ -4210,7 +4211,7 @@ subroutine GrdeclReader(input, option)
         wordlong = zbuf(1)
         read(wordlong,*, iostat=ierr) gridfileoption
         if ((gridfileoption < 0) .or. &
-              (gridfileoption > 2) .or. (ierr /= 0)) then
+              (gridfileoption > 2) .or. InputError(ierr)) then
           call SetError('GRIDFILE arg 1 must be 0,1 or 2 ', qerr)
         else
           g_gridfileoption = gridfileoption
@@ -4219,19 +4220,19 @@ subroutine GrdeclReader(input, option)
         call ReadEstrings(word, zbuf, 5, input, option, qerr)
           wordlong = zbuf(1)
           read(wordlong, *, iostat=ierr) nxsg
-          if (nxsg /= g_g(g_ifld)%nx .or. ierr /= 0) then
+          if (nxsg /= g_g(g_ifld)%nx .or. InputError(ierr)) then
             call SetError('SPECGRID NX ' &
                           // trim(wordlong) // ' does not match DIMENS NX', qerr)
           endif
           wordlong = zbuf(2)
           read(wordlong, *, iostat=ierr) nysg
-          if (nysg /= g_g(g_ifld)%ny .or. ierr /= 0) then
+          if (nysg /= g_g(g_ifld)%ny .or. InputError(ierr)) then
             call SetError('SPECGRID NY ' &
                           // trim(wordlong) // ' does not match DIMENS NY', qerr)
           endif
           wordlong = zbuf(3)
           read(wordlong, *, iostat=ierr) nzsg
-          if (nzsg /= g_g(g_ifld)%nz .or. ierr /= 0) then
+          if (nzsg /= g_g(g_ifld)%nz .or. InputError(ierr)) then
             call SetError('SPECGRID NZ ' &
                           // trim(wordlong) // ' does not match DIMENS NZ', qerr)
           endif
@@ -5074,7 +5075,7 @@ subroutine InputReadPflotranStringNotComment(input, option)
 
   do
     call InputReadPflotranString(input, option)
-    if (input%ierr /= 0) exit                   ! Detect eof and leave
+    if (InputError(input)) exit                   ! Detect eof and leave
     word = adjustl(input%buf)
     if (word(1:2) /= '--') exit
   enddo
@@ -5467,7 +5468,7 @@ subroutine ProcessArgToInt(iv, za, zk, il, iu, qerr)
 
 !  Initialise values
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   qerr = PETSC_FALSE
 
 !  Do the read operation
@@ -5478,8 +5479,9 @@ subroutine ProcessArgToInt(iv, za, zk, il, iu, qerr)
 
 !  Check for errors
 
-  if (ierr /= 0) then
-    call SetError(trim(zk)//' (error in reading integer value: '//trim(za)//')', qerr)
+  if (InputError(ierr)) then
+    call SetError(trim(zk)// &
+      ' (error in reading integer value: '//trim(za)//')', qerr)
   else if (iv < il) then
     call SetError(trim(zk)//' (value '//trim(za)//' below lower bound)', qerr)
   else if (iv > iu) then
@@ -5603,7 +5605,7 @@ subroutine ProcessArgToReal(rv, za, zk, qerr)
 
 !  Initialise values
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   qerr = PETSC_FALSE
 
 !  Read value
@@ -5614,7 +5616,7 @@ subroutine ProcessArgToReal(rv, za, zk, qerr)
 
 !  Check for errors
 
-  if (ierr /= 0) then
+  if (InputError(ierr)) then
     call SetError(trim(zk)//' (error in reading real value: '//trim(za)//')',qerr)
   endif
 
@@ -7031,7 +7033,7 @@ subroutine ReadEstrings(zkey, a, n, input, option, qerr)
   character(len = MAXSTRINGLENGTH) :: zval
   character(len = MAXSTRINGLENGTH) :: zmess
 
-  ierr   = 0
+  ierr   = INPUT_ERROR_NONE
   qerr   = PETSC_FALSE
 
   i      = 0
@@ -7041,7 +7043,7 @@ subroutine ReadEstrings(zkey, a, n, input, option, qerr)
   nstack = 0
 
   call InputReadPflotranStringNotComment(input, option)
-  if (input%ierr /= 0) then
+  if (InputError(input)) then
     exittime = PETSC_TRUE
   else
     if (InputCheckExit(input, option)) exittime = PETSC_TRUE
@@ -7091,7 +7093,7 @@ subroutine ReadEstrings(zkey, a, n, input, option, qerr)
 
   endif
 
-  if (ierr == 1) then
+  if (InputError(ierr)) then
     zmess = 'Unable to read ' // trim(zkey)
     call SetError(zmess, qerr)
   endif
@@ -7135,7 +7137,7 @@ subroutine ReadEvalues(a, n, keyword, section, input, option, &
   dval   = 0.0
   exittime = PETSC_FALSE
   nstack = 0
-  ierr   = 0
+  ierr   = INPUT_ERROR_NONE
   zmess = ' '
 
   call InputReadPflotranStringNotComment(input, option)
@@ -7174,9 +7176,9 @@ subroutine ReadEvalues(a, n, keyword, section, input, option, &
         ! Read the actual value
 
         read(word, *, iostat = ierr) dval
-        if (ierr /= 0) then
+        if (InputError(ierr)) then
           call InputErrorMsg(input, option, keyword, section)
-          ierr = 1
+          ierr = INPUT_ERROR_DEFAULT
           exit
         else
           a(i) = dval*convfact
@@ -7196,7 +7198,7 @@ subroutine ReadEvalues(a, n, keyword, section, input, option, &
 
   endif
 
-  if (ierr == 1) then
+  if (InputError(ierr)) then
     zmess = 'Unable to read ' // trim(keyword)
     call SetError(zmess, qerr)
   endif

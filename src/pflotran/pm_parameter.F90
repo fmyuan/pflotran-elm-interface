@@ -190,7 +190,7 @@ subroutine PMParameterRead(input,option,this)
 
   error_str = 'SIMULATION,PROCESS_MODELS,PARAMETER'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

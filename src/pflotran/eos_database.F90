@@ -186,7 +186,7 @@ subroutine ReadUserUnits(this,input,option)
       case('TEMPERATURE')
         !only Celsius currently supported - currently unit must be defined
         call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (trim(word) /= "C") then
             option%io_buffer = "EOS data only Temperatures in Celcius " // &
                                 "are supported"
