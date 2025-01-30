@@ -1,0 +1,273 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE SCO2
+      OPTIONS
+        NO_STATE_TRANSITION_OUTPUT
+      /
+    END
+    WELL_MODEL well
+      OPTIONS
+        FLOW_COUPLING FULLY_IMPLICIT
+        TYPE HYDROSTATIC
+      END
+    END
+  END
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    2
+    4
+  /
+END
+
+# All ordering begins at the bottom of the hole and goes towards 
+# the top of the hole.
+WELLBORE_MODEL well1-ecl
+
+  WELL_GRID
+    WELL_TRAJECTORY
+      SURFACE_ORIGIN 500 500 -2.540508d3
+      SEGMENT_LIST FILE well1-ecl_well-segments.dat
+    /
+  END
+
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+WELLBORE_MODEL well2-ecl
+
+  WELL_GRID
+    WELL_TRAJECTORY
+      SURFACE_ORIGIN 1500.0 1500.0 -2.540508d3
+      SEGMENT_LIST FILE well2-ecl_well-segments.dat
+    /
+  END
+  WELL
+    DIAMETER 0.16d0
+    FRICTION_COEFFICIENT 1.d0
+    SKIN_FACTOR 0.d0
+    WELL_INDEX_MODEL PEACEMAN_3D
+  /
+
+  USE_WELL_COUPLER
+
+END
+
+NUMERICAL_METHODS flow
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+    NUMERICAL_JACOBIAN
+    MINIMUM_NEWTON_ITERATIONS 2
+    CENTRAL_DIFFERENCE_JACOBIAN
+    CONVERGE_ON_WELL_RESIDUAL
+  END
+
+  TIMESTEPPER FLOW
+    #PRESSURE_CHANGE_GOVERNOR 1.d9
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.75
+  END
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE ECLIPSE grid-3x3x6.grdecl
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 2.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 2.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+  SATURATION_PRESSURE IF97
+END
+
+EOS GAS
+  CO2_DATABASE co2_sw.dat
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.12
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2650.d0
+  THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
+  THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
+  HEAT_CAPACITY 1000 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+  SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+  SOIL_COMPRESSIBILITY 4.5d-10
+  SOIL_REFERENCE_PRESSURE 1.d7
+END
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION BROOKS_COREY
+    MAX_TRAPPED_GAS_SAT 0.2
+    UNSATURATED_EXTENSION
+    ALPHA 0.00020408163
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    PHASE LIQUID
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    PHASE GAS
+    LAMBDA 0.6215
+    LIQUID_RESIDUAL_SATURATION 0.0597
+    GAS_RESIDUAL_SATURATION 0.0597
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d-2 y
+  INITIAL_TIMESTEP_SIZE 1.d-2 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20   1.d20
+  /
+END
+
+REGION top
+  FACE TOP
+  FILE grid-3x3x6-top.ex
+END
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 1.d-3
+  SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
+END
+
+FLOW_CONDITION boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    CO2_MASS_FRACTION DIRICHLET
+    SALT_MASS_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.2d7
+  CO2_MASS_FRACTION 0.d0
+  SALT_MASS_FRACTION 4.75d-2
+  TEMPERATURE 20.d0
+END
+
+FLOW_CONDITION injection_well_1
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+  /
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 5.d10 0.d0 0.d0
+    5.d-3 0.d0 0.d0 0.d0 0.d0
+  /
+END
+
+FLOW_CONDITION injection_well_2
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    TEMPERATURE DIRICHLET
+    RATE MASS_RATE
+    CO2_MASS_FRACTION DIRICHLET
+    RELATIVE_HUMIDITY DIRICHLET
+  /
+  CO2_MASS_FRACTION 1.d-3
+  RELATIVE_HUMIDITY 1.d-2
+  TEMPERATURE 20.d0
+  RATE LIST
+    TIME_UNITS y
+    DATA_UNITS kg/y kg/y kg/y MW
+    INTERPOLATION STEP
+    0.d0 0.d0 1.d9 0.d0 0.d0
+    7.d-3 1.d9 0.d0 0.d0 0.d0
+    8.d-3 -1.d9 0.d0 0.d0 0.d0
+    9.d-3 0.d0 1.d10 0.d0 0.d0
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION boundary
+  REGION top
+END
+
+WELL_COUPLER well1-ecl
+  FLOW_CONDITION injection_well_1
+  WELL well1-ecl
+END
+
+WELL_COUPLER well2-ecl
+  FLOW_CONDITION injection_well_2
+  WELL well2-ecl
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== convergence criteria  ============================
+END_SUBSURFACE
