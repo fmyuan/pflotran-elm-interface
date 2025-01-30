@@ -498,7 +498,7 @@ function PMWellCreate()
   this%use_well_coupler = PETSC_FALSE
   this%pressure_controlled = PETSC_FALSE
   this%pressure_threshold_min = 0.d0
-  this%pressure_threshold_max = 1.d20
+  this%pressure_threshold_max = MAX_DOUBLE
 
   nullify(this%next_well)
 
@@ -1130,9 +1130,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     temp_dx = UNINITIALIZED_DOUBLE
     temp_dy = UNINITIALIZED_DOUBLE
     temp_dz = UNINITIALIZED_DOUBLE
-    temp_x = -1.d20
-    temp_y =-1.d20
-    temp_z = -1.d20
+    temp_x = -MAX_DOUBLE
+    temp_y =-MAX_DOUBLE
+    temp_z = -MAX_DOUBLE
 
     k = 0
     j = 0
@@ -1263,13 +1263,13 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     allocate(collect_y_temp(nsegments*option%comm%size))
     allocate(collect_z_temp(nsegments*option%comm%size))
     allocate(collect_rank(nsegments*option%comm%size))
-    collect_x_temp = -1.d20
+    collect_x_temp = -MAX_DOUBLE
     collect_x_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_x(1:well_grid%nsegments)
-    collect_y_temp = -1.d20
+    collect_y_temp = -MAX_DOUBLE
     collect_y_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_y(1:well_grid%nsegments)
-    collect_z_temp = -1.d20
+    collect_z_temp = -MAX_DOUBLE
     collect_z_temp(nsegments*option%myrank+1:nsegments*option%myrank+k) = &
               temp_z(1:well_grid%nsegments)
     collect_rank = UNINITIALIZED_INTEGER
@@ -1324,9 +1324,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     well_grid%casing(:) = UNINITIALIZED_DOUBLE
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -1.d20
-    well_grid%h(:)%y = -1.d20
-    well_grid%h(:)%z = -1.d20
+    well_grid%h(:)%x = -MAX_DOUBLE
+    well_grid%h(:)%y = -MAX_DOUBLE
+    well_grid%h(:)%z = -MAX_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
@@ -1335,7 +1335,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     well_grid%dx(:) = UNINITIALIZED_DOUBLE
     well_grid%dy(:) = UNINITIALIZED_DOUBLE
     well_grid%dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%res_z(:) = -1.d20
+    well_grid%res_z(:) = -MAX_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
 
     do k = 1,well_grid%nsegments
@@ -1389,8 +1389,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
                 deallocate(face_centroids)
               endif
             else
-              zmin = 1.d20
-              zmax = -1.d20
+              zmin = MAX_DOUBLE
+              zmax = -MAX_DOUBLE
               do j = 1,size(res_grid%unstructured_grid%explicit_grid% &
                             face_centroids)
                 if (any(res_grid%unstructured_grid%explicit_grid% &
@@ -1550,15 +1550,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -1.d20
-    well_grid%h(:)%y = -1.d20
-    well_grid%h(:)%z = -1.d20
+    well_grid%h(:)%x = -MAX_DOUBLE
+    well_grid%h(:)%y = -MAX_DOUBLE
+    well_grid%h(:)%z = -MAX_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -1.d20
+    well_grid%res_z(:) = -MAX_DOUBLE
 
     dh_x = diff_x/nsegments
     dh_y = diff_y/nsegments
@@ -1633,15 +1633,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -1.d20
-    well_grid%h(:)%y = -1.d20
-    well_grid%h(:)%z = -1.d20
+    well_grid%h(:)%x = -MAX_DOUBLE
+    well_grid%h(:)%y = -MAX_DOUBLE
+    well_grid%h(:)%z = -MAX_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -1.d20
+    well_grid%res_z(:) = -MAX_DOUBLE
 
     ! sort the z-list in ascending order, in case it was not provided that way
     allocate(temp_z_list(nsegments))
@@ -1726,15 +1726,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -1.d20
-    well_grid%h(:)%y = -1.d20
-    well_grid%h(:)%z = -1.d20
+    well_grid%h(:)%x = -MAX_DOUBLE
+    well_grid%h(:)%y = -MAX_DOUBLE
+    well_grid%h(:)%z = -MAX_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -1.d20
+    well_grid%res_z(:) = -MAX_DOUBLE
 
 
 
@@ -1840,15 +1840,15 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
 
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -1.d20
-    well_grid%h(:)%y = -1.d20
-    well_grid%h(:)%z = -1.d20
+    well_grid%h(:)%x = -MAX_DOUBLE
+    well_grid%h(:)%y = -MAX_DOUBLE
+    well_grid%h(:)%z = -MAX_DOUBLE
     well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
     well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -1.d20
+    well_grid%res_z(:) = -MAX_DOUBLE
 
      well_grid%h_rank_id(:) = 0
      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
@@ -5503,8 +5503,8 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
 
   res_grid => pm_well%realization%patch%grid
 
-  reservoir%tmp_flow = -1.d20
-  reservoir%tmp_tran = -1.d20
+  reservoir%tmp_flow = -MAX_DOUBLE
+  reservoir%tmp_tran = -MAX_DOUBLE
 
   if (wippflo_update_index < ZERO_INTEGER) then
     indx = ZERO_INTEGER
@@ -5569,7 +5569,7 @@ subroutine PMWellUpdateReservoirWIPP(pm_well,wippflo_update_index)
   vec_size = pm_well%well_grid%nsegments
   if (well_comm%commsize > 1) then
     ! Updates reservoir property vector in place using the maximum value.
-    ! The rank-updated value will be larger then the initialized value (-1.d20)
+    ! The rank-updated value will be larger then the initialized value (-MAX_DOUBLE)
     call MPI_Allreduce(MPI_IN_PLACE,reservoir%tmp_flow,vec_size*20,&
                        MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
     if (pm_well%transport) then
