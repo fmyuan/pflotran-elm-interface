@@ -69,7 +69,7 @@ subroutine ParameterRead(parameter,input,option)
 
   error_str = 'PARAMETER'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

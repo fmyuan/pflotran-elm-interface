@@ -1263,7 +1263,7 @@ subroutine PMWSSReadPMBlock(this,input)
 
   option => this%option
   bh_materials = ''
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   option%io_buffer = 'pflotran card:: WIPP_SOURCE_SINK'
   call PrintMsg(option)
 

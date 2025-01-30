@@ -103,7 +103,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
   nullify(rpf_swap)
   nullify(rel_perm_function_ptr)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'CHARACTERISTIC_CURVES'
   call InputPushBlock(input,option)
   do
@@ -422,7 +422,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   wipp_kpc = 0
   wipp_expon = 0.d0
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   smooth = PETSC_FALSE
   spline = 0
 
@@ -1131,7 +1131,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   Srg = 0d0
   Sr = 0d0
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   smooth = PETSC_FALSE
   new_phase_keyword = 'NONE'
   error_string = 'CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION,'

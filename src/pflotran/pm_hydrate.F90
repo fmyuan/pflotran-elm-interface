@@ -335,7 +335,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
   do
 
     call InputReadPflotranString(input,option)
-    if (input%ierr /= 0) exit
+    if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,word)
@@ -423,7 +423,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
-          if (input%ierr /= 0) exit
+          if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
           call InputReadCard(input,option,word)
@@ -565,7 +565,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
 
   error_string = 'Hydrate Options'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

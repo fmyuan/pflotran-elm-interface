@@ -205,7 +205,7 @@ subroutine PMAuxiliaryRead(input, option, this)
                                  species_names(i),PETSC_TRUE)
             call InputErrorMsg(input,option,'species_name',error_string)
             call InputReadDouble(input,option,tempreal)
-            if (input%ierr == 0) then
+            if (.not.InputError(input)) then
               this%salinity%molecular_weights(i) = tempreal
             else
               ! for now let's print an error message.  Decide on whether to

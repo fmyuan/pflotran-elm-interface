@@ -525,7 +525,7 @@ subroutine CreepClosureRead(this,input,option)
 
   time_units_conversion = 1.d0
   filename = ''
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -559,7 +559,7 @@ subroutine CreepClosureRead(this,input,option)
   this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
-  input2%ierr = 0
+  input2%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input2,option)
@@ -953,7 +953,7 @@ subroutine KlinkenbergRead(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string = 'KLINKENBERG_EFFECT'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -1196,7 +1196,7 @@ subroutine WIPPRead(input,option)
 
   wipp => WIPPGetPtr()
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

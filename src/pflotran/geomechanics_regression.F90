@@ -116,7 +116,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
 
   geomechanics_regression => GeomechanicsRegressionCreate()
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

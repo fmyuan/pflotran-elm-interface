@@ -159,7 +159,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   do
 
     call InputReadPflotranString(input,option)
-    if (input%ierr /= 0) exit
+    if (InputError(input)) exit
 
     if (InputCheckExit(input,option)) exit
 
@@ -360,7 +360,7 @@ subroutine DiscretizationRead(discretization,input,option)
   do
 
     call InputReadPflotranString(input,option)
-    if (input%ierr /= 0) exit
+    if (InputError(input)) exit
 
     if (InputCheckExit(input,option)) exit
 

@@ -310,10 +310,9 @@ end subroutine StringToLower
 
 ! ************************************************************************** !
 
-subroutine StringReadQuotedWord(string, name, return_blank_error, ierr)
+subroutine StringReadQuotedWord(string, word, return_blank_error, ierr)
   !
-  ! reads and removes a name from a string read from the
-  ! database.  "'" are used as delimiters.
+  ! reads and removes a word from a string, that is delimited by "'".
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -321,61 +320,76 @@ subroutine StringReadQuotedWord(string, name, return_blank_error, ierr)
 
   implicit none
 
-  PetscInt :: i, begins, ends, realends, length
+  character(len=*) :: string
+  character(len=*) :: word
   PetscBool :: return_blank_error ! Return an error for a blank line
                                 ! Therefore, a blank line is not acceptable.
-  character(len=*) :: string
-  character(len=*) :: name
-  character(len=1), parameter :: tab = achar(9)
-  PetscBool :: openquotefound
   PetscErrorCode :: ierr
 
-  if (ierr /= 0) return
+  character(len=1), parameter :: tab = achar(9)
+  character(len=1), parameter :: backslash = achar(92)
+  PetscBool :: openquotefound
+  PetscInt :: i, begins, ends, realends, word_length, string_length
+
+  if (ierr /= INPUT_ERROR_NONE) return
 
   openquotefound = PETSC_FALSE
   ! Initialize character string to blank.
-  length = len_trim(name)
-  name(1:length) = repeat(' ',length)
+  word_length = len(word)
+  word(1:word_length) = repeat(' ',word_length)
 
-  ierr = 0
-  length = len_trim(string)
-
-  ! Remove leading blanks and tabs
-  i=1
-  do while(string(i:i) == ' ' .or. string(i:i) == tab)
-    i=i+1
-  enddo
-
-  if (string(i:i) == "'") then
-    openquotefound = PETSC_TRUE
-    i=i+1
-  endif
-
-  begins=i
-
-  if (openquotefound) then
-    do while (string(i:i) /= "'")
-      if (i > length) exit
-      i=i+1
-    enddo
+  ierr = INPUT_ERROR_NONE
+  string_length = len_trim(string)
+  if (string_length == 0) then
+    if (return_blank_error) then
+      ierr = INPUT_ERROR_DEFAULT
+    else
+      ierr = INPUT_ERROR_NONE
+    endif
+    return
   else
-  ! Count # of continuous characters (no blanks, commas, etc. in between)
-    do while (string(i:i) /= ' ' .and. string(i:i) /= ',' .and. &
-              string(i:i) /= tab)
+
+    ! Remove leading blanks and tabs
+    i=1
+    do while(string(i:i) == ' ' .or. string(i:i) == tab)
       i=i+1
     enddo
+
+    if (string(i:i) == "'") then
+      openquotefound = PETSC_TRUE
+      i=i+1
+    endif
+
+    begins=i
+
+    if (openquotefound) then
+      do while (string(i:i) /= "'")
+        if (i > string_length) exit
+        i=i+1
+      enddo
+    else
+      ! Count # of continuous characters (no blanks, commas, etc. in between)
+      do while (string(i:i) /= ' ' .and. string(i:i) /= ',' .and. &
+                string(i:i) /= tab .and. &
+                (i == begins .or. string(i:i) /= backslash))
+        i=i+1
+      enddo
+    endif
+
+    realends = i
+    ends=i-1
+
+    ! Avoid copying beyond the end of the word (32 characters).
+    if (ends-begins > word_length - 1) then
+      ierr = INPUT_ERROR_KEYWORD_LENGTH
+      return
+    endif
+
+    ! Copy (ends-begins) characters to 'chars'
+    word = string(begins:ends)
+    ! Remove chars from string
+    string = string(realends+1:)
   endif
-
-  realends = i
-  ends=i-1
-
-  ! Avoid copying beyond the end of the word (32 characters).
-  if (ends-begins > MAXWORDLENGTH - 1) ends = begins + MAXWORDLENGTH - 1
-
-  ! Copy (ends-begins) characters to 'chars'
-  name = string(begins:ends)
-  ! Remove chars from string
-  string = string(realends+1:)
 
 end subroutine StringReadQuotedWord
 

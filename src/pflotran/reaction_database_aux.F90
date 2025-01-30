@@ -302,11 +302,11 @@ function ReactionDBOverrideSpecies(mass_action_override,option)
   PetscInt :: ispec
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   ! read the number of aqueous species in mineral rxn
   call InputReadInt(reaction_string,option,num_species_in_rxn,ierr)
-  if (ierr /= 0) then
+  if (InputError(ierr)) then
     option%io_buffer = 'ReactionDBOverrideMassActionQ::num_species'
     call PrintErrMsg(option)
   endif
@@ -315,14 +315,14 @@ function ReactionDBOverrideSpecies(mass_action_override,option)
   do ispec = 1, dbaserxn%reaction_equation%nspec
     call InputReadDouble(reaction_string,option,dbaserxn% &
                            reaction_equation%stoich(ispec),ierr)
-    if (ierr /= 0) then
+    if (InputError(ierr)) then
       option%io_buffer = 'ReactionDBOverrideMassActionQ::stoich ' // &
                          StringWrite(ispec)
       call PrintErrMsg(option)
     endif
     call InputReadWord(reaction_string,dbaserxn% &
                          reaction_equation%spec_name(ispec),PETSC_TRUE,ierr)
-    if (ierr /= 0) then
+    if (InputError(ierr)) then
       option%io_buffer = 'ReactionDBOverrideMassActionQ::species name ' // &
                          StringWrite(ispec)
       call PrintErrMsg(option)

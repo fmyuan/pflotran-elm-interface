@@ -1181,7 +1181,7 @@ subroutine PMWFReadPMBlock(this,input)
 ! -------------------------------------------------------
 
   option => this%option
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'WASTE_FORM_GENERAL'
 
   option%io_buffer = 'pflotran card:: ' // trim(error_string)
@@ -1481,7 +1481,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   error_string = trim(error_string) // ',MECHANISM'
   found = PETSC_TRUE
   added = PETSC_FALSE
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   k = 0
   num_errors = 0
 
@@ -1943,7 +1943,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               temp_species_array(k)%inst_release_fraction = double
               ! read species daughter
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 temp_species_array(k)%daughter = trim(word)
               else
                 temp_species_array(k)%daughter = 'no_daughter'
@@ -7631,7 +7631,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
 
   internal_unit_strings => StringSplit(data_internal_units,',')
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   string2 = trim(input%buf)
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,'file or value','CONDITION')
@@ -7644,7 +7644,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadFilename(input,option,string2)
-      if (input%ierr == 0) then
+      if (.not.InputError(input)) then
         filename = string2
       else
         option%io_buffer = 'The ability to read realization dependent &
@@ -7791,7 +7791,7 @@ subroutine CritHeatRead(this,filename,option)
   this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
   error_string = 'heat of criticality lookup table'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
-  input2%ierr = 0
+  input2%ierr = INPUT_ERROR_NONE
   do
     call InputReadPflotranString(input2,option)
     if (InputError(input2)) exit
@@ -7961,7 +7961,7 @@ subroutine CritInventoryRead(this,filename,option)
   ! this%lookup_table => LookupTableCreateGeneral(THREE_INTEGER) !3D interpolation
   error_string = 'criticality inventory lookup table "' // trim(filename) // '"'
   input => InputCreate(IUNIT_TEMP,filename,option)
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit

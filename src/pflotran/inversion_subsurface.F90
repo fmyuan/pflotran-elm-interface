@@ -183,7 +183,7 @@ subroutine InversionSubsurfReadBlock(this,input,option)
   ! just testing the sensitivity Jacobian
   this%maximum_iteration = -1
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -267,7 +267,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call InputReadFilename(input,option,this%restart_filename)
       call InputErrorMsg(input,option,keyword,error_string)
       call InputReadInt(input,option,i)
-      if (input%ierr == 0) then
+      if (.not.InputError(input)) then
         this%restart_iteration = i
       endif
     case('OBSERVATION_FUNCTION')
@@ -279,7 +279,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       measurement_time = UNINITIALIZED_DOUBLE
       measurement_time_units = ''
       string = trim(error_string)//keyword
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -324,7 +324,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
             call InputReadDouble(input,option,measurement_time)
             call InputErrorMsg(input,option,keyword,error_string)
             call InputReadWord(input,option,word,PETSC_TRUE)
-            if (input%ierr /= 0) word = 'sec'
+            if (InputError(input)) word = 'sec'
             measurement_time_units = trim(word)
             internal_units = 'sec'
             measurement_time = measurement_time * &
@@ -365,7 +365,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('PARAMETERS')
       string = trim(error_string)//keyword
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -427,7 +427,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
       call InputReadInt(input,option,i)
-      if (input%ierr == 0) then
+      if (.not.InputError(input)) then
         this%debug_verbosity = i
       endif
     case('COUPLED_FLOW_AND_ERT')
@@ -437,7 +437,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,keyword,error_string)
     case('PERTURBATION')
       string = trim(error_string)//keyword
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       this%inversion_option%use_perturbation = PETSC_TRUE
       this%inversion_aux%perturbation => InversionAuxPerturbationCreate()
       call InputPushBlock(input,option)

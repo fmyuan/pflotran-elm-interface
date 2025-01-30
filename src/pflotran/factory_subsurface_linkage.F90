@@ -1093,7 +1093,7 @@ subroutine FactSubLinkAddPMWippSrcSink(realization,pm_wippflo,input)
 
   block_string = 'WIPP_SOURCE_SINK'
   call InputFindStringInFile(input,option,block_string)
-  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
+  if (.not.InputError(input) .and. wippflo_use_gas_generation) then
     pm_wippflo%pmwss_ptr => PMWSSCreate()
     pm_wippflo%pmwss_ptr%option => option
     call pm_wippflo%pmwss_ptr%ReadPMBlock(input)

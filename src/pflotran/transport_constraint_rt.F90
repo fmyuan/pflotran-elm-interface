@@ -247,7 +247,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   endif
 
   ! read the constraint
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -358,7 +358,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
                                  block_string)
             else
               call InputReadCard(input,option,word,PETSC_FALSE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call StringToUpper(word)
                 select case(word)
                   case('DATASET')

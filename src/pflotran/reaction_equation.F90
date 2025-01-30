@@ -155,7 +155,7 @@ function ReactionEquationCreateFromString(reaction_string,option)
   ! later below
   string = reaction_string
   do
-    ierr = 0
+    ierr = INPUT_ERROR_NONE
     call InputReadWord(string,word,PETSC_TRUE,ierr)
     if (InputError(ierr)) exit
 
@@ -196,7 +196,7 @@ function ReactionEquationCreateFromString(reaction_string,option)
     !     the reaction expression, it is skipped.
     if (icount > reaction_equation%nspec) exit
 
-    ierr = 0
+    ierr = INPUT_ERROR_NONE
     call InputReadWord(string,word,PETSC_TRUE,ierr)
     if (InputError(ierr)) exit
 
@@ -226,7 +226,7 @@ function ReactionEquationCreateFromString(reaction_string,option)
           else
             call InputReadDouble(string2,option,value,ierr)
           endif
-          if (ierr /= 0) then
+          if (InputError(ierr)) then
             option%io_buffer = 'Keyword "' // trim(word) // &
                '" not recognized in reaction string "' // &
                trim(reaction_string) // '".'

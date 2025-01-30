@@ -89,7 +89,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
 
   character(len=MAXWORDLENGTH) :: keyword
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

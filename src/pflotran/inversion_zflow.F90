@@ -478,7 +478,7 @@ subroutine InversionZFlowReadBlock(this,input,option)
 
   error_string = 'ZFlow Inversion'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
