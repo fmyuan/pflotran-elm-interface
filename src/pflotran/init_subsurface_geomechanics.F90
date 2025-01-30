@@ -374,7 +374,7 @@ subroutine GeomechanicsJumpStart(geomech)
 
   implicit none
 
-  type(geomechanics_attr_type), pointer :: geomech ! jaa: is pointer ok here?
+  type(geomechanics_attr_type) :: geomech
 
   class(realization_geomech_type), pointer :: geomech_realization
   class(pmc_geomechanics_type), pointer :: geomech_pmc
@@ -435,15 +435,16 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   implicit none
 
   class(realization_geomech_type) :: geomech_realization
-  type(geomech_discretization_type), pointer :: geomech_discretization
-  type(geomech_patch_type), pointer :: patch
   type(input_type), pointer :: input
   type(option_type), pointer :: option
+
+  type(geomech_discretization_type), pointer :: geomech_discretization
+  type(geomech_patch_type), pointer :: patch
   character(len=MAXWORDLENGTH) :: word
   type(grid_unstructured_type), pointer :: ugrid
   character(len=MAXWORDLENGTH) :: card
 
-  geomech_discretization       => geomech_realization%geomech_discretization
+  geomech_discretization => geomech_realization%geomech_discretization
 
   input%ierr = 0
   ! we initialize the word to blanks to avoid error reported by valgrind

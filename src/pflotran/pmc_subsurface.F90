@@ -706,14 +706,13 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 #endif
 
   ! jaa: want to skip initial get aux when using new pmc geomech
-  if (associated(this%child)) then
-    select type (pmc => this%child)
-      class is(pmc_geomechanics_type)
-        if (this%timestepper%steps < 1) then
-          print *, '(jaa) skipping get aux because of reordering'
+  if (this%timestepper%steps < 1) then
+    if (associated(this%child)) then
+      select type (pmc => this%child)
+        class is(pmc_geomechanics_type)
           return
-        endif
-    end select
+      end select
+    endif
   endif
 
   if (associated(this%sim_aux)) then
