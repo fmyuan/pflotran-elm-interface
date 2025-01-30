@@ -130,12 +130,10 @@ module Input_Aux_module
             InputDefaultMsg, InputReadStringErrorMsg, &
             InputFindStringErrorMsg, InputError, &
             InputReadNChars, InputReadQuotedWord, &
-            InputReadPath, &
             InputGetCommandLineInt, &
             InputGetCommandLineReal, &
             InputGetCommandLineTruth, &
             InputGetCommandLineString, &
-            InputReadFilenames, &
             InputGetLineCount, &
             InputReadToBuffer, &
             InputReadASCIIDbase, &
@@ -148,8 +146,6 @@ module Input_Aux_module
             InputReadAndConvertUnits, &
             InputRewind, &
             InputCloseNestedFiles, &
-            InputReadFileDirNamePrefix, &
-            UnitReadAndConversionFactor, &
             InputReadFilename, &
             InputReadCard, &
             InputPushCard, &
@@ -192,7 +188,7 @@ function InputCreate1(fid,path,filename,option)
   input%line_number = 0
   input%path = ''
   input%filename = ''
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   input%buf = ''
   input%err_buf = ''
   input%err_buf2 = ''
@@ -226,7 +222,7 @@ function InputCreate1(fid,path,filename,option)
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
     call PrintErrMsg(option)
     ! for non-blocking case, set error flag
-    input%ierr = 1
+    input%ierr = INPUT_ERROR_DEFAULT
   endif
 
   InputCreate1 => input
@@ -287,12 +283,11 @@ end function InputCreate3
 
 subroutine InputDefaultMsg1(input,option,buffer)
   !
-  ! If ierr /= 0, informs user that default value will be used.
+  ! Informs user that default value will be used.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
   !
-
   implicit none
 
   type(input_type) :: input
@@ -310,7 +305,7 @@ end subroutine InputDefaultMsg1
 
 subroutine InputDefaultMsg2(input,option)
   !
-  ! If ierr /= 0, informs user that default value will be used.
+  ! Informs user that default value will be used.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -325,7 +320,7 @@ subroutine InputDefaultMsg2(input,option)
     option%io_buffer =  '"' // trim(input%err_buf) // &
                         '" set to default value.'
     call PrintMsg(option)
-    input%ierr = 0
+    input%ierr = INPUT_ERROR_NONE
   endif
 
 end subroutine InputDefaultMsg2
@@ -334,7 +329,7 @@ end subroutine InputDefaultMsg2
 
 subroutine InputErrorMsg1(input,option,buffer1,buffer2)
   !
-  ! If ierr /= 0, If ierr /= 0, informs user of error and stops.
+  ! Informs user of error and stops.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -358,11 +353,12 @@ end subroutine InputErrorMsg1
 
 subroutine InputErrorMsg2(input,option)
   !
-  ! InputErrorMsg: If ierr /= 0, If ierr /= 0, informs user of error and stops.
+  ! Informs user of error and stops.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
   !
+  use String_module, only : StringWrite
 
   implicit none
 
@@ -373,6 +369,13 @@ subroutine InputErrorMsg2(input,option)
     call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'While reading "' // trim(input%err_buf) // &
                        '" under keyword: ' // trim(input%err_buf2) // '.'
+    select case(input%ierr)
+      case(INPUT_ERROR_KEYWORD_LENGTH)
+        option%io_buffer = trim(option%io_buffer) // &
+          ' The length of the keyword may be too long (typically, up to ' // &
+          StringWrite(MAXWORDLENGTH) // ' characters).'
+      case default
+    end select
     call PrintErrMsg(option)
   endif
 
@@ -382,7 +385,7 @@ end subroutine InputErrorMsg2
 
 subroutine InputReadStringErrorMsg1(input, option, buffer)
   !
-  ! If ierr /= 0, informs user of error and stops.
+  ! Informs user of error and stops.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -405,7 +408,7 @@ end subroutine InputReadStringErrorMsg1
 
 subroutine InputReadStringErrorMsg2(input, option)
   !
-  ! If ierr /= 0, informs user of error and stops.
+  ! Informs user of error and stops.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -429,7 +432,7 @@ end subroutine InputReadStringErrorMsg2
 
 subroutine InputFindStringErrorMsg(input, option, string)
   !
-  ! If ierr /= 0, informs user of error and stops.
+  ! Informs user of error and stops.
   !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
@@ -504,7 +507,7 @@ subroutine InputReadInt2(string, option, int, ierr)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   found = PETSC_FALSE
   if (associated(dbase)) then
@@ -571,7 +574,7 @@ subroutine InputReadInt4(string, option, int, ierr)
 
   character(len=MAXWORDLENGTH) :: word
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   call InputReadWord(string,word,PETSC_TRUE,ierr)
 
   if (.not.InputError(ierr)) then
@@ -614,7 +617,7 @@ subroutine InputReadDouble1(input, option, double)
     if (.not.InputError(input)) then
       read(word,*,iostat=input%ierr) double
       ! catch NaNs
-      if (double /= double) input%ierr = 1
+      if (double /= double) input%ierr = INPUT_ERROR_DEFAULT
     endif
   endif
 
@@ -640,7 +643,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   found = PETSC_FALSE
   if (associated(dbase)) then
@@ -653,7 +656,7 @@ subroutine InputReadDouble2(string, option, double, ierr)
     if (.not.InputError(ierr)) then
       read(word,*,iostat=ierr) double
       ! catch NaNs
-      if (double /= double) ierr = 1
+      if (double /= double) ierr = INPUT_ERROR_DEFAULT
     endif
   endif
 
@@ -766,18 +769,16 @@ subroutine InputReadPflotranStringSlave(input, option)
 
   type(input_type), pointer :: input
   type(option_type) :: option
+
   character(len=MAXSTRINGLENGTH) ::  tempstring
-  character(len=MAXWORDLENGTH) :: word
+  PetscInt, parameter :: num_chars = 40
+  character(len=num_chars) :: long_word
   PetscInt :: i
   PetscInt :: skip_count
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
 
-! we initialize the word to blanks to avoid error reported by valgrind
-!  do i=1,MAXWORDLENGTH
-!     word(i:i) = ' '
-!  enddo
-  word = ''
+  long_word = ''
 
   do
     input%line_number = input%line_number + 1
@@ -796,26 +797,28 @@ subroutine InputReadPflotranStringSlave(input, option)
     if (input%buf(1:1) == '#' .or. input%buf(1:1) == '!') cycle
 
     tempstring = input%buf
-    call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
-    call StringToUpper(word)
+    call InputReadNChars(tempstring,long_word,num_chars,PETSC_TRUE,input%ierr)
+    call CatchLongKeywordError()
+    call StringToUpper(long_word)
 
-    if (word(1:13) == 'EXTERNAL_FILE') then
-      call InputPushCard(input,word,option)
+    if (long_word(1:13) == 'EXTERNAL_FILE') then
+      call InputPushCard(input,long_word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadNChars(input,option,long_word,num_chars,PETSC_FALSE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
       cycle
-    else if (word(1:4) == 'SKIP') then
-      call InputPushCard(input,word,option)
+    else if (long_word(1:4) == 'SKIP') then
+      call InputPushCard(input,long_word,option)
       ! to avoid keywords that start with SKIP
-      if (len_trim(word) > 4) then
+      if (len_trim(long_word) > 4) then
         exit
       endif
       skip_count = 1
       do
         input%line_number = input%line_number + 1
-        read(input%fid,'(a)',iostat=input%ierr) tempstring
+        read(input%fid,'(a)',iostat=input%ierr) input%buf
+        call StringAdjustl(input%buf)
         if (InputError(input)) then
           call InputPrintKeywordLog(input,option,PETSC_TRUE)
           option%io_buffer = 'End of file reached in ' // &
@@ -823,23 +826,26 @@ subroutine InputReadPflotranStringSlave(input, option)
               'without a matching NOSKIP.'
           call PrintErrMsg(option)
         endif
-        call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
-        call StringToUpper(word)
-        if (word(1:4) == 'SKIP') then
+        tempstring = input%buf
+        call InputReadNChars(tempstring,long_word,num_chars, &
+                             PETSC_TRUE,input%ierr)
+        call CatchLongKeywordError()
+        call StringToUpper(long_word)
+        if (long_word(1:4) == 'SKIP') then
           ! to avoid keywords that start with SKIP
-          if (len_trim(word) == 4) then
+          if (len_trim(long_word) == 4) then
             skip_count = skip_count + 1
-            call InputPushCard(input,word,option)
+            call InputPushCard(input,long_word,option)
           endif
         endif
-        if (word(1:6) == 'NOSKIP') then
-          call InputPushCard(input,word,option)
+        if (long_word(1:6) == 'NOSKIP') then
+          call InputPushCard(input,long_word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
       enddo
       if (InputError(input)) exit
-    else if (word(1:1) /= ' ' .and. word(1:6) /= 'NOSKIP') then
+    else if (long_word(1:1) /= ' ' .and. long_word(1:6) /= 'NOSKIP') then
       exit
     endif
   enddo
@@ -856,6 +862,22 @@ subroutine InputReadPflotranStringSlave(input, option)
       endif
     enddo
   endif
+
+contains
+
+subroutine CatchLongKeywordError()
+
+  if (.not.InputError(input)) return
+  if (len_trim(input%buf) == 0) return
+
+  option%io_buffer = 'Error reading keyword at beginning of input &
+    &file string' // NL // NL // '"' // trim(input%buf) // '"' // &
+    NL // NL // 'at line ' // StringWrite(input%line_number) // &
+    '. Perhaps the keyword is greater than ' // StringWrite(num_chars) // &
+    ' characters.'
+  call PrintErrMsg(option)
+
+end subroutine CatchLongKeywordError
 
 end subroutine InputReadPflotranStringSlave
 
@@ -1116,73 +1138,11 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
   implicit none
 
   character(len=*) :: string
-  character(len=*) :: word
+  character(len=MAXWORDLENGTH) :: word
   PetscBool :: return_blank_error
   PetscErrorCode :: ierr
 
-  PetscInt :: i, begins, ends, length
-  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
-
-  if (ierr /= 0) return
-
-  ! Initialize character string to blank.
-  ! Initialize character string to blank.  len_trim(word) is not
-  ! defined if word is allocated but not initialized.  This works on
-  ! most compilers, but may not work on some?  Holler if it
-  ! errors... - etc
-  word = ''
-  ! do i=1,len_trim(word)
-  !   word(i:i) = ' '
-  ! enddo
-
-  length = len_trim(string)
-
-  if (length == 0) then
-    if (return_blank_error) then
-      ierr = 1
-    else
-      ierr = 0
-    endif
-    return
-  else
-    ierr = 0
-
-    ! Remove leading blanks and tabs
-    i=1
-    do while((string(i:i) == ' ' .or. string(i:i) == ',' .or. &
-             string(i:i) == tab) .and. i <= length)
-      i=i+1
-    enddo
-
-    if (i > length) then
-      if (return_blank_error) then
-        ierr = 1
-      else
-        ierr = 0
-      endif
-      return
-    endif
-
-    begins=i
-
-    ! Count # of continuous characters (no blanks, commas, etc. in between)
-    do while (string(i:i) /= ' ' .and. string(i:i) /= ',' .and. &
-              string(i:i) /= tab .and. &
-              (i == begins .or. string(i:i) /= backslash))
-      i=i+1
-    enddo
-
-    ends=i-1
-
-    ! Avoid copying beyond the end of the word (32 characters).
-    if (ends-begins > (MAXWORDLENGTH-1)) ends = begins + (MAXWORDLENGTH-1)
-
-    ! Copy (ends-begins) characters to 'word'
-    word = string(begins:ends)
-    ! Remove chars from string
-    string = string(ends+1:)
-
-  endif
+  call InputReadNChars2(string,word,MAXWORDLENGTH,return_blank_error,ierr)
 
 end subroutine InputReadWord2
 
@@ -1249,47 +1209,59 @@ end subroutine InputReadNChars1
 
 ! ************************************************************************** !
 
-subroutine InputReadNChars2(string, chars, n, return_blank_error, ierr)
+subroutine InputReadNChars2(string, chars, num_chars, return_blank_error, ierr)
   !
-  ! reads and removes a specified number of characters from a
-  ! string
+  ! reads and removes a specified number of characters from a string
   !
   ! Author: Glenn Hammond
-  ! Date: 11/02/00
+  ! Date: 11/02/09
   !
-
   implicit none
 
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=*) :: string
+  PetscInt :: num_chars
+  character(len=num_chars) :: chars
   PetscBool :: return_blank_error ! Return an error for a blank line
-                                   ! Therefore, a blank line is not acceptable.
-
-  PetscInt :: i, n, begins, ends
-  character(len=n) :: chars
+                                  ! Therefore, a blank line is not acceptable.
   PetscErrorCode :: ierr
+
+  PetscInt :: i
+  PetscInt :: length
+  PetscInt :: begins
+  PetscInt :: ends
   character(len=1), parameter :: tab = achar(9), backslash = achar(92)
 
   if (InputError(ierr)) return
 
   ! Initialize character string to blank.
-  chars(1:n) = repeat(' ',n)
+  chars(1:num_chars) = repeat(' ',num_chars)
 
-  ierr = len_trim(string)
-  if (.not.InputError(ierr)) then
+  length = len_trim(string)
+  if (length == 0) then
     if (return_blank_error) then
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     else
-      ierr = 0
+      ierr = INPUT_ERROR_NONE
     endif
     return
   else
-    ierr = 0
+    ierr = INPUT_ERROR_NONE
 
     ! Remove leading blanks and tabs
     i=1
-    do while(string(i:i) == ' ' .or. string(i:i) == tab)
+    do while((string(i:i) == ' ' .or. string(i:i) == ',' .or. &
+             string(i:i) == tab) .and. i <= length)
       i=i+1
     enddo
+
+    if (i > length) then
+      if (return_blank_error) then
+        ierr = INPUT_ERROR_KEYWORD_LENGTH
+      else
+        ierr = INPUT_ERROR_NONE
+      endif
+      return
+    endif
 
     begins=i
 
@@ -1302,8 +1274,8 @@ subroutine InputReadNChars2(string, chars, n, return_blank_error, ierr)
 
     ends=i-1
 
-    if (ends-begins+1 > n) then ! string read is too large for 'chars'
-      ierr = 1
+    if (ends-begins+1 > num_chars) then ! string read is too large for 'chars'
+      ierr = INPUT_ERROR_KEYWORD_LENGTH
       return
     endif
 
@@ -1352,185 +1324,20 @@ subroutine InputReadQuotedWord(input, option, word, return_blank_error)
   ! delimited by "'".
   !
   ! Author: Glenn Hammond
-  ! Date: 11/07/00
+  ! Date: 11/07/08
   !
+  use String_module
 
   implicit none
 
   type(input_type) :: input
   type(option_type) :: option
-  PetscInt :: i, begins, ends, realends, len_trim_word
-  PetscBool :: return_blank_error ! Return an error for a blank line
-                                ! Therefore, a blank line is not acceptable.
   character(len=*) :: word
-  PetscBool :: openquotefound
-  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
+  PetscBool :: return_blank_error ! Return an error for a blank line
 
-  if (InputError(input)) return
-
-  openquotefound = PETSC_FALSE
-  ! Initialize character string to blank.
-  len_trim_word = len_trim(word)
-  word(1:len_trim_word) = repeat(' ',len_trim_word)
-
-  if (len_trim(input%buf) == 0) then
-    if (return_blank_error) then
-      input%ierr = 1
-    else
-      input%ierr = 0
-    endif
-    return
-  else
-    input%ierr = 0
-
-    ! Remove leading blanks and tabs
-    i=1
-    do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab)
-      i=i+1
-    enddo
-
-    if (input%buf(i:i) == "'") then
-      openquotefound = PETSC_TRUE
-      i=i+1
-    endif
-
-    begins=i
-
-    if (openquotefound) then
-      do while (input%buf(i:i) /= "'")
-        if (i > (MAXWORDLENGTH-1)) exit
-        i=i+1
-      enddo
-    else
-    ! Count # of continuous characters (no blanks, commas, etc. in between)
-      do while (input%buf(i:i) /= ' ' .and. input%buf(i:i) /= ',' .and. &
-                input%buf(i:i) /= tab .and. &
-                (i == begins .or. input%buf(i:i) /= backslash))
-        i=i+1
-      enddo
-    endif
-
-    realends = i
-    ends=i-1
-
-    ! Avoid copying beyond the end of the word (32 characters).
-    if (ends-begins > (MAXWORDLENGTH-1)) ends = begins + (MAXWORDLENGTH-1)
-
-    ! Copy (ends-begins) characters to 'chars'
-    word = input%buf(begins:ends)
-    ! Remove chars from string
-    input%buf = input%buf(realends+1:)
-  endif
+  call StringReadQuotedWord(input%buf,word,return_blank_error,input%ierr)
 
 end subroutine InputReadQuotedWord
-
-! ************************************************************************** !
-
-subroutine InputReadPath(string, word, return_blank_error, ierr)
-  !
-  ! reads and removes a words from a path
-  !
-  ! Author: Glenn Hammond
-  ! Date: 01/14/10
-  !
-
-  implicit none
-
-  character(len=*) :: string
-  character(len=*) :: word
-  PetscBool :: return_blank_error
-  PetscErrorCode :: ierr
-
-  PetscInt :: i, begins, ends, len_trim_word
-  character(len=1), parameter :: slash = achar(47), backslash = achar(92)
-
-  if (ierr /= 0) return
-
-  ! Initialize character string to blank.
-  len_trim_word = len_trim(word)
-  word(1:len_trim_word) = repeat(' ',len_trim_word)
-
-  ierr = len_trim(string)
-
-  if (ierr == 0) then
-    if (return_blank_error) then
-      ierr = 1
-    else
-      ierr = 0
-    endif
-    return
-  else
-    ierr = 0
-
-    ! Remove leading blanks and tabs
-    i=1
-    do while(string(i:i) == ' ' .and. string(i:i) == slash)
-      i=i+1
-    enddo
-
-    begins=i
-
-    ! Count # of characters (no slashes in between)
-    do while (string(i:i) /= slash .and. &
-              (i == begins .or. string(i:i) /= backslash))
-      i=i+1
-    enddo
-
-    ends=i-1
-
-    ! Avoid copying beyond the end of the word (32 characters).
-    if (ends-begins > (MAXWORDLENGTH-1)) ends = begins + (MAXWORDLENGTH-1)
-
-    ! Copy (ends-begins) characters to 'word'
-    word = string(begins:ends)
-    ! Remove chars from string
-    string = string(ends+1:)
-
-  endif
-
-end subroutine InputReadPath
-
-! ************************************************************************** !
-
-subroutine InputReadFileDirNamePrefix(prefix,name_prefix,directory)
-  !
-  ! Reads in file_name_prefix and file_directory given the full file_prefix
-  !
-  ! Author: Paolo Orsini
-  ! Date: 08/10/17
-  !
-
-  use String_module
-
-  implicit none
-
-  character(len=MAXSTRINGLENGTH), intent(in) :: prefix
-  character(len=MAXSTRINGLENGTH), intent(out) :: name_prefix
-  character(len=MAXSTRINGLENGTH), intent(out) :: directory
-
-  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
-  character(len=MAXSTRINGLENGTH) :: string_tmp
-  PetscInt :: i_dir
-
-  string_tmp = trim(prefix)
-
-  strings => StringSplit(string_tmp,'/')
-
-  name_prefix = adjustl(trim(strings(size(strings))))
-
-  directory = ''
-  if ( size(strings) > 1 ) then
-    do i_dir = 1, size(strings) - 1
-      if ( i_dir == (size(strings) - 1) ) then
-        directory = adjustl(trim(directory)) // adjustl(trim(strings(i_dir)))
-      else
-        directory = adjustl(trim(directory)) &
-                    // adjustl(trim(strings(i_dir))) // '/'
-      end if
-    end do
-  end if
-
-end subroutine InputReadFileDirNamePrefix
 
 ! ************************************************************************** !
 
@@ -1612,7 +1419,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: length1, length2
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   found = PETSC_FALSE
 
   length1 = len_trim(string)
@@ -1633,7 +1440,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   ! reading if successive searches for strings are in descending order in
   ! the file.
   if (InputError(input)) then
-    input%ierr = 0
+    input%ierr = INPUT_ERROR_NONE
     call InputRewind(input)
     do
       call InputReadPflotranString(input,option)
@@ -1651,7 +1458,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
   if (.not.found .and. print_warning) then
     option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
     call PrintWrnMsg(option)
-    input%ierr = 1
+    input%ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine InputFindStringInFile3
@@ -1742,11 +1549,7 @@ function InputError1(input)
 
   PetscBool :: InputError1
 
-  if (input%ierr == 0) then
-    InputError1 = PETSC_FALSE
-  else
-    InputError1 = PETSC_TRUE
-  endif
+  InputError1 = InputError2(input%ierr)
 
 end function InputError1
 
@@ -1766,7 +1569,7 @@ function InputError2(ierr)
 
   PetscBool :: InputError2
 
-  if (ierr == 0) then
+  if (ierr == INPUT_ERROR_NONE) then
     InputError2 = PETSC_FALSE
   else
     InputError2 = PETSC_TRUE
@@ -1839,7 +1642,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize int_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1847,7 +1650,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
       call getCommandLineArgument(index,string2)
       call InputReadInt(string2,option,int_value,ierr)
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'Integer argument for command line argument "' // &
@@ -1883,7 +1686,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1891,7 +1694,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
       call getCommandLineArgument(index,string2)
       call InputReadDouble(string2,option,double_value,ierr)
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'Real argument for command line argument "' // &
@@ -1927,7 +1730,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -1944,7 +1747,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
         call PrintErrMsg(option)
       endif
     else
-      ierr = 1
+      ierr = INPUT_ERROR_DEFAULT
     endif
     if (InputError(ierr)) then
       option%io_buffer = 'String argument for command line argument "' // &
@@ -1981,7 +1784,7 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
   character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   ! do not initialize double_value, as it may already have a value
   call InputGetCommandLineIndex(string,found,index)
   if (found) then
@@ -2063,73 +1866,6 @@ subroutine getCommandLineArgument(i,arg)
 #endif
 
 end subroutine getCommandLineArgument
-
-! ************************************************************************** !
-
-subroutine InputReadFilenames(option,filenames)
-  !
-  ! Reads filenames for multi-simulation runs
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/11/09
-  !
-
-  use Option_module
-
-  type(option_type) :: option
-  character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
-
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH) :: filename
-  PetscInt :: filename_count
-  type(input_type), pointer :: input
-  PetscBool :: card_found
-
-  input => InputCreate(IN_UNIT,option%input_filename,option)
-
-  string = "FILENAMES"
-  call InputFindStringInFile(input,option,string)
-
-  card_found = PETSC_FALSE
-  if (InputError(input)) then
-    ! if the FILENAMES card is not included, we will assume that only
-    ! filenames exist in the file.
-    call InputRewind(input)
-  else
-    card_found = PETSC_TRUE
-  endif
-
-  filename_count = 0
-  do
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-    call InputReadFilename(input,option,filename)
-    filename_count = filename_count + 1
-  enddo
-
-  allocate(filenames(filename_count))
-  filenames = ''
-  call InputRewind(input)
-
-  if (card_found) then
-    string = "FILENAMES"
-    call InputFindStringInFile(input,option,string)
-  endif
-
-  filename_count = 0
-  do
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-    call InputReadFilename(input,option,filename)
-    filename_count = filename_count + 1
-    filenames(filename_count) = filename
-  enddo
-
-  call InputDestroy(input)
-
-end subroutine InputReadFilenames
 
 ! ************************************************************************** !
 
@@ -2294,12 +2030,12 @@ subroutine InputReadASCIIDbase(filename,option)
         string = input%buf
         do
           call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr /= 0) exit
+          if (InputError(input)) exit
           num_values_in_dataset = num_values_in_dataset + 1
         enddo
         input%buf = string
       endif
-      input%ierr = 0
+      input%ierr = INPUT_ERROR_NONE
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'value','ASCII Dbase')
       select case(StringIntegerDoubleOrWord(word))
@@ -2368,7 +2104,7 @@ subroutine InputReadASCIIDbase(filename,option)
       value_count = 0
       do
         call InputReadWord(input,option,word,PETSC_TRUE)
-        if (input%ierr /= 0) exit
+        if (InputError(input)) exit
         value_count = value_count + 1
         if (value_count <= num_values_in_dataset) &
           words(value_count) = word
@@ -2443,7 +2179,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,option,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
     call DbaseLookupInt(word,value,option,ierr)
-    if (ierr == 0) then
+    if (.not.InputError(ierr)) then
       found = PETSC_TRUE
     endif
   else
@@ -2481,7 +2217,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,option,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
     call DbaseLookupDouble(word,value,option,ierr)
-    if (ierr == 0) then
+    if (.not.InputError(ierr)) then
       found = PETSC_TRUE
     endif
   else
@@ -2519,7 +2255,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,option,ierr)
   if (StringCompareIgnoreCase(word,dbase_keyword)) then
     call InputReadWord(buffer,word,PETSC_TRUE,ierr)
     call DbaseLookupWord(word,value,option,ierr)
-    if (ierr == 0) then
+    if (.not.InputError(ierr)) then
       found = PETSC_TRUE
     endif
   else
@@ -2549,7 +2285,7 @@ subroutine DbaseLookupInt(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2569,7 +2305,7 @@ subroutine DbaseLookupInt(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading an "integer value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupInt
@@ -2595,7 +2331,7 @@ subroutine DbaseLookupDouble(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2615,7 +2351,7 @@ subroutine DbaseLookupDouble(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading a "floating point value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupDouble
@@ -2641,7 +2377,7 @@ subroutine DbaseLookupWord(keyword,value,option,ierr)
   PetscInt :: i
   PetscBool :: found
 
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
 
   call StringToUpper(keyword)
 
@@ -2661,7 +2397,7 @@ subroutine DbaseLookupWord(keyword,value,option,ierr)
       trim(keyword) // &
       '" (for reading a "string value") is not found in the database.'
     call PrintMsg(option)
-    ierr = 1
+    ierr = INPUT_ERROR_DEFAULT
   endif
 
 end subroutine DbaseLookupWord
@@ -2890,7 +2626,7 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
   character(len=MAXSTRINGLENGTH) :: string
 
   call InputReadWord(input,option,units,PETSC_TRUE)
-  if (input%ierr == 0) then
+  if (.not.InputError(input)) then
     if (len_trim(internal_units) < 1) then
       call InputPrintKeywordLog(input,option,PETSC_TRUE)
       option%io_buffer = 'No internal units provided in &
@@ -2907,55 +2643,6 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
   endif
 
 end subroutine InputReadAndConvertUnits
-
-! ************************************************************************** !
-
-function UnitReadAndConversionFactor(input,internal_units, &
-                                     keyword_string,option)
-  !
-  ! Reads units if they exist and returns the units conversion factor.
-  ! If force_unit == true throws an error if units are not present
-  !
-  ! Author: Paolo Orsini
-  ! Date: 07/27/17
-  !
-  use Option_module
-  use Units_module
-
-  implicit none
-
-  type(input_type) :: input
-  character(len=*) :: internal_units
-  character(len=*) :: keyword_string
-  type(option_type) :: option
-
-  PetscReal :: UnitReadAndConversionFactor
-
-  character(len=MAXWORDLENGTH) :: units
-  character(len=MAXWORDLENGTH) :: internal_units_word
-  character(len=MAXSTRINGLENGTH) :: string
-
-  call InputReadWord(input,option,units,PETSC_TRUE)
-  if (input%ierr == 0) then
-    if (len_trim(internal_units) < 1) then
-      call InputPrintKeywordLog(input,option,PETSC_TRUE)
-      option%io_buffer = 'No internal units provided in &
-                         & UnitReadAndConversionFactor()'
-      call PrintErrMsg(option)
-    endif
-    internal_units_word = trim(internal_units)
-    UnitReadAndConversionFactor =  &
-                   UnitsConvertToInternal(units,internal_units_word, &
-                                          keyword_string,option)
-  else
-    input%err_buf = keyword_string
-    call InputCheckMandatoryUnits(input,option)
-    string = trim(keyword_string) // ' units'
-    call InputDefaultMsg(input,option,string)
-    UnitReadAndConversionFactor = 1.0d0
-  endif
-
-end function UnitReadAndConversionFactor
 
 ! ************************************************************************** !
 

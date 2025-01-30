@@ -790,7 +790,7 @@ subroutine PMFracReadPMBlock(this,input)
   option => this%option
   fracfam_given = PETSC_FALSE
   frac_given = PETSC_FALSE
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'GEOTHERMAL_FRACTURE_MODEL'
 
   option%io_buffer = 'pflotran card:: GEOTHERMAL_FRACTURE_MODEL'
@@ -1417,7 +1417,7 @@ subroutine PMFracReadPass2(input,option)
 
   error_string = 'SUBSURFACE,GEOTHERMAL_FRACTURE_MODEL'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)

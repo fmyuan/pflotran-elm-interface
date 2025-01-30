@@ -180,7 +180,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   internal_data_units_strings => StringSplit(data_internal_units,',')
 
   row_count = 0
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   k = 0
   default_interpolation_method = INTERPOLATION_NULL
   call InputPushBlock(input,option)
@@ -192,7 +192,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
     ! check for units on first or second line
     if (row_count == 0) then
       string = input%buf
-      ierr = 0
+      ierr = INPUT_ERROR_NONE
       call InputReadWord(string,word,PETSC_TRUE,ierr)
       call InputPushCard(input,word,option)
       call InputErrorMsg(input,option,'KEYWORD',error_string)
@@ -248,9 +248,9 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
           string = input%buf
           column_count = 0
           do
-            ierr = 0
+            ierr = INPUT_ERROR_NONE
             call InputReadWord(string,word,PETSC_TRUE,ierr)
-            if (ierr /= 0) exit
+            if (InputError(ierr)) exit
             column_count = column_count + 1
           enddo
           ! allocate the 2d array to max_size rows and col_count columns.
@@ -319,7 +319,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         ! calculated for each column. if a unit does not exist, the input
         ! error below will be spawned.
         if (i > 1) force_units_for_all_data = PETSC_TRUE
-        ierr = 0
+        ierr = INPUT_ERROR_NONE
         call InputReadWord(data_units,word,PETSC_TRUE,ierr)
         input%ierr = ierr
         call InputErrorMsg(input,option,'DATA_UNITS',error_string)

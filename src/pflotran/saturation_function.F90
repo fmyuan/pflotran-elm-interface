@@ -176,7 +176,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       call PrintErrMsg(option)
   end select
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -238,8 +238,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             string = input%buf
             call InputReadDouble(input,option,tempreal)
 !            call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
-            if (input%ierr /= 0) then
-              input%ierr = 0
+            if (InputError(input)) then
+              input%ierr = INPUT_ERROR_NONE
               input%buf = string
               call InputReadCard(input,option,keyword)
               call InputErrorMsg(input,option,'phase', &

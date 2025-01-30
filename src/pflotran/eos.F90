@@ -66,7 +66,7 @@ subroutine EOSRead(input,option)
   PetscBool :: test_uniform_temp, test_uniform_pres
   PetscErrorCode :: ierr
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
 
   call InputReadCard(input,option,keyword)
   call InputErrorMsg(input,option,'keyword','EOS')
@@ -324,7 +324,7 @@ subroutine EOSRead(input,option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               test_filename = ''
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 test_filename = word
               endif
               call EOSWaterTest(test_t_low,test_t_high,test_p_low,test_p_high, &
@@ -339,7 +339,7 @@ subroutine EOSRead(input,option)
       call InputPopBlock(input,option)
       string = ''
       call EOSWaterVerify(ierr,string)
-      if (ierr /= 0) then
+      if (InputError(ierr)) then
         option%io_buffer = 'Error in Water EOS'
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
@@ -546,7 +546,7 @@ subroutine EOSRead(input,option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               test_filename = ''
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 test_filename = word
               endif
               call EOSGasTest(test_t_low,test_t_high,test_p_low,test_p_high, &
@@ -663,7 +663,7 @@ subroutine EOSRead(input,option)
       !    option%io_buffer =  trim(string) // ': ' // trim(option%io_buffer)
       !  endif
       !  call PrintMsg(option)
-      else if (ierr /= 0) then
+      else if (InputError(ierr)) then
         option%io_buffer = 'Error in Gas EOS'
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)

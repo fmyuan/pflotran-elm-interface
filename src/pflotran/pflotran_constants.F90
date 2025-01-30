@@ -312,6 +312,11 @@ module PFLOTRAN_Constants_module
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
 
+  ! input error codes
+  PetscInt, parameter, public :: INPUT_ERROR_NONE = 0
+  PetscInt, parameter, public :: INPUT_ERROR_DEFAULT = 1
+  PetscInt, parameter, public :: INPUT_ERROR_KEYWORD_LENGTH = 2
+
   ! characters
   character(len=1), parameter, public :: NL = new_line('a')
 

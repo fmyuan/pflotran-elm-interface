@@ -333,7 +333,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
   tort_iso_read = PETSC_FALSE
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     error_str = 'MATERIAL_PROPERTY'

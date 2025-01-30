@@ -253,7 +253,7 @@ function InversionParameterRead(input,error_string,option)
 
   new_inversion_parameter => InversionParameterCreate()
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

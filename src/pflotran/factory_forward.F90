@@ -391,15 +391,15 @@ subroutine FactoryForwardReadRestart(input,option)
   realization_dependent_restart = PETSC_FALSE
   ! this section preserves the legacy implementation
   call InputReadFilename(input,option,option%restart_filename)
-  if (input%ierr == 0) then
+  if (.not.InputError(input)) then
     call InputReadWord(input,option,word,PETSC_TRUE)
-    if (input%ierr == 0) then
+    if (.not.InputError(input)) then
       option%restart_time = 0.d0
     endif
     return
     ! end legacy implementation
   endif
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)

@@ -897,7 +897,7 @@ subroutine ILTRead(illitization_function, input, option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'ILLITIZATION_FUNCTION,'
   select type(illitization_function_ => illitization_function)
     class is(ILT_default_type)
@@ -976,7 +976,7 @@ subroutine IllitizationRead(this, input, option)
 
   nullify(illitization_function_ptr)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'ILLITIZATION'
 
   if (associated(this%illitization_function)) then
@@ -1065,7 +1065,7 @@ subroutine BufferErosionRead(this, input, option)
 
   ! nullify(buffer_erosion_model_ptr)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'BUFFER_EROSION'
 
   ! if (associated(this%buffer_erosion_model)) then
@@ -1135,7 +1135,7 @@ subroutine BatsTransformRead(this, input, option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'BATS_FUNCTION'
 
   call InputPushBlock(input,option)
@@ -1199,7 +1199,7 @@ subroutine MaterialTransformRead(this, input, option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'MATERIAL_TRANSFORM "'//trim(this%name)//'"'
   call InputPushBlock(input,option)
   do

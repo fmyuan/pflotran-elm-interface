@@ -184,7 +184,7 @@ subroutine StrataRead(strata,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: internal_units
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

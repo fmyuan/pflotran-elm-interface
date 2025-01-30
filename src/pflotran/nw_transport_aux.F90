@@ -399,7 +399,7 @@ subroutine NWTRead(reaction_nw,input,option)
   option%io_buffer = 'pflotran card:: NUCLEAR_WASTE_CHEMISTRY'
   call PrintMsg(option)
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -504,7 +504,7 @@ subroutine NWTRead(reaction_nw,input,option)
           new_rad_rxn%name = trim(word)
           parent_name_hold = trim(word)
           call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr == 0) then ! '->' was read (or anything)
+          if (.not.InputError(input)) then ! '->' was read (or anything)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'radioactive species daughter &
                                &name',error_string)
@@ -697,7 +697,7 @@ subroutine NWTReadOutput(reaction_nw,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: word
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -768,7 +768,7 @@ subroutine NWTReadPass2(reaction_nw,input,option)
 
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

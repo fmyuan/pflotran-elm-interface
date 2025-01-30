@@ -200,7 +200,7 @@ subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
     call PrintErrMsg(option)
   endif
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

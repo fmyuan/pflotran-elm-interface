@@ -1143,7 +1143,7 @@ subroutine FlowConditionRead(condition,input,option)
   enthalpy%units = 'kJ/mol'
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -1288,7 +1288,7 @@ subroutine FlowConditionRead(condition,input,option)
               ! store name of type for error messaging below.
               string = word
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -2085,7 +2085,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   end select
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -2164,7 +2164,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -2194,7 +2194,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -2694,7 +2694,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
   ! can be read for either the trapped gas state or liquid-gas state.
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -2768,7 +2768,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -2798,7 +2798,7 @@ subroutine FlowConditionSCO2Read(condition,input,option)
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -3229,7 +3229,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
   end select
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -3306,7 +3306,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -3336,7 +3336,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
-              if (input%ierr == 0) then
+              if (.not.InputError(input)) then
                 call InputPushCard(input,word,option)
                 call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
@@ -3911,7 +3911,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   default_time_units = ''
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -4134,7 +4134,7 @@ subroutine GeopConditionRead(condition,input,option)
                           ierr);CHKERRQ(ierr)
 
   ! read the condition
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -4234,7 +4234,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
 
   internal_unit_strings => StringSplit(data_internal_units,',')
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   string2 = trim(input%buf)
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,'file or value','CONDITION')
@@ -4247,7 +4247,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadFilename(input,option,string2)
-      if (input%ierr == 0) then
+      if (.not.InputError(input)) then
         filename = string2
       else
         option%io_buffer = 'The ability to read realization dependent &

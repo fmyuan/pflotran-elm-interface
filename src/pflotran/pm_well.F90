@@ -2644,7 +2644,7 @@ subroutine PMWellReadSimOptionsBlock(this,input)
 
   error_string = 'Well Model Options'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -2732,7 +2732,7 @@ subroutine PMWellReadPMBlock(this,input)
 
   option => this%option
   well_grid => this%well_grid
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   error_string = 'WELLBORE_MODEL'
 
   option%io_buffer = 'pflotran card:: WELLBORE_MODEL'
@@ -3053,7 +3053,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
             call InputPushBlock(input,option)
             do
               call InputReadPFLOTRANString(input,option)
-              if (input%ierr /= 0) exit
+              if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword', &
@@ -3113,7 +3113,7 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                   nsegments = 0
                   do
                     call InputReadPFLOTRANString(input2,option)
-                    if (input2%ierr /= 0) exit
+                    if (InputError(input2)) exit
                     if (InputCheckExit(input2,option)) exit
                     nsegments = nsegments + 1
                     call InputReadWord(input2,option,word,PETSC_TRUE)
@@ -4284,7 +4284,7 @@ subroutine PMWellReadPass2(input,option)
 
   error_string = 'SUBSURFACE,WELLBORE_MODEL'
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)

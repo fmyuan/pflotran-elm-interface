@@ -290,7 +290,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 output_option%periodic_msbl_output_time_incr = temp_real
             end select
             call InputReadCard(input,option,word)
-            if (input%ierr == 0) then
+            if (.not.InputError(input)) then
               if (StringCompareIgnoreCase(word,'between')) then
                 call InputReadDouble(input,option,temp_real)
                 call InputErrorMsg(input,option,'start time',string)
@@ -301,7 +301,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                                               option)
                 call InputReadCard(input,option,word)
                 if (.not.StringCompareIgnoreCase(word,'and')) then
-                  input%ierr = 1
+                  input%ierr = INPUT_ERROR_DEFAULT
                 endif
                 call InputErrorMsg(input,option,'AND',string)
                 call InputReadDouble(input,option,temp_real2)
@@ -346,7 +346,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                     output_option%periodic_msbl_output_time_incr = 0.d0
                 end select
               else
-                input%ierr = 1
+                input%ierr = INPUT_ERROR_DEFAULT
                 call InputErrorMsg(input,option,'BETWEEN',string)
               endif
             endif
@@ -416,7 +416,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 string = trim(string) // ',HDF5'
                 output_option%print_hdf5 = PETSC_TRUE
                 call InputReadCard(input,option,word)
-                if (input%ierr /= 0) then
+                if (InputError(input)) then
                   call InputDefaultMsg(input,option,string)
                   output_option%print_single_h5_file = PETSC_TRUE
                 else
@@ -431,7 +431,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                       output_option%print_single_h5_file = PETSC_FALSE
                       output_option%times_per_h5_file = 1
                       call InputReadCard(input,option,word)
-                      if (input%ierr == 0) then
+                      if (.not.InputError(input)) then
                         select case(trim(word))
                           case('TIMES_PER_FILE')
                             string = trim(string) // ',TIMES_PER_FILE'
@@ -683,7 +683,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
     select case(word)
       case ('LIQUID_DENSITY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'MOLAR')) then
             word = trim(word) // '_MOLAR'
           else
@@ -697,7 +697,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id)
       case ('LIQUID_ENERGY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
             word = trim(word) // '_PER_VOLUME'
           else
@@ -711,7 +711,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id,subvar)
       case ('GAS_DENSITY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'MOLAR')) then
             word = trim(word) // '_MOLAR'
           else
@@ -725,11 +725,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id)
       case ('GAS_ENERGY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
             word = trim(word) // '_PER_VOLUME'
           else
-            input%ierr = 1
+            input%ierr = INPUT_ERROR_DEFAULT
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,GAS_ENERGY')
           endif
@@ -740,7 +740,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id,subvar)
       case ('OIL_DENSITY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'MOLAR')) then
             word = trim(word) // '_MOLAR'
           else
@@ -754,11 +754,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id)
       case ('OIL_ENERGY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
             word = trim(word) // '_PER_VOLUME'
           else
-            input%ierr = 1
+            input%ierr = INPUT_ERROR_DEFAULT
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,OIL_ENERGY')
           endif
@@ -769,7 +769,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id,subvar)
       case ('SOLVENT_DENSITY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'MOLAR')) then
             word = trim(word) // '_MOLAR'
           else
@@ -783,11 +783,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      category,units,id)
       case ('SOLVENT_ENERGY')
         call InputReadCard(input,option,word2)
-        if (input%ierr == 0) then
+        if (.not.InputError(input)) then
           if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
             word = trim(word) // 'PER_VOLUME'
           else
-            input%ierr = 1
+            input%ierr = INPUT_ERROR_DEFAULT
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,SOLVENT_ENERGY')
           endif
@@ -967,9 +967,9 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         do
           call InputReadInt(input,option,temp_int)
           ! if no electrode id is present, the single electrode id is set to 1
-          if (input%ierr == 0 .or. icount == 0) then
+          if (.not.InputError(input) .or. icount == 0) then
             icount = icount + 1
-            if (input%ierr /= 0) temp_int = 1
+            if (InputError(input)) temp_int = 1
             call OutputVariableToID(word,name,units,category,id, &
                                     subvar,subsubvar,option)
             name = trim(name) // '_' // adjustl(StringWrite(temp_int))
@@ -1871,10 +1871,10 @@ subroutine OutputPrintCouplers(realization_base,istep)
   end select
 
   coupler_string = flow_debug%coupler_string
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   do
     call InputReadWord(coupler_string,word,PETSC_TRUE,ierr)
-    if (ierr /= 0) exit
+    if (InputError(ierr)) exit
 
     do iaux = 1, size(iauxvars)
       coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &
@@ -2074,10 +2074,10 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
                                   option)
 
   coupler_string = flow_debug%coupler_string
-  ierr = 0
+  ierr = INPUT_ERROR_NONE
   do
     call InputReadWord(coupler_string,word,PETSC_TRUE,ierr)
-    if (ierr /= 0) exit
+    if (InputError(ierr)) exit
 
     do iaux = 1, size(iauxvars)
       coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &

@@ -210,7 +210,7 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
                           ierr);CHKERRQ(ierr)
 
   ! read the constraint
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 

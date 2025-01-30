@@ -419,7 +419,7 @@ subroutine RegionRead(region,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icount
 
-  input%ierr = 0
+  input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
 
@@ -437,7 +437,7 @@ subroutine RegionRead(region,input,option)
         region%def_type = DEFINED_BY_BLOCK
         call InputReadInt(input,option,region%i1)
         if (InputError(input)) then
-          input%ierr = 0
+          input%ierr = INPUT_ERROR_NONE
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'REGION')
           call InputReadInt(input,option,region%i1)
@@ -481,7 +481,7 @@ subroutine RegionRead(region,input,option)
         allocate(region%coordinates(1))
         call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x)
         if (InputError(input)) then
-          input%ierr = 0
+          input%ierr = INPUT_ERROR_NONE
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'REGION')
           call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%x)
@@ -1144,7 +1144,7 @@ subroutine RegionReadCellList(region,input,read_faces,from_file,option)
 
   ! Read the data
   icount = 0
-  input%ierr = 0 ! first pass must be success
+  input%ierr = INPUT_ERROR_NONE ! first pass must be success
   do
     ! InputReadPflotranString is at bottom since string has
     ! been read on first pass
