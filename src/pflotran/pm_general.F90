@@ -1439,12 +1439,12 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
   this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
 
-  deallocate(converged_abs_update_flag)
-  deallocate(converged_rel_update_flag)
-  deallocate(converged_abs_update_cell)
-  deallocate(converged_rel_update_cell)
-  deallocate(converged_abs_update_real)
-  deallocate(converged_rel_update_real)
+  DeallocateArray(converged_abs_update_flag)
+  DeallocateArray(converged_rel_update_flag)
+  DeallocateArray(converged_abs_update_cell)
+  DeallocateArray(converged_rel_update_cell)
+  DeallocateArray(converged_abs_update_real)
+  DeallocateArray(converged_rel_update_real)
 
 end subroutine PMGeneralCheckUpdatePost
 
