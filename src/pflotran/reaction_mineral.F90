@@ -188,7 +188,7 @@ subroutine ReactionMnrlReadKinetics(mineral,input,option)
               call InputErrorMsg(input,option,keyword,error_string)
             case('MINERAL_SCALE_FACTOR')
 !             read mineral scale factor term
-              call InputReadDouble(input,option,tstrxn%min_scale_factor)
+              call InputReadDouble(input,option,tstrxn%mnrl_scale_factor)
               call InputErrorMsg(input,option,keyword,error_string)
             case('TEMKIN_CONSTANT')
 !             reads exponent on affinity term
@@ -1152,10 +1152,19 @@ subroutine ReactionMnrlKinetics(Res,Jac, &
   type(material_auxvar_type) :: material_auxvar
 
   rt_auxvar%mnrl_rate(:) = 0.d0
+if (maxval(reaction%mineral%kinmnrl_tst_itype) > &
+    MINERAL_KINETICS_TST_SIMPLE) then
+!if (.true.) then
   call ReactionMnrlKineticRateTST(Res,Jac, &
                                 compute_analytical_derivative,store_rate, &
                                 rt_auxvar,global_auxvar,material_auxvar, &
                                 reaction,option)
+else
+  call ReactionMnrlKineticRateTSTSimple(Res,Jac, &
+                                compute_analytical_derivative,store_rate, &
+                                rt_auxvar,global_auxvar,material_auxvar, &
+                                reaction,option)
+endif
   if (associated(reaction%mineral%nucleation_array)) then
     call ReactionMnrlNucleationKinetics(Res,Jac, &
                                 compute_analytical_derivative,store_rate, &
@@ -1164,6 +1173,148 @@ subroutine ReactionMnrlKinetics(Res,Jac, &
   endif
 
 end subroutine ReactionMnrlKinetics
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlKineticRateTSTSimple(Res,Jac, &
+                                      compute_derivative,store_rate, &
+                                      rt_auxvar,global_auxvar, &
+                                      material_auxvar,reaction,option)
+  !
+  ! Computes the kinetic mineral precipitation/dissolution
+  ! rates
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/04/08
+  !
+
+  use Option_module
+  use Material_Aux_module
+  use Utility_module, only : Arrhenius
+
+  implicit none
+
+  type(option_type) :: option
+  class(reaction_rt_type) :: reaction
+  PetscBool :: compute_derivative
+  PetscBool :: store_rate
+  PetscReal :: Res(reaction%ncomp)
+  PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(material_auxvar_type) :: material_auxvar
+
+  PetscInt :: i, j, imnrl, icomp, jcomp, iphase
+  PetscReal :: affinity_factor, sign_
+  PetscReal :: Im, Im_const, dIm_dQK
+  PetscReal :: ln_conc(reaction%naqcomp)
+  PetscReal :: ln_sec(reaction%neqcplx)
+  PetscReal :: ln_act(reaction%naqcomp)
+  PetscReal :: ln_sec_act(reaction%neqcplx)
+  PetscReal :: QK, lnQK, dQK_dmj
+  PetscBool :: precipitation
+  PetscReal :: rate_constant
+
+  type(mineral_type), pointer :: mineral
+
+  iphase = 1
+  mineral => reaction%mineral
+
+  ln_conc = log(rt_auxvar%pri_molal)
+  ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
+
+  if (reaction%neqcplx > 0) then
+    ln_sec = log(rt_auxvar%sec_molal)
+    ln_sec_act = ln_sec+log(rt_auxvar%sec_act_coef)
+  endif
+
+  do imnrl = 1, mineral%nkinmnrl ! for each mineral
+
+    ! compute ion activity product
+    lnQK = -mineral%kinmnrl_logK(imnrl)*LOG_TO_LN
+
+    ! activity of water
+    if (mineral%kinmnrlh2oid(imnrl) > 0) then
+      lnQK = lnQK + mineral%kinmnrlh2ostoich(imnrl)* &
+                    rt_auxvar%ln_act_h2o
+    endif
+
+    do i = 1, mineral%kinmnrlspecid(0,imnrl)
+      icomp = mineral%kinmnrlspecid(i,imnrl)
+      lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
+    enddo
+
+    QK = exp(lnQK)
+
+    affinity_factor = 1.d0-QK
+
+    sign_ = sign(1.d0,affinity_factor) ! sign_ > 0 = dissolution
+
+    if (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0) then
+
+      precipitation = (sign_ < 0.d0)
+
+      if (precipitation) then
+        rate_constant = mineral%kinmnrl_precip_rate_constant(imnrl)
+      else
+        rate_constant = mineral%kinmnrl_dissol_rate_constant(imnrl)
+      endif
+      if (.not.(rate_constant > 0.d0)) cycle
+
+      ! compute rate
+      ! rate: mol/m^2 mnrl/sec
+      ! area: m^2 mnrl/m^3 bulk
+      ! volume: m^3 bulk
+      Im_const = -rt_auxvar%mnrl_area(imnrl)
+
+      ! units: mol/sec/m^3 bulk
+      Im = Im_const*sign_*dabs(affinity_factor)*rate_constant
+      ! store volumetric rate to be used in updating mineral volume fractions
+      ! at end of time step
+      if (store_rate) then
+        ! mol/sec/m^3 bulk
+        rt_auxvar%mnrl_rate(imnrl) = rt_auxvar%mnrl_rate(imnrl) + Im
+      endif
+    else ! rate is already zero by default; move on to next mineral
+      cycle
+    endif
+
+    ! scale Im_const by volume for calculating derivatives below
+    ! units: m^2 mnrl
+    Im_const = Im_const*material_auxvar%volume
+
+    ! convert rate from volumetric (mol/sec/m^3 bulk) to mol/sec
+    ! units: mol/sec
+    Im = Im*material_auxvar%volume
+
+    do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+      icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+      Res(icomp) = Res(icomp) + mineral%kinmnrlstoich_in_residual(i,imnrl)*Im
+    enddo
+
+    if (.not. compute_derivative) cycle
+
+    ! calculate derivatives of rate with respect to free
+    ! units = mol/sec
+    dIm_dQK = -Im_const*rate_constant
+
+    ! derivatives with respect to primary species in reaction quotient
+    do j = 1, mineral%kinmnrlspecid(0,imnrl)
+      jcomp = mineral%kinmnrlspecid(j,imnrl)
+      ! unit = kg water/mol
+      dQK_dmj = mineral%kinmnrlstoich(j,imnrl)*QK*exp(-ln_conc(jcomp))
+      do i = 1, mineral%kinmnrlspecid_in_residual(0,imnrl)
+        icomp = mineral%kinmnrlspecid_in_residual(i,imnrl)
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
+                            mineral%kinmnrlstoich_in_residual(i,imnrl)* &
+                            dIm_dQK*dQK_dmj
+      enddo
+    enddo
+
+  enddo  ! loop over minerals
+
+end subroutine ReactionMnrlKineticRateTSTSimple
 
 ! ************************************************************************** !
 
@@ -1257,17 +1408,17 @@ subroutine ReactionMnrlKineticRateTST(Res,Jac, &
     QK = exp(lnQK)
 
     if (associated(mineral%kinmnrl_Temkin_const)) then
-      if (associated(mineral%kinmnrl_min_scale_factor)) then
+      if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
         affinity_factor = 1.d0-QK**(1.d0/ &
-          (mineral%kinmnrl_min_scale_factor(imnrl)* &
+          (mineral%kinmnrl_mnrl_scale_factor(imnrl)* &
            mineral%kinmnrl_Temkin_const(imnrl)))
       else
         affinity_factor = 1.d0-QK**(1.d0/ &
                                  mineral%kinmnrl_Temkin_const(imnrl))
       endif
-    else if (associated(mineral%kinmnrl_min_scale_factor)) then
+    else if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
         affinity_factor = 1.d0-QK**(1.d0/ &
-          mineral%kinmnrl_min_scale_factor(imnrl))
+          mineral%kinmnrl_mnrl_scale_factor(imnrl))
     else
       affinity_factor = 1.d0-QK
     endif
@@ -1356,8 +1507,8 @@ subroutine ReactionMnrlKineticRateTST(Res,Jac, &
       ! area: m^2 mnrl/m^3 bulk
       ! volume: m^3 bulk
       Im_const = -rt_auxvar%mnrl_area(imnrl)
-      if (associated(mineral%kinmnrl_min_scale_factor)) then
-        Im_const = Im_const/mineral%kinmnrl_min_scale_factor(imnrl)
+      if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
+        Im_const = Im_const/mineral%kinmnrl_mnrl_scale_factor(imnrl)
       endif
 
       ! units: mol/sec/m^3 bulk
@@ -1412,16 +1563,16 @@ subroutine ReactionMnrlKineticRateTST(Res,Jac, &
     endif
 
     if (associated(mineral%kinmnrl_Temkin_const)) then
-      if (associated(mineral%kinmnrl_min_scale_factor)) then
-        dIm_dQK = dIm_dQK*(1.d0/(mineral%kinmnrl_min_scale_factor(imnrl)* &
+      if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
+        dIm_dQK = dIm_dQK*(1.d0/(mineral%kinmnrl_mnrl_scale_factor(imnrl)* &
                            mineral%kinmnrl_Temkin_const(imnrl))) / &
                   QK*(1.d0-affinity_factor)
       else
         dIm_dQK = dIm_dQK*(1.d0/mineral%kinmnrl_Temkin_const(imnrl))/QK* &
                   (1.d0-affinity_factor)
       endif
-    else if (associated(mineral%kinmnrl_min_scale_factor)) then
-      dIm_dQK = dIm_dQK*(1.d0/mineral%kinmnrl_min_scale_factor(imnrl))/QK* &
+    else if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
+      dIm_dQK = dIm_dQK*(1.d0/mineral%kinmnrl_mnrl_scale_factor(imnrl))/QK* &
                 (1.d0-affinity_factor)
     endif
 

@@ -15,6 +15,9 @@ module Reaction_Mineral_Aux_module
   PetscInt, parameter, public :: MINERAL_KINETIC = 2
   PetscInt, parameter, public :: MINERAL_EQUILIBRIUM = 3
 
+  PetscInt, parameter, public :: MINERAL_KINETICS_TST_SIMPLE = 1
+  PetscInt, parameter, public :: MINERAL_KINETICS_TST_COMPLEX = 2
+
   PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_BULK_VOL = 1
   PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_MNRL_MASS = 2
   PetscInt, parameter, public :: MINERAL_SURF_AREA_PER_MNRL_VOL = 3
@@ -42,7 +45,7 @@ module Reaction_Mineral_Aux_module
   end type mineral_rxn_type
 
   type, public :: transition_state_rxn_type
-    PetscReal :: min_scale_factor
+    PetscReal :: mnrl_scale_factor
     PetscReal :: affinity_factor_sigma
     PetscReal :: affinity_factor_beta
     PetscReal :: affinity_threshold
@@ -140,6 +143,7 @@ module Reaction_Mineral_Aux_module
     character(len=MAXWORDLENGTH), pointer :: kinmnrl_names(:)
     character(len=MAXWORDLENGTH), pointer :: kinmnrl_armor_min_names(:)
     PetscBool, pointer :: kinmnrl_print(:)
+    PetscInt, pointer :: kinmnrl_tst_itype(:)
     PetscInt, pointer :: kinmnrlspecid(:,:)
     PetscReal, pointer :: kinmnrlstoich(:,:)
     PetscInt, pointer :: kinmnrlh2oid(:)
@@ -163,7 +167,7 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_pref_precip_rate_const(:,:)
     PetscReal, pointer :: kinmnrl_pref_dissol_rate_const(:,:)
     PetscReal, pointer :: kinmnrl_pref_activation_energy(:,:)
-    PetscReal, pointer :: kinmnrl_min_scale_factor(:)
+    PetscReal, pointer :: kinmnrl_mnrl_scale_factor(:)
     PetscReal, pointer :: kinmnrl_Temkin_const(:)
     PetscReal, pointer :: kinmnrl_affinity_power(:)
     PetscReal, pointer :: kinmnrl_affinity_threshold(:)
@@ -253,6 +257,7 @@ function ReactionMnrlCreateAux()
   mineral%update_surface_area = PETSC_FALSE
   nullify(mineral%kinmnrl_names)
   nullify(mineral%kinmnrl_print)
+  nullify(mineral%kinmnrl_tst_itype)
   nullify(mineral%kinmnrlspecid)
   nullify(mineral%kinmnrlstoich)
   nullify(mineral%kinmnrlh2oid)
@@ -278,7 +283,7 @@ function ReactionMnrlCreateAux()
   nullify(mineral%kinmnrl_pref_dissol_rate_const)
   nullify(mineral%kinmnrl_pref_activation_energy)
 
-  nullify(mineral%kinmnrl_min_scale_factor)
+  nullify(mineral%kinmnrl_mnrl_scale_factor)
   nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
@@ -353,14 +358,14 @@ function ReactionMnrlCreateTSTRxn()
   type(transition_state_rxn_type), pointer :: tstrxn
 
   allocate(tstrxn)
-  tstrxn%min_scale_factor = UNINITIALIZED_DOUBLE
+  tstrxn%mnrl_scale_factor = UNINITIALIZED_DOUBLE
   tstrxn%affinity_factor_sigma = UNINITIALIZED_DOUBLE
   tstrxn%affinity_factor_beta = UNINITIALIZED_DOUBLE
-  tstrxn%affinity_threshold = 0.d0
+  tstrxn%affinity_threshold = UNINITIALIZED_DOUBLE
   tstrxn%surf_area_vol_frac_pwr = UNINITIALIZED_DOUBLE
   tstrxn%surf_area_porosity_pwr = UNINITIALIZED_DOUBLE
-  tstrxn%rate_limiter = 0.d0
-  tstrxn%activation_energy = 0.d0
+  tstrxn%rate_limiter = UNINITIALIZED_DOUBLE
+  tstrxn%activation_energy = UNINITIALIZED_DOUBLE
   tstrxn%armor_min_name = ''
   tstrxn%armor_pwr = 0.d0
   tstrxn%armor_crit_vol_frac = 0.d0
@@ -959,6 +964,7 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_names)
   call DeallocateArray(mineral%mnrl_print)
   call DeallocateArray(mineral%kinmnrl_print)
+  call DeallocateArray(mineral%kinmnrl_tst_itype)
   call DeallocateArray(mineral%mnrlspecid)
   call DeallocateArray(mineral%mnrlstoich)
   call DeallocateArray(mineral%mnrlh2oid)
@@ -994,7 +1000,7 @@ subroutine ReactionMnrlDestroyAux(mineral)
   call DeallocateArray(mineral%kinmnrl_pref_dissol_rate_const)
   call DeallocateArray(mineral%kinmnrl_pref_activation_energy)
 
-  call DeallocateArray(mineral%kinmnrl_min_scale_factor)
+  call DeallocateArray(mineral%kinmnrl_mnrl_scale_factor)
   call DeallocateArray(mineral%kinmnrl_Temkin_const)
   call DeallocateArray(mineral%kinmnrl_affinity_power)
   call DeallocateArray(mineral%kinmnrl_affinity_threshold)

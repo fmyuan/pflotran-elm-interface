@@ -1881,6 +1881,8 @@ subroutine ReactionDBInitBasis(reaction,option)
       mineral%kinmnrl_names = ''
       allocate(mineral%kinmnrl_print(mineral%nkinmnrl))
       mineral%kinmnrl_print = PETSC_FALSE
+      allocate(mineral%kinmnrl_tst_itype(mineral%nkinmnrl))
+      mineral%kinmnrl_tst_itype = UNINITIALIZED_INTEGER
       allocate(mineral%kinmnrlspecid_in_residual(0:max_aq_species, &
                                                  mineral%nkinmnrl))
       mineral%kinmnrlspecid_in_residual = 0
@@ -1935,15 +1937,15 @@ subroutine ReactionDBInitBasis(reaction,option)
 
       ! TST Rxn variables
       allocate(mineral%kinmnrl_affinity_threshold(mineral%nkinmnrl))
-      mineral%kinmnrl_affinity_threshold = 0.d0
+      mineral%kinmnrl_affinity_threshold = UNINITIALIZED_DOUBLE
       allocate(mineral%kinmnrl_rate_limiter(mineral%nkinmnrl))
-      mineral%kinmnrl_rate_limiter = 0.d0
+      mineral%kinmnrl_rate_limiter = UNINITIALIZED_DOUBLE
       allocate(mineral%kinmnrl_precip_rate_constant(mineral%nkinmnrl))
       mineral%kinmnrl_precip_rate_constant = 0.d0
       allocate(mineral%kinmnrl_dissol_rate_constant(mineral%nkinmnrl))
       mineral%kinmnrl_dissol_rate_constant = 0.d0
       allocate(mineral%kinmnrl_activation_energy(mineral%nkinmnrl))
-      mineral%kinmnrl_activation_energy = 0.d0
+      mineral%kinmnrl_activation_energy = UNINITIALIZED_DOUBLE
       allocate(mineral%kinmnrl_molar_vol(mineral%nkinmnrl))
       mineral%kinmnrl_molar_vol = 0.d0
       allocate(mineral%kinmnrl_molar_wt(mineral%nkinmnrl))
@@ -2002,7 +2004,7 @@ subroutine ReactionDBInitBasis(reaction,option)
     do
       if (.not.associated(cur_mineral)) exit
       if (associated(cur_mineral%tstrxn)) then
-        if (Initialized(cur_mineral%tstrxn%min_scale_factor)) then
+        if (Initialized(cur_mineral%tstrxn%mnrl_scale_factor)) then
           found = PETSC_TRUE
           exit
         endif
@@ -2010,8 +2012,8 @@ subroutine ReactionDBInitBasis(reaction,option)
       cur_mineral => cur_mineral%next
     enddo
     if (found) then
-      allocate(mineral%kinmnrl_min_scale_factor(mineral%nkinmnrl))
-      mineral%kinmnrl_min_scale_factor = 1.d0
+      allocate(mineral%kinmnrl_mnrl_scale_factor(mineral%nkinmnrl))
+      mineral%kinmnrl_mnrl_scale_factor = UNINITIALIZED_DOUBLE
     endif
 
     ! Determine whether Temkin's constant is used in any TST reactions
@@ -2029,7 +2031,7 @@ subroutine ReactionDBInitBasis(reaction,option)
     enddo
     if (found) then
       allocate(mineral%kinmnrl_Temkin_const(mineral%nkinmnrl))
-      mineral%kinmnrl_Temkin_const = 1.d0
+      mineral%kinmnrl_Temkin_const = UNINITIALIZED_DOUBLE
     endif
 
     ! Determine whether affinity factor has power
@@ -2395,9 +2397,13 @@ subroutine ReactionDBInitBasis(reaction,option)
           enddo
           mineral%kinmnrl_num_prefactors(ikinmnrl) = i
 
-          mineral%kinmnrl_affinity_threshold(ikinmnrl) = &
-            tstrxn%affinity_threshold
-          mineral%kinmnrl_rate_limiter(ikinmnrl) = tstrxn%rate_limiter
+          if (Initialized(tstrxn%affinity_threshold)) then
+            mineral%kinmnrl_affinity_threshold(ikinmnrl) = &
+              tstrxn%affinity_threshold
+          endif
+          if (Initialized(tstrxn%rate_limiter)) then
+            mineral%kinmnrl_rate_limiter(ikinmnrl) = tstrxn%rate_limiter
+          endif
 
           mineral%kinmnrl_armor_min_names(ikinmnrl) = tstrxn%armor_min_name
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr
@@ -2424,6 +2430,12 @@ subroutine ReactionDBInitBasis(reaction,option)
                 tstrxn%surf_area_vol_frac_pwr
               mineral%kinmnrl_surf_area_porosity_pwr(ikinmnrl) = &
                 tstrxn%surf_area_porosity_pwr
+            case(MINERAL_SURF_AREA_F_MNRL_MASS)
+            case(MINERAL_SURF_AREA_F_NULL)
+            case default
+              option%io_buffer = 'Unrecognized mineral surface area &
+                &function in ReactionDBInitBasis().'
+              call PrintErrMsg(option)
           end select
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
@@ -2432,12 +2444,14 @@ subroutine ReactionDBInitBasis(reaction,option)
               tstrxn%precipitation_rate_constant
             mineral%kinmnrl_dissol_rate_constant(ikinmnrl) = &
               tstrxn%dissolution_rate_constant
-            mineral%kinmnrl_activation_energy(ikinmnrl) = &
-              tstrxn%activation_energy
+            if (Initialized(tstrxn%activation_energy)) then
+              mineral%kinmnrl_activation_energy(ikinmnrl) = &
+                tstrxn%activation_energy
+            endif
           endif
-          if (Initialized(tstrxn%min_scale_factor)) then
-            mineral%kinmnrl_min_scale_factor(ikinmnrl) = &
-              tstrxn%min_scale_factor
+          if (Initialized(tstrxn%mnrl_scale_factor)) then
+            mineral%kinmnrl_mnrl_scale_factor(ikinmnrl) = &
+              tstrxn%mnrl_scale_factor
           endif
           if (Initialized(tstrxn%affinity_factor_sigma)) then
             mineral%kinmnrl_Temkin_const(ikinmnrl) = &
@@ -2481,6 +2495,56 @@ subroutine ReactionDBInitBasis(reaction,option)
       imnrl = imnrl + 1
     enddo
 
+    ! set TST reaction type
+    if (mineral%nkinmnrl > 0) then
+      do ikinmnrl = 1, mineral%nkinmnrl
+        found = PETSC_FALSE
+        ! activation energy
+        if (Uninitialized(mineral%kinmnrl_activation_energy(ikinmnrl))) then
+          mineral%kinmnrl_activation_energy(ikinmnrl) = 0.d0
+        else
+          found = PETSC_TRUE
+        endif
+        ! prefactors
+        if (mineral%kinmnrl_num_prefactors(ikinmnrl) > 0) then
+          found = PETSC_TRUE
+        endif
+        ! Temkin constant
+        if (associated(mineral%kinmnrl_Temkin_const)) then
+          if (Uninitialized(mineral%kinmnrl_Temkin_const(ikinmnrl))) then
+            mineral%kinmnrl_Temkin_const(ikinmnrl) = 1.d0
+          else
+            found = PETSC_TRUE
+          endif
+        endif
+        ! mineral scaling factor
+        if (associated(mineral%kinmnrl_mnrl_scale_factor)) then
+          if (Uninitialized(mineral%kinmnrl_mnrl_scale_factor(ikinmnrl))) then
+            mineral%kinmnrl_mnrl_scale_factor(ikinmnrl) = 1.d0
+          else
+            found = PETSC_TRUE
+          endif
+        endif
+        ! affinity factor threshold
+        if (Uninitialized(mineral%kinmnrl_affinity_threshold(ikinmnrl))) then
+          mineral%kinmnrl_affinity_threshold(ikinmnrl) = 0.d0
+        else
+          found = PETSC_TRUE
+        endif
+        ! rate limiter
+        if (Uninitialized(mineral%kinmnrl_rate_limiter(ikinmnrl))) then
+          mineral%kinmnrl_rate_limiter(ikinmnrl) = 0.d0
+        else
+          found = PETSC_TRUE
+        endif
+        if (found) then
+          mineral%kinmnrl_tst_itype(ikinmnrl) = MINERAL_KINETICS_TST_COMPLEX
+        else
+          mineral%kinmnrl_tst_itype(ikinmnrl)= MINERAL_KINETICS_TST_SIMPLE
+        endif
+      enddo
+    endif
+
     if (mineral%nkinmnrl > 0) then
       if (maxval(mineral%kinmnrl_rate_limiter) > 0.d0 .and. &
           associated(mineral%kinmnrl_affinity_power)) then
@@ -2493,6 +2557,7 @@ subroutine ReactionDBInitBasis(reaction,option)
         enddo
       endif
     endif
+
   endif
 
   if (surface_complexation%nsrfcplxrxn > 0) then
