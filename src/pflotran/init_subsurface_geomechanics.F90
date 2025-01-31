@@ -486,16 +486,19 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             call PrintErrMsg(option)
         end select
       case ('GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(X_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(X_DIRECTION))
         call InputErrorMsg(input,option,'x-direction','GEOMECH GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(Y_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(Y_DIRECTION))
         call InputErrorMsg(input,option,'y-direction','GEOMECH GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(Z_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(Z_DIRECTION))
         call InputErrorMsg(input,option,'z-direction','GEOMECH GRAVITY')
         if (OptionIsIORank(option) .and. OptionPrintToScreen(option)) &
             write(option%fid_out,'(/," *GEOMECH_GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
-            & )') option%geomech_gravity(1:3)
+            & )') option%geomechanics%gravity(1:3)
       case default
         call InputKeywordUnrecognized(input,word,'GEOMECHANICS_GRID',option)
     end select
@@ -535,7 +538,7 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
 
   call GeomechRealizCreateDiscretization(geomech_realization)
 
-  if (option%geomech_subsurf_coupling /= 0) then
+  if (option%geomechanics%subsurf_coupling /= 0) then
     call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
                                         geomech_realization)
     call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &

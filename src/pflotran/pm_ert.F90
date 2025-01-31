@@ -1005,7 +1005,7 @@ subroutine PMERTPreSolve(this)
 
     cond_surface = cond_s
 
-    if (option%geomech_subsurf_coupling == GEOMECH_ERT_COUPLING) then
+    if (option%geomechanics%subsurf_coupling == GEOMECH_ERT_COUPLING) then
       parameter_index = ParameterGetIDFromName('geomechanics_stress',option)
       dstress = patch%aux% &
               Global%auxvars(ghosted_id)%parameters(parameter_index)

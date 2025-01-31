@@ -1283,9 +1283,9 @@ subroutine GeomechGetBodyForce(load_type,lambda,mu,coord,bf,option)
 
   select case(load_type)
     case default
-      bf(GEOMECH_DISP_X_DOF) = option%geomech_gravity(X_DIRECTION)
-      bf(GEOMECH_DISP_Y_DOF) = option%geomech_gravity(Y_DIRECTION)
-      bf(GEOMECH_DISP_Z_DOF) = option%geomech_gravity(Z_DIRECTION)
+      bf(GEOMECH_DISP_X_DOF) = option%geomechanics%gravity(X_DIRECTION)
+      bf(GEOMECH_DISP_Y_DOF) = option%geomechanics%gravity(Y_DIRECTION)
+      bf(GEOMECH_DISP_Z_DOF) = option%geomechanics%gravity(Z_DIRECTION)
   end select
 
 end subroutine GeomechGetBodyForce
