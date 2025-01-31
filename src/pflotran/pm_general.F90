@@ -1329,6 +1329,7 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Field_module
   use Patch_module
   use Option_module
+  use Utility_module, only : DeallocateArray
 
   implicit none
 
@@ -1439,12 +1440,12 @@ subroutine PMGeneralCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
   this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
 
-  DeallocateArray(converged_abs_update_flag)
-  DeallocateArray(converged_rel_update_flag)
-  DeallocateArray(converged_abs_update_cell)
-  DeallocateArray(converged_rel_update_cell)
-  DeallocateArray(converged_abs_update_real)
-  DeallocateArray(converged_rel_update_real)
+  call DeallocateArray(converged_abs_update_flag)
+  call DeallocateArray(converged_rel_update_flag)
+  call DeallocateArray(converged_abs_update_cell)
+  call DeallocateArray(converged_rel_update_cell)
+  call DeallocateArray(converged_abs_update_real)
+  call DeallocateArray(converged_rel_update_real)
 
 end subroutine PMGeneralCheckUpdatePost
 
