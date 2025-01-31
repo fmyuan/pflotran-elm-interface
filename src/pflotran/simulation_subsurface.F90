@@ -11,10 +11,14 @@ module Simulation_Subsurface_class
   use PMC_Base_class
   use PMC_Geophysics_class
   use PMC_Subsurface_class
+  use PMC_Geomechanics_class
   use PM_Well_class
   use Realization_Subsurface_class
   use Waypoint_module
   use Regression_module
+  use Geomechanics_Realization_class
+  use Geomechanics_Regression_module
+  use Geomechanics_Attr_module
 
   implicit none
 
@@ -39,6 +43,8 @@ module Simulation_Subsurface_class
     class(realization_subsurface_type), pointer :: realization
     ! regression object
     type(regression_type), pointer :: regression
+    ! geomech attributes include pmc, realization, regression
+    type(geomechanics_attr_type), pointer :: geomech
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
     type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
   contains
@@ -127,6 +133,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
   nullify(this%geop_process_model_coupler)
+  nullify(this%geomech)
   nullify(this%temp_well_process_model_list)
   nullify(this%realization)
   nullify(this%regression)
@@ -432,6 +439,12 @@ subroutine SimSubsurfJumpStart(this)
   endif
   if (associated(this%tran_process_model_coupler)) then
     tran_timestepper => this%tran_process_model_coupler%timestepper
+  endif
+
+  ! jaa: want to set the geomech dt equal to flow dt
+  if (this%option%geomech_split == FIXED_STRAIN_SPLIT) then
+     this%geomech%process_model_coupler%timestepper%dt = &
+         this%process_model_coupler_list%timestepper%dt
   endif
 
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
@@ -833,6 +846,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   use Logging_module
   use Timestepper_Base_class
+  use Timestepper_Steady_class
   use String_module, only : StringWrite
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use Carbon_Sandbox_module, only : CarbonSandboxDestroy
@@ -849,6 +863,7 @@ subroutine SimSubsurfFinalizeRun(this)
   character(MAXSTRINGLENGTH) :: string
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
+  class(timestepper_steady_type), pointer :: geomech_timestepper
   PetscErrorCode :: ierr
 
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
@@ -878,6 +893,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   nullify(flow_timestepper)
   nullify(tran_timestepper)
+  nullify(geomech_timestepper)
   if (associated(this%flow_process_model_coupler)) then
     flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
@@ -897,6 +913,13 @@ subroutine SimSubsurfFinalizeRun(this)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
+      if (this%option%geomech_split == FIXED_STRAIN_SPLIT) then
+        geomech_timestepper => TimestepperSteadyCast( &
+            this%geomech%process_model_coupler%timestepper)
+        call GeomechanicsRegressionOutput(this%geomech%regression, &
+                                          this%geomech%realization, &
+                                          geomech_timestepper)
+      endif
   end select
 
   call SimulationBaseFinalizeRun(this)
@@ -952,6 +975,7 @@ subroutine SimSubsurfStrip(this)
   call WaypointListDestroy(this%waypoint_list_subsurface)
   call WaypointListDestroy(this%waypoint_list_outer)
   call OptionDestroy(this%option)
+  call GeomechAttrDestroy(this%geomech)
 
 end subroutine SimSubsurfStrip
 

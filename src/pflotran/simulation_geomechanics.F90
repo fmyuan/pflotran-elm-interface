@@ -21,12 +21,7 @@ module Simulation_Geomechanics_class
   private
 
   type, public, extends(simulation_subsurface_type) :: &
-    simulation_geomechanics_type
-    ! pointer to geomechanics coupler
-    class(pmc_geomechanics_type), pointer :: geomech_process_model_coupler
-    class(realization_geomech_type), pointer :: geomech_realization
-    type(waypoint_list_type), pointer :: waypoint_list_geomechanics
-    type(geomechanics_regression_type), pointer :: geomech_regression
+                simulation_geomechanics_type
   contains
     procedure, public :: InitializeRun => GeomechanicsSimulationInitializeRun
     procedure, public :: InputRecord => GeomechanicsSimInputRecord
@@ -81,6 +76,7 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   use Waypoint_module
   use Driver_class
   use Option_module
+  use Geomechanics_Attr_module
 
   implicit none
 
@@ -89,9 +85,8 @@ subroutine GeomechanicsSimulationInit(this,driver,option)
   type(option_type), pointer :: option
 
   call SimSubsurfInit(this,driver,option)
-  nullify(this%geomech_realization)
-  nullify(this%geomech_regression)
-  this%waypoint_list_geomechanics => WaypointListCreate()
+  this%geomech => GeomechAttrCreate()
+  this%geomech%waypoint_list => WaypointListCreate()
 
 end subroutine GeomechanicsSimulationInit
 
@@ -145,7 +140,7 @@ subroutine GeomechanicsSimInputRecord(this)
   write(id,'(a)') 'geomechanics'
 
   ! print output file information
-  call OutputInputRecord(this%output_option,this%waypoint_list_geomechanics)
+  call OutputInputRecord(this%output_option,this%geomech%waypoint_list)
 
 end subroutine GeomechanicsSimInputRecord
 
@@ -178,26 +173,26 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   call PrintMsg(this%option,'GeomechanicsSimulationExecuteRun()')
 #endif
 
-  if (.not.associated(this%geomech_realization)) then
+  if (.not.associated(this%geomech%realization)) then
     call this%RunToTime(final_time)
 
   else
 
     ! If simulation is decoupled subsurfac-geomech simulation, set
     ! dt_coupling to be dt_max
-    if (Equal(this%geomech_realization%dt_coupling,0.d0)) then
+    if (Equal(this%geomech%realization%dt_coupling,0.d0)) then
       this%option%io_buffer = 'Set non-zero COUPLING_TIME_SIZE in GEOMECHANICS_TIME.'
       call PrintErrMsg(this%option)
     else
       do
-        if (time + this%geomech_realization%dt_coupling > final_time) then
+        if (time + this%geomech%realization%dt_coupling > final_time) then
           dt = final_time-time
         else
-          dt = this%geomech_realization%dt_coupling
+          dt = this%geomech%realization%dt_coupling
         endif
 
         time = time + dt
-        this%geomech_process_model_coupler%timestepper%dt = dt
+        this%geomech%process_model_coupler%timestepper%dt = dt
         call this%RunToTime(time)
 
         if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
@@ -235,8 +230,8 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
 
   !call GeomechanicsFinalizeRun(this)
   nullify(geomech_timestepper)
-  if (associated(this%geomech_process_model_coupler)) then
-    select type(ts => this%geomech_process_model_coupler%timestepper)
+  if (associated(this%geomech%process_model_coupler)) then
+    select type(ts => this%geomech%process_model_coupler%timestepper)
       class is(timestepper_steady_type)
         geomech_timestepper => ts
     end select
@@ -244,8 +239,8 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
 
   select case(this%stop_flag)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
-      call GeomechanicsRegressionOutput(this%geomech_regression, &
-                                        this%geomech_realization, &
+      call GeomechanicsRegressionOutput(this%geomech%regression, &
+                                        this%geomech%realization, &
                                         geomech_timestepper)
   end select
 
@@ -272,10 +267,10 @@ subroutine GeomechanicsSimulationStrip(this)
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
 #endif
 
+  call GeomechanicsRegressionDestroy(this%geomech%regression)
+  call WaypointListDestroy(this%geomech%waypoint_list)
   call SimSubsurfStrip(this)
-  call GeomechanicsRegressionDestroy(this%geomech_regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
-  call WaypointListDestroy(this%waypoint_list_geomechanics)
 
 end subroutine GeomechanicsSimulationStrip
 

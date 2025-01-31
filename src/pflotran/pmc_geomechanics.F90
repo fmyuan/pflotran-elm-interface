@@ -90,7 +90,6 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   use petscsnes
   use Convergence_module
   use Geomechanics_Discretization_module
-  use Timestepper_Base_class
   use Timestepper_Steady_class
   use PM_Base_class
   use PM_Base_Pointer_module
@@ -223,6 +222,9 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   class(pm_base_type), pointer :: cur_pm
 
   if (stop_flag == TS_STOP_FAILURE) return
+
+  ! jaa:  want to sync geomech dt with flow_dt (master)
+  this%timestepper%dt = this%option%flow_dt
 
   call this%PrintHeader()
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)

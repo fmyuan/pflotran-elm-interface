@@ -73,7 +73,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_ufd_biosphere,pm_geop, &
                                            pm_auxiliary,pm_well_list, &
                                            pm_material_transform, &
-                                           pm_parameter_list,pm_fracture)
+                                           pm_parameter_list,pm_fracture, &
+                                           pm_geomech)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -96,6 +97,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   use PM_Parameter_class
   use Option_module
   use Simulation_Subsurface_class
+  use PM_Geomechanics_Force_class
 
   implicit none
 
@@ -114,6 +116,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
+  class(pm_geomech_force_type), pointer :: pm_geomech
 
   option => simulation%option
 
@@ -126,6 +129,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   nullify(pm_well_list)
   nullify(pm_material_transform)
   nullify(pm_fracture)
+  nullify(pm_geomech)
 
   cur_pm => simulation%process_model_list
   do
@@ -154,6 +158,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
         pm_material_transform => cur_pm
       class is(pm_fracture_type)
         pm_fracture => cur_pm
+      class is (pm_geomech_force_type)
+        pm_geomech => cur_pm
       class is(pm_parameter_type)
         if (associated(pm_parameter_list)) then
           cur_pm2 => pm_parameter_list
@@ -187,7 +193,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        pm_ufd_biosphere,pm_geop, &
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
-                                       pm_parameter_list,pm_fracture)
+                                       pm_parameter_list,pm_fracture, &
+                                       pm_geomech)
   !
   ! Sets up all PMC linkages
   !
@@ -209,6 +216,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_SCO2_class
   use PM_Hydrate_class
   use PM_Parameter_class
+  use PM_Geomechanics_Force_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
   use Option_module
@@ -228,6 +236,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
   class(pm_fracture_type), pointer :: pm_fracture
+  class(pm_geomech_force_type), pointer :: pm_geomech
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
@@ -279,6 +288,10 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   if (associated(pm_fracture)) then
     call FactSubLinkAddPMCFracture(simulation,pm_fracture,'PMC3PFracture', &
                                    input)
+  endif
+  if (associated(pm_geomech)) then
+    call FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
+                                      'PMCSubsurfaceGeomechanics', input)
   endif
   if (associated(pm_well_list)) then
     call FactSubLinkAddPMCWell(simulation,pm_well_list,'PMCWell',input)
@@ -1167,6 +1180,128 @@ subroutine FactSubLinkAddPMCFracture(simulation,pm_fracture,pmc_name,input)
        pmc_dummy,PM_APPEND)
 
 end subroutine FactSubLinkAddPMCFracture
+
+! ************************************************************************** !
+
+! jaa: new routine mimics above pm linkage
+! Large portion of this routine was adapted from
+! GeomechanicsInitializePostPETSc (factory_geomechanics.F90)
+subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
+                                           pmc_name,input)
+
+  use PMC_Base_class
+  use PMC_Third_Party_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+  use Input_Aux_module
+  use PM_Geomechanics_Force_class
+  use Geomechanics_Realization_class
+  use Timestepper_Steady_class
+  use PMC_Geomechanics_class
+  use Output_Aux_module
+  use Waypoint_module
+  use Geomechanics_Attr_module
+  use Init_Subsurface_Geomech_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_geomech_force_type), pointer :: pm_geomech
+  character(len=*) :: pmc_name
+  type(input_type), pointer :: input
+
+  character(len=MAXSTRINGLENGTH) :: string
+  class(pmc_base_type), pointer :: pmc_dummy
+  class(realization_subsurface_type), pointer :: subsurf_realization
+  type(option_type), pointer :: option
+
+  class(pmc_geomechanics_type), pointer :: pmc_geomech
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(timestepper_steady_type), pointer :: timestepper
+  type(geomechanics_attr_type), pointer :: geomech
+
+  nullify(pmc_dummy)
+  simulation%geomech => GeomechAttrCreate()
+  geomech => simulation%geomech
+
+  string = 'GEOMECHANICS_MODEL'
+
+  subsurf_realization => simulation%realization
+  option => subsurf_realization%option
+  subsurf_realization%output_option => OutputOptionDuplicate( &
+                              simulation%output_option)
+
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  !print *, 'EXIT!'; stop
+  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
+  pmc_geomech => PMCGeomechanicsCreate()
+
+  call pmc_geomech%SetName(pmc_name)
+  call pmc_geomech%SetOption(option)
+  simulation%geomech%process_model_coupler => pmc_geomech
+  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  pmc_geomech%pm_list => pm_geomech
+  pmc_geomech%pm_ptr%pm => pm_geomech
+  pmc_geomech%geomech_realization => geomech_realization
+  pm_geomech%geomech_realization => geomech_realization
+  pmc_geomech%subsurf_realization => simulation%realization
+  pm_geomech%subsurf_realization => simulation%realization
+
+  ! add time integrator
+  timestepper => TimestepperSteadyCreate()
+  pmc_geomech%timestepper => timestepper
+
+  ! add solver
+  call pm_geomech%InitializeSolver()
+  timestepper%solver => pm_geomech%solver
+
+  ! set up logging stage
+  string = trim(pmc_geomech%name) // 'Geomechanics'
+  call LoggingCreateStage(string,pmc_geomech%stage)
+
+  string = 'GEOMECHANICS'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  geomech_realization%output_option => &
+    OutputOptionDuplicate(simulation%output_option)
+  nullify(geomech_realization%output_option%output_snap_variable_list)
+  nullify(geomech_realization%output_option%output_obs_variable_list)
+  geomech_realization%output_option%output_snap_variable_list => &
+    OutputVariableListCreate()
+  geomech_realization%output_option%output_obs_variable_list => &
+    OutputVariableListCreate()
+  !print *, 'EXIT!'; stop
+  call InitSubsurfGeomechReadInput(geomech, &
+                               timestepper%solver, &
+                               input,option, &
+                               geomech_realization%output_option)
+  pm_geomech%output_option => geomech_realization%output_option
+
+  ! Hijack subsurface waypoint to geomechanics waypoint
+  ! Subsurface controls the output now
+  ! Always have snapshot on at t=0
+  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+
+  ! link geomech and flow timestepper waypoints to geomech way point list
+  if (associated(pmc_geomech)) then
+    call pmc_geomech%SetWaypointPtr(pmc_geomech%waypoint_list)
+    if (associated(simulation%flow_process_model_coupler)) then
+      call simulation%flow_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+    endif
+  endif
+
+  ! print the waypoints when debug flag is on
+  if (geomech_realization%geomech_debug%print_waypoints) then
+    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+                           geomech_realization%output_option)
+  endif
+
+end subroutine FactSubLinkAddPMCSubsurfGeomech
 
 ! ************************************************************************** !
 
