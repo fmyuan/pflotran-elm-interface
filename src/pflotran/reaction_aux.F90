@@ -15,10 +15,6 @@ module Reaction_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Surface_Complexation_Aux_module
 
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Soln_Aux_module
-#endif
-
   implicit none
 
   private
@@ -186,10 +182,6 @@ module Reaction_Aux_module
     type(immobile_type), pointer :: immobile
     type(gas_type), pointer :: gas
     type(isotherm_type), pointer :: isotherm
-
-#ifdef SOLID_SOLUTION
-    type(solid_solution_type), pointer :: solid_solution_list
-#endif
 
     ! phases
     PetscInt :: nphase
@@ -438,9 +430,6 @@ function ReactionAuxCreateAux()
   reaction%immobile => ReactionImCreateAux()
   reaction%gas => ReactionGasCreateAux()
   reaction%isotherm => ReactionIsothermCreateAux()
-#ifdef SOLID_SOLUTION
-  nullify(reaction%solid_solution_list)
-#endif
 
   nullify(reaction%primary_species_names)
   nullify(reaction%secondary_species_names)
@@ -1942,9 +1931,6 @@ subroutine ReactionAuxDestroyAux(reaction,option)
   call ReactionImDestroyAux(reaction%immobile)
   call ReactionGasDestroyAux(reaction%gas)
   call ReactionIsothermDestroyAux(reaction%isotherm,option)
-#ifdef SOLID_SOLUTION
-  call ReactionSolidSolnDestroyAux(reaction%solid_solution_list)
-#endif
 
   if (associated(reaction%dbase_temperatures)) &
     deallocate(reaction%dbase_temperatures)

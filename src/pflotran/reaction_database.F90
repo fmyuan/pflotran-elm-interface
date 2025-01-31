@@ -814,10 +814,6 @@ subroutine ReactionDBInitBasis(reaction,option)
   use String_module
   use Utility_module
 
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module
-#endif
-
   implicit none
 
   class(reaction_rt_type) :: reaction
@@ -2497,11 +2493,6 @@ subroutine ReactionDBInitBasis(reaction,option)
         enddo
       endif
     endif
-
-#ifdef SOLID_SOLUTION
-    call ReactionSolidSolnLinkNamesToIDs(reaction%solid_solution_list, &
-                                         mineral,option)
-#endif
   endif
 
   if (surface_complexation%nsrfcplxrxn > 0) then

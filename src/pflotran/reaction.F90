@@ -24,11 +24,6 @@ module Reaction_module
   use Reaction_Gas_Aux_module
   use Reaction_Isotherm_Aux_module
 
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module
-  use Reaction_Solid_Soln_Aux_module
-#endif
-
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
 
@@ -544,18 +539,6 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputCheckExit(input,option)) exit
           call InputSkipToEND(input,option,card)
         enddo
-      case('SOLID_SOLUTIONS') ! solid solutions read on second round
-#ifdef SOLID_SOLUTION
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,card)
-          if (InputCheckExit(input,option)) exit
-          call InputSkipToEND(input,option,word)
-        enddo
-#else
-        option%io_buffer = 'To use solid solutions, must compile with -DSOLID_SOLUTION'
-        call PrintErrMsg(option)
-#endif
 
       case('SORPTION')
         call InputPushBlock(input,option)
@@ -1045,11 +1028,6 @@ subroutine ReactionReadPass2(reaction,input,option)
         call CarbonSandboxSkipInput(input,option)
       case('CLM_REACTION')
         call ReactionCLMRxnSkipInput(input,option)
-#ifdef SOLID_SOLUTION
-      case('SOLID_SOLUTIONS')
-        call ReactionSolidSolnReadSolidSoln(reaction%solid_solution_list, &
-                                            input,option)
-#endif
       case('SORPTION')
         do
           call InputReadPflotranString(input,option)
