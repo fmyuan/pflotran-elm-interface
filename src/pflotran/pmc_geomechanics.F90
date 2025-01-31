@@ -250,7 +250,6 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   ! Check if it is initial solve
   if (this%timestepper%steps == 1) then
-    !this%option%geomech_initial = PETSC_TRUE
     this%option%geomechanics%geomech_initial = PETSC_TRUE
   endif
 

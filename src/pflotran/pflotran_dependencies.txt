@@ -427,6 +427,7 @@ ert.o : \
   patch.o \
   pflotran_constants.o \
   realization_subsurface.o \
+  string.o \
   survey.o \
   variables.o
 ert_aux.o : \
@@ -1086,6 +1087,7 @@ grid_unstructured_explicit.o : \
   hdf5_aux.o \
   input_aux.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   string.o \
   utility.o
@@ -1635,6 +1637,7 @@ option.o : \
   driver.o \
   option_checkpoint.o \
   option_flow.o \
+  option_geomechanics.o \
   option_geophysics.o \
   option_inversion.o \
   option_parameter.o \
@@ -1645,6 +1648,8 @@ option.o : \
 option_checkpoint.o : \
   pflotran_constants.o
 option_flow.o : \
+  pflotran_constants.o
+option_geomechanics.o : \
   pflotran_constants.o
 option_geophysics.o : \
   pflotran_constants.o

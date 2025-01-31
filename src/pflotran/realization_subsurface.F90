@@ -263,7 +263,6 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%porosity_tpdt)
   endif
 
-  !if (option%geomech_on) then
   if (option%geomechanics%geomech_on) then
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_base_store)

@@ -341,7 +341,7 @@ subroutine FactorySubsurfaceSetGeomechMode(pm_geomech,option)
 
   select type(pm_geomech)
     class is (pm_geomech_force_type)
-      option%igeopmode = LINEAR_ELASTICITY_MODE
+      option%igeommode = LINEAR_ELASTICITY_MODE
       option%geommode = "GEOMECHANICS"
       option%ngeomechdof = 3 ! displacements in x, y, z directions
     class default

@@ -1236,7 +1236,6 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
   simulation%geomech%realization => geomech_realization
 
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  !print *, 'EXIT!'; stop
   call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   pmc_geomech => PMCGeomechanicsCreate()
 
@@ -1274,7 +1273,6 @@ subroutine FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &
     OutputVariableListCreate()
-  !print *, 'EXIT!'; stop
   call InitSubsurfGeomechReadInput(geomech, &
                                timestepper%solver, &
                                input,option, &
