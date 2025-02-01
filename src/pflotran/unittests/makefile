@@ -46,6 +46,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
 	$(EXE_DIR)/option_geophysics.o \
+        $(EXE_DIR)/option_geomechanics.o \
 	$(EXE_DIR)/option_parameter.o \
 	$(EXE_DIR)/pflotran_constants.o \
 	$(EXE_DIR)/print.o \
