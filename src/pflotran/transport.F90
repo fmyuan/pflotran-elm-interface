@@ -178,13 +178,25 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
       velocity_dn = q*abs_dist(1:3) + (1.d0-abs_dist(1:3))* &
                     cell_centered_velocity_dn(:,iphase)
       v_up = sqrt(dot_product(velocity_up,velocity_up))
-      vi2_over_v_up = velocity_up(X_DIRECTION)**2/v_up
-      vj2_over_v_up = velocity_up(Y_DIRECTION)**2/v_up
-      vk2_over_v_up = velocity_up(Z_DIRECTION)**2/v_up
+      if (v_up > 0.d0) then
+        vi2_over_v_up = velocity_up(X_DIRECTION)**2/v_up
+        vj2_over_v_up = velocity_up(Y_DIRECTION)**2/v_up
+        vk2_over_v_up = velocity_up(Z_DIRECTION)**2/v_up
+      else
+        vi2_over_v_up = 0.d0
+        vj2_over_v_up = 0.d0
+        vk2_over_v_up = 0.d0
+      endif
       v_dn = sqrt(dot_product(velocity_dn,velocity_dn))
-      vi2_over_v_dn = velocity_dn(X_DIRECTION)**2/v_dn
-      vj2_over_v_dn = velocity_dn(Y_DIRECTION)**2/v_dn
-      vk2_over_v_dn = velocity_dn(Z_DIRECTION)**2/v_dn
+      if (v_dn > 0.d0) then
+        vi2_over_v_dn = velocity_dn(X_DIRECTION)**2/v_dn
+        vj2_over_v_dn = velocity_dn(Y_DIRECTION)**2/v_dn
+        vk2_over_v_dn = velocity_dn(Z_DIRECTION)**2/v_dn
+      else
+        vi2_over_v_dn = 0.d0
+        vj2_over_v_dn = 0.d0
+        vk2_over_v_dn = 0.d0
+      endif
       Dxx_up = dispersivity_up(LONGITUDINAL)*vi2_over_v_up + &
                dispersivity_up(TRANSVERSE_HORIZONTAL)*vj2_over_v_up + &
                dispersivity_up(TRANSVERSE_VERTICAL)*vk2_over_v_up
