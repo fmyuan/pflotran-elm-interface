@@ -112,6 +112,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     cur_pm => cur_pm%next
   enddo
 
+  ! is this ok here?
+  call FactoryGeomechanicsSetGeomechMode(pm_geomech,option)
+
   call FactorySubsurfaceInitPostPetsc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
@@ -357,6 +360,30 @@ subroutine FactoryGeomechReadSimBlock(input,pm)
   call InputPopBlock(input,option)
 
 end subroutine FactoryGeomechReadSimBlock
+
+! ************************************************************************** !
+
+subroutine FactoryGeomechanicsSetGeomechMode(pm_geomech,option)
+
+  use Option_module
+  use PM_Geomechanics_Force_class
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_geomech_force_type), pointer :: pm_geomech
+
+  select type(pm_geomech)
+    class is (pm_geomech_force_type)
+      option%igeommode = LINEAR_ELASTICITY_MODE
+      option%geommode = "GEOMECHANICS"
+      option%ngeomechdof = 3 ! displacements in x, y, z directions
+    class default
+      option%io_buffer = ''
+      call PrintErrMsg(option)
+  end select
+
+end subroutine FactoryGeomechanicsSetGeomechMode
 
 ! ************************************************************************** !
 

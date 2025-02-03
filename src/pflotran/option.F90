@@ -72,7 +72,7 @@ module Option_module
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
 
-    PetscInt :: ngeomechdof
+    PetscInt :: ngeomechdof ! geomechanics dof
     PetscInt :: n_stress_strain_dof
 
     PetscInt :: air_pressure_id

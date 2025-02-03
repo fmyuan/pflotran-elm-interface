@@ -314,12 +314,10 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
           &include gas generation.'
         call PrintErrMsg(option)
       case('GEOMECHANICS_SUBSURFACE')
-        option%geomechanics%geomech_on = PETSC_TRUE
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
         call FactoryGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOMECHANICS')
-        option%geomechanics%geomech_on = PETSC_TRUE
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
         option%geomechanics%split_scheme = FIXED_STRAIN_SPLIT

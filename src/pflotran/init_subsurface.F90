@@ -399,7 +399,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_property => &
         patch%material_property_array(material_id)%ptr
 
-      if (option%geomechanics%geomech_on) then
+      if (option%ngeomechdof > 0) then
         call GeomechanicsSubsurfacePropsAuxvarInit( &
               material_property%geomechanics_subsurface_properties, &
               material_auxvars(ghosted_id))
@@ -764,7 +764,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   endif
 
-  if (option%geomechanics%geomech_on) then
+  if (option%ngeomechdof > 0) then
     call VecCopy(field%porosity0,field%porosity_geomech_store, &
                  ierr);CHKERRQ(ierr)
 #ifdef GEOMECH_DEBUG

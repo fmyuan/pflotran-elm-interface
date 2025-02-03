@@ -12,7 +12,6 @@ module Option_Geomechanics_module
 
   type, public :: geomechanics_option_type
 
-    PetscBool :: geomech_on ! remove later
     PetscBool :: geomech_initial ! initial_solve
     PetscReal :: geomech_time
     PetscInt :: subsurf_coupling
@@ -34,8 +33,8 @@ function OptionGeomechanicsCreate()
   !
   ! Allocates and initializes a new Option object
   !
-  ! Author: Glenn Hammond
-  ! Date: 02/12/21
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/3/25
   !
 
   implicit none
@@ -62,8 +61,8 @@ subroutine OptionGeomechanicsInitAll(option)
   !
   ! Initializes all option variables
   !
-  ! Author: Glenn Hammond
-  ! Date: 02/12/21
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/3/25
   !
 
   implicit none
@@ -84,8 +83,8 @@ subroutine OptionGeomechanicsInitRealization(option)
   ! Initializes option variables specific to a single
   ! realization
   !
-  ! Author: Glenn Hammond
-  ! Date: 02/12/21
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/3/25
   !
 
   implicit none
@@ -95,22 +94,12 @@ subroutine OptionGeomechanicsInitRealization(option)
   ! These variables should be initialized once at the beginning of every
   ! PFLOTRAN realization or simulation of a single realization
 
-  !option%num_electrodes = UNINITIALIZED_INTEGER
-  !option%compute_jacobian = PETSC_FALSE
-  !option%inversion = PETSC_FALSE
-
-  option%geomech_on = PETSC_FALSE
   option%geomech_initial = PETSC_FALSE
-  !option%ngeomechdof = 0
-  !option%n_stress_strain_dof = 0
   option%geomech_time = 0.d0
   option%subsurf_coupling = 0
-  ! rename below to igeomsplit
   option%split_scheme = 0
   option%gravity(:) = 0.d0
   option%gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
-  !option%geommode = ""
-  !option%igeommode = NULL_MODE ! not used
 
 end subroutine OptionGeomechanicsInitRealization
 
@@ -120,8 +109,8 @@ subroutine OptionGeomechanicsDestroy(option)
   !
   ! Deallocates an option
   !
-  ! Author: Glenn Hammond
-  ! Date: 02/12/21
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/3/25
   !
 
   implicit none
