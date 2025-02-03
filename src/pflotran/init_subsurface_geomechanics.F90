@@ -10,9 +10,10 @@ module Init_Subsurface_Geomech_module
 
   public :: InitSubsurfGeomechReadRequiredCards, &
             InitSubsurfGeomechReadInput, &
-            GeomechanicsJumpStart, &
+            InitSubsurfGeomechJumpStart, & ! remove later
             InitSubsurfGeomechSetupRealization, &
-            FactorySubsurfGeomechInitSimulation
+            InitSubsurfGeomechInitSimulation, &
+            InitSubsurfGeomechSetGeomechMode
 contains
 
 ! ************************************************************************** !
@@ -351,7 +352,7 @@ end subroutine InitSubsurfGeomechReadInput
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsJumpStart(geomech)
+subroutine InitSubsurfGeomechJumpStart(geomech)
   !
   ! This routine
   !
@@ -408,7 +409,7 @@ subroutine GeomechanicsJumpStart(geomech)
   ! popped in TS_STAGE()
   call PetscLogStagePush(logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
 
-end subroutine GeomechanicsJumpStart
+end subroutine InitSubsurfGeomechJumpStart
 
 ! ************************************************************************** !
 
@@ -721,7 +722,7 @@ end subroutine InitMatPropToGeomechRegions
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
+subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
 
   use Simulation_Subsurface_class
   use Init_Common_module
@@ -769,11 +770,8 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   geomech_regression => simulation%geomech%regression
 
   ! initialize geomech realization
-  !call SubsurfGeomechInitSetupRealization(simulation)
   call InitSubsurfGeomechSetupRealization(simulation%realization,&
                                           simulation%geomech%realization)
-  !call InitSubsurfGeomechSetupRealization(simulation)
-  !call SubsurfGeomechInitSetupRealization(simulation)
 
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   call pm_geomech%Setup()
@@ -856,9 +854,37 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
     end select
   endif
 
-  call GeomechanicsJumpStart(simulation%geomech)
+  call InitSubsurfGeomechJumpStart(simulation%geomech)
 
-end subroutine FactorySubsurfGeomechInitSimulation
+end subroutine InitSubsurfGeomechInitSimulation
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechSetGeomechMode(pm_geomech,option)
+
+  use Option_module
+  use PM_Geomechanics_Force_class
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_geomech_force_type), pointer :: pm_geomech
+
+  if (.not.associated(pm_geomech)) then
+    return
+  endif
+
+  select type(pm_geomech)
+    class is (pm_geomech_force_type)
+      option%igeommode = LINEAR_ELASTICITY_MODE
+      option%geommode = "GEOMECHANICS"
+      option%ngeomechdof = 3 ! displacements in x, y, z directions
+    class default
+      option%io_buffer = ''
+      call PrintErrMsg(option)
+  end select
+
+end subroutine InitSubsurfGeomechSetGeomechMode
 
 ! ************************************************************************** !
 
