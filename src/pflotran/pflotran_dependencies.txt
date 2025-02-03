@@ -698,7 +698,6 @@ factory_subsurface_read.o : \
   reaction.o \
   reaction_aux.o \
   reaction_mineral.o \
-  reaction_solid_solution.o \
   realization_base.o \
   realization_common.o \
   realization_subsurface.o \
@@ -2816,8 +2815,6 @@ reaction.o : \
   reaction_mineral_aux.o \
   reaction_redox.o \
   reaction_sandbox.o \
-  reaction_solid_solution.o \
-  reaction_solid_solution_aux.o \
   reaction_surf_complex.o \
   reaction_surf_complex_aux.o \
   reactive_transport_aux.o \
@@ -2839,7 +2836,6 @@ reaction_aux.o : \
   reaction_isotherm_aux.o \
   reaction_microbial_aux.o \
   reaction_mineral_aux.o \
-  reaction_solid_solution_aux.o \
   reaction_surf_complex_aux.o \
   string.o \
   utility.o
@@ -2885,7 +2881,6 @@ reaction_database.o : \
   reaction_microbial_aux.o \
   reaction_mineral.o \
   reaction_mineral_aux.o \
-  reaction_solid_solution.o \
   reaction_surf_complex_aux.o \
   string.o \
   utility.o
@@ -2988,7 +2983,6 @@ reaction_mineral.o : \
   reaction_aux.o \
   reaction_database_aux.o \
   reaction_mineral_aux.o \
-  reaction_solid_solution_aux.o \
   reactive_transport_aux.o \
   string.o \
   units.o \
@@ -3225,19 +3219,6 @@ reaction_setup.o : \
   reaction_surf_complex_aux.o \
   string.o \
   utility.o
-reaction_solid_solution.o : \
-  input_aux.o \
-  option.o \
-  pflotran_constants.o \
-  reaction_aux.o \
-  reaction_mineral.o \
-  reaction_mineral_aux.o \
-  reaction_solid_solution_aux.o \
-  string.o \
-  utility.o
-reaction_solid_solution_aux.o : \
-  pflotran_constants.o \
-  reaction_mineral_aux.o
 reaction_surf_complex.o : \
   global_aux.o \
   input_aux.o \

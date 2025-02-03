@@ -919,10 +919,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use TH_Aux_module
   use Survey_module
 
-#ifdef SOLID_SOLUTION
-  use Reaction_Solid_Solution_module, only : ReactionSolidSolnReadSolidSoln
-#endif
-
   implicit none
 
   class(simulation_subsurface_type) :: simulation

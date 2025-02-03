@@ -90,14 +90,6 @@ ifdef glenn
 #  MYFLAGS += ${FC_DEFINE_FLAG}BROADCAST_DATASET
 endif
 
-ifdef ye_flux
-  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
-endif
-
-ifdef solid_solution
-  MYFLAGS += ${FC_DEFINE_FLAG}SOLID_SOLUTION
-endif
-
 ifdef dbl
   MYFLAGS += ${FC_DEFINE_FLAG}DOUBLE_LAYER
 endif
