@@ -481,8 +481,8 @@ subroutine OptionInitRealization(option)
 
   option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
-  !option%geommode = ""
-  !option%igeommode = NULL_MODE
+  option%geommode = ""
+  option%igeommode = NULL_MODE
 
   option%tranmode = ""
   option%itranmode = NULL_MODE

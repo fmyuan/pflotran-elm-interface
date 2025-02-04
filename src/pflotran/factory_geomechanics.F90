@@ -209,31 +209,28 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   nullify(simulation%process_model_coupler_list)
 
   ! sim_aux: Create PETSc Vectors and VectorScatters
-  if (option%ngeomechdof > 0) then
+  call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
+                                      geomech_realization)
+  call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
 
-    call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
-                                        geomech_realization)
-    call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
+  call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
+                                           geomech_realization)
+  call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
+        geomech_realization%geomech_field%strain_subsurf)
 
-    call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
-                                             geomech_realization)
-    call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
-          geomech_realization%geomech_field%strain_subsurf)
+  call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
+                                          geomech_realization, &
+                                          option)
 
-    call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
-                                            geomech_realization, &
-                                            option)
+  dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
+              geomech_realization%geomech_discretization, ONEDOF)
 
-    dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
-                geomech_realization%geomech_discretization, ONEDOF)
-
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                              SUBSURF_TO_GEOMECHANICS)
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                              GEOMECHANICS_TO_SUBSURF)
-  endif
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
+                            SUBSURF_TO_GEOMECHANICS)
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
+                            GEOMECHANICS_TO_SUBSURF)
 
   call GeomechanicsRegressionCreateMapping(simulation%geomech%regression, &
                                            geomech_realization)
@@ -255,48 +252,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   simulation%process_model_coupler_list%peer => &
     simulation%flow_process_model_coupler
 
-  ! jaa: the kludge way of checking geomech nodes are mapped to active
-  ! flow cells. Without this check two_way_coupling in geomech
-  ! tries to assign poro/perm of inactive flow cells
-  call VecSet(geomech_realization%geomech_field%subsurf_vec_1dof,-777.d0, &
-              ierr);CHKERRQ(ierr)
-  call VecSet(geomech_realization%geomech_field%press,-888.d0, &
-              ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
-              subsurf_vec_1dof,ierr);CHKERRQ(ierr)
-  do subsurf_local_id = 1, subsurf_realization%patch%grid%nlmax
-    subsurf_ghosted_id = subsurf_realization%patch%grid%nL2G(subsurf_local_id)
-    subsurf_vec_1dof(subsurf_local_id) = subsurf_realization%patch%imat( &
-                                                  subsurf_ghosted_id)
-  enddo
-  call VecRestoreArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
-                          subsurf_vec_1dof,ierr);CHKERRQ(ierr)
-  ! Scatter the data
-  call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                       geomech_realization%geomech_field%subsurf_vec_1dof, &
-                       geomech_realization%geomech_field%press, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                     geomech_realization%geomech_field%subsurf_vec_1dof, &
-                     geomech_realization%geomech_field%press, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_realization%geomech_field%press, &
-                      subsurf_vec_1dof, ierr);CHKERRQ(ierr)
-  error_found = PETSC_FALSE
-  do geomech_local_id = 1, geomech_realization%geomech_patch%geomech_grid% &
-                           nlmax_node
-    geomech_ghosted_id = geomech_realization%geomech_patch%geomech_grid% &
-                         nL2G(geomech_local_id)
-    if (nint(subsurf_vec_1dof(geomech_local_id)) <= 0) error_found = PETSC_TRUE
-  enddo
-  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
-  if (error_found)then
-    option%io_buffer = 'Cannot map inactive flow cell to geomechanics '//&
-                       'node in the GEOMECHANICS_MAPPING_FILE! '
-    call PrintErrMsg(option)
-  endif
-  ! end jaa - inactive cell check
+  call InitSubsurfGeomechChkInactiveCells(geomech_realization, &
+                                          subsurf_realization)
 
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list

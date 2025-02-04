@@ -197,7 +197,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
         simulation => SimSubsurfCreate(driver,option)
       case('GEOMECHANICS_SUBSURFACE')
         simulation => GeomechanicsSimulationCreate(driver,option)
-        option%geomechanics%split_scheme = DRAINED_SPLIT
+        option%geomechanics%split_scheme = GEOMECH_DRAINED_SPLIT
       case default
         if (len_trim(simulation_type) == 0) then
           option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
@@ -320,7 +320,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
       case('SUBSURFACE_GEOMECHANICS')
         new_pm => PMGeomechForceCreate()
         new_pm%option => option
-        option%geomechanics%split_scheme = FIXED_STRAIN_SPLIT
+        option%geomechanics%split_scheme = GEOMECH_FIXED_STRAIN_SPLIT
         call FactoryGeomechReadSimBlock(input,new_pm)
       case('SUBSURFACE_GEOPHYSICS')
         call FactorySubsurfReadGeophysicsPM(input,option,new_pm)
