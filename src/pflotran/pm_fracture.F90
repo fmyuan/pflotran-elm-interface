@@ -461,9 +461,9 @@ subroutine PMFracSetup(this)
         v8%z = grid_center%z + (grid_dh%z/2.d0)
       else
         option%io_buffer = 'The GEOTHERMAL_FRACTURE_MODEL can only be used &
-          &with structured grids. If you recieve this error message, please &
-          &email jmfrede@sandia.gov with your modeling application.'
-        call PrintErrMsg(option)
+          &with structured grids. If you recieve this error message. . .' 
+        call PrintErrMsgToDev(option, &
+          'describe your modeling application or goals.')
       endif
       d_vertex(1) = cur_fracture%normal%x*v1%x + &
                     cur_fracture%normal%y*v1%y + &
