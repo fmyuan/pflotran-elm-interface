@@ -85,10 +85,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input
   PetscErrorCode :: ierr
-  PetscBool :: error_found
-  PetscInt :: geomech_local_id, subsurf_local_id, geomech_ghosted_id
-  PetscInt :: subsurf_ghosted_id
-  PetscReal, pointer :: subsurf_vec_1dof(:)
 
   option => simulation%option
   nullify(timestepper)

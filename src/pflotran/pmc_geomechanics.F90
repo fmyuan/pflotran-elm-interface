@@ -375,7 +375,8 @@ subroutine PMCGeomechanicsSetAuxData(this)
     class is(pmc_geomechanics_type)
       if (this%option%geomechanics%subsurf_coupling == &
             GEOMECH_TWO_WAY_COUPLED .or. &
-          this%option%geomechanics%subsurf_coupling == GEOMECH_ERT_COUPLING) then
+          this%option%geomechanics%subsurf_coupling == &
+            GEOMECH_ERT_COUPLING) then
 
         grid => pmc%subsurf_realization%patch%grid
 
