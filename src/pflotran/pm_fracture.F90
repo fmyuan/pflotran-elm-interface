@@ -1600,6 +1600,7 @@ subroutine GetLHSValues(mean,st_dev,isamples,seed,LHSvalues)
   !
   ! Author: Jenn Frederick
   ! Date: 11/26/2024
+  use PFLOTRAN_Constants_module
 
   implicit none
 
@@ -1615,7 +1616,7 @@ subroutine GetLHSValues(mean,st_dev,isamples,seed,LHSvalues)
   PetscReal :: TWO_PI
 
   switch = mod(seed, 2) == 0
-  TWO_PI = 2*3.14159265358979323846264338327950288419716939937510582
+  TWO_PI = 2*PI
 
   do k=1,isamples
     if (.not.switch) then
