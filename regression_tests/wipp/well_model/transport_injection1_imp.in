@@ -27,9 +27,7 @@ SIMULATION
     END
 
     WELL_MODEL well01
-      OPTIONS
-        TYPE WIPP_DARCY
-      /
+      TYPE WIPP_QI
     END
     
   END
