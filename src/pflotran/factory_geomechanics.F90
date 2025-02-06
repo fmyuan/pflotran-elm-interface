@@ -64,7 +64,6 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   class(pm_geomech_force_type), pointer :: pm_geomech
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(timestepper_steady_type), pointer :: timestepper
-  character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input
   PetscErrorCode :: ierr
 
