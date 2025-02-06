@@ -14,7 +14,9 @@ module Init_Subsurface_Geomech_module
             InitSubsurfGeomechSetupRealization, &
             InitSubsurfGeomechInitSimulation, &
             InitSubsurfGeomechSetGeomechMode, &
-            InitSubsurfGeomechChkInactiveCells
+            InitSubsurfGeomechChkInactiveCells, &
+            InitSubsurfGeomechSetupPMC, &
+            InitSubsurfGeomechReadSimBlock
 contains
 
 ! ************************************************************************** !
@@ -104,7 +106,6 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
 
   implicit none
 
-  !class(simulation_geomechanics_type) :: simulation
   type(solver_type), pointer :: geomech_solver
   type(input_type), pointer :: input
   type(geomechanics_attr_type), pointer:: geomech
@@ -959,6 +960,162 @@ subroutine InitSubsurfGeomechChkInactiveCells(geomech_realization, &
   endif
 
 end subroutine InitSubsurfGeomechChkInactiveCells
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
+                                     pmc_name,input)
+
+  ! jaa moved from factory_geomechanics.F90
+
+  use PMC_Third_Party_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+  use Input_Aux_module
+  use PM_Geomechanics_Force_class
+  use Geomechanics_Realization_class
+  use Timestepper_Steady_class
+  use PMC_Geomechanics_class
+  use Output_Aux_module
+  use Waypoint_module
+  use Simulation_Subsurface_class
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_geomech_force_type), pointer :: pm_geomech
+  character(len=*) :: pmc_name
+  type(input_type), pointer :: input
+
+  character(len=MAXSTRINGLENGTH) :: string
+  class(realization_subsurface_type), pointer :: subsurf_realization
+  type(option_type), pointer :: option
+
+  class(pmc_geomechanics_type), pointer :: pmc_geomech
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(timestepper_steady_type), pointer :: timestepper
+
+  subsurf_realization => simulation%realization
+  option => subsurf_realization%option
+  subsurf_realization%output_option => OutputOptionDuplicate( &
+                                          simulation%output_option)
+
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
+  pmc_geomech => PMCGeomechanicsCreate()
+
+  call pmc_geomech%SetName(pmc_name)
+  call pmc_geomech%SetOption(option)
+  simulation%geomech%process_model_coupler => pmc_geomech
+  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  pmc_geomech%pm_list => pm_geomech
+  pmc_geomech%pm_ptr%pm => pm_geomech
+  pmc_geomech%geomech_realization => geomech_realization
+  pm_geomech%geomech_realization => geomech_realization
+  pmc_geomech%subsurf_realization => simulation%realization
+  pm_geomech%subsurf_realization => simulation%realization
+
+  ! add time integrator
+  timestepper => TimestepperSteadyCreate()
+  pmc_geomech%timestepper => timestepper
+
+  ! add solver
+  call pm_geomech%InitializeSolver()
+  timestepper%solver => pm_geomech%solver
+
+  ! set up logging stage
+  string = trim(pmc_geomech%name) // 'Geomechanics'
+  call LoggingCreateStage(string,pmc_geomech%stage)
+
+  string = 'GEOMECHANICS'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  geomech_realization%output_option => &
+    OutputOptionDuplicate(simulation%output_option)
+  nullify(geomech_realization%output_option%output_snap_variable_list)
+  nullify(geomech_realization%output_option%output_obs_variable_list)
+  geomech_realization%output_option%output_snap_variable_list => &
+    OutputVariableListCreate()
+  geomech_realization%output_option%output_obs_variable_list => &
+    OutputVariableListCreate()
+  call InitSubsurfGeomechReadInput(simulation%geomech, &
+                                   timestepper%solver, &
+                                   input,option, &
+                                   geomech_realization%output_option)
+  pm_geomech%output_option => geomech_realization%output_option
+
+  ! Hijack subsurface waypoint to geomechanics waypoint
+  ! Subsurface controls the output now
+  ! Always have snapshot on at t=0
+  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+
+  ! link geomech and flow timestepper waypoints to geomech way point list
+  if (associated(pmc_geomech)) then
+    call pmc_geomech%SetWaypointPtr(pmc_geomech%waypoint_list)
+    if (associated(simulation%flow_process_model_coupler)) then
+      call simulation%flow_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+    endif
+  endif
+
+  ! print the waypoints when debug flag is on
+  if (geomech_realization%geomech_debug%print_waypoints) then
+    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+                           geomech_realization%output_option)
+  endif
+
+end subroutine InitSubsurfGeomechSetupPMC
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechReadSimBlock(input,pm)
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/25/21
+  !
+  ! jaa moved from factory_geomechanics.F90
+  !
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PM_Base_class
+  use PM_ERT_class
+
+  implicit none
+
+  type(input_type), pointer :: input
+  class(pm_base_type), pointer :: pm
+
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  option => pm%option
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_GEOMECHANICS'
+
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('OPTIONS')
+        call pm%ReadSimulationOptionsBlock(input)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine InitSubsurfGeomechReadSimBlock
 
 ! ************************************************************************** !
 

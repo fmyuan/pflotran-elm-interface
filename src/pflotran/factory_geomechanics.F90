@@ -11,8 +11,7 @@ module Factory_Geomechanics_module
 
   private
 
-  public :: FactoryGeomechanicsInitialize, &
-            FactoryGeomechReadSimBlock
+  public :: FactoryGeomechanicsInitialize
 
 contains
 
@@ -22,27 +21,10 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   !
   ! This routine
   !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 01/01/14
-  !
-
-  implicit none
-
-  class(simulation_geomechanics_type) :: simulation
-
-  ! NOTE: PETSc must already have been initialized here!
-  call GeomechanicsInitializePostPETSc(simulation)
-
-end subroutine FactoryGeomechanicsInitialize
-
-! ************************************************************************** !
-
-subroutine GeomechanicsInitializePostPETSc(simulation)
-  !
-  ! This routine
-  !
   ! Author: Gautam Bisht, LBNL and Satish Karra, LANL
   ! Date: 01/01/14, 02/10/15
+  !
+  ! jaa modified 2/5/25
   !
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -113,74 +95,14 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   call FactorySubsurfaceInitPostPetsc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-  subsurf_realization => simulation%realization
-  subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-
-  geomech_realization => GeomechRealizCreate(option)
-  simulation%geomech%realization => geomech_realization
+  ! jaa testing
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
+  call InitSubsurfGeomechSetupPMC(simulation,pm_geomech,'PMCGeomech',input)
 
-  pmc_geomech => PMCGeomechanicsCreate()
-  simulation%geomech%process_model_coupler => pmc_geomech
-  pmc_geomech%name = 'PMCGeomech'
-  pmc_geomech%option => option
-  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
-  pmc_geomech%pm_list => pm_geomech
-  pmc_geomech%pm_ptr%pm => pm_geomech
-  pmc_geomech%geomech_realization => geomech_realization
-  pmc_geomech%subsurf_realization => simulation%realization
-  pm_geomech%subsurf_realization => simulation%realization
-
-  ! add time integrator
-  timestepper => TimestepperSteadyCreate()
-  pmc_geomech%timestepper => timestepper
-
-  ! add solver
-  call pm_geomech%InitializeSolver()
-  timestepper%solver => pm_geomech%solver
-
-  ! set up logging stage
-  string = trim(pmc_geomech%name) // 'Geomechanics'
-  call LoggingCreateStage(string,pmc_geomech%stage)
-
-  string = 'GEOMECHANICS'
-  call InputFindStringInFile(input,option,string)
-  call InputFindStringErrorMsg(input,option,string)
-  geomech_realization%output_option => &
-    OutputOptionDuplicate(simulation%output_option)
-  nullify(geomech_realization%output_option%output_snap_variable_list)
-  nullify(geomech_realization%output_option%output_obs_variable_list)
-  geomech_realization%output_option%output_snap_variable_list => &
-    OutputVariableListCreate()
-  geomech_realization%output_option%output_obs_variable_list => &
-    OutputVariableListCreate()
-  call InitSubsurfGeomechReadInput(simulation%geomech, &
-                                 timestepper%solver, &
-                                 input,option, &
-                                 geomech_realization%output_option)
-  pm_geomech%output_option => geomech_realization%output_option
-
-  ! Hijack subsurface waypoint to geomechanics waypoint
-  ! Subsurface controls the output now
-  ! Always have snapshot on at t=0
-  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
-
-  ! link geomech and flow timestepper waypoints to geomech way point list
-  if (associated(simulation%geomech%process_model_coupler)) then
-    call simulation%geomech%process_model_coupler% &
-           SetWaypointPtr(pmc_geomech%waypoint_list)
-    if (associated(simulation%flow_process_model_coupler)) then
-      call simulation%flow_process_model_coupler% &
-             SetWaypointPtr(pmc_geomech%waypoint_list)
-    endif
-  endif
-
-  ! print the waypoints when debug flag is on
-  if (geomech_realization%geomech_debug%print_waypoints) then
-    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
-                           geomech_realization%output_option)
-  endif
+  subsurf_realization => simulation%realization
+  geomech_realization => simulation%geomech%realization
+  pmc_geomech => simulation%geomech%process_model_coupler
+  timestepper => TimestepperSteadyCast(pmc_geomech%timestepper)
 
   ! initialize geomech realization
   call InitSubsurfGeomechSetupRealization(subsurf_realization, &
@@ -267,51 +189,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   call InitSubsurfGeomechJumpStart(simulation%geomech)
   call InputDestroy(input)
 
-end subroutine GeomechanicsInitializePostPETSc
-
-! ************************************************************************** !
-
-subroutine FactoryGeomechReadSimBlock(input,pm)
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 01/25/21
-  !
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  use PM_Base_class
-  use PM_ERT_class
-
-  implicit none
-
-  type(input_type), pointer :: input
-  class(pm_base_type), pointer :: pm
-
-  type(option_type), pointer :: option
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  option => pm%option
-
-  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_GEOMECHANICS'
-
-  call InputPushBlock(input,option)
-  do
-    call InputReadPflotranString(input,option)
-    if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word,PETSC_FALSE)
-    call StringToUpper(word)
-    select case(word)
-      case('OPTIONS')
-        call pm%ReadSimulationOptionsBlock(input)
-      case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
-    end select
-  enddo
-  call InputPopBlock(input,option)
-
-end subroutine FactoryGeomechReadSimBlock
+end subroutine FactoryGeomechanicsInitialize
 
 ! ************************************************************************** !
 
