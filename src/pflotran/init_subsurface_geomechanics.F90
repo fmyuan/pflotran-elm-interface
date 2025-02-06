@@ -968,7 +968,6 @@ subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
 
   ! jaa moved from factory_geomechanics.F90
 
-  use PMC_Third_Party_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
