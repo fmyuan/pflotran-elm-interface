@@ -39,6 +39,8 @@ module PM_ERT_class
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
     PetscReal :: max_tracer_concentration
+    ! For Brace's empirical model drho = slope * dstress
+    PetscReal :: brace_stress_resistivity_slope
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
     character(len=MAXSTRINGLENGTH) :: survey_time_units
@@ -131,6 +133,8 @@ subroutine PMERTInit(pm_ert)
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_concentration = UNINITIALIZED_DOUBLE
+  ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
+  pm_ert%brace_stress_resistivity_slope = 21054.d0
 
   pm_ert%analytical_potential = PETSC_TRUE
   pm_ert%coupled_ert_flow_jacobian = PETSC_FALSE
@@ -270,6 +274,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         output_all_surveys = PETSC_TRUE
       case('MAX_TRACER_CONCENTRATION')
         call InputReadDouble(input,option,this%max_tracer_concentration)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('BRACE_STRESS_RESISTIVITY_SLOPE')
+        call InputReadDouble(input,option,this%brace_stress_resistivity_slope)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CALC_MAX_TRACER_CONCENTRATION')
         this%calc_max_tracer_concentration = PETSC_TRUE
@@ -1011,7 +1018,7 @@ subroutine PMERTPreSolve(this)
               Global%auxvars(ghosted_id)%parameters(parameter_index)
       drho_geomech = 0.d0
       ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
-      drho_geomech = 21054.d0 * dstress * 1.0d-8
+      drho_geomech = pm_ert%brace_stress_resistivity_slope * dstress * 1.0d-8
       if (cond_s /= 0.d0) then
         rho_geomech = 1.d0/cond_s + drho_geomech
         cond_geomech = 1.d0/rho_geomech
