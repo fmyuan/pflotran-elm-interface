@@ -1,5 +1,5 @@
 -- CONCENTRATION: Free Aaq --
-        1:   5.8803523658555E-07
+        1:   5.8803523658627E-07
 -- CONCENTRATION: Free Baq --
         1:   2.5014700880716E-04
 -- CONCENTRATION: Free Caq --
@@ -11,10 +11,10 @@
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   4.4653146997007E-02
+   Time (seconds):   5.1228508998975E-02
    Time Steps:          169
    Newton Iterations:          520
    Linear Solver Iterations:          520
    Time Step Cuts:            0
    Solution 2-Norm:   1.0877900797473E-03
-   Residual 2-Norm:   1.4323809912150E-19
+   Residual 2-Norm:   7.0114060823041E-20
