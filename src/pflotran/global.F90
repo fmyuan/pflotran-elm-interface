@@ -129,6 +129,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
                                LIQUID_DENSITY, &
                                GAS_DENSITY, GAS_SATURATION, &
@@ -150,6 +151,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   PetscInt :: iphase
   PetscInt :: num_aux
   PetscInt :: num_aux_bc
+  PetscReal :: kmol_to_kg
 
   patch => realization%patch
   option => realization%option
@@ -184,12 +186,17 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
         auxvars_bc(i)%den_kg(iphase) = value
       enddo
     case(LIQUID_DENSITY_MOL)
+      kmol_to_kg = FMWH2O
+      select case(option%iflowmode)
+        case(RICHARDS_MODE,RICHARDS_TS_MODE)
+          kmol_to_kg = richards_density_kmol_to_kg
+      end select
       iphase = option%liquid_phase
       do i=1, num_aux
-        auxvars(i)%den(iphase) = value/FMWH2O
+        auxvars(i)%den(iphase) = value/kmol_to_kg
       enddo
       do i=1, num_aux_bc
-        auxvars_bc(i)%den(iphase) = value/FMWH2O
+        auxvars_bc(i)%den(iphase) = value/kmol_to_kg
       enddo
     case(LIQUID_SATURATION)
       iphase = option%liquid_phase
@@ -246,6 +253,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
   use Patch_module
   use Grid_module
   use Option_module
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
                                LIQUID_DENSITY, GAS_PRESSURE, &
                                GAS_DENSITY, GAS_SATURATION, &
@@ -267,6 +275,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
   PetscInt :: ghosted_id
   PetscInt :: iphase
   PetscReal, pointer :: vec_loc_p(:)
+  PetscReal :: kmol_to_kg
   PetscErrorCode :: ierr
 
   patch => realization%patch
@@ -343,6 +352,11 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
               vec_loc_p(ghosted_id)
           enddo
         case default
+          kmol_to_kg = FMWH2O
+          select case(option%iflowmode)
+            case(RICHARDS_MODE,RICHARDS_TS_MODE)
+              kmol_to_kg = richards_density_kmol_to_kg
+          end select
           do ghosted_id=1, grid%ngmax
             auxvars(ghosted_id)%den_kg(iphase) = vec_loc_p(ghosted_id)
             auxvars(ghosted_id)%den(iphase) = vec_loc_p(ghosted_id)/FMWH2O

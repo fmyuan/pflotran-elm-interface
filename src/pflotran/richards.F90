@@ -560,7 +560,8 @@ subroutine RichardsUpdateMassBalancePatch(realization)
   do iconn = 1, patch%aux%Richards%num_aux
     patch%aux%Global%auxvars(iconn)%mass_balance = &
       patch%aux%Global%auxvars(iconn)%mass_balance + &
-      patch%aux%Global%auxvars(iconn)%mass_balance_delta*FMWH2O* &
+      patch%aux%Global%auxvars(iconn)%mass_balance_delta* &
+      richards_density_kmol_to_kg* &
       option%flow_dt
   enddo
 #endif
@@ -571,7 +572,8 @@ subroutine RichardsUpdateMassBalancePatch(realization)
     do iconn = 1, patch%aux%Richards%num_aux_bc
       global_auxvars_bc(iconn)%mass_balance = &
         global_auxvars_bc(iconn)%mass_balance + &
-        global_auxvars_bc(iconn)%mass_balance_delta*FMWH2O*option%flow_dt
+        global_auxvars_bc(iconn)%mass_balance_delta* &
+        richards_density_kmol_to_kg*option%flow_dt
     enddo
   endif
 
@@ -579,7 +581,8 @@ subroutine RichardsUpdateMassBalancePatch(realization)
     do iconn = 1, patch%aux%Richards%num_aux_ss
       global_auxvars_ss(iconn)%mass_balance = &
         global_auxvars_ss(iconn)%mass_balance + &
-        global_auxvars_ss(iconn)%mass_balance_delta*FMWH2O*option%flow_dt
+        global_auxvars_ss(iconn)%mass_balance_delta* &
+        richards_density_kmol_to_kg*option%flow_dt
     enddo
   endif
 
@@ -877,7 +880,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
               Pl = (Pl + &
                 patch%aux%InlineSurface%auxvars_bc(iconn)%half_cell_height)* &
                 patch%aux%InlineSurface%auxvars_bc(iconn)%density* &
-                FMWH2O*ABS(option%gravity(3)) &
+                richards_density_kmol_to_kg*abs(option%gravity(3)) &
                 + option%flow%reference_pressure
               global_auxvars_bc(sum_connection)%pres(1) = Pl
             endif
@@ -1853,9 +1856,9 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
 
       select case(source_sink%flow_condition%itype(1))
         case(MASS_RATE_SS)
-          qsrc_mol = qsrc/FMWH2O ! kg/sec -> kmol/sec
+          qsrc_mol = qsrc/richards_density_kmol_to_kg ! kg/sec -> kmol/sec
         case(SCALED_MASS_RATE_SS)
-          qsrc_mol = qsrc/FMWH2O* & ! kg/sec -> kmol/sec
+          qsrc_mol = qsrc/richards_density_kmol_to_kg* & ! kg/sec -> kmol/sec
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
           ! qsrc1 = m^3/sec
@@ -1871,7 +1874,8 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
                      global_auxvars(ghosted_id)%den(1)    ! den  = kmol/m^3
         case(HET_MASS_RATE_SS)
                                                            ! kg/sec -> kmol/sec
-          qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/ &
+                     richards_density_kmol_to_kg
 
         case(PRES_REG_MASS_RATE_SS)
           threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
@@ -1892,7 +1896,8 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
           if (inhibit_flow_above_pressure) then
             smoothstep_scale = 1.d0-smoothstep_scale
           endif
-          qsrc_mol = qsrc/FMWH2O*volume_scale*smoothstep_scale
+          qsrc_mol = qsrc/richards_density_kmol_to_kg* &
+                     volume_scale*smoothstep_scale
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down
@@ -2869,13 +2874,16 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
       select case(source_sink%flow_condition%itype(1))
         case(MASS_RATE_SS,SCALED_MASS_RATE_SS,HET_MASS_RATE_SS)
         case(VOLUMETRIC_RATE_SS)  ! assume local density for now
-          Jup(1,1) = -qsrc*rich_auxvars(ghosted_id)%dden_dp*FMWH2O
+          Jup(1,1) = -qsrc*rich_auxvars(ghosted_id)%dden_dp* &
+                     richards_density_kmol_to_kg
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
-          Jup(1,1) = -qsrc*rich_auxvars(ghosted_id)%dden_dp*FMWH2O* &
-            source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+          Jup(1,1) = -qsrc*rich_auxvars(ghosted_id)%dden_dp* &
+                     richards_density_kmol_to_kg* &
+                     source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_VOL_RATE_SS)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
-                    rich_auxvars(ghosted_id)%dden_dp*FMWH2O
+                     rich_auxvars(ghosted_id)%dden_dp* &
+                     richards_density_kmol_to_kg
         case(PRES_REG_MASS_RATE_SS)
           threshold_pressure = source_sink%flow_condition%rate%aux_real(1)
           inhibit_flow_above_pressure = (threshold_pressure > 0.d0)
@@ -2896,7 +2904,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
             smoothstep_scale = 1.d0-smoothstep_scale
             derivative = -1.d0 * derivative
           endif
-          Jup(1,1) = -qsrc/FMWH2O*volume_scale*derivative
+          Jup(1,1) = -qsrc/richards_density_kmol_to_kg*volume_scale*derivative
         case(WELL_SS) ! production well, SK 12/19/13
           ! if node pessure is lower than the given extraction pressure,
           ! shut it down

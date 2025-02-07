@@ -54,7 +54,6 @@ contains
     ! Author: Nathan Collier
     ! Date: 09/2015
     !
-    use PFLOTRAN_Constants_module, only : FMWH2O
     implicit none
     type(inlinesurface_auxvar_type) :: auxvar
     type(material_auxvar_type)      :: material_auxvar
@@ -64,7 +63,8 @@ contains
     J(1,1) = 0.0d0
     if ( auxvar%surface_water_depth > 0.d0 ) then
       area   = 0.5d0 * material_auxvar%volume / auxvar%half_cell_height
-      J(1,1) = area / ( option%flow_dt * FMWH2O * ABS(option%gravity(3)) )
+      J(1,1) = area / ( option%flow_dt * richards_density_kmol_to_kg * &
+      ABS(option%gravity(3)) )
     endif
 
   end subroutine InlineSurfaceAccumulationJac
@@ -169,7 +169,6 @@ contains
     ! Date: 09/2015
     !
     use Option_module
-    use PFLOTRAN_Constants_module, only : FMWH2O
     implicit none
     type(inlinesurface_auxvar_type) :: auxvar_up,auxvar_dn
     type(option_type)               :: option
@@ -184,7 +183,7 @@ contains
     dz       = 0.5d0*(auxvar_up%half_cell_height+auxvar_dn%half_cell_height)
     Cf       = 0.5d0*(auxvar_up%Mannings_coeff  +auxvar_dn%Mannings_coeff)
     const    = 1.0d0/(SQRT(slope)*dist(0)*Cf)/ABS(option%gravity(3))/ &
-         FMWH2O*area/(2.0d0*dz)
+               richards_density_kmol_to_kg*area/(2.0d0*dz)
     Jup(1,1) = 0.0d0
     Jdn(1,1) = 0.0d0
     if (dphi > 0) then
