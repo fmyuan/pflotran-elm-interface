@@ -1018,7 +1018,7 @@ subroutine PMERTPreSolve(this)
               Global%auxvars(ghosted_id)%parameters(parameter_index)
       drho_geomech = 0.d0
       ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
-      drho_geomech = pm_ert%brace_stress_resistivity_slope * dstress * 1.0d-8
+      drho_geomech = this%brace_stress_resistivity_slope * dstress * 1.0d-8
       if (cond_s /= 0.d0) then
         rho_geomech = 1.d0/cond_s + drho_geomech
         cond_geomech = 1.d0/rho_geomech
