@@ -400,9 +400,9 @@ function ReactionAuxCreateAux()
   reaction%print_total_mass_kg = PETSC_FALSE
 
   reaction%initialize_with_molality = PETSC_FALSE
-  reaction%print_free_conc_type = 0
-  reaction%print_tot_conc_type = 0
-  reaction%print_secondary_conc_type = 0
+  reaction%print_free_conc_type = UNINITIALIZED_INTEGER
+  reaction%print_tot_conc_type = UNINITIALIZED_INTEGER
+  reaction%print_secondary_conc_type = UNINITIALIZED_INTEGER
 
   reaction%logging_verbosity = 0
   reaction%maximum_reaction_cuts = 10
