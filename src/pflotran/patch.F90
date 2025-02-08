@@ -123,6 +123,7 @@ module Patch_module
             PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign, &
             PatchUpdateCouplerSaturation, &
+            PatchUpdateCouplerGridDataset, &
             PatchSetupUpwindDirection, &
             PatchCreateZeroArray
 
@@ -4464,6 +4465,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
                                     1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
+      case(PONDED_WATER_BC)
+        ! do nothing here
     end select
   endif
 

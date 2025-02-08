@@ -1223,7 +1223,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
-            case('LIQUID_PRESSURE')
+            case('LIQUID_PRESSURE','LIQUID_HEAD')
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
@@ -1324,6 +1324,8 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = DIRICHLET_SEEPAGE_BC
             case('DIRICHLET_CONDUCTANCE')
               sub_condition_ptr%itype = DIRICHLET_CONDUCTANCE_BC
+            case('PONDED_WATER')
+              sub_condition_ptr%itype = PONDED_WATER_BC
             case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_unit_string = 'm^3/sec'
@@ -1393,6 +1395,9 @@ subroutine FlowConditionRead(condition,input,option)
             case('LIQUID_PRESSURE')
               sub_condition_ptr => pressure
               internal_units = 'Pa/meter'
+            case('LIQUID_HEAD')
+              sub_condition_ptr => pressure
+              internal_units = 'meter'
             case('RATE')
               sub_condition_ptr => rate
               internal_units = 'kg/sec-meter'
@@ -1447,6 +1452,11 @@ subroutine FlowConditionRead(condition,input,option)
                                  enthalpy%units,internal_units)
       case('LIQUID_PRESSURE')
         internal_units = 'Pa'
+        call ConditionReadValues(input,option,word, &
+                                 pressure%dataset, &
+                                 pressure%units,internal_units)
+      case('LIQUID_HEAD')
+        internal_units = 'm'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
                                  pressure%units,internal_units)
@@ -1586,6 +1596,15 @@ subroutine FlowConditionRead(condition,input,option)
           option%io_buffer = 'DIRICHLET_SEEPAGE_BC and &
             &DIRICHLET_CONDUCTANCE_BC only supported for RICHARDS, TH &
             &and ZFLOW.'
+          call PrintErrMsg(option)
+        endif
+    end select
+    select case(option%iflowmode)
+      case(ZFLOW_MODE)
+      case default
+        if (pressure%itype == PONDED_WATER_BC) then
+          option%io_buffer = 'PONDED_WATER flow condition only &
+            &supported for ZFLOW.'
           call PrintErrMsg(option)
         endif
     end select

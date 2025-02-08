@@ -459,6 +459,7 @@ factory_forward.o : \
   pm_base.o \
   pm_geomechanics_force.o \
   pm_parameter.o \
+  pm_ponded_water.o \
   pm_unittest.o \
   pm_unittest_wipp.o \
   pmc_base.o \
@@ -553,6 +554,7 @@ factory_subsurface.o : \
   pm_mphase.o \
   pm_parameter.o \
   pm_pnf.o \
+  pm_ponded_water.o \
   pm_richards.o \
   pm_richards_ts.o \
   pm_rt.o \
@@ -606,6 +608,7 @@ factory_subsurface_linkage.o : \
   pm_nwt.o \
   pm_parameter.o \
   pm_pnf.o \
+  pm_ponded_water.o \
   pm_richards_ts.o \
   pm_rt.o \
   pm_sco2.o \
@@ -2246,6 +2249,21 @@ pm_pnf.o : \
   string.o \
   utility.o \
   variables.o
+pm_ponded_water.o : \
+  connection.o \
+  coupler.o \
+  dataset.o \
+  dataset_ascii.o \
+  dataset_common_hdf5.o \
+  dataset_gridded_hdf5.o \
+  input_aux.o \
+  option.o \
+  patch.o \
+  pflotran_constants.o \
+  pm_base.o \
+  realization_subsurface.o \
+  string.o \
+  zflow_aux.o
 pm_richards.o : \
   characteristic_curves.o \
   convergence.o \
@@ -2464,21 +2482,26 @@ pm_ufd_decay.o : \
   utility.o
 pm_unittest.o : \
   communicator_base.o \
-  input_aux.o \
   option.o \
   pflotran_constants.o \
   pm_base.o \
   realization_subsurface.o \
   string.o
 pm_unittest_wipp.o : \
+  characteristic_curves.o \
   communicator_base.o \
+  eos_gas.o \
+  eos_water.o \
   input_aux.o \
+  material.o \
+  material_aux.o \
   option.o \
   pflotran_constants.o \
   pm_base.o \
   pm_unittest.o \
   realization_subsurface.o \
-  string.o
+  string.o \
+  wipp.o
 pm_waste_form.o : \
   checkpoint.o \
   condition.o \
@@ -2657,6 +2680,8 @@ pmc_general.o : \
   pm_base.o \
   pm_inversion.o \
   pm_parameter.o \
+  pm_ponded_water.o \
+  pm_unittest.o \
   pmc_base.o \
   timestepper_base.o
 pmc_geomechanics.o : \
@@ -3530,6 +3555,7 @@ secondary_continuum.o : \
   reaction.o \
   reaction_aux.o \
   reaction_gas.o \
+  reaction_mineral.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
   secondary_continuum_aux.o \
@@ -3982,6 +4008,7 @@ well_grid.o : \
 wipp.o : \
   characteristic_curves_base.o \
   characteristic_curves_wipp.o \
+  communicator_aux.o \
   input_aux.o \
   lookup_table.o \
   material_aux.o \

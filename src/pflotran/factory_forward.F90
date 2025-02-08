@@ -240,6 +240,7 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
   use PM_Parameter_class
+  use PM_Ponded_Water_class
   use PM_Unit_Test_class
   use PM_Unit_Test_WIPP_class
 
@@ -342,6 +343,9 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
       case('PARAMETER')
         new_pm => PMParameterCreate()
         call PMParameterRead(input,option,PMParameterCast(new_pm))
+      case('PONDED_WATER')
+        new_pm => PMPondedWaterCreate()
+        call PMPondedWaterRead(input,option,PMPondedWaterCast(new_pm))
       case('UNIT_TEST')
         select case(trim(pm_name))
           case('WIPP')
