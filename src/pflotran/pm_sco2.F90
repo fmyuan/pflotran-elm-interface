@@ -1277,6 +1277,15 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
 
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+              SCO2_REFERENCE_PRESSURE) dX_p(gas_pressure_index) = &
+              SCO2_REFERENCE_PRESSURE - X_p(gas_pressure_index)
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+             (X_p(liq_pressure_index) + dX_p(liq_pressure_index))) &
+              dX_p(gas_pressure_index) = &
+             (X_p(liq_pressure_index) + dX_p(liq_pressure_index)) - &
+              X_p(gas_pressure_index)
+
       end select
 
       if (sco2_thermal) then
