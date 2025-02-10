@@ -1648,6 +1648,28 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+    ! check for infinite complex concentrations
+    if (reaction%neqcplx > 0) then
+      tempreal = maxval(rt_auxvar%sec_molal)
+      if (tempreal > 1.d200) then
+        option%io_buffer = 'ERROR: Infinite concentrations found in &
+          &constraint "' // trim(constraint%name) // '".'
+        call PrintMsgByRank(option)
+        ! now figure out which species have zero concentrations
+        do idof = 1, reaction%neqcplx
+          if (rt_auxvar%sec_molal(idof) > 1.d200) then
+          option%io_buffer = '  Species "' // &
+              trim(reaction%secondary_species_names(idof)) // &
+              '" has an infinite (or near infinite) concentration (' // &
+              StringWrite(rt_auxvar%sec_molal(idof)) // ').'
+            call PrintMsgByRank(option)
+          endif
+        enddo
+        option%io_buffer = 'Secondary aqueous concentrations RESULTING from &
+          &constraint concentrations must be reasonable.'
+        call PrintErrMsgByRank(option)
+      endif
+    endif
 
     ! geh - for debugging
     !call RTPrintAuxVar(rt_auxvar,reaction,option)
@@ -1935,11 +1957,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
         if (rt_auxvar%pri_molal(idof) <= 0.d0) then
-          write(string,*) rt_auxvar%pri_molal(idof)
           option%io_buffer = '  Species "' // &
             trim(reaction%primary_species_names(idof)) // &
             '" has zero concentration (' // &
-            trim(adjustl(string)) // ').'
+            StringWrite(rt_auxvar%pri_molal(idof)) // ').'
           call PrintMsgByRank(option)
         endif
       enddo
