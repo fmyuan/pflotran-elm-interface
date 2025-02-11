@@ -724,7 +724,14 @@ end subroutine InitMatPropToGeomechRegions
 ! ************************************************************************** !
 
 subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
-
+  !
+  ! This routine initializes geomechanics process
+  ! model components for factory subsurface
+  ! after linkages have been established
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
   use Simulation_Subsurface_class
   use Init_Common_module
   use Option_module
@@ -861,7 +868,12 @@ end subroutine InitSubsurfGeomechInitSimulation
 ! ************************************************************************** !
 
 subroutine InitSubsurfGeomechSetGeomechMode(pm_geomech,option)
-
+  !
+  ! sets geomech options
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
   use Option_module
   use PM_Geomechanics_Force_class
 
@@ -891,11 +903,12 @@ end subroutine InitSubsurfGeomechSetGeomechMode
 
 subroutine InitSubsurfGeomechChkInactiveCells(geomech_realization, &
                                              subsurf_realization)
-
-  ! jaa: the kludge way of checking geomech nodes are mapped to active
-  ! flow cells. Without this check two_way_coupling in geomech
-  ! tries to assign poro/perm of inactive flow cells
-
+  !
+  ! checks if geomech nodes are mapped to inactive flow cells
+  !
+  ! Author: Glenn, Jumanah
+  ! Date: 2/10/25
+  !
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module

@@ -12,8 +12,8 @@ module Option_Geomechanics_module
 
   type, public :: geomechanics_option_type
 
-    PetscBool :: geomech_initial ! initial_solve
-    PetscReal :: geomech_time
+    PetscBool :: initial_flag
+    PetscReal :: time
     PetscInt :: subsurf_coupling
     PetscReal :: gravity(3)
     PetscInt :: split_scheme
@@ -21,8 +21,6 @@ module Option_Geomechanics_module
   end type geomechanics_option_type
 
   public :: OptionGeomechanicsCreate, &
-            OptionGeomechanicsInitAll, &
-            OptionGeomechanicsInitRealization, &
             OptionGeomechanicsDestroy
 
 contains
@@ -94,8 +92,8 @@ subroutine OptionGeomechanicsInitRealization(option)
   ! These variables should be initialized once at the beginning of every
   ! PFLOTRAN realization or simulation of a single realization
 
-  option%geomech_initial = PETSC_FALSE
-  option%geomech_time = 0.d0
+  option%initial_flag = PETSC_FALSE
+  option%time = 0.d0
   option%subsurf_coupling = 0
   option%split_scheme = 0
   option%gravity(:) = 0.d0
@@ -123,5 +121,7 @@ subroutine OptionGeomechanicsDestroy(option)
   nullify(option)
 
 end subroutine OptionGeomechanicsDestroy
+
+! ************************************************************************** !
 
 end module Option_Geomechanics_module

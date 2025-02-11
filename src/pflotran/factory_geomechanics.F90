@@ -25,6 +25,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   ! Date: 01/01/14, 02/10/15
   !
   ! jaa modified 2/5/25
+  ! this routine used to be called GeomechanicsInitializePostPETSc
   !
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -94,7 +95,6 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   call FactorySubsurfaceInitPostPetsc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-  ! jaa testing
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call InitSubsurfGeomechSetupPMC(simulation,pm_geomech,'PMCGeomech',input)
 

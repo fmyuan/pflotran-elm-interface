@@ -250,7 +250,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   ! Check if it is initial solve
   if (this%timestepper%steps == 1) then
-    this%option%geomechanics%geomech_initial = PETSC_TRUE
+    this%option%geomechanics%initial_flag = PETSC_TRUE
   endif
 
   ! Have to loop over all process models coupled in this object and update

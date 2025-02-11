@@ -360,9 +360,9 @@ subroutine PMGeomechForceUpdateSolution(this)
   call GeomechUpdateSolution(this%geomech_realization)
   call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &
                                             force_update_flag)
-  if (this%option%geomechanics%geomech_initial) then
+  if (this%option%geomechanics%initial_flag) then
     call GeomechStoreInitialDisp(this%geomech_realization)
-    this%option%geomechanics%geomech_initial = PETSC_FALSE
+    this%option%geomechanics%initial_flag = PETSC_FALSE
   endif
   call GeomechForceUpdateAuxVars(this%geomech_realization)
 
