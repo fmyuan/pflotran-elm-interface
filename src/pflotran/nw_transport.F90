@@ -639,6 +639,7 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   use Logging_module
   use Debug_module
   use WIPP_Flow_Aux_module
+  use WIPP_Well_class
   use PM_Well_class
 
   implicit none

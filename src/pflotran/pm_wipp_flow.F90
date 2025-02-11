@@ -6,6 +6,7 @@ module PM_WIPP_Flow_class
   use PM_Subsurface_Flow_class
   use PM_WIPP_SrcSink_class
   use PM_Well_class
+  use WIPP_Well_class
 
   use PFLOTRAN_Constants_module
 

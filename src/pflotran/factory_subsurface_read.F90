@@ -512,6 +512,7 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
 
   use PM_Base_class
   use PM_Well_class
+  use WIPP_Well_class
 
   implicit none
 
@@ -953,6 +954,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Time_Storage_module
   use TH_Aux_module
   use Survey_module
+  use WIPP_Well_class
 
   implicit none
 

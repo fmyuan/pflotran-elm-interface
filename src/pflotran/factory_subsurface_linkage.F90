@@ -948,6 +948,7 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
   use PMC_Base_class
   use PMC_Third_Party_class
   use PM_Well_class
+  use WIPP_Well_class
   use Realization_Subsurface_class
   use String_module
   use Option_module
