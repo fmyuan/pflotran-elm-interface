@@ -765,18 +765,25 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
   !== Well Model ==============================================
   if (associated(pmwell_ptr)) then
     if (pmwell_ptr%well_on) then
-      if (pmwell_ptr%tran_soln%tran_time <= option%time) then
-        ! loads the source_sink object with well model transport sol'n
-        ! this should only be done during the first petsc residual call,
-        ! not both, which is the reason for the check against option%time
-        call PMWellQISolveTran(pmwell_ptr)
-        call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
-        call MPI_Bcast(pmwell_ptr%tran_soln%tran_time,ONE_INTEGER_MPI, &
-                       MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
-        call MPI_Bcast(pmwell_ptr%tran_soln%cut_ts_flag,ONE_INTEGER_MPI, &
-                       MPI_LOGICAL,0,option%mycomm,ierr);CHKERRQ(ierr)
-        if (pmwell_ptr%tran_soln%cut_ts_flag) return
-      endif
+      select type(pm_well => pmwell_ptr)
+        class is (pm_well_qi_type)
+          if (pm_well%tran_soln%tran_time <= option%time) then
+            ! loads the source_sink object with well model transport sol'n
+            ! this should only be done during the first petsc residual call,
+            ! not both, which is the reason for the check against option%time
+            call PMWellQISolveTran(pm_well)
+            call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
+            call MPI_Bcast(pm_well%tran_soln%tran_time,ONE_INTEGER_MPI, &
+                          MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
+            call MPI_Bcast(pm_well%tran_soln%cut_ts_flag,ONE_INTEGER_MPI, &
+                          MPI_LOGICAL,0,option%mycomm,ierr);CHKERRQ(ierr)
+            if (pm_well%tran_soln%cut_ts_flag) return
+          endif
+        class default
+          option%io_buffer = 'NW Transport can only be used with a quasi implicit &
+                              & well model.'
+          call PrintErrMsg(option)
+      end select
     endif
   endif
 #endif

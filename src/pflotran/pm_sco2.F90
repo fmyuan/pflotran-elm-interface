@@ -727,7 +727,6 @@ subroutine PMSCO2InitializeTimestep(this)
       if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
         call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
                                      UNINITIALIZED_INTEGER,this%option%ierror)
-        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
       endif
       call PMWellUpdateReservoirSrcSinkFlow(pm_well)
       pm_well => pm_well%next_well

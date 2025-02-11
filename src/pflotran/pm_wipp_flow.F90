@@ -1074,13 +1074,25 @@ subroutine PMWIPPFloInitializeTimestep(this)
   !MAN: not sure if this is needed
   if (associated(this%pmwell_ptr)) then
     if (.not.this%pmwell_ptr%well_on) then
-      if (Initialized(this%pmwell_ptr%intrusion_time_start) .and. &
-          this%realization%option%time >=  &
-          this%pmwell_ptr%intrusion_time_start) then
-        this%pmwell_ptr%well_on = PETSC_TRUE
-      elseif (Uninitialized(this%pmwell_ptr%intrusion_time_start)) then
-        this%pmwell_ptr%well_on = PETSC_TRUE
-      endif
+      select type (pm_well => this%pmwell_ptr)
+        class is (pm_well_wipp_seq_type)
+          if (Initialized(pm_well%intrusion_time_start) .and. &
+              this%realization%option%time >=  &
+              pm_well%intrusion_time_start) then
+                pm_well%well_on = PETSC_TRUE
+          elseif (Uninitialized(pm_well%intrusion_time_start)) then
+            pm_well%well_on = PETSC_TRUE
+          endif
+        class is (pm_well_wipp_qi_type)
+          if (Initialized(pm_well%intrusion_time_start) .and. &
+              this%realization%option%time >=  &
+              pm_well%intrusion_time_start) then
+                pm_well%well_on = PETSC_TRUE
+          elseif (Uninitialized(pm_well%intrusion_time_start)) then
+            pm_well%well_on = PETSC_TRUE
+          endif
+        class default
+      end select
     endif
     ! (jmf 3/13/2023) this call to InitializeTimestep() doesn't seem to be needed
     ! since within InitializeTimestep() there was a line that always
@@ -1111,9 +1123,17 @@ subroutine PMWIPPFloFinalizeTimestep(this)
     call this%pmwss_ptr%FinalizeTimestep()
   endif
   if (associated(this%pmwell_ptr)) then
-    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
-    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
-    this%pmwell_ptr%flow_soln%soln_save%sg = this%pmwell_ptr%well%gas%s
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_wipp_seq_type)
+        pm_well%update_for_wippflo_qi_coupling = PETSC_TRUE
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+        pm_well%flow_soln%soln_save%sg = pm_well%well%gas%s
+      class is (pm_well_wipp_qi_type)
+        pm_well%update_for_wippflo_qi_coupling = PETSC_TRUE
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+        pm_well%flow_soln%soln_save%sg = pm_well%well%gas%s
+      class default
+    end select
   endif
   call PMSubsurfaceFlowFinalizeTimestep(this)
 

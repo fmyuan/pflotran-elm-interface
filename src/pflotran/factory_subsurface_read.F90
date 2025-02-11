@@ -532,6 +532,7 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
+      !MAN: wrap this into PMWellReadType?
       case('TYPE')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
@@ -546,7 +547,7 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
             pm => PMWellWIPPSeqCreate()
             option%flow%well_coupling = WELL_MODEL_WIPP_SEQUENTIAL
         !-----------------------------
-          case('WIPP_QI')
+          case('WIPP_QI','WIPP_QUASI_IMPLICIT')
             pm => PMWellWIPPQICreate()
             option%flow%well_coupling = WELL_MODEL_WIPP_QI
         !-----------------------------
