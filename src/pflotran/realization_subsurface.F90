@@ -1036,17 +1036,37 @@ subroutine RealProcessFlowConditions(realization)
   !
   use Dataset_Base_class
   use Dataset_module
+  use String_module
 
   implicit none
 
   class(realization_subsurface_type) :: realization
 
   type(flow_condition_type), pointer :: cur_flow_condition
+  type(flow_condition_type), pointer :: cur_flow_condition2
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
 
   option => realization%option
+
+  ! check for duplicate flow condition names
+  cur_flow_condition => realization%flow_conditions%first
+  do
+    if (.not.associated(cur_flow_condition)) exit
+    cur_flow_condition2 => cur_flow_condition%next
+    do
+      if (.not.associated(cur_flow_condition2)) exit
+      if (StringCompareIgnoreCase(cur_flow_condition%name, &
+                                  cur_flow_condition2%name)) then
+        option%io_buffer = 'Duplicate FLOW_CONDITIONs named "' // &
+          trim(cur_flow_condition2%name) // '"'
+        call PrintErrMsg(option)
+      endif
+      cur_flow_condition2 => cur_flow_condition2%next
+    enddo
+    cur_flow_condition => cur_flow_condition%next
+  enddo
 
   ! loop over flow conditions looking for linkage to datasets
   cur_flow_condition => realization%flow_conditions%first
@@ -1104,33 +1124,49 @@ subroutine RealProcessTranConditions(realization)
   PetscBool :: found, coupling_needed
   type(option_type), pointer :: option
   type(tran_condition_type), pointer :: cur_condition
+  type(tran_condition_type), pointer :: cur_condition2
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
-  class(tran_constraint_base_type), pointer :: cur_constraint, &
-                                              another_constraint
+  class(tran_constraint_base_type), pointer :: cur_constraint
+  class(tran_constraint_base_type), pointer :: cur_constraint2
 
   option => realization%option
   coupling_needed = PETSC_FALSE
+
+  ! check for duplicate transport condition names
+  cur_condition => realization%transport_conditions%first
+  do
+    if (.not.associated(cur_condition)) exit
+    cur_condition2 => cur_condition%next
+    do
+      if (.not.associated(cur_condition2)) exit
+      if (StringCompareIgnoreCase(cur_condition%name, &
+                                  cur_condition2%name)) then
+        option%io_buffer = 'Duplicate TRANSPORT_CONDITIONs named "' // &
+          trim(cur_condition2%name) // '"'
+        call PrintErrMsg(option)
+      endif
+      cur_condition2 => cur_condition2%next
+    enddo
+    cur_condition => cur_condition%next
+  enddo
 
   ! check for duplicate constraint names
   cur_constraint => realization%transport_constraints%first
   do
     if (.not.associated(cur_constraint)) exit
-      another_constraint => cur_constraint%next
+      cur_constraint2 => cur_constraint%next
       ! now compare names
       found = PETSC_FALSE
       do
-        if (.not.associated(another_constraint)) exit
-        if (StringCompare(cur_constraint%name,another_constraint%name, &
-            MAXWORDLENGTH)) then
-          found = PETSC_TRUE
+        if (.not.associated(cur_constraint2)) exit
+        if (StringCompareIgnoreCase(cur_constraint%name, &
+                                    cur_constraint2%name)) then
+          option%io_buffer = 'Duplicate transport CONSTRAINTs named "' // &
+            trim(cur_constraint%name) // '"'
+          call PrintErrMsg(option)
         endif
-        another_constraint => another_constraint%next
+        cur_constraint2 => cur_constraint2%next
       enddo
-      if (found) then
-        option%io_buffer = 'Duplicate transport constraints named "' // &
-                 trim(cur_constraint%name) // '"'
-        call PrintErrMsg(realization%option)
-      endif
     cur_constraint => cur_constraint%next
   enddo
 
@@ -1141,10 +1177,10 @@ subroutine RealProcessTranConditions(realization)
     select type(constraint=>cur_constraint)
       class is (tran_constraint_rt_type)
         call ReactionProcessConstraint(realization%reaction, &
-                                       constraint,realization%option)
+                                       constraint,option)
       class is (tran_constraint_nwt_type)
         call NWTConstraintProcess(realization%reaction_nw, &
-                                  constraint,realization%option)
+                                  constraint,option)
     end select
     cur_constraint => cur_constraint%next
   enddo
@@ -1176,7 +1212,7 @@ subroutine RealProcessTranConditions(realization)
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
-          call PrintErrMsg(realization%option)
+          call PrintErrMsg(option)
         endif
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
@@ -1202,7 +1238,7 @@ subroutine RealProcessTranConditions(realization)
             option%io_buffer = 'Secondary constraint "' // &
                      trim(cur_constraint_coupler%constraint_name) // &
                      '" not found in input file constraints.'
-            call PrintErrMsg(realization%option)
+            call PrintErrMsg(option)
           endif
         endif
         cur_constraint_coupler => cur_constraint_coupler%next
