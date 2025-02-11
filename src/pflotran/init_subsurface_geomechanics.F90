@@ -891,7 +891,8 @@ subroutine InitSubsurfGeomechSetGeomechMode(pm_geomech,option)
       option%ngeomechdof = 3 ! displacements in x, y, z directions
       option%n_stress_strain_dof = 6
     class default
-      option%io_buffer = ''
+      option%io_buffer = 'Unrecognized geomechanics class in '// &
+                          'InitSubsurfGeomechSetGeomechMode'
       call PrintErrMsg(option)
   end select
 

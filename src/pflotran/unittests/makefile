@@ -23,7 +23,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/characteristic_curves.o \
 	$(EXE_DIR)/characteristic_curves_base.o \
 	$(EXE_DIR)/characteristic_curves_common.o \
-  $(EXE_DIR)/characteristic_curves_loop_invariant.o \
+	$(EXE_DIR)/characteristic_curves_loop_invariant.o \
 	$(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_wipp_invariant.o \
 	$(EXE_DIR)/characteristic_curves_thermal.o \
@@ -46,7 +46,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
 	$(EXE_DIR)/option_geophysics.o \
-        $(EXE_DIR)/option_geomechanics.o \
+	$(EXE_DIR)/option_geomechanics.o \
 	$(EXE_DIR)/option_parameter.o \
 	$(EXE_DIR)/pflotran_constants.o \
 	$(EXE_DIR)/print.o \
