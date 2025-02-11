@@ -915,21 +915,21 @@ subroutine ReactionReadPass1(reaction,input,option)
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
                    reaction%surface_complexation%nkinsrfcplxrxn
 
-  if (reaction%print_free_conc_type == 0) then
+  if (Uninitialized(reaction%print_free_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_free_conc_type = PRIMARY_MOLALITY
     else
       reaction%print_free_conc_type = PRIMARY_MOLARITY
     endif
   endif
-  if (reaction%print_tot_conc_type == 0) then
+  if (Uninitialized(reaction%print_tot_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_tot_conc_type = TOTAL_MOLALITY
     else
       reaction%print_tot_conc_type = TOTAL_MOLARITY
     endif
   endif
-  if (reaction%print_secondary_conc_type == 0) then
+  if (Uninitialized(reaction%print_secondary_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_secondary_conc_type = SECONDARY_MOLALITY
     else
@@ -3070,10 +3070,13 @@ subroutine ReactionReadOutput(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscInt :: conc_type
 
   type(aq_species_type), pointer :: cur_aq_spec
   type(gas_species_type), pointer :: cur_gas_spec
@@ -3088,6 +3091,8 @@ subroutine ReactionReadOutput(reaction,input,option)
   nullify(cur_srfcplx)
   nullify(cur_srfcplx_rxn)
 
+  error_string = 'CHEMISTRY,OUTPUT,'
+
   input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
@@ -3099,9 +3104,9 @@ subroutine ReactionReadOutput(reaction,input,option)
     call InputReadCard(input,option,name)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,OUTPUT,SPECIES_NAME')
 
-    word = name
-    call StringToUpper(word)
-    select case(word)
+    keyword = name
+    call StringToUpper(keyword)
+    select case(keyword)
       case('OFF')
         reaction%print_all_species = PETSC_FALSE
         reaction%print_all_primary_species = PETSC_FALSE
@@ -3129,8 +3134,6 @@ subroutine ReactionReadOutput(reaction,input,option)
       case('PRIMARY_SPECIES')
         reaction%print_all_primary_species = PETSC_TRUE
 !        reaction%print_pH = PETSC_TRUE
-      case('SECONDARY_SPECIES')
-        reaction%print_all_secondary_species = PETSC_TRUE
       case('GASES')
         reaction%gas%print_all = PETSC_TRUE
       case('MINERALS')
@@ -3155,16 +3158,45 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_O2 = PETSC_TRUE
       case('KD')
         reaction%print_kd = PETSC_TRUE
-      case('TOTAL')
-        reaction%print_total_component = PETSC_TRUE
       case('TOTAL_SORBED')
         reaction%print_total_sorb = PETSC_TRUE
       case('TOTAL_BULK')
         reaction%print_total_bulk = PETSC_TRUE
       case('TOTAL_SORBED_MOBILE')
         reaction%print_total_sorb_mobile = PETSC_TRUE
-      case('FREE_ION')
-        reaction%print_free_ion = PETSC_TRUE
+      case('FREE_ION','TOTAL','SECONDARY_SPECIES')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        ! optional concentration type
+        conc_type = UNINITIALIZED_INTEGER
+        if (.not.InputError(input)) then
+          call StringToUpper(word)
+          select case(word)
+            case('MOLARITY')
+              conc_type = PRIMARY_MOLARITY
+            case('MOLALITY')
+              conc_type = PRIMARY_MOLALITY
+            case default
+              error_string = trim(error_string) // keyword
+              call InputKeywordUnrecognized(input,word,error_string,option)
+          end select
+        endif
+        select case(keyword)
+          case('FREE_ION')
+            reaction%print_free_ion = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_free_conc_type = conc_type
+            endif
+          case('TOTAL')
+            reaction%print_total_component = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_tot_conc_type = conc_type
+            endif
+          case('SECONDARY_SPECIES')
+            reaction%print_all_secondary_species = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_secondary_conc_type = conc_type
+            endif
+        end select
       case('ACTIVITY_COEFFICIENTS')
         reaction%print_act_coefs = PETSC_TRUE
       case('MOLARITY')
