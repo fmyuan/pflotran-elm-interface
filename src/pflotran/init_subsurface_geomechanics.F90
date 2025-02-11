@@ -29,7 +29,7 @@ subroutine InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -57,12 +57,10 @@ subroutine InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   string = "GEOMECHANICS"
   call InputFindStringInFile(input,option,string)
   if (InputError(input)) return
-  option%ngeomechdof = 3  ! displacements in x, y, z directions
-  option%n_stress_strain_dof = 6
 
   string = "GEOMECHANICS_GRID"
   call InputFindStringInFile(input,option,string)
-  call GeomechanicsInit(geomech_realization,input,option)
+  call InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
 
 end subroutine InitSubsurfGeomechReadRequiredCards
 
@@ -76,7 +74,7 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Option_module
   use Input_Aux_module
@@ -360,7 +358,7 @@ subroutine InitSubsurfGeomechJumpStart(geomech)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Option_module
@@ -414,14 +412,14 @@ end subroutine InitSubsurfGeomechJumpStart
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsInit(geomech_realization,input,option)
+subroutine InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
   !
   ! Reads the required geomechanics data from input file
   !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Option_module
   use Input_Aux_module
@@ -507,7 +505,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine GeomechanicsInit
+end subroutine InitSubsurfGeomechReadGridBlock
 
 ! ************************************************************************** !
 
@@ -519,7 +517,7 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Geomechanics_Global_module
@@ -579,7 +577,7 @@ subroutine InitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
@@ -904,7 +902,7 @@ end subroutine InitSubsurfGeomechSetGeomechMode
 subroutine InitSubsurfGeomechChkInactiveCells(geomech_realization, &
                                              subsurf_realization)
   !
-  ! checks if geomech nodes are mapped to inactive flow cells
+  ! checks if geomech nodes were mapped to inactive flow cells
   !
   ! Author: Glenn, Jumanah
   ! Date: 2/10/25
@@ -978,9 +976,12 @@ end subroutine InitSubsurfGeomechChkInactiveCells
 
 subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
                                      pmc_name,input)
-
-  ! jaa moved from factory_geomechanics.F90
-
+  !
+  ! refactored from factory_geomechanics.F90
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -1089,9 +1090,8 @@ subroutine InitSubsurfGeomechReadSimBlock(input,pm)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/25/21
   !
-  ! jaa moved from factory_geomechanics.F90
+  ! jaa: moved from factory_geomechanics.F90
   !
-
   use Input_Aux_module
   use Option_module
   use String_module
