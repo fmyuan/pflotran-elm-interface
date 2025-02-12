@@ -1636,6 +1636,7 @@ option.o : \
   driver.o \
   option_checkpoint.o \
   option_flow.o \
+  option_geomechanics.o \
   option_geophysics.o \
   option_inversion.o \
   option_parameter.o \
@@ -1646,6 +1647,8 @@ option.o : \
 option_checkpoint.o : \
   pflotran_constants.o
 option_flow.o : \
+  pflotran_constants.o
+option_geomechanics.o : \
   pflotran_constants.o
 option_geophysics.o : \
   pflotran_constants.o

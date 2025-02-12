@@ -11,8 +11,7 @@ module Factory_Geomechanics_module
 
   private
 
-  public :: FactoryGeomechanicsInitialize, &
-            FactoryGeomechReadSimBlock
+  public :: FactoryGeomechanicsInitialize
 
 contains
 
@@ -22,27 +21,11 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   !
   ! This routine
   !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 01/01/14
-  !
-
-  implicit none
-
-  class(simulation_geomechanics_type) :: simulation
-
-  ! NOTE: PETSc must already have been initialized here!
-  call GeomechanicsInitializePostPETSc(simulation)
-
-end subroutine FactoryGeomechanicsInitialize
-
-! ************************************************************************** !
-
-subroutine GeomechanicsInitializePostPETSc(simulation)
-  !
-  ! This routine
-  !
   ! Author: Gautam Bisht, LBNL and Satish Karra, LANL
   ! Date: 01/01/14, 02/10/15
+  !
+  ! jaa modified 2/5/25
+  ! this routine used to be called GeomechanicsInitializePostPETSc
   !
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -82,13 +65,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   class(pm_geomech_force_type), pointer :: pm_geomech
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(timestepper_steady_type), pointer :: timestepper
-  character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input
   PetscErrorCode :: ierr
-  PetscBool :: error_found
-  PetscInt :: geomech_local_id, subsurf_local_id, geomech_ghosted_id
-  PetscInt :: subsurf_ghosted_id
-  PetscReal, pointer :: subsurf_vec_1dof(:)
 
   option => simulation%option
   nullify(timestepper)
@@ -112,77 +90,18 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     cur_pm => cur_pm%next
   enddo
 
+  call InitSubsurfGeomechSetGeomechMode(pm_geomech,option)
+
   call FactorySubsurfaceInitPostPetsc(simulation)
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-  subsurf_realization => simulation%realization
-  subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-
-  geomech_realization => GeomechRealizCreate(option)
-  simulation%geomech%realization => geomech_realization
   input => InputCreate(IN_UNIT,option%input_filename,option)
-  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
+  call InitSubsurfGeomechSetupPMC(simulation,pm_geomech,'PMCGeomech',input)
 
-  pmc_geomech => PMCGeomechanicsCreate()
-  simulation%geomech%process_model_coupler => pmc_geomech
-  pmc_geomech%name = 'PMCGeomech'
-  pmc_geomech%option => option
-  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
-  pmc_geomech%pm_list => pm_geomech
-  pmc_geomech%pm_ptr%pm => pm_geomech
-  pmc_geomech%geomech_realization => geomech_realization
-  pmc_geomech%subsurf_realization => simulation%realization
-  pm_geomech%subsurf_realization => simulation%realization
-
-  ! add time integrator
-  timestepper => TimestepperSteadyCreate()
-  pmc_geomech%timestepper => timestepper
-
-  ! add solver
-  call pm_geomech%InitializeSolver()
-  timestepper%solver => pm_geomech%solver
-
-  ! set up logging stage
-  string = trim(pmc_geomech%name) // 'Geomechanics'
-  call LoggingCreateStage(string,pmc_geomech%stage)
-
-  string = 'GEOMECHANICS'
-  call InputFindStringInFile(input,option,string)
-  call InputFindStringErrorMsg(input,option,string)
-  geomech_realization%output_option => &
-    OutputOptionDuplicate(simulation%output_option)
-  nullify(geomech_realization%output_option%output_snap_variable_list)
-  nullify(geomech_realization%output_option%output_obs_variable_list)
-  geomech_realization%output_option%output_snap_variable_list => &
-    OutputVariableListCreate()
-  geomech_realization%output_option%output_obs_variable_list => &
-    OutputVariableListCreate()
-  call InitSubsurfGeomechReadInput(simulation%geomech, &
-                                 timestepper%solver, &
-                                 input,option, &
-                                 geomech_realization%output_option)
-  pm_geomech%output_option => geomech_realization%output_option
-
-  ! Hijack subsurface waypoint to geomechanics waypoint
-  ! Subsurface controls the output now
-  ! Always have snapshot on at t=0
-  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
-
-  ! link geomech and flow timestepper waypoints to geomech way point list
-  if (associated(simulation%geomech%process_model_coupler)) then
-    call simulation%geomech%process_model_coupler% &
-           SetWaypointPtr(pmc_geomech%waypoint_list)
-    if (associated(simulation%flow_process_model_coupler)) then
-      call simulation%flow_process_model_coupler% &
-             SetWaypointPtr(pmc_geomech%waypoint_list)
-    endif
-  endif
-
-  ! print the waypoints when debug flag is on
-  if (geomech_realization%geomech_debug%print_waypoints) then
-    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
-                           geomech_realization%output_option)
-  endif
+  subsurf_realization => simulation%realization
+  geomech_realization => simulation%geomech%realization
+  pmc_geomech => simulation%geomech%process_model_coupler
+  timestepper => TimestepperSteadyCast(pmc_geomech%timestepper)
 
   ! initialize geomech realization
   call InitSubsurfGeomechSetupRealization(subsurf_realization, &
@@ -207,31 +126,28 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   nullify(simulation%process_model_coupler_list)
 
   ! sim_aux: Create PETSc Vectors and VectorScatters
-  if (option%ngeomechdof > 0) then
+  call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
+                                      geomech_realization)
+  call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
 
-    call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
-                                        geomech_realization)
-    call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
+  call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
+                                           geomech_realization)
+  call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
+        geomech_realization%geomech_field%strain_subsurf)
 
-    call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
-                                             geomech_realization)
-    call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
-          geomech_realization%geomech_field%strain_subsurf)
+  call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
+                                          geomech_realization, &
+                                          option)
 
-    call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
-                                            geomech_realization, &
-                                            option)
+  dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
+              geomech_realization%geomech_discretization, ONEDOF)
 
-    dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
-                geomech_realization%geomech_discretization, ONEDOF)
-
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                              SUBSURF_TO_GEOMECHANICS)
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                              GEOMECHANICS_TO_SUBSURF)
-  endif
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
+                            SUBSURF_TO_GEOMECHANICS)
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
+                            GEOMECHANICS_TO_SUBSURF)
 
   call GeomechanicsRegressionCreateMapping(simulation%geomech%regression, &
                                            geomech_realization)
@@ -253,48 +169,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   simulation%process_model_coupler_list%peer => &
     simulation%flow_process_model_coupler
 
-  ! jaa: the kludge way of checking geomech nodes are mapped to active
-  ! flow cells. Without this check two_way_coupling in geomech
-  ! tries to assign poro/perm of inactive flow cells
-  call VecSet(geomech_realization%geomech_field%subsurf_vec_1dof,-777.d0, &
-              ierr);CHKERRQ(ierr)
-  call VecSet(geomech_realization%geomech_field%press,-888.d0, &
-              ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
-              subsurf_vec_1dof,ierr);CHKERRQ(ierr)
-  do subsurf_local_id = 1, subsurf_realization%patch%grid%nlmax
-    subsurf_ghosted_id = subsurf_realization%patch%grid%nL2G(subsurf_local_id)
-    subsurf_vec_1dof(subsurf_local_id) = subsurf_realization%patch%imat( &
-                                                  subsurf_ghosted_id)
-  enddo
-  call VecRestoreArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
-                          subsurf_vec_1dof,ierr);CHKERRQ(ierr)
-  ! Scatter the data
-  call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                       geomech_realization%geomech_field%subsurf_vec_1dof, &
-                       geomech_realization%geomech_field%press, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                     geomech_realization%geomech_field%subsurf_vec_1dof, &
-                     geomech_realization%geomech_field%press, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_realization%geomech_field%press, &
-                      subsurf_vec_1dof, ierr);CHKERRQ(ierr)
-  error_found = PETSC_FALSE
-  do geomech_local_id = 1, geomech_realization%geomech_patch%geomech_grid% &
-                           nlmax_node
-    geomech_ghosted_id = geomech_realization%geomech_patch%geomech_grid% &
-                         nL2G(geomech_local_id)
-    if (nint(subsurf_vec_1dof(geomech_local_id)) <= 0) error_found = PETSC_TRUE
-  enddo
-  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
-                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
-  if (error_found)then
-    option%io_buffer = 'Cannot map inactive flow cell to geomechanics '//&
-                       'node in the GEOMECHANICS_MAPPING_FILE! '
-    call PrintErrMsg(option)
-  endif
-  ! end jaa - inactive cell check
+  call InitSubsurfGeomechChkInactiveCells(geomech_realization, &
+                                          subsurf_realization)
 
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
@@ -309,54 +185,10 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     end select
   endif
 
-  call GeomechanicsJumpStart(simulation%geomech)
+  call InitSubsurfGeomechJumpStart(simulation%geomech)
   call InputDestroy(input)
 
-end subroutine GeomechanicsInitializePostPETSc
-
-! ************************************************************************** !
-
-subroutine FactoryGeomechReadSimBlock(input,pm)
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 01/25/21
-  !
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  use PM_Base_class
-  use PM_ERT_class
-
-  implicit none
-
-  type(input_type), pointer :: input
-  class(pm_base_type), pointer :: pm
-
-  type(option_type), pointer :: option
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  option => pm%option
-
-  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_GEOMECHANICS'
-
-  call InputPushBlock(input,option)
-  do
-    call InputReadPflotranString(input,option)
-    if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word,PETSC_FALSE)
-    call StringToUpper(word)
-    select case(word)
-      case('OPTIONS')
-        call pm%ReadSimulationOptionsBlock(input)
-      case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
-    end select
-  enddo
-  call InputPopBlock(input,option)
-
-end subroutine FactoryGeomechReadSimBlock
+end subroutine FactoryGeomechanicsInitialize
 
 ! ************************************************************************** !
 

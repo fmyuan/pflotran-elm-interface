@@ -114,11 +114,11 @@ subroutine PMGeomechReadSimOptionsBlock(this,input)
         call StringToUpper(word)
         select case (word)
           case ('ONE_WAY_COUPLED')
-            option%geomech_subsurf_coupling = GEOMECH_ONE_WAY_COUPLED
+            option%geomechanics%subsurf_coupling = GEOMECH_ONE_WAY_COUPLED
           case ('TWO_WAY_COUPLED')
-            option%geomech_subsurf_coupling = GEOMECH_TWO_WAY_COUPLED
+            option%geomechanics%subsurf_coupling = GEOMECH_TWO_WAY_COUPLED
           case ('COUPLE_ERT')
-            option%geomech_subsurf_coupling = GEOMECH_ERT_COUPLING
+            option%geomechanics%subsurf_coupling = GEOMECH_ERT_COUPLING
           case default
             call InputKeywordUnrecognized(input,word, &
                                 trim(error_string)//',COUPLING',option)
@@ -360,9 +360,9 @@ subroutine PMGeomechForceUpdateSolution(this)
   call GeomechUpdateSolution(this%geomech_realization)
   call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &
                                             force_update_flag)
-  if (this%option%geomech_initial) then
+  if (this%option%geomechanics%initial_flag) then
     call GeomechStoreInitialDisp(this%geomech_realization)
-    this%option%geomech_initial = PETSC_FALSE
+    this%option%geomechanics%initial_flag = PETSC_FALSE
   endif
   call GeomechForceUpdateAuxVars(this%geomech_realization)
 

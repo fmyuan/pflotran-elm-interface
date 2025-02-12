@@ -10,9 +10,13 @@ module Init_Subsurface_Geomech_module
 
   public :: InitSubsurfGeomechReadRequiredCards, &
             InitSubsurfGeomechReadInput, &
-            GeomechanicsJumpStart, &
+            InitSubsurfGeomechJumpStart, & ! remove later
             InitSubsurfGeomechSetupRealization, &
-            FactorySubsurfGeomechInitSimulation
+            InitSubsurfGeomechInitSimulation, &
+            InitSubsurfGeomechSetGeomechMode, &
+            InitSubsurfGeomechChkInactiveCells, &
+            InitSubsurfGeomechSetupPMC, &
+            InitSubsurfGeomechReadSimBlock
 contains
 
 ! ************************************************************************** !
@@ -25,7 +29,7 @@ subroutine InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -53,13 +57,10 @@ subroutine InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
   string = "GEOMECHANICS"
   call InputFindStringInFile(input,option,string)
   if (InputError(input)) return
-  option%ngeomechdof = 3  ! displacements in x, y, z directions
-  option%n_stress_strain_dof = 6
 
   string = "GEOMECHANICS_GRID"
   call InputFindStringInFile(input,option,string)
-  call GeomechanicsInit(geomech_realization,input,option)
-
+  call InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
 
 end subroutine InitSubsurfGeomechReadRequiredCards
 
@@ -73,7 +74,7 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Option_module
   use Input_Aux_module
@@ -103,7 +104,6 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
 
   implicit none
 
-  !class(simulation_geomechanics_type) :: simulation
   type(solver_type), pointer :: geomech_solver
   type(input_type), pointer :: input
   type(geomechanics_attr_type), pointer:: geomech
@@ -351,14 +351,14 @@ end subroutine InitSubsurfGeomechReadInput
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsJumpStart(geomech)
+subroutine InitSubsurfGeomechJumpStart(geomech)
   !
   ! This routine
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Option_module
@@ -408,18 +408,18 @@ subroutine GeomechanicsJumpStart(geomech)
   ! popped in TS_STAGE()
   call PetscLogStagePush(logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
 
-end subroutine GeomechanicsJumpStart
+end subroutine InitSubsurfGeomechJumpStart
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsInit(geomech_realization,input,option)
+subroutine InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
   !
   ! Reads the required geomechanics data from input file
   !
   ! Author: Satish Karra, LANL
   ! Date: 05/23/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Option_module
   use Input_Aux_module
@@ -486,23 +486,26 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             call PrintErrMsg(option)
         end select
       case ('GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(X_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(X_DIRECTION))
         call InputErrorMsg(input,option,'x-direction','GEOMECH GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(Y_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(Y_DIRECTION))
         call InputErrorMsg(input,option,'y-direction','GEOMECH GRAVITY')
-        call InputReadDouble(input,option,option%geomech_gravity(Z_DIRECTION))
+        call InputReadDouble(input,option,option%geomechanics% &
+                             gravity(Z_DIRECTION))
         call InputErrorMsg(input,option,'z-direction','GEOMECH GRAVITY')
         if (OptionIsIORank(option) .and. OptionPrintToScreen(option)) &
             write(option%fid_out,'(/," *GEOMECH_GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
-            & )') option%geomech_gravity(1:3)
+            & )') option%geomechanics%gravity(1:3)
       case default
         call InputKeywordUnrecognized(input,word,'GEOMECHANICS_GRID',option)
     end select
   enddo
   call InputPopBlock(input,option)
 
-end subroutine GeomechanicsInit
+end subroutine InitSubsurfGeomechReadGridBlock
 
 ! ************************************************************************** !
 
@@ -514,7 +517,7 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Geomechanics_Global_module
@@ -535,7 +538,7 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
 
   call GeomechRealizCreateDiscretization(geomech_realization)
 
-  if (option%geomech_subsurf_coupling /= 0) then
+  if (option%geomechanics%subsurf_coupling /= 0) then
     call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
                                         geomech_realization)
     call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
@@ -574,7 +577,7 @@ subroutine InitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   !
-  ! comments (jaa) moved from factory_geomechanics.F90 on 1/28/25
+  ! jaa: moved from factory_geomechanics.F90 on 1/28/25
 
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
@@ -718,8 +721,15 @@ end subroutine InitMatPropToGeomechRegions
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
-
+subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
+  !
+  ! This routine initializes geomechanics process
+  ! model components for factory subsurface
+  ! after linkages have been established
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
   use Simulation_Subsurface_class
   use Init_Common_module
   use Option_module
@@ -737,7 +747,6 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   use Realization_Subsurface_class
   use Realization_Base_class
   use Timestepper_Steady_class
-  use Input_Aux_module
   use Logging_module
   use Output_Aux_module
   use Waypoint_module
@@ -766,16 +775,12 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   geomech_regression => simulation%geomech%regression
 
   ! initialize geomech realization
-  !call SubsurfGeomechInitSetupRealization(simulation)
   call InitSubsurfGeomechSetupRealization(simulation%realization,&
                                           simulation%geomech%realization)
-  !call InitSubsurfGeomechSetupRealization(simulation)
-  !call SubsurfGeomechInitSetupRealization(simulation)
 
   call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
   call pm_geomech%Setup()
 
-  !pmc_geomech => GeomechPMC(simulation)
   pmc_geomech => simulation%geomech%process_model_coupler
   timestepper => TimestepperSteadyCast(pmc_geomech%timestepper)
   call pmc_geomech%SetupSolvers()
@@ -794,31 +799,28 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   nullify(simulation%process_model_coupler_list)
 
   ! sim_aux: Create PETSc Vectors and VectorScatters
-  if (option%ngeomechdof > 0) then
+  call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
+                                      geomech_realization)
+  call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
 
-    call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
-                                        geomech_realization)
-    call SimAuxCopySubsurfVec(simulation%sim_aux,subsurf_realization%field%work)
+  call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
+                                           geomech_realization)
+  call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
+        geomech_realization%geomech_field%strain_subsurf)
 
-    call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
-                                             geomech_realization)
-    call SimAuxCopySubsurfGeomechVec(simulation%sim_aux, &
-          geomech_realization%geomech_field%strain_subsurf)
+  call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
+                                          geomech_realization, &
+                                          option)
 
-    call GeomechRealizMapSubsurfGeomechGrid(subsurf_realization, &
-                                            geomech_realization, &
-                                            option)
+  dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
+              geomech_realization%geomech_discretization, ONEDOF)
 
-    dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
-                geomech_realization%geomech_discretization, ONEDOF)
-
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
-                              SUBSURF_TO_GEOMECHANICS)
-    call SimAuxCopyVecScatter(simulation%sim_aux, &
-                              dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
-                              GEOMECHANICS_TO_SUBSURF)
-  endif
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
+                            SUBSURF_TO_GEOMECHANICS)
+  call SimAuxCopyVecScatter(simulation%sim_aux, &
+                            dm_ptr%gmdm%scatter_geomech_to_subsurf_ndof, &
+                            GEOMECHANICS_TO_SUBSURF)
 
   call GeomechanicsRegressionCreateMapping(geomech_regression, &
                                            geomech_realization)
@@ -840,6 +842,10 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
   ! jaa: set geomech as a child
   simulation%process_model_coupler_list%child => &
     pmc_geomech
+
+  call InitSubsurfGeomechChkInactiveCells(geomech_realization, &
+                                          subsurf_realization)
+
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
   call cur_process_model_coupler%SetAuxData()
@@ -853,9 +859,276 @@ subroutine FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
     end select
   endif
 
-  call GeomechanicsJumpStart(simulation%geomech)
+  call InitSubsurfGeomechJumpStart(simulation%geomech)
 
-end subroutine FactorySubsurfGeomechInitSimulation
+end subroutine InitSubsurfGeomechInitSimulation
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechSetGeomechMode(pm_geomech,option)
+  !
+  ! sets geomech options
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
+  use Option_module
+  use PM_Geomechanics_Force_class
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_geomech_force_type), pointer :: pm_geomech
+
+  if (.not.associated(pm_geomech)) then
+    return
+  endif
+
+  select type(pm_geomech)
+    class is (pm_geomech_force_type)
+      option%igeommode = LINEAR_ELASTICITY_MODE
+      option%geommode = "GEOMECHANICS"
+      option%ngeomechdof = 3 ! displacements in x, y, z directions
+      option%n_stress_strain_dof = 6
+    class default
+      option%io_buffer = 'Unrecognized geomechanics class in '// &
+                          'InitSubsurfGeomechSetGeomechMode'
+      call PrintErrMsg(option)
+  end select
+
+end subroutine InitSubsurfGeomechSetGeomechMode
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechChkInactiveCells(geomech_realization, &
+                                             subsurf_realization)
+  !
+  ! checks if geomech nodes were mapped to inactive flow cells
+  !
+  ! Author: Glenn, Jumanah
+  ! Date: 2/10/25
+  !
+  use Realization_Subsurface_class
+  use Geomechanics_Realization_class
+  use Geomechanics_Discretization_module
+  use Option_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: subsurf_realization
+  class(realization_geomech_type) :: geomech_realization
+
+  type(option_type), pointer :: option
+  type(gmdm_ptr_type), pointer :: dm_ptr
+
+  PetscErrorCode :: ierr
+  PetscBool :: error_found
+  PetscInt :: geomech_local_id, subsurf_local_id, geomech_ghosted_id
+  PetscInt :: subsurf_ghosted_id
+  PetscReal, pointer :: subsurf_vec_1dof(:)
+
+  error_found = PETSC_FALSE
+
+  option => geomech_realization%option
+  dm_ptr => GeomechDiscretizationGetDMPtrFromIndex( &
+            geomech_realization%geomech_discretization, ONEDOF)
+
+  call VecSet(geomech_realization%geomech_field%subsurf_vec_1dof,-777.d0, &
+              ierr);CHKERRQ(ierr)
+  call VecSet(geomech_realization%geomech_field%press,-888.d0, &
+              ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
+              subsurf_vec_1dof,ierr);CHKERRQ(ierr)
+  do subsurf_local_id = 1, subsurf_realization%patch%grid%nlmax
+    subsurf_ghosted_id = subsurf_realization%patch%grid%nL2G(subsurf_local_id)
+    subsurf_vec_1dof(subsurf_local_id) = subsurf_realization%patch%imat( &
+                                                  subsurf_ghosted_id)
+  enddo
+  call VecRestoreArrayF90(geomech_realization%geomech_field%subsurf_vec_1dof, &
+                          subsurf_vec_1dof,ierr);CHKERRQ(ierr)
+  ! Scatter the data
+  call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
+                       geomech_realization%geomech_field%subsurf_vec_1dof, &
+                       geomech_realization%geomech_field%press, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
+                     geomech_realization%geomech_field%subsurf_vec_1dof, &
+                     geomech_realization%geomech_field%press, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(geomech_realization%geomech_field%press, &
+                      subsurf_vec_1dof, ierr);CHKERRQ(ierr)
+  do geomech_local_id = 1, geomech_realization%geomech_patch%geomech_grid% &
+                           nlmax_node
+    geomech_ghosted_id = geomech_realization%geomech_patch%geomech_grid% &
+                         nL2G(geomech_local_id)
+    if (nint(subsurf_vec_1dof(geomech_local_id)) <= 0) error_found = PETSC_TRUE
+  enddo
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
+  if (error_found)then
+    option%io_buffer = 'Cannot map inactive flow cell to geomechanics '//&
+                       'node in the GEOMECHANICS_MAPPING_FILE! '
+    call PrintErrMsg(option)
+  endif
+
+end subroutine InitSubsurfGeomechChkInactiveCells
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
+                                     pmc_name,input)
+  !
+  ! refactored from factory_geomechanics.F90
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 2/10/25
+  !
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+  use Input_Aux_module
+  use PM_Geomechanics_Force_class
+  use Geomechanics_Realization_class
+  use Timestepper_Steady_class
+  use PMC_Geomechanics_class
+  use Output_Aux_module
+  use Waypoint_module
+  use Simulation_Subsurface_class
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_geomech_force_type), pointer :: pm_geomech
+  character(len=*) :: pmc_name
+  type(input_type), pointer :: input
+
+  character(len=MAXSTRINGLENGTH) :: string
+  class(realization_subsurface_type), pointer :: subsurf_realization
+  type(option_type), pointer :: option
+
+  class(pmc_geomechanics_type), pointer :: pmc_geomech
+  class(realization_geomech_type), pointer :: geomech_realization
+  class(timestepper_steady_type), pointer :: timestepper
+
+  subsurf_realization => simulation%realization
+  option => subsurf_realization%option
+  subsurf_realization%output_option => OutputOptionDuplicate( &
+                                          simulation%output_option)
+
+  geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech%realization => geomech_realization
+
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  call InitSubsurfGeomechReadRequiredCards(geomech_realization,input)
+  pmc_geomech => PMCGeomechanicsCreate()
+
+  call pmc_geomech%SetName(pmc_name)
+  call pmc_geomech%SetOption(option)
+  simulation%geomech%process_model_coupler => pmc_geomech
+  pmc_geomech%waypoint_list => simulation%waypoint_list_subsurface
+  pmc_geomech%pm_list => pm_geomech
+  pmc_geomech%pm_ptr%pm => pm_geomech
+  pmc_geomech%geomech_realization => geomech_realization
+  pm_geomech%geomech_realization => geomech_realization
+  pmc_geomech%subsurf_realization => simulation%realization
+  pm_geomech%subsurf_realization => simulation%realization
+
+  ! add time integrator
+  timestepper => TimestepperSteadyCreate()
+  pmc_geomech%timestepper => timestepper
+
+  ! add solver
+  call pm_geomech%InitializeSolver()
+  timestepper%solver => pm_geomech%solver
+
+  ! set up logging stage
+  string = trim(pmc_geomech%name) // 'Geomechanics'
+  call LoggingCreateStage(string,pmc_geomech%stage)
+
+  string = 'GEOMECHANICS'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  geomech_realization%output_option => &
+    OutputOptionDuplicate(simulation%output_option)
+  nullify(geomech_realization%output_option%output_snap_variable_list)
+  nullify(geomech_realization%output_option%output_obs_variable_list)
+  geomech_realization%output_option%output_snap_variable_list => &
+    OutputVariableListCreate()
+  geomech_realization%output_option%output_obs_variable_list => &
+    OutputVariableListCreate()
+  call InitSubsurfGeomechReadInput(simulation%geomech, &
+                                   timestepper%solver, &
+                                   input,option, &
+                                   geomech_realization%output_option)
+  pm_geomech%output_option => geomech_realization%output_option
+
+  ! Hijack subsurface waypoint to geomechanics waypoint
+  ! Subsurface controls the output now
+  ! Always have snapshot on at t=0
+  pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
+
+  ! link geomech and flow timestepper waypoints to geomech way point list
+  if (associated(pmc_geomech)) then
+    call pmc_geomech%SetWaypointPtr(pmc_geomech%waypoint_list)
+    if (associated(simulation%flow_process_model_coupler)) then
+      call simulation%flow_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+    endif
+  endif
+
+  ! print the waypoints when debug flag is on
+  if (geomech_realization%geomech_debug%print_waypoints) then
+    call WaypointListPrint(pmc_geomech%waypoint_list,option, &
+                           geomech_realization%output_option)
+  endif
+
+end subroutine InitSubsurfGeomechSetupPMC
+
+! ************************************************************************** !
+
+subroutine InitSubsurfGeomechReadSimBlock(input,pm)
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/25/21
+  !
+  ! jaa: moved from factory_geomechanics.F90
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PM_Base_class
+  use PM_ERT_class
+
+  implicit none
+
+  type(input_type), pointer :: input
+  class(pm_base_type), pointer :: pm
+
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  option => pm%option
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_GEOMECHANICS'
+
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('OPTIONS')
+        call pm%ReadSimulationOptionsBlock(input)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine InitSubsurfGeomechReadSimBlock
 
 ! ************************************************************************** !
 

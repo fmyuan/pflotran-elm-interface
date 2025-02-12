@@ -421,7 +421,8 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
   ! write header
   ! write title
   write(fid,'(''TITLE = "'',1es13.5," [",a1,'']"'')') &
-                option%geomech_time/output_option%tconv,output_option%tunit
+                option%geomechanics%time/output_option%tconv, &
+                output_option%tunit
 
   ! initial portion of header
   string = 'VARIABLES=' // &
