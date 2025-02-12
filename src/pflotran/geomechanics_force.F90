@@ -193,32 +193,32 @@ subroutine GeomechForceSetPlotVariables(list)
                                STRAIN_ZX)
 
   name = 'stress_xx'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XX)
 
   name = 'stress_yy'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YY)
 
   name = 'stress_zz'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZZ)
 
   name = 'stress_xy'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XY)
 
   name = 'stress_yz'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YZ)
 
   name = 'stress_zx'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZX)
   name = 'relative_displacement_x'
