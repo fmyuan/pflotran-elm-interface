@@ -268,9 +268,9 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
     class is (pm_sco2_type)
       call PMSCO2SetFlowMode(pm_flow,pm_well,option)
     class default
-      option%io_buffer = ''
+      option%io_buffer = 'Unrecognized subsurface flow class in &
+        &FactorySubsurfaceSetFlowMode.'
       call PrintErrMsg(option)
-
   end select
 
   if (option%nflowdof == 0) then
@@ -317,7 +317,8 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
       option%geopmode = "ERT"
       option%ngeopdof = 1
     class default
-      option%io_buffer = ''
+      option%io_buffer = 'Unrecognized subsurface geophysics class in &
+        &FactorySubsurfaceSetGeopMode.'
       call PrintErrMsg(option)
   end select
 
