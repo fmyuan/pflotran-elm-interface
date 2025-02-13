@@ -1012,8 +1012,7 @@ subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
 
   subsurf_realization => simulation%realization
   option => subsurf_realization%option
-  subsurf_realization%output_option => OutputOptionDuplicate( &
-                                          simulation%output_option)
+  subsurf_realization%output_option => simulation%output_option
 
   geomech_realization => GeomechRealizCreate(option)
   simulation%geomech%realization => geomech_realization
