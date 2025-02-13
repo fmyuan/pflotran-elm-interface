@@ -2560,6 +2560,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_X_whatever
   PetscReal :: wat_mole_flux, air_mole_flux, salt_mole_flux
   PetscBool :: upwind
+  PetscBool :: water_cannot_flow_in
 
   ! Darcy flux
   PetscReal :: ddelta_pressure_dpdn
@@ -2672,6 +2673,15 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
 
         boundary_pressure = gen_auxvar_up%pres(iphase)
+        water_cannot_flow_in = PETSC_FALSE
+        select case(bc_type)
+          case(DIRICHLET_BC,HYDROSTATIC_BC)
+          case default
+             if (gen_auxvar_up%pres(option%capillary_pressure_id) > 0.d0) then
+               water_cannot_flow_in = PETSC_TRUE
+               boundary_pressure = gen_auxvar_up%pres(option%gas_phase)
+             endif
+        end select
         if (iphase == LIQUID_PHASE .and. &
             global_auxvar_up%istate == GAS_STATE) then
           ! the idea here is to accommodate a free surface boundary
@@ -2701,9 +2711,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              gen_auxvar_up%pres(iphase) - &
-                option%flow%reference_pressure < eps) then
+          if (delta_pressure > 0.d0 .and. water_cannot_flow_in) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'HYDROSTATIC_CONDUCTANCE_BC and &
@@ -2716,7 +2724,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
 
         if (bc_type == DIRICHLET_SEEPAGE_BC) then
-          if (delta_pressure > 0.d0) then
+          if (delta_pressure > 0.d0 .and. water_cannot_flow_in) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'DIRCHLET_SEEPAGE_BC &
@@ -3045,13 +3053,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         endif
 
         boundary_pressure = gen_auxvar_up%pres(iphase)
-        if (iphase == LIQUID_PHASE .and. &
-            global_auxvar_up%istate == GAS_STATE) then
-          ! the idea here is to accommodate a free surface boundary
-          ! face.  this will not work for an interior grid cell as
-          ! there should be capillary pressure in force.
-          boundary_pressure = gen_auxvar_up%pres(option%gas_phase)
-        endif
         density_kg_ave = GeneralAverageDensity(iphase, &
                                                 global_auxvar_up%istate, &
                                                 global_auxvar_dn%istate, &
@@ -3072,19 +3073,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                  gen_auxvar_dn%d%deng_pg * fmw_comp(iphase)
           ddelta_pressure_dTdn = dist_gravity * ddensity_kg_ave_dden_kg_dn * &
                                  gen_auxvar_dn%d%deng_T * fmw_comp(iphase)
-        endif
-        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (delta_pressure > 0.d0 .and. &
-              gen_auxvar_up%pres(iphase) - &
-                option%flow%reference_pressure < eps) then
-            delta_pressure = 0.d0
-            if (analytical_derivatives) then
-              ddelta_pressure_dpdn = 0.d0
-              ddelta_pressure_dTdn = 0.d0
-            endif
-          endif
         endif
         dn_scale = 0.d0
         ! don't expect the derivative to match precisely at delta_pressure = 0
