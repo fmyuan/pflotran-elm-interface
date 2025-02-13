@@ -12,6 +12,10 @@ module Output_Aux_module
   PetscInt, parameter, public :: INSTANTANEOUS_VARS = 1
   PetscInt, parameter, public :: AVERAGED_VARS = 2
 
+  ! IMPORTANT!!!! If you add new variables to any of the derived types below
+  !               You MUST add the same variable to the "create" and
+  !               "duplicate" routines below.
+
   type, public :: output_option_type
 
     character(len=MAXWORDLENGTH) :: tunit
@@ -86,7 +90,6 @@ module Output_Aux_module
     character(len=MAXWORDLENGTH) :: plot_name
 
     PetscBool :: print_hydrograph
-    PetscInt :: surf_xmf_vert_len
 
   end type output_option_type
 
@@ -191,7 +194,18 @@ function OutputOptionCreate()
   type(output_option_type), pointer :: output_option
 
   allocate(output_option)
+  output_option%tunit = ''
+  output_option%tconv = 1.d0
   output_option%output_read = PETSC_FALSE
+
+  output_option%print_initial_obs = PETSC_TRUE
+  output_option%print_final_obs = PETSC_TRUE
+  output_option%print_initial_snap = PETSC_TRUE
+  output_option%print_final_snap = PETSC_TRUE
+  output_option%print_initial_massbal = PETSC_FALSE
+  output_option%print_final_massbal = PETSC_TRUE
+  output_option%print_ss_massbal = PETSC_TRUE
+
   output_option%print_hdf5 = PETSC_FALSE
   output_option%print_obs_hdf5 = PETSC_FALSE
   output_option%extend_hdf5_time_format = PETSC_FALSE
@@ -204,40 +218,38 @@ function OutputOptionCreate()
   output_option%print_hdf5_aveg_mass_flowrate = PETSC_FALSE
   output_option%print_hdf5_aveg_energy_flowrate = PETSC_FALSE
   output_option%print_explicit_flowrate = PETSC_FALSE
+
   output_option%print_tecplot = PETSC_FALSE
   output_option%tecplot_format = 0
   output_option%print_tecplot_vel_cent = PETSC_FALSE
-  output_option%print_fluxes = PETSC_FALSE
   output_option%print_tecplot_vel_face = PETSC_FALSE
+  output_option%print_fluxes = PETSC_FALSE
+
   output_option%print_vtk = PETSC_FALSE
   output_option%print_vtk_vel_cent = PETSC_FALSE
   output_option%vtk_acknowledgment = PETSC_FALSE
+
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
+
   output_option%print_explicit_primal_grid = PETSC_FALSE
   output_option%print_explicit_dual_grid = PETSC_FALSE
-  output_option%print_initial_obs = PETSC_TRUE
-  output_option%print_final_obs = PETSC_TRUE
-  output_option%print_initial_snap = PETSC_TRUE
-  output_option%print_final_snap = PETSC_TRUE
-  output_option%print_initial_massbal = PETSC_FALSE
-  output_option%print_final_massbal = PETSC_TRUE
-  output_option%print_ss_massbal = PETSC_TRUE
-  output_option%plot_number = 0
+
   output_option%screen_imod = 1
   output_option%output_file_imod = 1
+
   output_option%periodic_snap_output_ts_imod  = 100000000
   output_option%periodic_obs_output_ts_imod  = 100000000
   output_option%periodic_msbl_output_ts_imod  = 100000000
+
   output_option%periodic_snap_output_time_incr = 0
   output_option%periodic_obs_output_time_incr = 0
   output_option%periodic_msbl_output_time_incr = 0
-  output_option%plot_name = ""
-  output_option%aveg_var_time = 0.d0
-  output_option%aveg_var_dtime = 0.d0
-  output_option%xmf_vert_len = UNINITIALIZED_INTEGER
+
   output_option%filter_non_state_variables = PETSC_TRUE
   output_option%force_synchronized_output = PETSC_TRUE
+
+  output_option%xmf_vert_len = UNINITIALIZED_INTEGER
 
   nullify(output_option%output_variable_list) ! master
   output_option%output_variable_list => OutputVariableListCreate() ! master
@@ -251,8 +263,11 @@ function OutputOptionCreate()
   nullify(output_option%mass_balance_region_list)
   output_option%mass_balance_region_flag = PETSC_FALSE
 
-  output_option%tconv = 1.d0
-  output_option%tunit = ''
+  output_option%aveg_var_time = 0.d0
+  output_option%aveg_var_dtime = 0.d0
+
+  output_option%plot_number = 0
+  output_option%plot_name = ""
 
   output_option%print_hydrograph = PETSC_FALSE
 
@@ -296,7 +311,20 @@ function OutputOptionDuplicate(output_option)
 
   allocate(output_option2)
 
+  output_option2%tconv = output_option%tconv
+  output_option2%tunit = output_option%tunit
+  output_option2%output_read = output_option%output_read
+
+  output_option2%print_initial_obs = output_option%print_initial_obs
+  output_option2%print_final_obs = output_option%print_final_obs
+  output_option2%print_initial_snap = output_option%print_initial_snap
+  output_option2%print_final_snap = output_option%print_final_snap
+  output_option2%print_initial_massbal = output_option%print_initial_massbal
+  output_option2%print_final_massbal = output_option%print_final_massbal
+  output_option2%print_ss_massbal = output_option%print_ss_massbal
+
   output_option2%print_hdf5 = output_option%print_hdf5
+  output_option2%print_obs_hdf5 = output_option%print_obs_hdf5
   output_option2%extend_hdf5_time_format = &
     output_option%extend_hdf5_time_format
   output_option2%print_hdf5_vel_cent = output_option%print_hdf5_vel_cent
@@ -313,44 +341,52 @@ function OutputOptionDuplicate(output_option)
     output_option%print_hdf5_aveg_energy_flowrate
   output_option2%print_explicit_flowrate = &
     output_option%print_explicit_flowrate
+
   output_option2%print_tecplot = output_option%print_tecplot
   output_option2%tecplot_format = output_option%tecplot_format
   output_option2%print_tecplot_vel_cent = output_option%print_tecplot_vel_cent
-  output_option2%print_fluxes = output_option%print_fluxes
   output_option2%print_tecplot_vel_face = output_option%print_tecplot_vel_face
+  output_option2%print_fluxes = output_option%print_fluxes
+
   output_option2%print_vtk = output_option%print_vtk
   output_option2%print_vtk_vel_cent = output_option%print_vtk_vel_cent
   output_option2%vtk_acknowledgment = output_option%vtk_acknowledgment
+
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
-  output_option2%print_initial_obs = output_option%print_initial_obs
-  output_option2%print_final_obs = output_option%print_final_obs
-  output_option2%print_initial_snap = output_option%print_initial_snap
-  output_option2%print_final_snap = output_option%print_final_snap
-  output_option2%print_initial_massbal = output_option%print_initial_massbal
-  output_option2%print_ss_massbal = output_option%print_ss_massbal
-  output_option2%print_final_massbal = output_option%print_final_massbal
-  output_option2%plot_number = output_option%plot_number
+
+  output_option2%print_explicit_primal_grid = &
+    output_option%print_explicit_primal_grid
+  output_option2%print_explicit_dual_grid = &
+    output_option%print_explicit_dual_grid
+
   output_option2%screen_imod = output_option%screen_imod
   output_option2%output_file_imod = output_option%output_file_imod
+
   output_option2%periodic_snap_output_ts_imod = &
     output_option%periodic_snap_output_ts_imod
   output_option2%periodic_obs_output_ts_imod = &
     output_option%periodic_obs_output_ts_imod
   output_option2%periodic_msbl_output_ts_imod = &
     output_option%periodic_msbl_output_ts_imod
+
   output_option2%periodic_snap_output_time_incr = &
     output_option%periodic_snap_output_time_incr
   output_option2%periodic_obs_output_time_incr = &
     output_option%periodic_obs_output_time_incr
   output_option2%periodic_msbl_output_time_incr = &
     output_option%periodic_msbl_output_time_incr
-  output_option2%plot_name = output_option%plot_name
+
+  output_option2%filter_non_state_variables = &
+    output_option%filter_non_state_variables
+  output_option2%force_synchronized_output = &
+    output_option%force_synchronized_output
+
+  output_option2%xmf_vert_len = output_option%xmf_vert_len
+
   output_option2%aveg_var_time = output_option%aveg_var_time
   output_option2%aveg_var_dtime = output_option%aveg_var_dtime
   output_option2%xmf_vert_len = output_option%xmf_vert_len
-  output_option2%filter_non_state_variables = &
-    output_option%filter_non_state_variables
 
   nullify(output_option2%output_variable_list)
   nullify(output_option2%output_snap_variable_list)
@@ -374,8 +410,8 @@ function OutputOptionDuplicate(output_option)
   output_option2%mass_balance_region_flag = &
     output_option%mass_balance_region_flag
 
-  output_option2%tconv = output_option%tconv
-  output_option2%tunit = output_option%tunit
+  output_option2%plot_number = output_option%plot_number
+  output_option2%plot_name = output_option%plot_name
 
   output_option2%print_hydrograph = output_option%print_hydrograph
 
@@ -551,8 +587,8 @@ function OutputMassBalRegionCreate()
 
   allocate(OutputMassBalRegionCreate)
   OutputMassBalRegionCreate%region_name =''
-  nullify(OutputMassBalRegionCreate%region_cell_ids)
   OutputMassBalRegionCreate%num_cells = 0
+  nullify(OutputMassBalRegionCreate%region_cell_ids)
   OutputMassBalRegionCreate%total_mass = 0.d0
   nullify(OutputMassBalRegionCreate%next)
 
@@ -581,6 +617,8 @@ function OutputVariableListDuplicate(old_list)
   nullify(new_list%first)
   nullify(new_list%last)
   new_list%nvars = old_list%nvars
+  new_list%flow_vars = old_list%flow_vars
+  new_list%energy_vars = old_list%energy_vars
 
   cur_variable => old_list%first
   do
@@ -620,7 +658,8 @@ function OutputMassBalRegListDuplicate(old_list)
     new_mbr => OutputMassBalRegionCreate()
     new_mbr%region_name = old_list%region_name
     new_mbr%num_cells = old_list%num_cells
-    new_mbr%region_cell_ids => old_list%region_cell_ids
+    allocate(new_mbr%region_cell_ids(size(old_list%region_cell_ids)))
+    new_mbr%region_cell_ids = old_list%region_cell_ids
     new_mbr%total_mass = old_list%total_mass
     ! Add new mass balance region to new list
     if (.not.associated(new_list)) then
