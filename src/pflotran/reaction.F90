@@ -3077,6 +3077,7 @@ subroutine ReactionReadOutput(reaction,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: print_something
+  PetscBool :: do_not_print_anything
   PetscInt :: conc_type
 
   type(aq_species_type), pointer :: cur_aq_spec
@@ -3095,6 +3096,7 @@ subroutine ReactionReadOutput(reaction,input,option)
   error_string = 'CHEMISTRY,OUTPUT,'
 
   print_something = PETSC_FALSE
+  do_not_print_anything = PETSC_FALSE
   input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
@@ -3110,6 +3112,7 @@ subroutine ReactionReadOutput(reaction,input,option)
     call StringToUpper(keyword)
     select case(keyword)
       case('OFF')
+        do_not_print_anything = PETSC_TRUE
         reaction%print_all_species = PETSC_FALSE
         reaction%print_all_primary_species = PETSC_FALSE
         reaction%print_all_secondary_species = PETSC_FALSE
@@ -3372,11 +3375,11 @@ subroutine ReactionReadOutput(reaction,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  if (.not.print_something) then
+  if (.not.print_something .and. .not.do_not_print_anything) then
     option%io_buffer = 'The name of a chemical species, a category of &
      &species (e.g., PRIMARY_SPECIES, SECONDARY_SPECIES, MINERALS, &
-     &IMMOBILE) or "ALL" must be listed in the CHEMISTRY,OUTPUT block &
-     &if the OUTPUT block is listed.'
+     &IMMOBILE) or "ALL" must be listed in the CHEMISTRY,OUTPUT block, &
+     &if the OUTPUT block is listed and "OFF" is not specified.'
     call PrintErrMsg(option)
   endif
 
