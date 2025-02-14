@@ -2337,7 +2337,7 @@ subroutine PMWellSetup(this)
 
   if (this%well_grid%save_well_segment_list .and. &
       associated(well_grid%deviated_well_segment_list)) then
-110 format(100es16.8)
+110 format(100es24.16)
     filename = trim(this%name) // '_well-segments.dat'
     if (OptionIsIORank(option)) then
       open(unit=fid,file=filename,action="write",status="replace")
@@ -3234,8 +3234,12 @@ subroutine PMWellReadGrid(well_grid,input,option,keyword,error_string,found)
                                      error_string)
                   call InputReadDouble(input,option,deviated_well_segment% &
                                        dxyz(3))
-                  if (Equal(deviated_well_segment%dxyz(3),0.d0)) then
-                    deviated_well_segment%dxyz(3) = -1.d0 * epsilon
+                  if (dabs(deviated_well_segment%dxyz(3)) < epsilon) then
+                    ! This is to ensure all procs properly order the
+                    ! well segments. Epsilon in m/m.
+                    deviated_well_segment%dxyz(3) = -1.d0 * epsilon * &
+                        (deviated_well_segment%dxyz(1) + &
+                        deviated_well_segment%dxyz(2))
                   endif
                   call InputErrorMsg(input,option, &
                                      'SEGMENT_DXYZ z-coordinate', &
