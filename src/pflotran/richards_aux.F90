@@ -355,12 +355,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (richards_density_kmol_to_kg > 1.1d0) then
     ! cannot convert her as some EOS use kg as the origial density
     global_auxvar%den = dw_mol
+    auxvar%dden_dp = dw_dp
   else
     global_auxvar%den = dw_kg
+    auxvar%dden_dp = dw_dp*FMWH2O
   endif
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
-  auxvar%dden_dp = dw_dp
   auxvar%kr = kr  ! stored solely for output purposes
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
@@ -368,7 +369,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (size(global_auxvar%sat) > 1) then
     global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
   endif
-print *, x(1), dw_mol, dw_kg
 
 end subroutine RichardsAuxVarCompute
 

@@ -387,7 +387,6 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
       upweight=1.d0
     endif
 
-
     density_ave = upweight*global_auxvar_up%den(1)+ &
                   (1.D0-upweight)*global_auxvar_dn%den(1)
 
@@ -590,8 +589,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         density_ave = global_auxvar_dn%den(1)
 
         dphi_dp_dn = dot_product(option%gravity,dist(1:3))* &
-                     rich_auxvar_dn%dden_dp* &
-                     richards_density_kmol_to_kg
+                     rich_auxvar_dn%dden_dp*richards_density_kmol_to_kg
         dden_ave_dp_dn = rich_auxvar_dn%dden_dp
 
         ! since boundary auxvar is meaningless (no pressure specified there), only use cell
