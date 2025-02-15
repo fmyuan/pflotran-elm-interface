@@ -17,8 +17,9 @@ module PM_RT_class
 
   private
 
-  PetscInt, parameter :: REL_UPDATE_INDEX = 1
-  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 2
+  PetscInt, parameter :: ABS_UPDATE_INDEX = 1
+  PetscInt, parameter :: REL_UPDATE_INDEX = 2
+  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 3
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
 
   type, public, extends(pm_base_type) :: pm_rt_type
@@ -323,6 +324,10 @@ subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
   select case(trim(keyword))
     case('NUMERICAL_JACOBIAN')
       option%transport%numerical_derivatives = PETSC_TRUE
+    case('ITOL_ABSOLUTE_UPDATE')
+      call InputReadDouble(input,option,rt_itol_abs_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
     case('ITOL_RELATIVE_UPDATE')
       call InputReadDouble(input,option,rt_itol_rel_update)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -1161,6 +1166,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)
+  PetscReal :: absolute_change
   PetscReal :: relative_change
   PetscReal :: scaled_residual
   PetscMPIInt :: mpi_int
@@ -1195,10 +1201,15 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
         ! relative change in concentration
         if (this%realization%reaction%use_log_formulation) then
           tempreal = exp(C0_p(index))
-          relative_change = &
-            dabs((exp(C0_p(index)-dC_p(index))-tempreal)/tempreal)
+          absolute_change = abs(exp(C0_p(index)-dC_p(index))-tempreal)
+          relative_change = absolute_change/tempreal
         else
-          relative_change = dabs(dC_p(index)/C0_p(index))
+          absolute_change = abs(dC_p(index))
+          relative_change = absolute_change/C0_p(index)
+        endif
+        if (absolute_change > this%converged_real(idof,ABS_UPDATE_INDEX)) then
+          this%converged_real(idof,ABS_UPDATE_INDEX) = absolute_change
+          this%converged_cell(idof,ABS_UPDATE_INDEX) = natural_id
         endif
         if (relative_change > this%converged_real(idof,REL_UPDATE_INDEX)) then
           this%converged_real(idof,REL_UPDATE_INDEX) = relative_change
@@ -1294,6 +1305,10 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 #endif
 
   if (this%check_post_convergence) then
+    if (Initialized(rt_itol_abs_update)) then
+      this%converged_flag(ABS_UPDATE_INDEX) = &
+        (maxval(this%converged_real(:,ABS_UPDATE_INDEX)) < rt_itol_abs_update)
+    endif
     if (Initialized(rt_itol_rel_update)) then
       this%converged_flag(REL_UPDATE_INDEX) = &
         (maxval(this%converged_real(:,REL_UPDATE_INDEX)) < rt_itol_rel_update)
@@ -1315,6 +1330,11 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
             & " -diverged")') it, fnorm, xnorm, unorm
       call PrintMsg(option,out_string)
       return
+    endif
+
+    if (Initialized(rt_itol_abs_update) .and. &
+        this%converged_flag(ABS_UPDATE_INDEX)) then
+      reason = 13
     endif
 
     if (Initialized(rt_itol_scaled_res) .and. &
@@ -1348,6 +1368,8 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           rsn_string = 'itol_rel_upd'
         case(12)
           rsn_string = 'itol_scl_res'
+        case(13)
+          rsn_string = 'itol_abs_upd'
         case default
           write(rsn_string,'(i3)') reason
       end select
@@ -1367,11 +1389,20 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
         StringWrite('(es9.2)',inorm_residual)
       icount = icount - 1
       if (it > 0) then
+        tempreal = maxval(this%converged_real(:,ABS_UPDATE_INDEX))
+      else
+        tempreal = 0.d0
+      endif
+      out_string = trim(out_string) // ' iu: ' // &
+        StringWrite('(es9.2)',tempreal)
+      icount = icount - 1
+      if (it > 0) then
         tempreal = maxval(this%converged_real(:,REL_UPDATE_INDEX))
       else
         tempreal = 0.d0
       endif
-      out_string = trim(out_string) // ' iru: ' // StringWrite('(es9.2)',tempreal)
+      out_string = trim(out_string) // ' iru: ' // &
+        StringWrite('(es9.2)',tempreal)
       icount = icount - 1
     if (icount > 0) then
       icount = icount - 1
