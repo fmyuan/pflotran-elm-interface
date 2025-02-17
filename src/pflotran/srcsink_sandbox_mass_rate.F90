@@ -136,6 +136,7 @@ subroutine MassRateSetup(this,grid,region_list,material_auxvars,option)
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
   use Material_Aux_module, only: material_auxvar_type
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
   use Region_module
 
   implicit none
@@ -150,7 +151,7 @@ subroutine MassRateSetup(this,grid,region_list,material_auxvars,option)
   ! convert rate from kg/s to mol/s
   select case(option%iflowmode)
     case(RICHARDS_MODE)
-      this%rate(1) = this%rate(1) / FMWH2O
+      this%rate(1) = this%rate(1) / richards_density_kmol_to_kg
     case(G_MODE,H_MODE)
       this%rate(:) = this%rate(:) / general_fmw(:)
     case(WF_MODE)

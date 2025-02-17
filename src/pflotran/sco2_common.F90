@@ -99,7 +99,7 @@ subroutine SCO2Accumulation(sco2_auxvar,global_auxvar,material_auxvar, &
                                       volume_over_dt
   endif
 
-  if (option%ntrandof > 0 .and. sco2_auxvar%sat(gid) > 0.d0 .and. &
+  if (option%ntrandof > 0 .and. &
       option%iflag /= SCO2_UPDATE_FOR_FIXED_ACCUM) then
     select case(option%itranmode)
       case(RT_MODE)

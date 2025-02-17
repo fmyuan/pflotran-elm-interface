@@ -915,21 +915,21 @@ subroutine ReactionReadPass1(reaction,input,option)
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
                    reaction%surface_complexation%nkinsrfcplxrxn
 
-  if (reaction%print_free_conc_type == 0) then
+  if (Uninitialized(reaction%print_free_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_free_conc_type = PRIMARY_MOLALITY
     else
       reaction%print_free_conc_type = PRIMARY_MOLARITY
     endif
   endif
-  if (reaction%print_tot_conc_type == 0) then
+  if (Uninitialized(reaction%print_tot_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_tot_conc_type = TOTAL_MOLALITY
     else
       reaction%print_tot_conc_type = TOTAL_MOLARITY
     endif
   endif
-  if (reaction%print_secondary_conc_type == 0) then
+  if (Uninitialized(reaction%print_secondary_conc_type)) then
     if (reaction%initialize_with_molality) then
       reaction%print_secondary_conc_type = SECONDARY_MOLALITY
     else
@@ -1648,6 +1648,28 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+    ! check for infinite complex concentrations
+    if (reaction%neqcplx > 0) then
+      tempreal = maxval(rt_auxvar%sec_molal)
+      if (tempreal > 1.d200) then
+        option%io_buffer = 'ERROR: Infinite concentrations found in &
+          &constraint "' // trim(constraint%name) // '".'
+        call PrintMsgByRank(option)
+        ! now figure out which species have zero concentrations
+        do idof = 1, reaction%neqcplx
+          if (rt_auxvar%sec_molal(idof) > 1.d200) then
+          option%io_buffer = '  Species "' // &
+              trim(reaction%secondary_species_names(idof)) // &
+              '" has an infinite (or near infinite) concentration (' // &
+              StringWrite(rt_auxvar%sec_molal(idof)) // ').'
+            call PrintMsgByRank(option)
+          endif
+        enddo
+        option%io_buffer = 'Secondary aqueous concentrations RESULTING from &
+          &constraint concentrations must be reasonable.'
+        call PrintErrMsgByRank(option)
+      endif
+    endif
 
     ! geh - for debugging
     !call RTPrintAuxVar(rt_auxvar,reaction,option)
@@ -1935,11 +1957,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
         if (rt_auxvar%pri_molal(idof) <= 0.d0) then
-          write(string,*) rt_auxvar%pri_molal(idof)
           option%io_buffer = '  Species "' // &
             trim(reaction%primary_species_names(idof)) // &
             '" has zero concentration (' // &
-            trim(adjustl(string)) // ').'
+            StringWrite(rt_auxvar%pri_molal(idof)) // ').'
           call PrintMsgByRank(option)
         endif
       enddo
@@ -3049,10 +3070,15 @@ subroutine ReactionReadOutput(reaction,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscBool :: print_something
+  PetscBool :: do_not_print_anything
+  PetscInt :: conc_type
 
   type(aq_species_type), pointer :: cur_aq_spec
   type(gas_species_type), pointer :: cur_gas_spec
@@ -3067,6 +3093,10 @@ subroutine ReactionReadOutput(reaction,input,option)
   nullify(cur_srfcplx)
   nullify(cur_srfcplx_rxn)
 
+  error_string = 'CHEMISTRY,OUTPUT,'
+
+  print_something = PETSC_FALSE
+  do_not_print_anything = PETSC_FALSE
   input%ierr = INPUT_ERROR_NONE
   call InputPushBlock(input,option)
   do
@@ -3078,10 +3108,11 @@ subroutine ReactionReadOutput(reaction,input,option)
     call InputReadCard(input,option,name)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,OUTPUT,SPECIES_NAME')
 
-    word = name
-    call StringToUpper(word)
-    select case(word)
+    keyword = name
+    call StringToUpper(keyword)
+    select case(keyword)
       case('OFF')
+        do_not_print_anything = PETSC_TRUE
         reaction%print_all_species = PETSC_FALSE
         reaction%print_all_primary_species = PETSC_FALSE
         reaction%print_all_secondary_species = PETSC_FALSE
@@ -3098,6 +3129,7 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_total_component = PETSC_FALSE
         reaction%print_free_ion = PETSC_FALSE
       case('ALL')
+        print_something = PETSC_TRUE
         reaction%print_all_species = PETSC_TRUE
         reaction%print_all_primary_species = PETSC_TRUE
  !       reaction%print_all_secondary_species = PETSC_TRUE
@@ -3106,45 +3138,90 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%immobile%print_all = PETSC_TRUE
 !        reaction%print_pH = PETSC_TRUE
       case('PRIMARY_SPECIES')
+        print_something = PETSC_TRUE
         reaction%print_all_primary_species = PETSC_TRUE
 !        reaction%print_pH = PETSC_TRUE
-      case('SECONDARY_SPECIES')
-        reaction%print_all_secondary_species = PETSC_TRUE
       case('GASES')
+        print_something = PETSC_TRUE
         reaction%gas%print_all = PETSC_TRUE
       case('MINERALS')
+        print_something = PETSC_TRUE
         reaction%mineral%print_all = PETSC_TRUE
       case('MINERAL_SATURATION_INDEX')
+        print_something = PETSC_TRUE
         reaction%mineral%print_saturation_index = PETSC_TRUE
       case('MINERAL_VOLUME_FRACTION')
+        print_something = PETSC_TRUE
         reaction%mineral%print_volume_fraction = PETSC_TRUE
       case('MINERAL_RATE')
+        print_something = PETSC_TRUE
         reaction%mineral%print_rate = PETSC_TRUE
       case('MINERAL_SURFACE_AREA')
+        print_something = PETSC_TRUE
         reaction%mineral%print_surface_area = PETSC_TRUE
       case('IMMOBILE')
+        print_something = PETSC_TRUE
         reaction%immobile%print_all = PETSC_TRUE
       case('PH')
+        print_something = PETSC_TRUE
         reaction%print_pH = PETSC_TRUE
       case('EH')
+        print_something = PETSC_TRUE
         reaction%print_Eh = PETSC_TRUE
       case('PE')
+        print_something = PETSC_TRUE
         reaction%print_pe = PETSC_TRUE
       case('O2')
+        print_something = PETSC_TRUE
         reaction%print_O2 = PETSC_TRUE
       case('KD')
+        print_something = PETSC_TRUE
         reaction%print_kd = PETSC_TRUE
-      case('TOTAL')
-        reaction%print_total_component = PETSC_TRUE
       case('TOTAL_SORBED')
+        print_something = PETSC_TRUE
         reaction%print_total_sorb = PETSC_TRUE
       case('TOTAL_BULK')
+        print_something = PETSC_TRUE
         reaction%print_total_bulk = PETSC_TRUE
       case('TOTAL_SORBED_MOBILE')
+        print_something = PETSC_TRUE
         reaction%print_total_sorb_mobile = PETSC_TRUE
-      case('FREE_ION')
-        reaction%print_free_ion = PETSC_TRUE
+      case('FREE_ION','TOTAL','SECONDARY_SPECIES')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        ! optional concentration type
+        conc_type = UNINITIALIZED_INTEGER
+        if (.not.InputError(input)) then
+          call StringToUpper(word)
+          select case(word)
+            case('MOLARITY')
+              conc_type = PRIMARY_MOLARITY
+            case('MOLALITY')
+              conc_type = PRIMARY_MOLALITY
+            case default
+              error_string = trim(error_string) // keyword
+              call InputKeywordUnrecognized(input,word,error_string,option)
+          end select
+        endif
+        select case(keyword)
+          case('FREE_ION')
+            reaction%print_free_ion = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_free_conc_type = conc_type
+            endif
+          case('TOTAL')
+            reaction%print_total_component = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_tot_conc_type = conc_type
+            endif
+          case('SECONDARY_SPECIES')
+            print_something = PETSC_TRUE
+            reaction%print_all_secondary_species = PETSC_TRUE
+            if (Initialized(conc_type)) then
+              reaction%print_secondary_conc_type = conc_type
+            endif
+        end select
       case('ACTIVITY_COEFFICIENTS')
+        print_something = PETSC_TRUE
         reaction%print_act_coefs = PETSC_TRUE
       case('MOLARITY')
         reaction%print_free_conc_type = PRIMARY_MOLARITY
@@ -3153,10 +3230,13 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_free_conc_type = PRIMARY_MOLALITY
         reaction%print_tot_conc_type = TOTAL_MOLALITY
       case('GAS_PARTIAL_PRESSURE')
+        print_something = PETSC_TRUE
         reaction%gas%print_partial_pressure = PETSC_TRUE
       case('GAS_CONCENTRATION')
+        print_something = PETSC_TRUE
         reaction%gas%print_concentration = PETSC_TRUE
       case('AGE')
+        print_something = PETSC_TRUE
         reaction%print_age = PETSC_TRUE
       case('AUXILIARY')
         reaction%print_auxiliary = PETSC_TRUE
@@ -3176,7 +3256,8 @@ subroutine ReactionReadOutput(reaction,input,option)
         cur_srfcplx_rxn => reaction%surface_complexation%rxn_list
         do
           if (.not.associated(cur_srfcplx_rxn)) exit
-          if (StringCompare(name,cur_srfcplx_rxn%free_site_name,MAXWORDLENGTH)) then
+          if (StringCompare(name,cur_srfcplx_rxn%free_site_name, &
+                            MAXWORDLENGTH)) then
             cur_srfcplx_rxn%site_density_print_me = PETSC_TRUE
             found = PETSC_TRUE
             exit
@@ -3282,7 +3363,9 @@ subroutine ReactionReadOutput(reaction,input,option)
             cur_srfcplx => cur_srfcplx%next
           enddo
         endif
-        if (.not.found) then
+        if (found) then
+          print_something = PETSC_TRUE
+        else
           option%io_buffer = 'CHEMISTRY,OUTPUT species name: '//trim(name)// &
                              ' not found among chemical species'
           call PrintErrMsg(option)
@@ -3291,6 +3374,14 @@ subroutine ReactionReadOutput(reaction,input,option)
 
   enddo
   call InputPopBlock(input,option)
+
+  if (.not.print_something .and. .not.do_not_print_anything) then
+    option%io_buffer = 'The name of a chemical species, a category of &
+     &species (e.g., PRIMARY_SPECIES, SECONDARY_SPECIES, MINERALS, &
+     &IMMOBILE) or "ALL" must be listed in the CHEMISTRY,OUTPUT block, &
+     &if the OUTPUT block is listed and "OFF" is not specified.'
+    call PrintErrMsg(option)
+  endif
 
   ! check to ensure that the user has listed FREE_ION or TOTAL is a primary
   ! species is listed for output

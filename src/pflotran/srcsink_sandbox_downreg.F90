@@ -230,6 +230,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_module
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
 
   implicit none
 
@@ -253,7 +254,8 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       ! regulate liquid pressure in Richards mode
       pressure = aux_real(3)
       rate = this%dataset%rarray(1)
-      rate = rate / FMWH2O        ! from kg/s to kmol/s (for regression tests)
+             ! from kg/s to kmol/s (for regression tests)
+      rate = rate / richards_density_kmol_to_kg
       ! rate = rate / aux_real(2) ! from m^3/s to kmol/s (later on, we wll assume m^3/s)
       if (rate > 0.0d0) then
         ! source

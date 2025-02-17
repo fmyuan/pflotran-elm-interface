@@ -193,32 +193,32 @@ subroutine GeomechForceSetPlotVariables(list)
                                STRAIN_ZX)
 
   name = 'stress_xx'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XX)
 
   name = 'stress_yy'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YY)
 
   name = 'stress_zz'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZZ)
 
   name = 'stress_xy'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_XY)
 
   name = 'stress_yz'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_YZ)
 
   name = 'stress_zx'
-  units = ''
+  units = 'Pa'
   call OutputVariableAddToList(list,name,OUTPUT_STRESS,units, &
                                STRESS_ZX)
   name = 'relative_displacement_x'
@@ -1283,9 +1283,9 @@ subroutine GeomechGetBodyForce(load_type,lambda,mu,coord,bf,option)
 
   select case(load_type)
     case default
-      bf(GEOMECH_DISP_X_DOF) = option%geomech_gravity(X_DIRECTION)
-      bf(GEOMECH_DISP_Y_DOF) = option%geomech_gravity(Y_DIRECTION)
-      bf(GEOMECH_DISP_Z_DOF) = option%geomech_gravity(Z_DIRECTION)
+      bf(GEOMECH_DISP_X_DOF) = option%geomechanics%gravity(X_DIRECTION)
+      bf(GEOMECH_DISP_Y_DOF) = option%geomechanics%gravity(Y_DIRECTION)
+      bf(GEOMECH_DISP_Z_DOF) = option%geomechanics%gravity(Z_DIRECTION)
   end select
 
 end subroutine GeomechGetBodyForce

@@ -244,6 +244,7 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
   use Material_Aux_module
   use String_module
   use Utility_module
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
 
   implicit none
 
@@ -269,7 +270,7 @@ subroutine PressureSrcSink(this,Residual,Jacobian,compute_derivative, &
     xmax = this%pressure+this%pressure_span
   endif
 
-  max_rate_kmol = this%max_mass_rate/FMWH2O
+  max_rate_kmol = this%max_mass_rate/richards_density_kmol_to_kg
   volume_scale = 1.d0
   if (this%scale_maximum_mass_rate) then
     volume_scale = material_auxvar%volume / this%sum_volume

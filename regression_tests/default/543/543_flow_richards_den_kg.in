@@ -1,11 +1,11 @@
-#Description: 3D test problem for testing chemical reactions
-#             based on chemistry from Hammond and Lichtner, WRR, 2010
-
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE RICHARDS
+      OPTIONS
+        USE_MASS_DENSITY
+      /
     /
   /
 END

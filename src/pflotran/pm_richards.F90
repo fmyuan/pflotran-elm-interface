@@ -159,6 +159,8 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
       case('INLINE_SURFACE_MANNINGS_COEFF')
         call InputReadDouble(input,option,tempreal)
         option%flow%inline_surface_Mannings_coeff = tempreal
+      case('USE_MASS_DENSITY')
+        richards_density_kmol_to_kg = 1.d0
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
