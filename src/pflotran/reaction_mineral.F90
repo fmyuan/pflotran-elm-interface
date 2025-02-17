@@ -2187,8 +2187,7 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
           global_auxvar%reaction_rate(2) = &
             global_auxvar%reaction_rate(2) + &
             rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
-            reaction%mineral%kinmnrlstoich_in_residual(iaqspec,imnrl)/ &
-            option%flow_dt
+            reaction%mineral%kinmnrlstoich_in_residual(iaqspec,imnrl)
           cycle
         endif
       enddo
@@ -2197,8 +2196,10 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
         global_auxvar%reaction_rate(1) = &
           global_auxvar%reaction_rate(1) + &
           rt_auxvar%mnrl_rate(imnrl)*option%tran_dt * &
-          reaction%mineral%kinmnrlh2ostoich_in_residual(imnrl)/option%flow_dt
+          reaction%mineral%kinmnrlh2ostoich_in_residual(imnrl)
       endif
+      if (option%iflowmode /= SCO2_MODE) global_auxvar%reaction_rate = &
+                                   global_auxvar%reaction_rate / option%flow_dt
     endif
   enddo
 

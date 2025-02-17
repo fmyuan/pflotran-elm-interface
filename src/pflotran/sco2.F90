@@ -308,34 +308,48 @@ subroutine SCO2InitializeTimestep(realization)
     volume = material_auxvars(ghosted_id)%volume
     porosity = sco2_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
     if (option%ntrandof > 0) then
-      water_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid) + &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
-      water_mass = water_mass * porosity * volume
+      ! reaction_rate is read in as total mass in SCO2 mode, convert
+      ! to a rate.
+      if (sco2_zero_rxn_source_w_no_gas) then
+        if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) <= 0.d0) then
+          global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
+        endif
+      else
+        water_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
+        water_mass = water_mass * porosity * volume
 
-      co2_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,lid) + &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
-                   sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,gid)
-      co2_mass = co2_mass * porosity * volume
+        co2_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,lid) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,gid)
+        co2_mass = co2_mass * porosity * volume
 
-      ! Reaction rate = mineralization rate. positive means sink
-      rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) * dt
-      if (rxn_mass_chng > 0.d0) then
-        ! Don't extract more H2O mass than exists
-        global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) = &
-                             min(rxn_mass_chng, water_mass) / dt
-      endif
-      rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) * dt
-      if (rxn_mass_chng > 0.d0) then
-        ! Don't extract more CO2 mass than exists
-        global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) = &
-                             min(rxn_mass_chng, co2_mass) / dt
+        ! Reaction rate = mineralization rate. positive means sink
+        rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER)
+        if (rxn_mass_chng > 0.d0) then
+          ! Don't extract more H2O mass than exists
+          global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) = &
+                              min(rxn_mass_chng, water_mass) / dt
+        else
+          global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) = &
+                              rxn_mass_chng / dt
+        endif
+        rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER)
+        if (rxn_mass_chng > 0.d0) then
+          ! Don't extract more CO2 mass than exists
+          global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) = &
+                              min(rxn_mass_chng, co2_mass) / dt
+        else
+          global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) = &
+                              rxn_mass_chng / dt
+        endif
       endif
     endif
   enddo

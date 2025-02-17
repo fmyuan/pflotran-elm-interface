@@ -362,6 +362,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         sco2_stomp_fluxes = PETSC_FALSE
       case('NO_H2O_SOURCE_UPDATE_FROM_TRANS')
         option%flow%update_transport_h2o_src = PETSC_FALSE
+      case('ZERO_TRAN_SRC_W_ZERO_GAS')
+        sco2_zero_rxn_source_w_no_gas = PETSC_TRUE
       case('UPDATE_SURFACE_TENSION')
         sco2_update_surface_tension = PETSC_TRUE
       case default
