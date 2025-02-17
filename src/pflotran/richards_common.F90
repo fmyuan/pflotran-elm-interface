@@ -239,9 +239,9 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
 
     gravity = (upweight*global_auxvar_up%den(1) + &
               (1.D0-upweight)*global_auxvar_dn%den(1)) &
-              * FMWH2O * dist_gravity
-    dgravity_dden_up = upweight*FMWH2O*dist_gravity
-    dgravity_dden_dn = (1.d0-upweight)*FMWH2O*dist_gravity
+              * richards_density_kmol_to_kg * dist_gravity
+    dgravity_dden_up = upweight*richards_density_kmol_to_kg*dist_gravity
+    dgravity_dden_dn = (1.d0-upweight)*richards_density_kmol_to_kg*dist_gravity
 
     dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1)  + gravity
     dphi_dp_up = 1.d0 + dgravity_dden_up*rich_auxvar_up%dden_dp
@@ -387,13 +387,12 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
       upweight=1.d0
     endif
 
-
     density_ave = upweight*global_auxvar_up%den(1)+ &
                   (1.D0-upweight)*global_auxvar_dn%den(1)
 
     gravity = (upweight*global_auxvar_up%den(1) + &
               (1.D0-upweight)*global_auxvar_dn%den(1)) &
-              * FMWH2O * dist_gravity
+              * richards_density_kmol_to_kg * dist_gravity
 
     dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1)  + gravity
 
@@ -533,8 +532,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
         gravity = (upweight*global_auxvar_up%den(1) + &
                   (1.D0-upweight)*global_auxvar_dn%den(1)) &
-                  * FMWH2O * dist_gravity
-        dgravity_dden_dn = (1.d0-upweight)*FMWH2O*dist_gravity
+                  * richards_density_kmol_to_kg * dist_gravity
+        dgravity_dden_dn = (1.d0-upweight)*richards_density_kmol_to_kg* &
+                           dist_gravity
 
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
@@ -585,11 +585,11 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
       if(rich_auxvar_dn%kvr > eps) then
         dphi = dot_product(option%gravity,dist(1:3))* &
-                           global_auxvar_dn%den(1)*FMWH2O
+                           global_auxvar_dn%den(1)*richards_density_kmol_to_kg
         density_ave = global_auxvar_dn%den(1)
 
         dphi_dp_dn = dot_product(option%gravity,dist(1:3))* &
-                                 rich_auxvar_dn%dden_dp*FMWH2O
+                     rich_auxvar_dn%dden_dp*richards_density_kmol_to_kg
         dden_ave_dp_dn = rich_auxvar_dn%dden_dp
 
         ! since boundary auxvar is meaningless (no pressure specified there), only use cell
@@ -755,11 +755,12 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         else if (global_auxvar_dn%sat(1) < eps) then
           upweight=1.d0
         endif
-        density_ave = upweight*global_auxvar_up%den(1)+(1.D0-upweight)*global_auxvar_dn%den(1)
+        density_ave = upweight*global_auxvar_up%den(1) + &
+                      (1.D0-upweight)*global_auxvar_dn%den(1)
 
         gravity = (upweight*global_auxvar_up%den(1) + &
                   (1.D0-upweight)*global_auxvar_dn%den(1)) &
-                  * FMWH2O * dist_gravity
+                  * richards_density_kmol_to_kg * dist_gravity
 
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
@@ -800,7 +801,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
     case(UNIT_GRADIENT_BC)
 
-      dphi = dot_product(option%gravity,dist(1:3))*global_auxvar_dn%den(1)*FMWH2O
+      dphi = dot_product(option%gravity,dist(1:3))*global_auxvar_dn%den(1)* &
+             richards_density_kmol_to_kg
       density_ave = global_auxvar_dn%den(1)
 
       ! since boundary auxvar is meaningless (no pressure specified there), only use cell

@@ -115,7 +115,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
-  call FactorySubsurfaceSetGeomechMode(pm_geomech, option)
+  call InitSubsurfGeomechSetGeomechMode(pm_geomech, option)
 
   realization => RealizationCreate(option)
   simulation%realization => realization
@@ -135,7 +135,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   ! FactorySubsurfaceInitSimulation() must be called after pmc linkages
   ! are set above.
   call FactorySubsurfaceInitSimulation(simulation)
-  call FactorySubsurfGeomechInitSimulation(simulation, pm_geomech)
+  call InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
@@ -268,9 +268,9 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
     class is (pm_sco2_type)
       call PMSCO2SetFlowMode(pm_flow,pm_well,option)
     class default
-      option%io_buffer = ''
+      option%io_buffer = 'Unrecognized subsurface flow class in &
+        &FactorySubsurfaceSetFlowMode.'
       call PrintErrMsg(option)
-
   end select
 
   if (option%nflowdof == 0) then
@@ -317,39 +317,12 @@ subroutine FactorySubsurfaceSetGeopMode(pm_geop,option)
       option%geopmode = "ERT"
       option%ngeopdof = 1
     class default
-      option%io_buffer = ''
+      option%io_buffer = 'Unrecognized subsurface geophysics class in &
+        &FactorySubsurfaceSetGeopMode.'
       call PrintErrMsg(option)
   end select
 
 end subroutine FactorySubsurfaceSetGeopMode
-
-! ************************************************************************** !
-
-subroutine FactorySubsurfaceSetGeomechMode(pm_geomech,option)
-
-  use Option_module
-  use PM_Geomechanics_Force_class
-
-  implicit none
-
-  type(option_type) :: option
-  class(pm_geomech_force_type), pointer :: pm_geomech
-
-  if (.not.associated(pm_geomech)) then
-    return
-  endif
-
-  select type(pm_geomech)
-    class is (pm_geomech_force_type)
-      option%igeopmode = LINEAR_ELASTICITY_MODE
-      option%geommode = "GEOMECHANICS"
-      option%ngeomechdof = 3 ! displacements in x, y, z directions
-    class default
-      option%io_buffer = ''
-      call PrintErrMsg(option)
-  end select
-
-end subroutine FactorySubsurfaceSetGeomechMode
 
 ! ************************************************************************** !
 
@@ -394,7 +367,7 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   option => realization%option
 
   ! for coupling between geomechanics and ert
-  select case(option%geomech_subsurf_coupling)
+  select case(option%geomechanics%subsurf_coupling)
     case(GEOMECH_ERT_COUPLING)
       call RealizationRegisterParameter(realization,'geomechanics_stress')
       call RealizationRegisterParameter(realization,'geomechanics_strain')

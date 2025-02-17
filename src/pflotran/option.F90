@@ -9,6 +9,7 @@ module Option_module
   use Option_Flow_module
   use Option_Transport_module
   use Option_Geophysics_module
+  use Option_Geomechanics_module
   use Option_Inversion_module
   use Option_Parameter_module
   use Print_module
@@ -23,6 +24,7 @@ module Option_module
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
+    type(geomechanics_option_type), pointer :: geomechanics
     type(checkpoint_option_type), pointer :: checkpoint
     type(inversion_option_type), pointer :: inversion
     type(parameter_option_type), pointer :: parameter
@@ -70,15 +72,8 @@ module Option_module
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
 
-    PetscBool :: geomech_on
-    PetscBool :: geomech_initial
-    PetscInt :: ngeomechdof
+    PetscInt :: ngeomechdof ! geomechanics dof
     PetscInt :: n_stress_strain_dof
-    PetscReal :: geomech_time
-    PetscInt :: geomech_subsurf_coupling
-    PetscReal :: geomech_gravity(3)
-    PetscBool :: sec_vars_update
-    PetscInt :: geomech_split
 
     PetscInt :: air_pressure_id
     PetscInt :: co2_pressure_id
@@ -278,6 +273,7 @@ function OptionCreate1()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  option%geomechanics => OptionGeomechanicsCreate()
   option%parameter => OptionParameterCreate()
   nullify(option%checkpoint)
   nullify(option%inversion)
@@ -483,15 +479,8 @@ subroutine OptionInitRealization(option)
   option%nsec_cells = 0
   option%num_table_indices = 0
 
-  option%geomech_on = PETSC_FALSE
-  option%geomech_initial = PETSC_FALSE
   option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
-  option%geomech_time = 0.d0
-  option%geomech_subsurf_coupling = 0
-  option%geomech_split = 0
-  option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
   option%geommode = ""
   option%igeommode = NULL_MODE
 
@@ -1544,6 +1533,7 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
+  call OptionGeomechanicsDestroy(option%geomechanics)
   call OptionCheckpointDestroy(option%checkpoint)
   call OptionParameterDestroy(option%parameter)
   nullify(option%comm)

@@ -478,6 +478,7 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
   use Output_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
 
   implicit none
 
@@ -495,7 +496,7 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(1) = richards_density_kmol_to_kg
     case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(G_MODE,H_MODE)

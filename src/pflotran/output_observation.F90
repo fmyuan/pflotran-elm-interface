@@ -2030,6 +2030,7 @@ subroutine OutputIntegralFlux(realization_base)
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
   use SCO2_Aux_module, only : sco2_fmw => fmw_comp
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
 
   implicit none
 
@@ -2070,7 +2071,7 @@ subroutine OutputIntegralFlux(realization_base)
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(1) = richards_density_kmol_to_kg
     case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(G_MODE,H_MODE)
@@ -2359,6 +2360,7 @@ subroutine OutputMassBalance(realization_base)
   use Material_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
+  use Richards_Aux_module, only : richards_density_kmol_to_kg
 
   implicit none
 
@@ -3295,7 +3297,12 @@ subroutine OutputMassBalance(realization_base)
           enddo
 
           ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
-          sum_kg = sum_kg*FMWH2O
+          select case(option%iflowmode)
+            case(RICHARDS_MODE,RICHARDS_TS_MODE)
+              sum_kg = sum_kg*richards_density_kmol_to_kg
+            case(ZFLOW_MODE,PNF_MODE)
+              sum_kg = sum_kg*FMWH2O
+          end select
 
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global,int_mpi,MPI_DOUBLE_PRECISION, &
