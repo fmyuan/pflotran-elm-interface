@@ -1014,6 +1014,7 @@ global.o : \
   pflotran_constants.o \
   realization_base.o \
   realization_subsurface.o \
+  richards_aux.o \
   variables.o \
   zflow_aux.o
 global_aux.o : \
@@ -1814,6 +1815,7 @@ output_observation.o : \
   realization_subsurface.o \
   region.o \
   richards.o \
+  richards_aux.o \
   sco2.o \
   sco2_aux.o \
   string.o \
@@ -3672,6 +3674,7 @@ srcsink_sandbox.o : \
   output_aux.o \
   pflotran_constants.o \
   region.o \
+  richards_aux.o \
   srcsink_sandbox_base.o \
   srcsink_sandbox_downreg.o \
   srcsink_sandbox_mass_rate.o \
@@ -3702,6 +3705,7 @@ srcsink_sandbox_downreg.o : \
   pflotran_constants.o \
   reaction_aux.o \
   region.o \
+  richards_aux.o \
   srcsink_sandbox_base.o \
   string.o \
   time_storage.o \
@@ -3715,6 +3719,7 @@ srcsink_sandbox_mass_rate.o : \
   pflotran_constants.o \
   reaction_aux.o \
   region.o \
+  richards_aux.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o \
@@ -3727,6 +3732,7 @@ srcsink_sandbox_pressure.o : \
   pflotran_constants.o \
   reaction_aux.o \
   region.o \
+  richards_aux.o \
   srcsink_sandbox_base.o \
   string.o \
   units.o \

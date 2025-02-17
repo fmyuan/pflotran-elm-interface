@@ -16,6 +16,7 @@ module Richards_Aux_module
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
+  PetscReal, public :: richards_density_kmol_to_kg = FMWH2O
   PetscInt, public :: richards_ni_count
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
@@ -202,6 +203,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Material_Aux_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -349,10 +351,17 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     hw_dp = 0.d0
   endif
 
-  global_auxvar%den = dw_mol
+  ! richards_density_kmol_to_kg = 1 or FMWH2O (no other value)
+  if (richards_density_kmol_to_kg > 1.1d0) then
+    ! cannot convert her as some EOS use kg as the origial density
+    global_auxvar%den = dw_mol
+    auxvar%dden_dp = dw_dp
+  else
+    global_auxvar%den = dw_kg
+    auxvar%dden_dp = dw_dp*FMWH2O
+  endif
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
-  auxvar%dden_dp = dw_dp
   auxvar%kr = kr  ! stored solely for output purposes
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
