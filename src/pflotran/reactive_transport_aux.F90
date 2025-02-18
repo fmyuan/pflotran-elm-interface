@@ -20,6 +20,11 @@ module Reactive_Transport_Aux_module
 
   PetscReal, public :: rt_numerical_derivative_tol = 1.d-6
 
+  ! debugging
+  PetscInt, public :: rt_ts_count
+  PetscInt, public :: rt_ni_count
+  PetscInt, public :: rt_ts_cut_count
+
   type, public :: reactive_transport_auxvar_type
     ! molality
     PetscReal, pointer :: pri_molal(:)     ! mol/kg water
