@@ -46,6 +46,7 @@ module SCO2_Aux_module
   PetscBool, public :: sco2_isothermal_gradient = PETSC_FALSE
   PetscBool, public :: sco2_stomp_fluxes = PETSC_TRUE
   PetscBool, public :: sco2_update_surface_tension = PETSC_FALSE
+  PetscBool, public :: sco2_zero_rxn_source_w_no_gas = PETSC_FALSE
 
   ! Output Control
   PetscBool, public :: sco2_print_state_transition = PETSC_TRUE
