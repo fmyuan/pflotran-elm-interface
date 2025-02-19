@@ -240,6 +240,8 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
   use PM_Parameter_class
+  use PM_Unit_Test_class
+  use PM_Unit_Test_WIPP_class
 
   use Factory_Subsurface_Read_module
   use Factory_Geomechanics_module
@@ -340,6 +342,15 @@ subroutine FactoryForwardReadSimProcessModels(input,pm_master,option)
       case('PARAMETER')
         new_pm => PMParameterCreate()
         call PMParameterRead(input,option,PMParameterCast(new_pm))
+      case('UNIT_TEST')
+        select case(trim(pm_name))
+          case('WIPP')
+            new_pm => PMUnitTestCreate()
+            call PMUnitTestWIPPRead(input, option, PMUnitTestCast(new_pm))
+          case default
+            option%io_buffer = 'Please select a UNIT_TEST module.'
+            call PrintErrMsg(option)
+        end select
       case default
         call InputKeywordUnrecognized(input,word, &
                'SIMULATION,PROCESS_MODELS',option)

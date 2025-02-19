@@ -527,7 +527,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         ! BRAGFLO_6.02_UM Eq. (136)
         ! 4.10 Pressure-Induced Fracture Treatment
         material_property%fracture => FractureCreate()
-        call material_property%fracture%Read(input,option)
+        call material_property%fracture%Read(input,option, &
+                                             material_property%external_id)
         option%flow%transient_porosity = PETSC_TRUE
       case('CREEP_CLOSURE_TABLE')
         call InputReadCardDbaseCompatible(input,option, &

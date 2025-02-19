@@ -459,6 +459,8 @@ factory_forward.o : \
   pm_base.o \
   pm_geomechanics_force.o \
   pm_parameter.o \
+  pm_unittest.o \
+  pm_unittest_wipp.o \
   pmc_base.o \
   print.o \
   realization_subsurface.o \
@@ -560,6 +562,7 @@ factory_subsurface.o : \
   pm_th_ts.o \
   pm_ufd_biosphere.o \
   pm_ufd_decay.o \
+  pm_unittest.o \
   pm_waste_form.o \
   pm_well.o \
   pm_wipp_flow.o \
@@ -610,6 +613,7 @@ factory_subsurface_linkage.o : \
   pm_th_ts.o \
   pm_ufd_biosphere.o \
   pm_ufd_decay.o \
+  pm_unittest.o \
   pm_waste_form.o \
   pm_well.o \
   pm_wipp_flow.o \
@@ -2458,6 +2462,23 @@ pm_ufd_decay.o : \
   secondary_continuum_aux.o \
   string.o \
   utility.o
+pm_unittest.o : \
+  communicator_base.o \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  pm_base.o \
+  realization_subsurface.o \
+  string.o
+pm_unittest_wipp.o : \
+  communicator_base.o \
+  input_aux.o \
+  option.o \
+  pflotran_constants.o \
+  pm_base.o \
+  pm_unittest.o \
+  realization_subsurface.o \
+  string.o
 pm_waste_form.o : \
   checkpoint.o \
   condition.o \

@@ -14,7 +14,7 @@ util_obj = \
 	${common_src}option_checkpoint.o \
 	${common_src}option_flow.o \
 	${common_src}option_geophysics.o \
-        ${common_src}option_geomechanics.o \
+	${common_src}option_geomechanics.o \
 	${common_src}option_inversion.o \
 	${common_src}option_parameter.o \
 	${common_src}option_transport.o \
@@ -78,6 +78,8 @@ mode_process_model_obj = \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}pm_ufd_decay.o \
+	${common_src}pm_unittest.o \
+	${common_src}pm_unittest_wipp.o \
 	${common_src}pm_waste_form.o \
 	${common_src}pm_well.o \
 	${common_src}pm_wipp_flow.o \
@@ -316,7 +318,7 @@ geomech_obj = \
 	${common_src}factory_geomechanics.o \
 	${common_src}gauss.o \
 	${common_src}geomechanics_auxiliary.o \
-        ${common_src}geomechanics_attributes.o \
+	${common_src}geomechanics_attributes.o \
 	${common_src}geomechanics_realization.o \
 	${common_src}geomechanics_discretization.o \
 	${common_src}geomech_grid.o \
@@ -334,7 +336,7 @@ geomech_obj = \
 	${common_src}geomechanics_regression.o \
 	${common_src}geomechanics_strata.o \
 	${common_src}geomechanics_subsurface_properties.o \
-        ${common_src}init_subsurface_geomechanics.o\
+	${common_src}init_subsurface_geomechanics.o\
 	${common_src}output_geomechanics.o \
 	${common_src}pm_geomechanics_force.o \
 	${common_src}pmc_geomechanics.o \
