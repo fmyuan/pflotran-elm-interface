@@ -1,0 +1,20 @@
+-- DISPLACEMENT: displacement_x --
+      Max:   1.4203069837739E-16
+      Min:  -1.4812108994894E-16
+     Mean:  -3.0419327066954E-18
+       16:  -1.0268682844414E-17
+       19:  -2.1855315266802E-17
+-- STRESS: stress_total_xx --
+      Max:   1.4391110432800E-02
+      Min:  -1.4391303836412E-02
+     Mean:  -2.6419044871478E-08
+       16:   1.3839200713108E-02
+       19:   1.4391110432800E-02
+-- SOLUTION: Geomechanics --
+   Time (seconds):   5.6738140001471E-03
+   Time Steps:            2
+   Newton Iterations:            3
+   Solver Iterations:           61
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.1677701932444E-14
+   Residual 2-Norm:   1.2847063529875E-09
