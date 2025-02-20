@@ -372,17 +372,10 @@ module PM_Well_class
     PetscBool :: print_well
     PetscBool :: print_output
     PetscBool :: use_well_coupler
-    class(pm_well_type), pointer :: next_well
-
-    ! MAN: to remove:
-    PetscReal :: intrusion_time_start           ! [sec]
-    PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
-    PetscBool :: well_on    !Turns the well on, regardless of other checks
-    PetscInt :: well_force_ts_cut
-    PetscBool :: update_for_wippflo_qi_coupling
     PetscBool :: pressure_controlled
     PetscReal :: pressure_threshold_min
     PetscReal :: pressure_threshold_max
+    class(pm_well_type), pointer :: next_well
 
   contains
     procedure, public :: SetRealization => PMWellSetRealization
@@ -411,6 +404,8 @@ module PM_Well_class
 
   ! Two base well model types: sequential and implicit
 
+  ! Sequential well types have their own flow and transport solvers
+  ! and interface with the reservoir through source/sink terms
   type, public, extends(pm_well_type) :: pm_well_sequential_type
     PetscInt :: nphase
     PetscInt :: nspecies
@@ -422,6 +417,10 @@ module PM_Well_class
     PetscBool :: ss_check
     PetscReal :: cumulative_dt_flow             ! [sec]
     PetscReal :: cumulative_dt_tran             ! [sec]
+    PetscReal :: intrusion_time_start           ! [sec]
+    PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
+    PetscInt  :: well_force_ts_cut
+    PetscBool :: well_on    !Turns the well on, regardless of other checks
     type(well_soln_flow_type), pointer :: flow_soln
     type(well_soln_tran_type), pointer :: tran_soln
   contains
@@ -437,6 +436,8 @@ module PM_Well_class
     procedure, public :: Destroy => PMWellDestroySequential
   end type pm_well_sequential_type
 
+  ! Implicit well types have their own entries in the reservoir
+  ! residual and Jacobian
   type, public, extends(pm_well_type) :: pm_well_implicit_type
   contains
     procedure, public :: ReadPMBlock => PMWellReadPMBlockImplicit
@@ -451,7 +452,7 @@ module PM_Well_class
 
   ! Quasi-implicit well model
   type, public, extends(pm_well_sequential_type) :: pm_well_qi_type
-    ! PetscInt  :: well_force_ts_cut
+    PetscBool :: update_for_flow_qi_coupling
   contains
     procedure, public :: ReadPMBlock => PMWellReadPMBlockQI
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -465,9 +466,6 @@ module PM_Well_class
 
   ! Hyrostatic well model
   type, public, extends(pm_well_implicit_type) :: pm_well_hydrostatic_type
-    ! PetscBool :: pressure_controlled
-    ! PetscReal :: pressure_threshold_min
-    ! PetscReal :: pressure_threshold_max
   contains
     procedure, public :: ReadPMBlock => PMWellReadPMBlockHydrostatic
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -529,7 +527,9 @@ module PM_Well_class
             PMWellTranCreate, &
             PMWellBaseInit, &
             PMWellCopyReservoir, &
-            PMWellVarCreate
+            PMWellVarCreate, &
+            PMWellSequentialInit, &
+            PMWellQIInit
   contains
 
 ! ************************************************************************** !
@@ -548,7 +548,8 @@ subroutine PMWellBaseInit(pm_well)
   call PMBaseInit(pm_well)
 
   pm_well%header = 'WELLBORE MODEL'
-
+  allocate(pm_well%well)
+  allocate(pm_well%well_comm)
   nullify(pm_well%realization)
   pm_well%well_grid => WellGridCreate()
   call PMWellVarCreate(pm_well%well)
@@ -572,8 +573,77 @@ subroutine PMWellBaseInit(pm_well)
   pm_well%print_well = PETSC_FALSE
   pm_well%print_output = PETSC_FALSE
   pm_well%use_well_coupler = PETSC_FALSE
+  pm_well%pressure_controlled = PETSC_FALSE
+  pm_well%pressure_threshold_min = 0.d0
+  pm_well%pressure_threshold_max = MAX_DOUBLE
 
 end subroutine PMWellBaseInit
+
+! ************************************************************************** !
+
+subroutine PMWellSequentialInit(pm_well)
+  !
+  ! Creates the sequential well process model.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/19/2025
+
+  implicit none
+
+  class(pm_well_sequential_type) :: pm_well
+
+  call PMWellBaseInit(pm_well)
+  call PMWellFlowCreate(pm_well)
+  call PMWellTranCreate(pm_well)
+
+  ! strata list specific to well
+  allocate(pm_well%strata_list)
+  nullify(pm_well%strata_list%first)
+  nullify(pm_well%strata_list%last)
+  nullify(pm_well%strata_list%array)
+  pm_well%strata_list%num_strata = 0
+
+  pm_well%nphase = 0
+  pm_well%nspecies = 0
+  pm_well%dt_flow = 0.d0
+  pm_well%dt_tran = 0.d0
+  pm_well%min_dt_flow = 1.d-15
+  pm_well%min_dt_tran = 1.d-15
+  pm_well%cumulative_dt_flow = 0.d0
+  pm_well%cumulative_dt_tran = 0.d0
+  pm_well%transport = PETSC_FALSE
+  pm_well%ss_check = PETSC_FALSE
+  pm_well%split_output_file = PETSC_FALSE
+  pm_well%well_on = PETSC_TRUE
+  pm_well%well_force_ts_cut = 0
+  pm_well%flow_coupling = UNINITIALIZED_INTEGER
+  pm_well%print_well = PETSC_FALSE
+  pm_well%print_output = PETSC_FALSE
+  pm_well%use_well_coupler = PETSC_FALSE
+
+  pm_well%split_output_file = PETSC_FALSE
+  pm_well%print_well = PETSC_FALSE
+  pm_well%print_output = PETSC_FALSE
+
+end subroutine PMWellSequentialInit
+
+! ************************************************************************** !
+
+subroutine PMWellQIInit(pm_well)
+  !
+  ! Creates the sequential well process model.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/19/2025
+
+  implicit none
+
+  class(pm_well_qi_type) :: pm_well
+
+  call PMWellSequentialInit(pm_well)
+  pm_well%update_for_flow_qi_coupling = PETSC_FALSE
+
+end subroutine PMWellQIInit
 
 ! ************************************************************************** !
 
@@ -590,14 +660,7 @@ function PMWellHydrostaticCreate()
   class(pm_well_hydrostatic_type), pointer :: pm_well
 
   allocate(pm_well)
-  call PMBaseInit(pm_well)
-  allocate(pm_well%well)
-  allocate(pm_well%well_comm)
   call PMWellBaseInit(pm_well)
-
-  pm_well%pressure_controlled = PETSC_FALSE
-  pm_well%pressure_threshold_min = 0.d0
-  pm_well%pressure_threshold_max = MAX_DOUBLE
 
   pm_well%well%well_model_type = WELL_MODEL_HYDROSTATIC
   pm_well%flow_coupling = FULLY_IMPLICIT_WELL
@@ -610,9 +673,6 @@ function PMWellHydrostaticCreate()
   nullify(pm_well%strata_list%last)
   nullify(pm_well%strata_list%array)
   pm_well%strata_list%num_strata = 0
-
-  pm_well%intrusion_time_start = UNINITIALIZED_DOUBLE
-  pm_well%bh_zero_value = 1.d-20
 
   pm_well%split_output_file = PETSC_FALSE
   pm_well%print_well = PETSC_FALSE
@@ -2687,6 +2747,23 @@ subroutine PMWellSetupHydrostatic(this)
         else
           source_sink%flow_condition%well%ctype = 'well'
         endif
+
+        if (this%use_well_coupler) then
+          coupler => realization%patch%well_coupler_list%first
+          do
+            if (.not.associated(coupler)) exit
+            if (StringCompare(coupler%well_name,this%name)) then
+              source_sink%well_name = coupler%well_name
+              if (option%ntrandof > 0) then
+                if (option%itranmode == RT_MODE) then
+                  source_sink%tran_condition => coupler%tran_condition
+                endif
+              endif
+            endif
+            coupler => coupler%next
+          enddo
+        endif
+
     end select
 
     source_sink%connection_set => &

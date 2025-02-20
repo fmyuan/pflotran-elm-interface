@@ -47,10 +47,6 @@ module WIPP_Well_class
 
   ! WIPP Sequential Well Model
   type, public, extends(pm_well_sequential_type) :: pm_well_wipp_seq_type
-    ! PetscReal :: intrusion_time_start           ! [sec]
-    ! PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
-    ! PetscBool :: well_on    !Turns the well on, regardless of other checks
-    ! type(strata_list_type), pointer :: strata_list
   contains
     procedure, public :: ReadPMBlock => PMWellReadPMBlockWIPPSeq
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -64,11 +60,6 @@ module WIPP_Well_class
 
   ! WIPP Quasi-Implicit Well Model
   type, public, extends(pm_well_qi_type) :: pm_well_wipp_qi_type
-    ! PetscReal :: intrusion_time_start           ! [sec]
-    ! PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
-    ! PetscBool :: update_for_wippflo_qi_coupling
-    ! PetscBool :: well_on    !Turns the well on, regardless of other checks
-    ! type(strata_list_type), pointer :: strata_list
   contains
     procedure, public :: ReadPMBlock => PMWellReadPMBlockWIPPQI
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -105,36 +96,10 @@ function PMWellWIPPSeqCreate()
   class(pm_well_sequential_type), pointer :: pm_well
 
   allocate(pm_well)
-  call PMBaseInit(pm_well)
-  pm_well%nphase = 0
-  pm_well%nspecies = 0
-  allocate(pm_well%well)
-  allocate(pm_well%well_comm)
-  call PMWellBaseInit(pm_well)
-  call PMWellFlowCreate(pm_well)
-  call PMWellTranCreate(pm_well)
-
-  ! strata list specific to well
-  allocate(pm_well%strata_list)
-  nullify(pm_well%strata_list%first)
-  nullify(pm_well%strata_list%last)
-  nullify(pm_well%strata_list%array)
-  pm_well%strata_list%num_strata = 0
+  call PMWellSequentialInit(pm_well)
 
   pm_well%intrusion_time_start = UNINITIALIZED_DOUBLE
   pm_well%bh_zero_value = 1.d-20
-  pm_well%dt_flow = 0.d0
-  pm_well%dt_tran = 0.d0
-  pm_well%min_dt_flow = 1.d-15
-  pm_well%min_dt_tran = 1.d-15
-  pm_well%cumulative_dt_flow = 0.d0
-  pm_well%cumulative_dt_tran = 0.d0
-  pm_well%transport = PETSC_FALSE
-  pm_well%ss_check = PETSC_FALSE
-
-  pm_well%split_output_file = PETSC_FALSE
-  pm_well%print_well = PETSC_FALSE
-  pm_well%print_output = PETSC_FALSE
 
   pm_well%well%well_model_type = WELL_MODEL_WIPP_SEQUENTIAL
   pm_well%flow_coupling = SEQUENTIAL_WELL
@@ -161,65 +126,10 @@ function PMWellWIPPQICreate()
   class(pm_well_wipp_qi_type), pointer :: pm_well
 
   allocate(pm_well)
-  call PMBaseInit(pm_well)
-  ! allocate(pm_well%well)
-  ! allocate(pm_well%well_comm)
-  ! call PMWellBaseInit(pm_well)
+  call PMWellQIInit(pm_well)
 
-  pm_well%header = 'WELLBORE MODEL'
-
-  nullify(pm_well%realization)
-  pm_well%well_grid => WellGridCreate()
-  allocate(pm_well%well)
-
-  call PMWellVarCreate(pm_well%well)
-  call PMWellFlowCreate(pm_well)
-  call PMWellTranCreate(pm_well)
-
-  ! strata list specific to well
-  allocate(pm_well%strata_list)
-  nullify(pm_well%strata_list%first)
-  nullify(pm_well%strata_list%last)
-  nullify(pm_well%strata_list%array)
-  pm_well%strata_list%num_strata = 0
-
-  allocate(pm_well%well_comm)
-  nullify(pm_well%flow_condition)
-  nullify(pm_well%well_comm%petsc_rank_list)
-  nullify(pm_well%well_comm%well_rank_list)
-  pm_well%well_comm%petsc_rank = 0
-  pm_well%well_comm%comm = 0
-  pm_well%well_comm%group = 0
-  pm_well%well_comm%rank = 0
-  pm_well%well_comm%commsize = 0
-
-  nullify(pm_well%pert)
-  nullify(pm_well%srcsink_water)
-  nullify(pm_well%srcsink_gas)
-
-  pm_well%nphase = 0
-  pm_well%nspecies = 0
   pm_well%intrusion_time_start = UNINITIALIZED_DOUBLE
   pm_well%bh_zero_value = 1.d-20
-  pm_well%dt_flow = 0.d0
-  pm_well%dt_tran = 0.d0
-  pm_well%min_dt_flow = 1.d-15
-  pm_well%min_dt_tran = 1.d-15
-  pm_well%cumulative_dt_flow = 0.d0
-  pm_well%cumulative_dt_tran = 0.d0
-  pm_well%transport = PETSC_FALSE
-  pm_well%ss_check = PETSC_FALSE
-  pm_well%split_output_file = PETSC_FALSE
-  pm_well%well_on = PETSC_TRUE
-  pm_well%well_force_ts_cut = 0
-  pm_well%update_for_wippflo_qi_coupling = PETSC_FALSE
-  pm_well%flow_coupling = UNINITIALIZED_INTEGER
-  pm_well%print_well = PETSC_FALSE
-  pm_well%print_output = PETSC_FALSE
-  pm_well%use_well_coupler = PETSC_FALSE
-  pm_well%pressure_controlled = PETSC_FALSE
-  pm_well%pressure_threshold_min = 0.d0
-  pm_well%pressure_threshold_max = MAX_DOUBLE
 
   pm_well%well%well_model_type = WELL_MODEL_WIPP_QI
   pm_well%flow_coupling = QUASI_IMPLICIT_WELL
@@ -2255,12 +2165,7 @@ subroutine PMWellSolveWIPPSequential(this,time,ierr)
     return
   endif
 
-  if (this%update_for_wippflo_qi_coupling) then
-    write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
-                      &coupling is being used.")')
-    call PrintMsg(this%option,out_string)
-    this%update_for_wippflo_qi_coupling = PETSC_FALSE
-  elseif (this%flow_coupling /= FULLY_IMPLICIT_WELL) then
+  if (this%flow_coupling /= FULLY_IMPLICIT_WELL) then
     call this%SolveFlow(UNINITIALIZED_INTEGER,ierr)
   endif
 
@@ -2280,10 +2185,6 @@ subroutine PMWellSolveWIPPSequential(this,time,ierr)
     this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
     this%tran_soln%prev_soln%resr_aqueous_conc = &
                                   this%well%reservoir%aqueous_conc
-    if (this%dt_tran < this%dt_flow) then
-      ! make sure well-flow doesn't get re-solved:
-      this%update_for_wippflo_qi_coupling = PETSC_TRUE
-    endif
   endif
 
 end subroutine PMWellSolveWIPPSequential
@@ -2321,11 +2222,11 @@ subroutine PMWellSolveWIPPQI(this,time,ierr)
     return
   endif
 
-  if (this%update_for_wippflo_qi_coupling) then
+  if (this%update_for_flow_qi_coupling) then
     write(out_string,'(" FLOW Step          Quasi-implicit wellbore flow &
                       &coupling is being used.")')
     call PrintMsg(this%option,out_string)
-    this%update_for_wippflo_qi_coupling = PETSC_FALSE
+    this%update_for_flow_qi_coupling = PETSC_FALSE
   elseif (this%flow_coupling /= FULLY_IMPLICIT_WELL) then
     call this%SolveFlow(UNINITIALIZED_INTEGER,ierr)
   endif
@@ -2348,7 +2249,7 @@ subroutine PMWellSolveWIPPQI(this,time,ierr)
                                   this%well%reservoir%aqueous_conc
     if (this%dt_tran < this%dt_flow) then
       ! make sure well-flow doesn't get re-solved:
-      this%update_for_wippflo_qi_coupling = PETSC_TRUE
+      this%update_for_flow_qi_coupling = PETSC_TRUE
     endif
   endif
 
@@ -4561,7 +4462,7 @@ subroutine PMWellSolveTran(pm_well,ierr)
 
   implicit none
 
-  class(pm_well_sequential_type) :: pm_well
+  class(pm_well_qi_type) :: pm_well
   PetscErrorCode :: ierr
 
   type(well_soln_tran_type), pointer :: soln
@@ -4602,6 +4503,8 @@ subroutine PMWellSolveTran(pm_well,ierr)
                       &Cutting timestep!'
         call PrintMsg(pm_well%option,out_string)
         call PMWellCutTimestepTran(pm_well)
+        ! make sure well-flow doesn't get re-solved:
+        pm_well%update_for_flow_qi_coupling = PETSC_TRUE
         return
       endif
       if (ts_cut > soln%max_ts_cut) then
@@ -5628,9 +5531,6 @@ subroutine PMWellCutTimestepTran(pm_well)
   pm_well%well%aqueous_mass = pm_well%tran_soln%prev_soln%aqueous_mass
   pm_well%well%aqueous_conc = pm_well%tran_soln%prev_soln%aqueous_conc
   call PMWellUpdatePropertiesTran(pm_well)
-
-  ! make sure well-flow doesn't get re-solved:
-  pm_well%update_for_wippflo_qi_coupling = PETSC_TRUE
 
 end subroutine PMWellCutTimestepTran
 

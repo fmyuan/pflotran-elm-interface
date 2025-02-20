@@ -5,6 +5,7 @@ module WIPP_Flow_module
   use WIPP_Flow_Aux_module
   use WIPP_Flow_Common_module
   use Global_Aux_module
+  use WIPP_Well_class
 
   use PFLOTRAN_Constants_module
 
@@ -1298,12 +1299,15 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,pmwell_ptr,ierr)
   ! model approach
   if (wippflo_well_quasi_imp_coupled) then
     if (associated(pmwell_ptr)) then
-      if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-        call pmwell_ptr%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
-        if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call pmwell_ptr%ModifyFlowResidual(r_p)
-        endif
-      endif
+      select type (pm_well => pmwell_ptr)
+        class is (pm_well_wipp_qi_type)
+          if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+            call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER,-999,ierr)
+            if (pm_well%well_force_ts_cut == ZERO_INTEGER) then
+              call pm_well%ModifyFlowResidual(r_p)
+            endif
+          endif
+      end select
     endif
   endif
 
@@ -1722,15 +1726,18 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,pmwell_ptr,ierr)
   ! model approach
   if (wippflo_well_quasi_imp_coupled) then
   if (associated(pmwell_ptr)) then
-    if (any(pmwell_ptr%well_grid%h_rank_id == option%myrank)) then
-      call pmwell_ptr%UpdateFlowRates(ONE_INTEGER,ONE_INTEGER,-999,ierr)
-      if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-        call pmwell_ptr%UpdateFlowRates(TWO_INTEGER,TWO_INTEGER,-999,ierr)
-        if (pmwell_ptr%well_force_ts_cut == ZERO_INTEGER) then
-          call pmwell_ptr%ModifyFlowJacobian(A,ierr)
-        endif
-      endif
-    endif
+    select type (pm_well => pmwell_ptr)
+        class is (pm_well_wipp_qi_type)
+          if (any(pm_well%well_grid%h_rank_id == option%myrank)) then
+            call pm_well%UpdateFlowRates(ONE_INTEGER,ONE_INTEGER,-999,ierr)
+            if (pm_well%well_force_ts_cut == ZERO_INTEGER) then
+              call pm_well%UpdateFlowRates(TWO_INTEGER,TWO_INTEGER,-999,ierr)
+              if (pm_well%well_force_ts_cut == ZERO_INTEGER) then
+                call pm_well%ModifyFlowJacobian(A,ierr)
+              endif
+            endif
+          endif
+      end select
   endif
   endif
 
