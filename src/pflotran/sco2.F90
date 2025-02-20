@@ -272,10 +272,87 @@ subroutine SCO2InitializeTimestep(realization)
 
   use Realization_Subsurface_class
   use Upwind_Direction_module
+  use Option_module
+  use Material_Aux_module
+  use Patch_module
+  use Grid_module
 
   implicit none
 
   class(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(sco2_auxvar_type), pointer :: sco2_auxvars(:,:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt :: ghosted_id, wid, co2_id, lid, gid
+  PetscReal :: volume, dt, porosity
+  PetscReal :: water_mass, co2_mass, rxn_mass_chng
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  sco2_auxvars => patch%aux%SCO2%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  lid = option%liquid_phase
+  gid = option%gas_phase
+  wid = option%water_id
+  co2_id = option%co2_id
+  dt = option%flow_dt
+
+  do ghosted_id = 1, grid%ngmax
+    volume = material_auxvars(ghosted_id)%volume
+    porosity = sco2_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity
+    if (option%ntrandof > 0) then
+      ! reaction_rate is read in as total mass in SCO2 mode, convert
+      ! to a rate.
+      if (sco2_zero_rxn_source_w_no_gas) then
+        if (sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) <= 0.d0) then
+          global_auxvars(ghosted_id)%reaction_rate(:) = 0.d0
+        endif
+      else
+        water_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,lid) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(wid,gid)
+        water_mass = water_mass * porosity * volume
+
+        co2_mass = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(lid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,lid) + &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%sat(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%den_kg(gid) * &
+                    sco2_auxvars(ZERO_INTEGER,ghosted_id)%xmass(co2_id,gid)
+        co2_mass = co2_mass * porosity * volume
+
+        ! Reaction rate = mineralization rate. positive means sink
+        rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER)
+        if (rxn_mass_chng > 0.d0) then
+          ! Don't extract more H2O mass than exists
+          global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) = &
+                              min(rxn_mass_chng, water_mass) / dt
+        else
+          global_auxvars(ghosted_id)%reaction_rate(ONE_INTEGER) = &
+                              rxn_mass_chng / dt
+        endif
+        rxn_mass_chng = global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER)
+        if (rxn_mass_chng > 0.d0) then
+          ! Don't extract more CO2 mass than exists
+          global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) = &
+                              min(rxn_mass_chng, co2_mass) / dt
+        else
+          global_auxvars(ghosted_id)%reaction_rate(TWO_INTEGER) = &
+                              rxn_mass_chng / dt
+        endif
+      endif
+    endif
+  enddo
 
   if (sco2_restrict_state_chng) then
     realization%patch%aux%SCO2%auxvars(:,:)%istatechng = PETSC_FALSE
@@ -565,6 +642,7 @@ subroutine SCO2ComputeComponentMassBalance(realization,num_cells,num_comp, &
   material_auxvars => patch%aux%Material%auxvars
 
   sum_kg = 0.d0
+  Srg = 0.d0
 
   do k=1, num_cells
     local_id = cell_ids(k)

@@ -362,6 +362,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         sco2_stomp_fluxes = PETSC_FALSE
       case('NO_H2O_SOURCE_UPDATE_FROM_TRANS')
         option%flow%update_transport_h2o_src = PETSC_FALSE
+      case('ZERO_TRAN_SRC_W_ZERO_GAS')
+        sco2_zero_rxn_source_w_no_gas = PETSC_TRUE
       case('UPDATE_SURFACE_TENSION')
         sco2_update_surface_tension = PETSC_TRUE
       case default
@@ -1275,6 +1277,15 @@ subroutine PMSCO2CheckUpdatePre(this,snes,X,dX,changed,ierr)
                                       saturation_function%extended)
           if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
               Pvb) dX_p(gas_pressure_index) = Pvb - X_p(gas_pressure_index)
+
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+              SCO2_REFERENCE_PRESSURE) dX_p(gas_pressure_index) = &
+              SCO2_REFERENCE_PRESSURE - X_p(gas_pressure_index)
+          if ((X_p(gas_pressure_index) + dX_p(gas_pressure_index)) < &
+             (X_p(liq_pressure_index) + dX_p(liq_pressure_index))) &
+              dX_p(gas_pressure_index) = &
+             (X_p(liq_pressure_index) + dX_p(liq_pressure_index)) - &
+              X_p(gas_pressure_index)
 
       end select
 
