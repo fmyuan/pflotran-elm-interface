@@ -501,13 +501,22 @@ module PM_Well_class
   public :: PMWellHydrostaticCreate, &
             PMWellUShapeCreate, &
             PMWellCoaxialCreate, &
+            PMWellFlowCreate, &
+            PMWellTranCreate, &
+            PMWellVarCreate, &
             PMWellSetupGrid, &
             PMWellReadGrid, &
             PMWellReadPass2, &
+            PMWellReadWellOutput, &
+            PMWellReadWell, &
+            PMWellReadWellBCs, &
+            PMWellReadFlowSolver, &
+            PMWellReadTranSolver, &
+            PMWellReadWellConstraintType, &
+            PMWellReadSimOptionsBlockBase, &
             PMWellUpdateReservoirSrcSinkFlow, &
             PMWellModifyDummyFlowJacobian, &
             PMWellCopyWell, &
-            PMWellReadWellOutput, &
             PMWellComputeWellIndex, &
             PMWellOutputSequential, &
             PMWellUpdateReservoirSrcSinkTran, &
@@ -517,19 +526,11 @@ module PM_Well_class
             PMWellCalcCumulativeTranFlux, &
             PMWellInitializeWellFlow, &
             PMWellUpdateStrata, &
-            PMWellReadWell, &
-            PMWellReadWellBCs, &
-            PMWellReadFlowSolver, &
-            PMWellReadTranSolver, &
-            PMWellReadWellConstraintType, &
-            PMWellReadSimOptionsBlockBase, &
-            PMWellFlowCreate, &
-            PMWellTranCreate, &
             PMWellBaseInit, &
             PMWellCopyReservoir, &
-            PMWellVarCreate, &
             PMWellSequentialInit, &
-            PMWellQIInit
+            PMWellQIInit, &
+            PMWellSetupBase
   contains
 
 ! ************************************************************************** !
@@ -577,6 +578,19 @@ subroutine PMWellBaseInit(pm_well)
   pm_well%pressure_threshold_min = 0.d0
   pm_well%pressure_threshold_max = MAX_DOUBLE
 
+  nullify(pm_well%next_well)
+
+  ! strata list specific to well
+  allocate(pm_well%strata_list)
+  nullify(pm_well%strata_list%first)
+  nullify(pm_well%strata_list%last)
+  nullify(pm_well%strata_list%array)
+  pm_well%strata_list%num_strata = 0
+
+  pm_well%split_output_file = PETSC_FALSE
+  pm_well%print_well = PETSC_FALSE
+  pm_well%print_output = PETSC_FALSE
+
 end subroutine PMWellBaseInit
 
 ! ************************************************************************** !
@@ -596,13 +610,6 @@ subroutine PMWellSequentialInit(pm_well)
   call PMWellFlowCreate(pm_well)
   call PMWellTranCreate(pm_well)
 
-  ! strata list specific to well
-  allocate(pm_well%strata_list)
-  nullify(pm_well%strata_list%first)
-  nullify(pm_well%strata_list%last)
-  nullify(pm_well%strata_list%array)
-  pm_well%strata_list%num_strata = 0
-
   pm_well%nphase = 0
   pm_well%nspecies = 0
   pm_well%dt_flow = 0.d0
@@ -620,10 +627,6 @@ subroutine PMWellSequentialInit(pm_well)
   pm_well%print_well = PETSC_FALSE
   pm_well%print_output = PETSC_FALSE
   pm_well%use_well_coupler = PETSC_FALSE
-
-  pm_well%split_output_file = PETSC_FALSE
-  pm_well%print_well = PETSC_FALSE
-  pm_well%print_output = PETSC_FALSE
 
 end subroutine PMWellSequentialInit
 
@@ -665,19 +668,6 @@ function PMWellHydrostaticCreate()
   pm_well%well%well_model_type = WELL_MODEL_HYDROSTATIC
   pm_well%flow_coupling = FULLY_IMPLICIT_WELL
 
-  nullify(pm_well%next_well)
-
-  ! strata list specific to well
-  allocate(pm_well%strata_list)
-  nullify(pm_well%strata_list%first)
-  nullify(pm_well%strata_list%last)
-  nullify(pm_well%strata_list%array)
-  pm_well%strata_list%num_strata = 0
-
-  pm_well%split_output_file = PETSC_FALSE
-  pm_well%print_well = PETSC_FALSE
-  pm_well%print_output = PETSC_FALSE
-
   PMWellHydrostaticCreate => pm_well
 
 end function PMWellHydrostaticCreate
@@ -697,9 +687,6 @@ function PMWellUShapeCreate()
   class(pm_well_u_shape_type), pointer :: pm_well
 
   allocate(pm_well)
-  call PMBaseInit(pm_well)
-  allocate(pm_well%well)
-  allocate(pm_well%well_comm)
   call PMWellBaseInit(pm_well)
 
   pm_well%well%well_model_type = WELL_MODEL_U_SHAPE
@@ -726,9 +713,6 @@ function PMWellCoaxialCreate()
   class(pm_well_coaxial_type), pointer :: pm_well
 
   allocate(pm_well)
-  call PMBaseInit(pm_well)
-  allocate(pm_well%well)
-  allocate(pm_well%well_comm)
   call PMWellBaseInit(pm_well)
 
   pm_well%well%well_model_type = WELL_MODEL_COAXIAL
@@ -2137,80 +2121,6 @@ subroutine PMWellSetupBase(this)
   ! Date: 08/04/2021
   !
 
-  implicit none
-
-  class(pm_well_type) :: this
-  this%option%io_buffer = 'PMWellSetupBase must be extended.'
-  call PrintErrMsg(this%option)
-
-end subroutine PMWellSetupBase
-
-! ************************************************************************** !
-
-subroutine PMWellSetupSequential(this)
-  !
-  ! Initializes variables associated with the base well process model.
-  !
-  ! Author: Jennifer M. Frederick, SNL
-  ! Date: 08/04/2021
-  !
-
-  implicit none
-
-  class(pm_well_sequential_type) :: this
-
-  this%option%io_buffer = 'PMWellSetupSequential must be extended.'
-  call PrintErrMsg(this%option)
-
-end subroutine PMWellSetupSequential
-
-! ************************************************************************** !
-
-subroutine PMWellSetupImplicit(this)
-  !
-  ! Initializes variables associated with the base well process model.
-  !
-  ! Author: Jennifer M. Frederick, SNL
-  ! Date: 08/04/2021
-  !
-
-  implicit none
-
-  class(pm_well_implicit_type) :: this
-
-  this%option%io_buffer = 'PMWellSetupImplicit must be extended.'
-  call PrintErrMsg(this%option)
-
-end subroutine PMWellSetupImplicit
-
-! ************************************************************************** !
-
-subroutine PMWellSetupQI(this)
-  !
-  ! Initializes variables associated with the base well process model.
-  !
-  ! Author: Jennifer M. Frederick, SNL
-  ! Date: 08/04/2021
-  !
-
-  implicit none
-
-  class(pm_well_qi_type) :: this
-  this%option%io_buffer = 'PMWellSetupQI must be extended.'
-  call PrintErrMsg(this%option)
-
-end subroutine PMWellSetupQI
-
-! ************************************************************************** !
-
-subroutine PMWellSetupHydrostatic(this)
-  !
-  ! Initializes variables associated with the hydrostatic well process model.
-  !
-  ! Author: Michael Nole
-  ! Date: 02/03/2025
-  !
-
   use Grid_module
   use Utility_module
   use String_module
@@ -2221,23 +2131,17 @@ subroutine PMWellSetupHydrostatic(this)
   use Dataset_module
   use Dataset_Base_class
   use Dataset_Ascii_class
-  use Transport_Constraint_NWT_module
-  use NW_Transport_Aux_module
-  use SCO2_Aux_module
-  use Hydrate_Aux_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
-  use Matrix_Zeroing_module
 
   implicit none
 
-  class(pm_well_hydrostatic_type) :: this
+  class(pm_well_type) :: this
 
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
   type(well_grid_type), pointer :: well_grid
-  type(coupler_type), pointer :: source_sink, coupler
-  type(input_type) :: input_dummy
+  type(coupler_type), pointer :: coupler
   class(realization_subsurface_type), pointer :: realization
   type(point3d_type) :: dummy_h
   character(len=MAXSTRINGLENGTH) :: string, filename
@@ -2258,24 +2162,13 @@ subroutine PMWellSetupHydrostatic(this)
   PetscBool :: res_grid_cell_within_well_y
   PetscBool :: res_grid_cell_within_well_x
   PetscErrorCode :: ierr
-  PetscInt :: well_bottom_local, well_bottom_ghosted
-  PetscInt :: iconn, sum_connection, global_ss_connections
-  PetscInt :: num_new_source_sinks, offset
-  PetscInt, allocatable :: temp(:), temp2(:)
   PetscInt :: fid = 86
-  type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
-                                                   rt_auxvars_ss_temp(:)
-  type(matrix_zeroing_type), pointer :: matrix_zeroing
 
   call this%SetRealization()
   option => this%option
   realization => this%realization
   res_grid => realization%patch%grid
   well_grid => this%well_grid
-
-  well_bottom_local = ZERO_INTEGER
-  well_bottom_ghosted = ZERO_INTEGER
 
   allocate(this%well_pert(option%nflowdof))
   do k = 1,option%nflowdof
@@ -2345,6 +2238,7 @@ subroutine PMWellSetupHydrostatic(this)
   well_grid%h_rank_id = h_all_rank_id
   well_grid%h_global_id = h_all_global_id
 
+  !MAN: added this here 02/20
   do k = 1,res_grid%ngmax
     do j = 1,well_grid%nsegments
       if (res_grid%nG2A(k) == well_grid%h_global_id(j)) then
@@ -2495,7 +2389,7 @@ subroutine PMWellSetupHydrostatic(this)
 
     ! Check that no reservoir grid cells were skipped.
     ! Count how many of the h_global_id's are unique.
-    ! This sum must be = to the number of reservoir cells that the
+    ! this sum must be = to the number of reservoir cells that the
     !   well passes through.
     option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution against &
                       &reservoir grid.... '
@@ -2526,7 +2420,7 @@ subroutine PMWellSetupHydrostatic(this)
     deallocate(h_all_global_id)
 
     ! Next, sum up how many grid cells the well passes thru.
-    ! Note: This count assumes that the well is vertical and the top and
+    ! Note: this count assumes that the well is vertical and the top and
     !       bottom surfaces do not slope or undulate.
     count2_local = 0
     count2_global = 0
@@ -2642,7 +2536,7 @@ subroutine PMWellSetupHydrostatic(this)
 
   if (this%well_grid%save_well_segment_list .and. &
       associated(well_grid%deviated_well_segment_list)) then
-110 format(100es24.16)
+110 format(100es16.8)
     filename = trim(this%name) // '_well-segments.dat'
     if (OptionIsIORank(option)) then
       open(unit=fid,file=filename,action="write",status="replace")
@@ -2664,6 +2558,138 @@ subroutine PMWellSetupHydrostatic(this)
       close(fid)
     endif
   endif
+
+  if (this%use_well_coupler) then
+    coupler => realization%patch%well_coupler_list%first
+    do
+      if (.not.associated(coupler)) exit
+      if (StringCompare(coupler%well_name,this%name)) then
+        this%flow_condition => coupler%flow_condition
+      endif
+      coupler => coupler%next
+    enddo
+    if (.not. associated(this%flow_condition)) then
+      option%io_buffer = 'Well model invokes USE_WELL_COUPLER &
+        &for flow conditions, but no WELL_COUPLERs were found &
+        &linked to well named '// trim(this%name) // '.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
+end subroutine PMWellSetupBase
+
+! ************************************************************************** !
+
+subroutine PMWellSetupSequential(this)
+  !
+  ! Initializes variables associated with the base well process model.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/04/2021
+  !
+
+  implicit none
+
+  class(pm_well_sequential_type) :: this
+
+  this%option%io_buffer = 'PMWellSetupSequential must be extended.'
+  call PrintErrMsg(this%option)
+
+end subroutine PMWellSetupSequential
+
+! ************************************************************************** !
+
+subroutine PMWellSetupImplicit(this)
+  !
+  ! Initializes variables associated with the base well process model.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/04/2021
+  !
+
+  implicit none
+
+  class(pm_well_implicit_type) :: this
+
+  this%option%io_buffer = 'PMWellSetupImplicit must be extended.'
+  call PrintErrMsg(this%option)
+
+end subroutine PMWellSetupImplicit
+
+! ************************************************************************** !
+
+subroutine PMWellSetupQI(this)
+  !
+  ! Initializes variables associated with the base well process model.
+  !
+  ! Author: Jennifer M. Frederick, SNL
+  ! Date: 08/04/2021
+  !
+
+  implicit none
+
+  class(pm_well_qi_type) :: this
+  this%option%io_buffer = 'PMWellSetupQI must be extended.'
+  call PrintErrMsg(this%option)
+
+end subroutine PMWellSetupQI
+
+! ************************************************************************** !
+
+subroutine PMWellSetupHydrostatic(this)
+  !
+  ! Initializes variables associated with the hydrostatic well process model.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/03/2025
+  !
+
+  use Grid_module
+  use Utility_module
+  use String_module
+  use Coupler_module
+  use Connection_module
+  use Condition_module
+  use Input_Aux_module
+  use Dataset_module
+  use Dataset_Base_class
+  use Dataset_Ascii_class
+  use SCO2_Aux_module
+  use Hydrate_Aux_module
+  use Global_Aux_module
+  use Reactive_Transport_Aux_module
+  use Matrix_Zeroing_module
+
+  implicit none
+
+  class(pm_well_hydrostatic_type) :: this
+
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: res_grid
+  type(well_grid_type), pointer :: well_grid
+  type(coupler_type), pointer :: source_sink, coupler
+  type(input_type) :: input_dummy
+  class(realization_subsurface_type), pointer :: realization
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
+  PetscInt :: well_bottom_local, well_bottom_ghosted
+  PetscInt :: iconn, sum_connection, global_ss_connections
+  PetscInt :: num_new_source_sinks, offset
+  PetscInt, allocatable :: temp(:), temp2(:)
+  type(global_auxvar_type), pointer :: auxvars_ss(:), auxvars_ss_temp(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:), &
+                                                   rt_auxvars_ss_temp(:)
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
+
+  call PMWellSetupBase(this)
+
+  option => this%option
+  realization => this%realization
+  res_grid => realization%patch%grid
+  well_grid => this%well_grid
+
+  well_bottom_local = ZERO_INTEGER
+  well_bottom_ghosted = ZERO_INTEGER
 
   ! add a reservoir src/sink coupler for each well segment
   num_new_source_sinks = 0
@@ -2780,23 +2806,6 @@ subroutine PMWellSetupHydrostatic(this)
     nullify(source_sink)
   enddo
 
-  if (this%use_well_coupler) then
-    coupler => realization%patch%well_coupler_list%first
-    do
-      if (.not.associated(coupler)) exit
-      if (StringCompare(coupler%well_name,this%name)) then
-        this%flow_condition => coupler%flow_condition
-      endif
-      coupler => coupler%next
-    enddo
-    if (.not. associated(this%flow_condition)) then
-      option%io_buffer = 'Well model invokes USE_WELL_COUPLER &
-        &for flow conditions, but no WELL_COUPLERs were found &
-        &linked to well named '// trim(this%name) // '.'
-      call PrintErrMsg(option)
-    endif
-  endif
-
   ! Enable allocation of mass balance array
   if (associated(realization%patch%aux%Global%auxvars_ss)) then
     auxvars_ss => realization%patch%aux%Global%auxvars_ss
@@ -2830,12 +2839,12 @@ subroutine PMWellSetupHydrostatic(this)
     endif
   endif
   select case (option%iflowmode)
-  case(SCO2_MODE)
-    realization%patch%aux%SCO2%num_aux_ss = realization%patch%aux%SCO2% &
-                                            num_aux_ss + num_new_source_sinks
-  case(H_MODE)
-    realization%patch%aux%Hydrate%num_aux_ss = realization%patch%aux% &
-                                    Hydrate%num_aux_ss + num_new_source_sinks
+    case(SCO2_MODE)
+      realization%patch%aux%SCO2%num_aux_ss = realization%patch%aux%SCO2% &
+                                              num_aux_ss + num_new_source_sinks
+    case(H_MODE)
+      realization%patch%aux%Hydrate%num_aux_ss = realization%patch%aux% &
+                                      Hydrate%num_aux_ss + num_new_source_sinks
   end select
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array
@@ -3095,6 +3104,7 @@ subroutine PMWellReadPMBlockBase(this,input)
 
   allocate(temp_seg_nums(read_max))
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -3174,6 +3184,7 @@ subroutine PMWellReadPMBlockBase(this,input)
     endif
 
   enddo
+  call InputPopBlock(input,option)
 
   deallocate(temp_seg_nums)
 
@@ -3262,9 +3273,7 @@ subroutine PMWellReadPMBlockHydrostatic(this,input)
 
   option => this%option
 
-  call InputPushBlock(input,option)
   call PMWellReadPMBlockBase(this,input)
-  call InputPopBlock(input,option)
 
 end subroutine PMWellReadPMBlockHydrostatic
 

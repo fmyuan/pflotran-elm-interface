@@ -11,10 +11,7 @@ SIMULATION
       /
     /
     WELL_MODEL well1
-      OPTIONS
-        FLOW_COUPLING FULLY_IMPLICIT
-        TYPE HYDROSTATIC
-      END
+      TYPE HYDROSTATIC
     END
   /
 END

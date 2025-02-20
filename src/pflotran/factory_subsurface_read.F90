@@ -533,7 +533,6 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
-      !MAN: wrap this into PMWellReadType?
       case('TYPE')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
