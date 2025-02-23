@@ -535,9 +535,10 @@ subroutine PMFracSetup(this)
     cur_fracture%ncells = j
     if (j > read_max) then
       option%io_buffer = 'The number of grid cells that FRACTURE with &
-        &ID# [' // word // '] occupies exceeds the set limit of 5000 cells. If &
-        &you are certain the fracture should be this large, increase the size &
-        &of read_max in PMFracSetup() or email the PFLOTRAN developers group.'
+        &ID# [' // word // '] occupies exceeds the set limit of 15,000 cells. &
+        &If you are certain the fracture should be this large, increase the &
+        &size of read_max in PMFracSetup() or email the PFLOTRAN developers &
+        &group.'
       call PrintErrMsg(option)
     endif
     if (cur_fracture%ncells > 0) then
