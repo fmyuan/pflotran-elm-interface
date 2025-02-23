@@ -352,7 +352,7 @@ subroutine PMFracSetup(this)
   option => this%option
   res_grid => this%realization%patch%grid
   nf = 0
-  read_max = 5000 ! Set to a large but realistic number
+  read_max = 15000 ! Set to a large but realistic number
 
   allocate(temp_cell_ids(read_max))
   allocate(temp_allfrac_cell_ids(read_max*10))
