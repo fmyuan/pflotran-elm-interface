@@ -79,6 +79,8 @@ subroutine RTTimeCut(realization)
     call SecondaryRTTimeCut(realization)
   endif
 
+  rt_ts_cut_count = rt_ts_cut_count + 1
+
 end subroutine RTTimeCut
 
 ! ************************************************************************** !
@@ -479,6 +481,10 @@ subroutine RTSetup(realization)
       &using multi-continuum.'
     call PrintErrMsg(option)
   endif
+
+  rt_ts_count = 0
+  rt_ni_count = 0
+  rt_ts_cut_count = 0
 
 end subroutine RTSetup
 
@@ -1802,7 +1808,8 @@ subroutine RTCalculateTransportMatrix(realization,T)
   call MatrixZeroingZeroMatEntries(patch%aux%RT%matrix_zeroing,T)
 
   if (realization%debug%matview_Matrix) then
-    string = 'Tmatrix'
+    call DebugWriteFilename(realization%debug,string,'Tmatrix','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(T,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2141,13 +2148,15 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   call MatrixZeroingZeroVecEntries(patch%aux%RT%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
-    string = 'RTresidual'
+    call DebugWriteFilename(realization%debug,string,'RTresidual','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'RTxx'
+    call DebugWriteFilename(realization%debug,string,'RTxx','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2924,7 +2933,8 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
 
   if (realization%debug%matview_Matrix) then
-    string = 'RTjacobian'
+    call DebugWriteFilename(realization%debug,string,'RTjacobian','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2935,13 +2945,16 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
                                ierr);CHKERRQ(ierr)
 
     if (realization%debug%matview_Matrix) then
-      string = 'RTjacobianLog'
+    call DebugWriteFilename(realization%debug,string,'RTjacobianLog','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     endif
 
   endif
+
+  rt_ni_count = rt_ni_count + 1
 
   call PetscLogEventEnd(logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
 

@@ -1465,6 +1465,8 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
   use Reactive_Transport_module
   use Condition_module
   use Integral_Flux_module
+  use Reactive_Transport_Aux_module, only : rt_ts_count, rt_ni_count, &
+                                            rt_ts_cut_count
 
   implicit none
 
@@ -1501,6 +1503,10 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
                             this%realization%patch%boundary_tran_fluxes, &
                             INTEGRATE_TRANSPORT,this%option)
   endif
+
+  rt_ts_count = rt_ts_count + 1
+  rt_ni_count = 0
+  rt_ts_cut_count = 0
 
 end subroutine PMRTUpdateSolution2
 
