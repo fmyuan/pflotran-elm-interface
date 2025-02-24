@@ -38,10 +38,10 @@ NUMERICAL_METHODS FLOW
 
   TIMESTEPPER
     TIMESTEP_REDUCTION_FACTOR 2.0d0
-    TIMESTEP_MAXIMUM_GROWTH_FACTOR 2.5d0
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.2d0
     MAXIMUM_CONSECUTIVE_TS_CUTS 10
     INITIAL_TIMESTEP_SIZE 20.d0 s
-    MAXIMUM_TIMESTEP_SIZE 0.5d0 d
+    MAXIMUM_TIMESTEP_SIZE 0.6d0 d
   /
 
   NEWTON_SOLVER
@@ -56,19 +56,21 @@ NUMERICAL_METHODS FLOW
  
 #=========================== times ============================================
 TIME
-  FINAL_TIME 0.2d0 y
+  FINAL_TIME 0.15d0 y
 END
 
 #=========================== regression =======================================
+
 REGRESSION
   CELL_IDS
     8
-    18
+    11
+    19
   /
 END
 
 #=========================== output options ===================================
-skip
+
 OUTPUT
   VELOCITY_AT_CENTER
   SNAPSHOT_FILE
@@ -89,15 +91,16 @@ OUTPUT
       PERMEABILITY_Z
   /
 END
-noskip
+
 !=========================== geothermal fracture model ========================
+
 GEOTHERMAL_FRACTURE_MODEL
   
   THERMAL_EXPANSION_COEFFICIENT 0.0 # [1/C]
+  FRACTURE_INTERSECTION_PERM MAXIMUM
 
   FRACTURE_FAMILY
     ID 1
-    MAX_DISTANCE 0.75 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -126,12 +129,10 @@ GEOTHERMAL_FRACTURE_MODEL
       RAD_Z_STDEV 5.0d0  # [m]
       RADIUS_SEED 31  # [-] must be an integer
     /
-
   /
 
   FRACTURE_FAMILY
     ID 2
-    MAX_DISTANCE 0.75 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -160,12 +161,10 @@ GEOTHERMAL_FRACTURE_MODEL
       RAD_Z_STDEV 5.0d0  # [m]
       RADIUS_SEED 31  # [-] must be an integer
     /
-
   /
 
   FRACTURE
     ID 1
-    MAX_DISTANCE 0.75 [m]
     HYDRAULIC_APERTURE 8.d-3 # [m]
     CENTER 2.5d0 0.5d0 -495.0d0 # [m]
     NORMAL_VECTOR 1.0d0 0.0d0 0.0d0 # [m]
@@ -173,11 +172,9 @@ GEOTHERMAL_FRACTURE_MODEL
     RADIUS_Y 0.25d0 # [m]
     RADIUS_Z 5.0d0 # [m]
   /
-  
  
     FRACTURE
     ID 2
-    MAX_DISTANCE 0.75 [m]
     HYDRAULIC_APERTURE 3.d-3 # [m]
     CENTER 2.5d0 0.5d0 -496.5d0 # [m]
     NORMAL_VECTOR 0.0d0 0.0d0 1.0d0 # [m]
@@ -185,13 +182,9 @@ GEOTHERMAL_FRACTURE_MODEL
     RADIUS_Y 0.5d0 # [m]
     RADIUS_Z 1.0d0 # [m]
   /
-
-  
 /
 
-
 #=========================== equation of state ================================
-
 
 EOS WATER
   DENSITY IF97
@@ -209,20 +202,19 @@ REGION all
   /
 END
 
-
 REGION bottom_face
   FACE WEST
   COORDINATES
-    0.d0 0.d0 -500
-    5.0d0 1.0d0 -500
+    2.0d0 0.0d0 -500.d0
+    3.0d0 1.0d0 -500.d0
   /
 END
 
 REGION top_face
   FACE EAST
   COORDINATES
-    0.d0 0.d0 -492
-    5.0d0 0.3d0 -492
+    0.0d0 -1.d20 -492.d0
+    5.0d0  1.d20 -492.d0
   /
 END
 
@@ -246,7 +238,6 @@ MATERIAL_PROPERTY rock1 # 0 to -2500 m
   /
 END
 
-
 CHARACTERISTIC_CURVES rock1
   SATURATION_FUNCTION VAN_GENUCHTEN
     ALPHA 5.d-8
@@ -264,12 +255,10 @@ CHARACTERISTIC_CURVES rock1
   /
 END
 
-
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
-
 
 #=========================== flow conditions ==================================
 
@@ -284,7 +273,6 @@ FLOW_CONDITION initial
 
 END
 
-
 FLOW_CONDITION top_face
   TYPE
    LIQUID_PRESSURE HYDROSTATIC
@@ -296,8 +284,6 @@ FLOW_CONDITION top_face
   LIQUID_PRESSURE 101325.d0
  END
 
-
-
 #=============================================================================
 
 FLOW_CONDITION Inj_well_1
@@ -306,7 +292,7 @@ FLOW_CONDITION Inj_well_1
     TEMPERATURE dirichlet
   /
   SYNC_TIMESTEP_WITH_UPDATE
-  RATE 0.00004 kg/s
+  RATE 0.0010 kg/s
   TEMPERATURE 50.d0
 END
 
@@ -317,12 +303,10 @@ INITIAL_CONDITION initial
   FLOW_CONDITION initial
 END
 
-
 BOUNDARY_CONDITION top
   REGION top_face
   FLOW_CONDITION top_face
 END
-
 
 #===============================================================================
 

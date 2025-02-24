@@ -68,7 +68,7 @@ REGRESSION
 END
 
 #=========================== output options ===================================
-skip
+
 OUTPUT
   VELOCITY_AT_CENTER
   SNAPSHOT_FILE
@@ -89,15 +89,15 @@ OUTPUT
       PERMEABILITY_Z
   /
 END
-noskip
+
 !=========================== geothermal fracture model ========================
 GEOTHERMAL_FRACTURE_MODEL
   
   THERMAL_EXPANSION_COEFFICIENT 40.0d-6 # [1/C]
+  FRACTURE_INTERSECTION_PERM MAX
 
   FRACTURE_FAMILY
     ID 1
-    MAX_DISTANCE 1.5 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -131,7 +131,6 @@ GEOTHERMAL_FRACTURE_MODEL
 
   FRACTURE_FAMILY
     ID 2
-    MAX_DISTANCE 1.5 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -177,25 +176,24 @@ END
 
 REGION all
   COORDINATES
-    -1.d20 -1.e20 -1.d20
+    -1.d20 -1.d20 -1.d20
      1.d20  1.d20  1.d20
   /
 END
 
-
 REGION bottom_face
   FACE WEST
   COORDINATES
-    0.d0 0.d0 -500
-    5.0d0 1.0d0 -500
+    0.0d0 0.0d0 -500.d0
+    1.0d0 1.0d0 -500.d0
   /
 END
 
 REGION top_face
   FACE EAST
   COORDINATES
-    0.d0 0.d0 -492
-    5.0d0 0.3d0 -492
+    0.0d0 -1.d20 -492.d0
+    5.0d0  1.d20 -492.d0
   /
 END
 
@@ -279,7 +277,7 @@ FLOW_CONDITION Inj_well_1
     TEMPERATURE dirichlet
   /
   SYNC_TIMESTEP_WITH_UPDATE
-  RATE 0.00005 kg/s
+  RATE 0.00025 kg/s
   TEMPERATURE 70.d0
 END
 

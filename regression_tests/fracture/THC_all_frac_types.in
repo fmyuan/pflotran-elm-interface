@@ -83,7 +83,7 @@ REGRESSION
 END
 
 #=========================== output options ===================================
-skip
+
 OUTPUT
   VELOCITY_AT_CENTER
   SNAPSHOT_FILE
@@ -104,7 +104,7 @@ OUTPUT
       PERMEABILITY_Z
   /
 END
-noskip
+
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
@@ -180,10 +180,10 @@ END
 GEOTHERMAL_FRACTURE_MODEL
   
   THERMAL_EXPANSION_COEFFICIENT 0.0 # [1/C]
+  FRACTURE_INTERSECTION_PERM SUM
 
   FRACTURE_FAMILY
     ID 1
-    MAX_DISTANCE 0.75 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -217,7 +217,6 @@ GEOTHERMAL_FRACTURE_MODEL
 
   FRACTURE_FAMILY
     ID 2
-    MAX_DISTANCE 0.75 [m]
     NUMBER_OF_FRACTURES 3  # [-]
     HYDRAULIC_APERTURE
       HYDRAULIC_APERTURE_VALUE 5.d-3  # [m]
@@ -251,7 +250,6 @@ GEOTHERMAL_FRACTURE_MODEL
 
   FRACTURE
     ID 1
-    MAX_DISTANCE 0.75 [m]
     HYDRAULIC_APERTURE 3.d-3 # [m]
     CENTER 2.5d0 0.5d0 -495.0d0 # [m]
     NORMAL_VECTOR 1.0d0 0.0d0 0.0d0 # [m]
@@ -263,7 +261,6 @@ GEOTHERMAL_FRACTURE_MODEL
 
   FRACTURE
     ID 2
-    MAX_DISTANCE 0.75 [m]
     HYDRAULIC_APERTURE 3.d-3 # [m]
     CENTER 2.5d0 0.5d0 -496.5d0 # [m]
     NORMAL_VECTOR 0.0d0 0.0d0 1.0d0 # [m]
@@ -287,25 +284,24 @@ END
 
 REGION all
   COORDINATES
-    -1.d20 -1.e20 -1.d20
+    -1.d20 -1.d20 -1.d20
      1.d20  1.d20  1.d20
   /
 END
 
-
 REGION bottom_face
   FACE WEST
   COORDINATES
-    0.d0 0.d0 -500
-    3.0d0 1.0d0 -500
+    0.0d0 -1.d20 -500.d0
+    3.0d0  1.d20 -500.d0
   /
 END
 
 REGION top_face
   FACE EAST
   COORDINATES
-    0.d0 0.d0 -492
-    3.0d0 0.3d0 -492
+    0.0d0 -1.d20 -491.d0
+    3.0d0  1.d20 -491.d0
   /
 END
 
@@ -389,7 +385,7 @@ FLOW_CONDITION Inj_well_1
     TEMPERATURE dirichlet
   /
   SYNC_TIMESTEP_WITH_UPDATE
-  RATE 0.00001 kg/s
+  RATE 0.00005 kg/s
   TEMPERATURE 80.d0
 END
 

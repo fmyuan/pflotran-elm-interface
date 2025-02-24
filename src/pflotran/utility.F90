@@ -77,7 +77,8 @@ module Utility_module
     module procedure LUDecomposition2
   end interface
 
-  public :: GetRndNumFromNormalDist, &
+  public :: rnd, &
+            GetRndNumFromNormalDist, &
             DotProduct, &
             CrossProduct, &
             ReallocateArray, &

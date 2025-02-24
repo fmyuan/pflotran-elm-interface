@@ -51,9 +51,6 @@ module PM_Fracture_class
     PetscReal, pointer :: dL(:)
     ! total number of cells this fracture occupies
     PetscInt :: ncells
-    ! maximum distance grid cell center can be from the fracture plane in
-    ! order to mark the cell as being fractured # [m]
-    PetscReal :: max_distance
     ! linked list next object
     type(fracture_type), pointer :: next
   end type fracture_type
@@ -93,9 +90,6 @@ module PM_Fracture_class
     type(point3d_type) :: radius_stdev
     ! fracture family radius seed [-]
     PetscInt :: radius_seed
-    ! maximum distance grid cell center can be from the fracture plane in
-    ! order to mark the cell as being fractured # [m]
-    PetscReal :: max_distance
     ! list of fractures in this family
     type(fracture_type), pointer :: fracture_list
     ! linked list next object
@@ -108,8 +102,20 @@ module PM_Fracture_class
     type(fracfam_type), pointer :: fracfam_list
     ! list of all global cell ids that contain fractures (some repeated)
     PetscInt, pointer :: allfrac_cell_ids(:)
+    ! list of all global cell ids that contain fractures (unique)
+    PetscInt, pointer :: allfrac_unique_cell_ids(:)
     ! list of all global cell ids that contain fracture intersections
     PetscInt, pointer :: frac_common_cell_ids(:)
+    ! maximum fracture perm at global cell ids
+    PetscReal, pointer :: max_frac_kx(:)
+    PetscReal, pointer :: max_frac_ky(:)
+    PetscReal, pointer :: max_frac_kz(:)
+    ! sum of fracture perm at global cell ids
+    PetscReal, pointer :: sum_frac_kx(:)
+    PetscReal, pointer :: sum_frac_ky(:)
+    PetscReal, pointer :: sum_frac_kz(:)
+    ! behavior at fracture intersections (1=sum,2=max)
+    PetscInt :: frac_intersection_type
     ! thermal expansion coefficient # [1/C]
     PetscReal :: t_coeff
     ! number of fractures in the domain
@@ -164,7 +170,15 @@ function PMFractureCreate()
   nullify(this%fracture_list)
   nullify(this%fracfam_list)
   nullify(this%allfrac_cell_ids)
+  nullify(this%allfrac_unique_cell_ids)
   nullify(this%frac_common_cell_ids)
+  nullify(this%max_frac_kx)
+  nullify(this%max_frac_ky)
+  nullify(this%max_frac_kz)
+  nullify(this%sum_frac_kx)
+  nullify(this%sum_frac_ky)
+  nullify(this%sum_frac_kz)
+  this%frac_intersection_type = 1  ! (1=sum;2=max)
   this%nfrac = 0
   this%max_frac = UNINITIALIZED_INTEGER
   this%t_coeff = UNINITIALIZED_DOUBLE ! 40.d-6 is value for granite
@@ -230,7 +244,6 @@ subroutine FractureInit(this)
   nullify(this%dL)
   nullify(this%hap)
   nullify(this%kx0); nullify(this%ky0); nullify(this%kz0)
-  this%max_distance = 5.0
   this%ncells = UNINITIALIZED_INTEGER
   this%id = UNINITIALIZED_INTEGER
   this%hap0 = UNINITIALIZED_DOUBLE
@@ -266,7 +279,6 @@ subroutine FractureFamInit(this)
   nullify(this%fracture_list)
   this%id = UNINITIALIZED_INTEGER
   this%nfrac_in_fam = 0
-  this%max_distance = 5.0
   this%intensity_fracfam= UNINITIALIZED_DOUBLE
   this%surface_area_fracfam = 0.d0
   this%hap0 = UNINITIALIZED_DOUBLE
@@ -320,14 +332,19 @@ subroutine PMFracSetup(this)
   character(len=MAXWORDLENGTH) :: word
   PetscInt, pointer :: temp_cell_ids(:)
   PetscInt, pointer :: temp_allfrac_cell_ids(:)
+  PetscInt, pointer :: temp_allfrac_unique_cell_ids(:)
   PetscInt, pointer :: temp_frac_common_cell_ids(:)
-  PetscInt :: k,j
+  PetscInt :: k,j,i
   PetscInt :: nf,tfc,read_max
+  PetscReal, pointer :: d_vertex(:)
   PetscReal :: D,distance
   PetscReal :: min_x,max_x,min_y,max_y,min_z,max_z
   PetscReal :: a1,a2,a3,b1,b2,b3,c1,c2,c3,vmag
   PetscReal :: ra, sinra, cosra
+  type(point3d_type) :: grid_center,grid_dh ! grid cell center point and dh
+  type(point3d_type) :: v1,v2,v3,v4,v5,v6,v7,v8 ! grid cell vertices
   PetscBool :: within_x,within_y,within_z
+  PetscBool :: frac_is_within_grid_cell_volume
   PetscBool :: added
 
   call this%SetRealization()
@@ -335,11 +352,12 @@ subroutine PMFracSetup(this)
   option => this%option
   res_grid => this%realization%patch%grid
   nf = 0
-  read_max = 5000 ! Set to a large but realistic number
+  read_max = 15000 ! Set to a large but realistic number
 
   allocate(temp_cell_ids(read_max))
   allocate(temp_allfrac_cell_ids(read_max*10))
   allocate(temp_frac_common_cell_ids(read_max))
+  allocate(d_vertex(8))
 
   cur_fracfam => this%fracfam_list
   do
@@ -405,18 +423,86 @@ subroutine PMFracSetup(this)
     ! Ax + By + Cz + D = 0
     ! Get D by knowing the plane must contain the center point (x,y,z)
     D = -1.d0*(cur_fracture%normal%x*cur_fracture%center%x + &
-             cur_fracture%normal%y*cur_fracture%center%y + &
-             cur_fracture%normal%z*cur_fracture%center%z)
+               cur_fracture%normal%y*cur_fracture%center%y + &
+               cur_fracture%normal%z*cur_fracture%center%z)
     j = 0
     do k = 1,res_grid%nlmax
-      distance = cur_fracture%normal%x*res_grid%x(res_grid%nL2G(k)) + &
-                 cur_fracture%normal%y*res_grid%y(res_grid%nL2G(k)) + &
-                 cur_fracture%normal%z*res_grid%z(res_grid%nL2G(k)) + D
-      if (abs(distance) < cur_fracture%max_distance) then
-        ! entered here if the center of the grid cell is within a tolerance
-        ! of max_distance of the plane.
-        ! next check if the (x,y) position of the grid cell lies within the
-        ! requested rad(x,y) of the plane from the center point.
+      grid_center%x = res_grid%x(res_grid%nL2G(k)) ! grid cell center point x
+      grid_center%y = res_grid%y(res_grid%nL2G(k)) ! grid cell center point y
+      grid_center%z = res_grid%z(res_grid%nL2G(k)) ! grid cell center point z
+      if (res_grid%itype == STRUCTURED_GRID) then
+        grid_dh%x = res_grid%structured_grid%dx(res_grid%nL2G(k))
+        grid_dh%y = res_grid%structured_grid%dy(res_grid%nL2G(k))
+        grid_dh%z = res_grid%structured_grid%dz(res_grid%nL2G(k))
+        ! calculate cuboid vertex points
+        v1%x = grid_center%x - (grid_dh%x/2.d0)
+        v2%x = grid_center%x + (grid_dh%x/2.d0)
+        v3%x = grid_center%x - (grid_dh%x/2.d0)
+        v4%x = grid_center%x + (grid_dh%x/2.d0)
+        v5%x = grid_center%x - (grid_dh%x/2.d0)
+        v6%x = grid_center%x + (grid_dh%x/2.d0)
+        v7%x = grid_center%x - (grid_dh%x/2.d0)
+        v8%x = grid_center%x + (grid_dh%x/2.d0)
+        v1%y = grid_center%y - (grid_dh%y/2.d0)
+        v2%y = grid_center%y - (grid_dh%y/2.d0)
+        v3%y = grid_center%y + (grid_dh%y/2.d0)
+        v4%y = grid_center%y + (grid_dh%y/2.d0)
+        v5%y = grid_center%y - (grid_dh%y/2.d0)
+        v6%y = grid_center%y - (grid_dh%y/2.d0)
+        v7%y = grid_center%y + (grid_dh%y/2.d0)
+        v8%y = grid_center%y + (grid_dh%y/2.d0)
+        v1%z = grid_center%z - (grid_dh%z/2.d0)
+        v2%z = grid_center%z - (grid_dh%z/2.d0)
+        v3%z = grid_center%z - (grid_dh%z/2.d0)
+        v4%z = grid_center%z - (grid_dh%z/2.d0)
+        v5%z = grid_center%z + (grid_dh%z/2.d0)
+        v6%z = grid_center%z + (grid_dh%z/2.d0)
+        v7%z = grid_center%z + (grid_dh%z/2.d0)
+        v8%z = grid_center%z + (grid_dh%z/2.d0)
+      else
+        option%io_buffer = 'The GEOTHERMAL_FRACTURE_MODEL can only be used &
+          &with structured grids. If you recieve this error message. . .'
+        call PrintErrMsgToDev(option, &
+          'describe your modeling application or goals.')
+      endif
+      d_vertex(1) = cur_fracture%normal%x*v1%x + &
+                    cur_fracture%normal%y*v1%y + &
+                    cur_fracture%normal%z*v1%z + D
+      d_vertex(2) = cur_fracture%normal%x*v2%x + &
+                    cur_fracture%normal%y*v2%y + &
+                    cur_fracture%normal%z*v2%z + D
+      d_vertex(3) = cur_fracture%normal%x*v3%x + &
+                    cur_fracture%normal%y*v3%y + &
+                    cur_fracture%normal%z*v3%z + D
+      d_vertex(4) = cur_fracture%normal%x*v4%x + &
+                    cur_fracture%normal%y*v4%y + &
+                    cur_fracture%normal%z*v4%z + D
+      d_vertex(5) = cur_fracture%normal%x*v5%x + &
+                    cur_fracture%normal%y*v5%y + &
+                    cur_fracture%normal%z*v5%z + D
+      d_vertex(6) = cur_fracture%normal%x*v6%x + &
+                    cur_fracture%normal%y*v6%y + &
+                    cur_fracture%normal%z*v6%z + D
+      d_vertex(7) = cur_fracture%normal%x*v7%x + &
+                    cur_fracture%normal%y*v7%y + &
+                    cur_fracture%normal%z*v7%z + D
+      d_vertex(8) = cur_fracture%normal%x*v8%x + &
+                    cur_fracture%normal%y*v8%y + &
+                    cur_fracture%normal%z*v8%z + D
+      distance = cur_fracture%normal%x*grid_center%x + &
+                 cur_fracture%normal%y*grid_center%y + &
+                 cur_fracture%normal%z*grid_center%z + D
+      frac_is_within_grid_cell_volume = PETSC_TRUE
+      if ((all(d_vertex > 0.d0)) .or. (all(d_vertex < 0.d0))) then
+        ! if the distances between all vertices and the fracture plane are
+        ! all positive or all negative, then the grid cell volume is on either
+        ! side of the plane, and the fracture plane doesn't go through
+        frac_is_within_grid_cell_volume = PETSC_FALSE
+      elseif (any(d_vertex == 0.d0)) then
+        ! if any vertex is exactly on the plane. . . .
+        frac_is_within_grid_cell_volume = PETSC_TRUE
+      endif
+      if (frac_is_within_grid_cell_volume) then
         min_x = cur_fracture%center%x - cur_fracture%radx
         max_x = cur_fracture%center%x + cur_fracture%radx
         min_y = cur_fracture%center%y - cur_fracture%rady
@@ -425,16 +511,13 @@ subroutine PMFracSetup(this)
         max_z = cur_fracture%center%z + cur_fracture%radz
         within_x = PETSC_FALSE; within_y = PETSC_FALSE
         within_z = PETSC_FALSE
-        if ((res_grid%x(res_grid%nL2G(k)) <= max_x) .and. &
-            (res_grid%x(res_grid%nL2G(k)) >= min_x)) then
+        if ((grid_center%x <= max_x) .and. (grid_center%x >= min_x)) then
           within_x = PETSC_TRUE
         endif
-        if ((res_grid%y(res_grid%nL2G(k)) <= max_y) .and. &
-            (res_grid%y(res_grid%nL2G(k)) >= min_y)) then
+        if ((grid_center%y <= max_y) .and. (grid_center%y >= min_y)) then
           within_y = PETSC_TRUE
         endif
-        if ((res_grid%z(res_grid%nL2G(k)) <= max_z) .and. &
-            (res_grid%z(res_grid%nL2G(k)) >= min_z)) then
+        if ((grid_center%z <= max_z) .and. (grid_center%z >= min_z)) then
           within_z = PETSC_TRUE
         endif
         ! if you want the fracture oriented exactly along an axis, then allow
@@ -452,9 +535,10 @@ subroutine PMFracSetup(this)
     cur_fracture%ncells = j
     if (j > read_max) then
       option%io_buffer = 'The number of grid cells that FRACTURE with &
-        &ID# [' // word // '] occupies exceeds the set limit of 5000 cells. If &
-        &you are certain the fracture should be this large, increase the size &
-        &of read_max in PMFracSetup() or email the PFLOTRAN developers group.'
+        &ID# [' // word // '] occupies exceeds the set limit of 15,000 cells. &
+        &If you are certain the fracture should be this large, increase the &
+        &size of read_max in PMFracSetup() or email the PFLOTRAN developers &
+        &group.'
       call PrintErrMsg(option)
     endif
     if (cur_fracture%ncells > 0) then
@@ -550,7 +634,24 @@ subroutine PMFracSetup(this)
     enddo
     allocate(this%frac_common_cell_ids(j))
     this%frac_common_cell_ids(1:j) = temp_cell_ids(1:j)
-  deallocate(temp_frac_common_cell_ids)
+    deallocate(temp_frac_common_cell_ids)
+
+    allocate(temp_allfrac_unique_cell_ids(tfc))
+    temp_allfrac_unique_cell_ids(:) = 0
+    j = 1
+    temp_allfrac_unique_cell_ids(1) = this%allfrac_cell_ids(1)
+    do i=2,tfc
+        ! if the number already exists in temp check next
+        if (any( temp_allfrac_unique_cell_ids == &
+                 this%allfrac_cell_ids(i) )) cycle
+        ! No match found so add it to the output
+        j = j + 1
+        temp_allfrac_unique_cell_ids(j) = this%allfrac_cell_ids(i)
+    enddo
+    allocate(this%allfrac_unique_cell_ids(j))
+    this%allfrac_unique_cell_ids(1:j) = temp_allfrac_unique_cell_ids(1:j)
+    deallocate(temp_allfrac_unique_cell_ids)
+
   endif
 
   if (.not.associated(this%realization%reaction)) then
@@ -561,8 +662,19 @@ subroutine PMFracSetup(this)
     endif
   endif
 
+  allocate(this%max_frac_kx(res_grid%nmax))
+  allocate(this%max_frac_ky(res_grid%nmax))
+  allocate(this%max_frac_kz(res_grid%nmax))
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+
+  allocate(this%sum_frac_kx(res_grid%nmax))
+  allocate(this%sum_frac_ky(res_grid%nmax))
+  allocate(this%sum_frac_kz(res_grid%nmax))
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
+
   deallocate(temp_cell_ids)
   deallocate(temp_allfrac_cell_ids)
+  deallocate(d_vertex)
 
 end subroutine PMFracSetup
 
@@ -621,6 +733,8 @@ subroutine PMFracInitializeRun(this)
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
   cur_fracture => this%fracture_list
   do
@@ -639,9 +753,15 @@ subroutine PMFracInitializeRun(this)
 
       call PMFracCalcK(L,cur_fracture%hap0,cur_fracture%RM,kx,ky,kz)
 
-      material_auxvar%permeability(1) = material_auxvar%permeability(1) + kx
-      material_auxvar%permeability(2) = material_auxvar%permeability(2) + ky
-      material_auxvar%permeability(3) = material_auxvar%permeability(3) + kz
+      ! record the maximum permeability encountered so far
+      this%max_frac_kx(icell) = max(kx,this%max_frac_kx(icell))
+      this%max_frac_ky(icell) = max(ky,this%max_frac_ky(icell))
+      this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
+
+      ! record the sum of permeability encountered so far
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz
 
       material_auxvar%porosity_0 = material_auxvar%porosity_0 + &
                                    (cur_fracture%hap0/L)
@@ -664,15 +784,34 @@ subroutine PMFracInitializeRun(this)
     cur_fracture => cur_fracture%next
   enddo
 
-  if (associated(this%allfrac_cell_ids)) then
-    do k = 1,size(this%allfrac_cell_ids)
-      icell = this%allfrac_cell_ids(k)
-      material_auxvar => &
-          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
-      perm0_xx_p(icell) = material_auxvar%permeability(1)
-      perm0_yy_p(icell) = material_auxvar%permeability(2)
-      perm0_zz_p(icell) = material_auxvar%permeability(3)
+  ! update domain material permeability of cells with fractures
+  if (associated(this%allfrac_unique_cell_ids)) then
+    do k = 1,size(this%allfrac_unique_cell_ids)
+      icell = this%allfrac_unique_cell_ids(k)
+      if (this%frac_intersection_type == 2) then ! maximum
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
+      endif
+      if (this%frac_intersection_type == 1) then ! summation
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
+      endif
     enddo
+  endif
+
+  if (this%update_material_auxvar_perm) then
+    if (associated(this%allfrac_unique_cell_ids)) then
+      do k = 1,size(this%allfrac_unique_cell_ids)
+        icell = this%allfrac_unique_cell_ids(k)
+        material_auxvar => &
+          this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
+        material_auxvar%permeability(1) = perm0_xx_p(icell)
+        material_auxvar%permeability(2) = perm0_yy_p(icell)
+        material_auxvar%permeability(3) = perm0_zz_p(icell)
+      enddo
+    endif
   endif
 
   call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -823,6 +962,20 @@ subroutine PMFracReadPMBlock(this,input)
                          error_string)
         cycle
     !-------------------------------------
+      case('FRACTURE_INTERSECTION_PERM')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,word,error_string)
+        call StringToUpper(word)
+        select case (trim(word))
+          case('MAX','MAXIMUM')
+            this%frac_intersection_type = 2
+          case('SUM','SUMMATION')
+            this%frac_intersection_type = 1
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        cycle
+    !-------------------------------------
 
     end select
 
@@ -915,10 +1068,6 @@ subroutine PMFracReadFracture(pm_fracture,input,option,keyword,error_string, &
           case('ID')
             call InputReadInt(input,option,new_fracture%id)
             call InputErrorMsg(input,option,'ID',error_string)
-        !-----------------------------
-          case('MAX_DISTANCE')
-            call InputReadDouble(input,option,new_fracture%max_distance)
-            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
         !-----------------------------
           case('HYDRAULIC_APERTURE')
             call InputReadDouble(input,option,new_fracture%hap0)
@@ -1089,10 +1238,6 @@ subroutine PMFracReadFracFam(pm_fracture,input,option,keyword,error_string, &
           case('ID')
             call InputReadInt(input,option,new_fracfam%id)
             call InputErrorMsg(input,option,'ID',error_string)
-        !-----------------------------
-          case('MAX_DISTANCE')
-            call InputReadDouble(input,option,new_fracfam%max_distance)
-            call InputErrorMsg(input,option,'MAX_DISTANCE',error_string)
         !-----------------------------
           case('NUMBER_OF_FRACTURES')
             call InputReadInt(input,option,new_fracfam%intensity_fracfam)
@@ -1450,6 +1595,67 @@ end subroutine PMFracReadPass2
 
 ! ************************************************************************** !
 
+subroutine GetLHSValues(mean,st_dev,isamples,seed,LHSvalues)
+  !
+  ! Gets a set of samples from a normal distribution using LHS method.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 11/26/2024
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  PetscReal :: mean, st_dev
+  PetscInt :: isamples, seed
+  PetscReal:: LHSvalues(:)
+
+  PetscReal :: rndnum
+  PetscInt :: f, k
+  PetscBool :: switch
+  PetscReal :: n0, n1
+  PetscReal :: nu1, nu2
+  PetscReal :: TWO_PI
+
+  switch = mod(seed, 2) == 0
+  TWO_PI = 2*PI
+
+  do k=1,isamples
+    if (.not.switch) then
+      ! Generate two random numbers between (0,1)
+      do f=1,seed
+        nu1 = rnd4LHS(seed)
+        nu2 = rnd4LHS(seed)
+      enddo
+      n0 = sqrt(-2.0*log(nu1)) * cos(TWO_PI*nu2)
+      n1 = sqrt(-2.0*log(nu1)) * sin(TWO_PI*nu2)
+      rndnum = n0*st_dev + mean
+    else
+      rndnum = n1*st_dev + mean
+    endif
+    LHSvalues(k) = rndnum
+    switch = .not.switch
+  enddo
+
+end subroutine GetLHSValues
+
+! ************************************************************************** !
+
+function rnd4LHS(iseed)
+
+  implicit none
+
+  PetscInt :: iseed
+  PetscReal :: rnd4LHS
+
+  iseed = iseed*125
+  iseed = iseed - (iseed/2796203) * 2796203
+  rnd4LHS   = dble(iseed)/2796203.0
+  return
+
+end function rnd4LHS
+
+! ************************************************************************** !
+
 subroutine PMFracGenerateFracFam(fracfam)
   !
   ! Generates fractures based on the information about a fracture family.
@@ -1464,7 +1670,50 @@ subroutine PMFracGenerateFracFam(fracfam)
   type(fracfam_type) :: fracfam
 
   type(fracture_type), pointer :: new_fracture,cur_fracture
+  PetscReal, pointer :: center_x(:),center_y(:),center_z(:)
+  PetscReal, pointer :: normal_x(:),normal_y(:),normal_z(:)
+  PetscReal, pointer :: radius_x(:),radius_y(:),radius_z(:)
+  PetscReal, pointer :: hap0(:)
   PetscBool :: added
+
+  allocate(center_x(fracfam%intensity_fracfam))
+  allocate(center_y(fracfam%intensity_fracfam))
+  allocate(center_z(fracfam%intensity_fracfam))
+  center_x(:) = 0.d0; center_y(:) = 0.d0; center_z(:) = 0.d0
+  allocate(normal_x(fracfam%intensity_fracfam))
+  allocate(normal_y(fracfam%intensity_fracfam))
+  allocate(normal_z(fracfam%intensity_fracfam))
+  normal_x(:) = 0.d0; normal_y(:) = 0.d0; normal_z(:) = 0.d0
+  allocate(radius_x(fracfam%intensity_fracfam))
+  allocate(radius_y(fracfam%intensity_fracfam))
+  allocate(radius_z(fracfam%intensity_fracfam))
+  radius_x(:) = 0.d0; radius_y(:) = 0.d0; radius_z(:) = 0.d0
+  allocate(hap0(fracfam%intensity_fracfam))
+  hap0(:) = 0.d0
+
+  call GetLHSValues(fracfam%center%x,fracfam%center_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_x)
+  call GetLHSValues(fracfam%center%y,fracfam%center_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_y)
+  call GetLHSValues(fracfam%center%z,fracfam%center_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%center_seed,center_z)
+
+  call GetLHSValues(fracfam%normal%x,fracfam%normal_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_x)
+  call GetLHSValues(fracfam%normal%y,fracfam%normal_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_y)
+  call GetLHSValues(fracfam%normal%z,fracfam%normal_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%normal_seed,normal_z)
+
+  call GetLHSValues(fracfam%radius%x,fracfam%radius_stdev%x, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_x)
+  call GetLHSValues(fracfam%radius%y,fracfam%radius_stdev%y, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_y)
+  call GetLHSValues(fracfam%radius%z,fracfam%radius_stdev%z, &
+                    fracfam%intensity_fracfam,fracfam%radius_seed,radius_z)
+
+  call GetLHSValues(fracfam%hap0,fracfam%hap0_stdev, &
+                    fracfam%intensity_fracfam,fracfam%hap0_seed,hap0)
 
   do while (fracfam%nfrac_in_fam < fracfam%intensity_fracfam)
     added = PETSC_FALSE
@@ -1472,34 +1721,23 @@ subroutine PMFracGenerateFracFam(fracfam)
     fracfam%nfrac_in_fam = fracfam%nfrac_in_fam + 1
     new_fracture => FractureCreate()
     new_fracture%id = fracfam%id*100 + (fracfam%nfrac_in_fam)
-    new_fracture%max_distance = fracfam%max_distance
 
-    call GetRndNumFromNormalDist(fracfam%center%x,fracfam%center_stdev%x, &
-      new_fracture%center%x,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%center%y,fracfam%center_stdev%y, &
-      new_fracture%center%y,(fracfam%center_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%center%z,fracfam%center_stdev%z, &
-      new_fracture%center%z,(fracfam%center_seed + fracfam%nfrac_in_fam))
+    new_fracture%center%x = center_x(fracfam%nfrac_in_fam)
+    new_fracture%center%y = center_y(fracfam%nfrac_in_fam)
+    new_fracture%center%z = center_z(fracfam%nfrac_in_fam)
 
-    call GetRndNumFromNormalDist(fracfam%normal%x,fracfam%normal_stdev%x, &
-      new_fracture%normal%x,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%normal%y,fracfam%normal_stdev%y, &
-      new_fracture%normal%y,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%normal%z,fracfam%normal_stdev%z, &
-      new_fracture%normal%z,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    new_fracture%normal%x = normal_x(fracfam%nfrac_in_fam)
+    new_fracture%normal%y = normal_y(fracfam%nfrac_in_fam)
+    new_fracture%normal%z = normal_z(fracfam%nfrac_in_fam)
 
-    call GetRndNumFromNormalDist(fracfam%radius%x,fracfam%radius_stdev%x, &
-      new_fracture%radx,(fracfam%radius_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%radius%y,fracfam%radius_stdev%y, &
-      new_fracture%rady,(fracfam%normal_seed + fracfam%nfrac_in_fam))
-    call GetRndNumFromNormalDist(fracfam%radius%z,fracfam%radius_stdev%z, &
-      new_fracture%radz,(fracfam%normal_seed + fracfam%nfrac_in_fam))
+    new_fracture%radx = radius_x(fracfam%nfrac_in_fam)
+    new_fracture%rady = radius_y(fracfam%nfrac_in_fam)
+    new_fracture%radz = radius_z(fracfam%nfrac_in_fam)
     new_fracture%radx = abs(new_fracture%radx)  ! ensures radius is positive
     new_fracture%rady = abs(new_fracture%rady)  ! ensures radius is positive
     new_fracture%radz = abs(new_fracture%radz)  ! ensures radius is positive
 
-    call GetRndNumFromNormalDist(fracfam%hap0,fracfam%hap0_stdev, &
-      new_fracture%hap0,(fracfam%hap0_seed + fracfam%nfrac_in_fam))
+    new_fracture%hap0 = hap0(fracfam%nfrac_in_fam)
     new_fracture%hap0 = abs(new_fracture%hap0)  ! ensures hap0 is positive
     new_fracture%hap0 = min(new_fracture%hap0,fracfam%hap0_max)
 
@@ -1521,6 +1759,11 @@ subroutine PMFracGenerateFracFam(fracfam)
 
     nullify(new_fracture)
   enddo
+
+  deallocate(center_x); deallocate(radius_x); deallocate(normal_x)
+  deallocate(center_y); deallocate(radius_y); deallocate(normal_y)
+  deallocate(center_z); deallocate(radius_z); deallocate(normal_z)
+  deallocate(hap0)
 
 end subroutine PMFracGenerateFracFam
 
@@ -1640,6 +1883,8 @@ subroutine PMFracSolve(this,time,ierr)
   call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
+  this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
   cur_fracture => this%fracture_list
   do
@@ -1683,10 +1928,15 @@ subroutine PMFracSolve(this,time,ierr)
       ! get anisotropic domain permeability from rotation transformation
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
 
-      ! update domain material permeability of cells with fractures
-      perm0_xx_p(icell) = perm0_xx_p(icell) + kx
-      perm0_yy_p(icell) = perm0_yy_p(icell) + ky
-      perm0_zz_p(icell) = perm0_zz_p(icell) + kz
+      ! record the maximum permeability encountered so far
+      this%max_frac_kx(icell) = max(kx,this%max_frac_kx(icell))
+      this%max_frac_ky(icell) = max(ky,this%max_frac_ky(icell))
+      this%max_frac_kz(icell) = max(kz,this%max_frac_kz(icell))
+
+      ! record the sum of permeability encountered so far
+      this%sum_frac_kx(icell) = this%sum_frac_kx(icell) + kx
+      this%sum_frac_ky(icell) = this%sum_frac_ky(icell) + ky
+      this%sum_frac_kz(icell) = this%sum_frac_kz(icell) + kz
 
       ! reset previous temperature for next time step
       cur_fracture%prev_temperature(k) = cur_temperature
@@ -1695,10 +1945,27 @@ subroutine PMFracSolve(this,time,ierr)
     cur_fracture => cur_fracture%next
   enddo
 
+  ! update domain material permeability of cells with fractures
+  if (associated(this%allfrac_unique_cell_ids)) then
+    do k = 1,size(this%allfrac_unique_cell_ids)
+      icell = this%allfrac_unique_cell_ids(k)
+      if (this%frac_intersection_type == 2) then ! maximum
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%max_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%max_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%max_frac_kz(icell)
+      endif
+      if (this%frac_intersection_type == 1) then ! summation
+        perm0_xx_p(icell) = perm0_xx_p(icell) + this%sum_frac_kx(icell)
+        perm0_yy_p(icell) = perm0_yy_p(icell) + this%sum_frac_ky(icell)
+        perm0_zz_p(icell) = perm0_zz_p(icell) + this%sum_frac_kz(icell)
+      endif
+    enddo
+  endif
+
   if (this%update_material_auxvar_perm) then
-    if (associated(this%allfrac_cell_ids)) then
-      do k = 1,size(this%allfrac_cell_ids)
-        icell = this%allfrac_cell_ids(k)
+    if (associated(this%allfrac_unique_cell_ids)) then
+      do k = 1,size(this%allfrac_unique_cell_ids)
+        icell = this%allfrac_unique_cell_ids(k)
         material_auxvar => &
           this%realization%patch%aux%material%auxvars(grid%nL2G(icell))
         material_auxvar%permeability(1) = perm0_xx_p(icell)
@@ -1736,8 +2003,29 @@ subroutine PMFracDestroy(this)
   if (associated(this%allfrac_cell_ids)) then
     call DeallocateArray(this%allfrac_cell_ids)
   endif
+  if (associated(this%allfrac_unique_cell_ids)) then
+    call DeallocateArray(this%allfrac_unique_cell_ids)
+  endif
   if (associated(this%frac_common_cell_ids)) then
     call DeallocateArray(this%frac_common_cell_ids)
+  endif
+  if (associated(this%max_frac_kx)) then
+    call DeallocateArray(this%max_frac_kx)
+  endif
+  if (associated(this%max_frac_ky)) then
+    call DeallocateArray(this%max_frac_ky)
+  endif
+  if (associated(this%max_frac_ky)) then
+    call DeallocateArray(this%max_frac_kz)
+  endif
+  if (associated(this%sum_frac_kx)) then
+    call DeallocateArray(this%sum_frac_kx)
+  endif
+  if (associated(this%sum_frac_ky)) then
+    call DeallocateArray(this%sum_frac_ky)
+  endif
+  if (associated(this%sum_frac_ky)) then
+    call DeallocateArray(this%sum_frac_kz)
   endif
 
   cur_fracture => this%fracture_list
