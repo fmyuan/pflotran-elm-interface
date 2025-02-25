@@ -2186,10 +2186,10 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
         option%flow%reference_density(option%liquid_phase)
-      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%temp = option%transport%reference_temperature
       global_auxvar%sat(iphase) = option%flow%reference_saturation
     case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%temp = option%transport%reference_temperature
   end select
 
   bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
@@ -2911,7 +2911,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     global_auxvar => constraint_coupler%global_auxvar
 
     iphase = 1
-    global_auxvar%temp = option%flow%reference_temperature
+    global_auxvar%temp = option%transport%reference_temperature
     tempk = tk + global_auxvar%temp
 
     potential = 0.1d0 ! initial guess

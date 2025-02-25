@@ -492,6 +492,12 @@ subroutine FactorySubsurfSetupRealization(simulation)
         case(RT_TEMPERATURE_ANISOTHERMAL)
           option%transport%isothermal_reaction = PETSC_FALSE
       end select
+      if (Uninitialized(pm_rt%reference_temperature)) then
+        option%transport%reference_temperature = &
+          option%flow%reference_temperature
+      else
+        option%transport%reference_temperature = pm_rt%reference_temperature
+      endif
 
       if (.not.associated(realization%reaction)) then
         option%io_buffer = 'A CHEMISTRY block must be included in the input &

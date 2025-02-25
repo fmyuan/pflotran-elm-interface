@@ -48,6 +48,7 @@ module PM_RT_class
     PetscBool :: millington_quirk_tortuosity
     PetscInt :: transport_temperature_dependence
     PetscInt :: reaction_temperature_dependence
+    PetscReal :: reference_temperature
     ! for convergence
     PetscBool :: refactored_convergence
     PetscBool, pointer :: converged_flag(:)
@@ -154,6 +155,7 @@ subroutine PMRTInit(pm_rt)
   pm_rt%millington_quirk_tortuosity = PETSC_FALSE
   pm_rt%transport_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
   pm_rt%reaction_temperature_dependence = RT_TEMPERATURE_FOLLOW_FLOW
+  pm_rt%reference_temperature = UNINITIALIZED_DOUBLE
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
   pm_rt%debug_update = PETSC_FALSE
@@ -273,6 +275,9 @@ subroutine PMRTReadSimOptionsBlock(this,input)
           case default
             call InputKeywordUnrecognized(input,keyword,error_string,option)
         end select
+      case('REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,this%reference_temperature)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

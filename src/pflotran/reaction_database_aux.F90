@@ -256,7 +256,7 @@ function ReactionDBCheckLegitLogKs(dbaserxn,species_name,temperatures, &
 
   if (.not.associated(dbaserxn)) return
   if (option%transport%isothermal_reaction .and. &
-      Equal(option%flow%reference_temperature,25.d0)) return
+      Equal(option%transport%reference_temperature,25.d0)) return
 
   string = ''
   do itemp = 1, size(dbaserxn%logK)
