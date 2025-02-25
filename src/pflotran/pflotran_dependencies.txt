@@ -446,6 +446,7 @@ factory_forward.o : \
   factory_geomechanics.o \
   factory_subsurface.o \
   factory_subsurface_read.o \
+  init_subsurface_geomechanics.o \
   input_aux.o \
   inversion_aux.o \
   logging.o \
@@ -482,7 +483,6 @@ factory_geomechanics.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
-  pm_ert.o \
   pm_geomechanics_force.o \
   pmc_base.o \
   pmc_geomechanics.o \
@@ -492,7 +492,6 @@ factory_geomechanics.o : \
   simulation_base.o \
   simulation_geomechanics.o \
   simulation_subsurface.o \
-  string.o \
   timestepper_steady.o \
   waypoint.o
 factory_pflotran.o : \
@@ -1293,6 +1292,7 @@ init_subsurface_geomechanics.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
+  pm_ert.o \
   pm_geomechanics_force.o \
   pmc_base.o \
   pmc_geomechanics.o \
