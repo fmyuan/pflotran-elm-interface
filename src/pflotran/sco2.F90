@@ -851,6 +851,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   PetscReal :: Res_dummy(realization%option%nflowdof)
 
   PetscReal :: liquid_rate, gas_rate, co2_fraction
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1256,6 +1257,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
                           global_auxvars(ghosted_id), &
                           global_auxvars_ss(sum_connection), &
                           material_auxvars(ghosted_id), &
+                          ss_flow_vol_flux, &
                           patch%characteristic_curves_array( &
                           patch%cc_id(ghosted_id))%ptr, &
                           sco2_parameter, grid%nG2A(ghosted_id), &
@@ -1915,6 +1917,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
                             global_auxvars(ghosted_id), &
                             global_auxvars_ss(sum_connection), &
                             material_auxvars(ghosted_id), &
+                            ss_flow_vol_flux, &
                             patch%characteristic_curves_array( &
                             patch%cc_id(ghosted_id))%ptr, &
                             sco2_parameter, &
