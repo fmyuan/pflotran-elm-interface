@@ -1238,8 +1238,9 @@ subroutine ReactionAuxInitializeLogK(logKcoef,logKs,logK,option,reaction)
   ! we always initialize on reference temperature
   temperature = option%flow%reference_temperature
 
+  ! find database temperature if relevant
   itemperature = 0
-  if (option%use_isothermal) then ! find database temperature if relevant
+  if (option%transport%isothermal_reaction) then
     do i = 1, reaction%num_dbase_temperatures
       if (dabs(option%flow%reference_temperature - &
                reaction%dbase_temperatures(i)) < 1.d-10) then

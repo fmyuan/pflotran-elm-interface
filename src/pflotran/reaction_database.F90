@@ -1651,7 +1651,7 @@ subroutine ReactionDBInitBasis(reaction,option)
     reaction%eqcplx_logK = 0.d0
 
     if (.not.reaction%use_geothermal_hpt) then
-      if (option%use_isothermal) then
+      if (option%transport%isothermal_reaction) then
         allocate(reaction%eqcplx_logKcoef(reaction%num_dbase_temperatures, &
                                           reaction%neqcplx))
       else
@@ -1705,7 +1705,7 @@ subroutine ReactionDBInitBasis(reaction,option)
       reaction%eqcplxspecid(0,isec_spec) = ispec
 
       if (.not.reaction%use_geothermal_hpt) then
-        if (option%use_isothermal) then
+        if (option%transport%isothermal_reaction) then
           call Interpolate(temp_high,temp_low, &
                            option%flow%reference_temperature, &
                            cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
@@ -1850,7 +1850,7 @@ subroutine ReactionDBInitBasis(reaction,option)
     allocate(mineral%mnrl_print(mineral%nmnrl))
     mineral%mnrl_print = PETSC_FALSE
     if (.not.reaction%use_geothermal_hpt) then
-      if (option%use_isothermal) then
+      if (option%transport%isothermal_reaction) then
         allocate(mineral%mnrl_logKcoef(reaction%num_dbase_temperatures, &
                                         mineral%nmnrl))
       else
@@ -1904,7 +1904,7 @@ subroutine ReactionDBInitBasis(reaction,option)
       allocate(mineral%kinmnrl_logK(mineral%nkinmnrl))
       mineral%kinmnrl_logK = 0.d0
       if (.not.reaction%use_geothermal_hpt) then
-        if (option%use_isothermal) then
+        if (option%transport%isothermal_reaction) then
           allocate(mineral%kinmnrl_logKcoef(reaction%num_dbase_temperatures, &
                                              mineral%nkinmnrl))
         else
@@ -2263,7 +2263,7 @@ subroutine ReactionDBInitBasis(reaction,option)
       endif
 
       if (.not.reaction%use_geothermal_hpt) then
-        if (option%use_isothermal) then
+        if (option%transport%isothermal_reaction) then
           call Interpolate(temp_high,temp_low, &
                            option%flow%reference_temperature, &
                            cur_mineral%dbaserxn%logK(itemp_high), &
@@ -2306,7 +2306,7 @@ subroutine ReactionDBInitBasis(reaction,option)
         mineral%kinmnrlh2ostoich(ikinmnrl) = mineral%mnrlh2ostoich(imnrl)
 
         if (.not.reaction%use_geothermal_hpt) then
-          if (option%use_isothermal) then
+          if (option%transport%isothermal_reaction) then
             call Interpolate(temp_high,temp_low, &
                              option%flow%reference_temperature, &
                              cur_mineral%dbaserxn%logK(itemp_high), &
@@ -2619,7 +2619,7 @@ subroutine ReactionDBInitBasis(reaction,option)
     surface_complexation%srfcplx_logK = 0.d0
 
     if (.not.reaction%use_geothermal_hpt) then
-      if (option%use_isothermal) then
+      if (option%transport%isothermal_reaction) then
         allocate(surface_complexation%srfcplx_logKcoef( &
                    reaction%num_dbase_temperatures,icount))
       else
@@ -2672,7 +2672,7 @@ subroutine ReactionDBInitBasis(reaction,option)
       surface_complexation%srfcplxspecid(0,isrfcplx) = ispec
 
       if (.not.reaction%use_geothermal_hpt) then
-        if (option%use_isothermal) then
+        if (option%transport%isothermal_reaction) then
           call Interpolate(temp_high,temp_low, &
                            option%flow%reference_temperature, &
                            cur_srfcplx%dbaserxn%logK(itemp_high), &
@@ -3228,7 +3228,7 @@ subroutine ReactionDBSetupGases(reaction,num_logKs,option,h2o_id, &
     allocate(molar_weight(ngas))
     molar_weight = 0.d0
     if (.not.reaction%use_geothermal_hpt) then
-      if (option%use_isothermal) then
+      if (option%transport%isothermal_reaction) then
         allocate(eqlogKcoef(reaction%num_dbase_temperatures, &
                                          ngas))
       else
@@ -3277,7 +3277,7 @@ subroutine ReactionDBSetupGases(reaction,num_logKs,option,h2o_id, &
         molar_weight(igas_spec) = cur_gas_spec%molar_weight
 
         if (.not.reaction%use_geothermal_hpt) then
-          if (option%use_isothermal) then
+          if (option%transport%isothermal_reaction) then
             eqlogKcoef(:,igas_spec) = cur_gas_spec%dbaserxn%logK
             call Interpolate(temp_high,temp_low, &
                              option%flow%reference_temperature, &

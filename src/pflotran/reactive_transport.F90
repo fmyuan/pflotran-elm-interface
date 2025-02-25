@@ -1023,7 +1023,7 @@ subroutine RTUpdateKineticState(realization)
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    if (.not.option%use_isothermal) then
+    if (.not.option%transport%isothermal_reaction) then
       call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                     PETSC_FALSE,option)
     endif
@@ -1133,7 +1133,7 @@ subroutine RTUpdateFixedAccumulation(realization)
       rt_auxvars(ghosted_id)%immobile = xx_p(istartim:iendim)
     endif
 
-    if (.not.option%use_isothermal) then
+    if (.not.option%transport%isothermal_reaction) then
       call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                      PETSC_FALSE,option)
     endif
@@ -2754,7 +2754,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       iendall = offset + reaction%ncomp
       Res = 0.d0
       Jup = 0.d0
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
@@ -3324,7 +3324,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
       Res = 0.d0
       Jup = 0.d0
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
@@ -3661,7 +3661,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         iendim = offset + reaction%offset_immobile + reaction%immobile%nimmobile
         rt_auxvars(ghosted_id)%immobile = xx_loc_p(istartim:iendim)
       endif
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id), &
                                        reaction,PETSC_FALSE, &
                                        option)
@@ -3778,7 +3778,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
           ! no need to update boundary fluid density since it is already set
           rt_auxvars_bc(sum_connection)%pri_molal = &
             xxbc(istartaq_loc:iendaq_loc)
-          if (.not.option%use_isothermal) then
+          if (.not.option%transport%isothermal_reaction) then
             call RUpdateTempDependentCoefs(patch%aux%Global% &
                                              auxvars_bc(sum_connection), &
                                            reaction,PETSC_FALSE, &

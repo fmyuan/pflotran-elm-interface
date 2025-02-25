@@ -168,9 +168,6 @@ subroutine PMGeneralSetFlowMode(pm,option)
   allocate(general_max_states)
   allocate(max_change_index)
 
-
-  option%use_isothermal = general_isothermal
-
   option%liquid_phase = 1  ! liquid_pressure
   option%gas_phase = 2     ! gas_pressure
 
@@ -385,7 +382,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
       case('ISOTHERMAL')
-        general_isothermal = PETSC_TRUE
+        option%flow%isothermal = PETSC_TRUE
       case('NON_DARCY_FLOW')
         general_non_darcy_flow = PETSC_TRUE
       case('NON_DARCY_FLOW_A')
@@ -489,7 +486,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
   enddo
   call InputPopBlock(input,option)
 
-  if (general_isothermal .and. &
+  if (option%flow%isothermal .and. &
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
     option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
                        'temperature as the two phase energy dof.'

@@ -181,8 +181,6 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
 
   if (.not.associated(pm_flow)) then
     option%nphase = 1
-    ! assume default isothermal when only transport
-    option%use_isothermal = PETSC_TRUE
     return
   endif
 
@@ -207,7 +205,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       option%nflowspec = 2
       co2_sw_itable = 2 ! read CO2DATA0.dat
 !     co2_sw_itable = 1 ! create CO2 database: co2data.dat
-      option%use_isothermal = PETSC_FALSE
+      option%flow%isothermal = PETSC_FALSE
       option%water_id = 1
       option%air_id = 2
     class is (pm_richards_type)
@@ -215,7 +213,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       option%nphase = 1
       option%nflowdof = 1
       option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
+      option%flow%isothermal = PETSC_TRUE
     class is (pm_zflow_type)
       option%iflowmode = ZFLOW_MODE
       option%nphase = 1
@@ -228,7 +226,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       if (Initialized(zflow_heat_tran_eq)) then
         option%nflowdof = option%nflowdof + 1
       else
-        option%use_isothermal = PETSC_TRUE
+        option%flow%isothermal = PETSC_TRUE
       endif
       if (Initialized(zflow_sol_tran_eq)) then
         option%nflowdof = option%nflowdof + 1
@@ -244,26 +242,26 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       option%nphase = 1
       option%nflowdof = 1
       option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
+      option%flow%isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       option%nphase = 1
       option%nflowdof = 2
       option%nflowspec = 1
-      option%use_isothermal = PETSC_FALSE
+      option%flow%isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
     class is (pm_richards_ts_type)
       option%iflowmode = RICHARDS_TS_MODE
       option%nphase = 1
       option%nflowdof = 1
       option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
+      option%flow%isothermal = PETSC_TRUE
     class is (pm_th_ts_type)
       option%iflowmode = TH_TS_MODE
       option%nphase = 1
       option%nflowdof = 2
       option%nflowspec = 1
-      option%use_isothermal = PETSC_FALSE
+      option%flow%isothermal = PETSC_FALSE
       option%flow%store_fluxes = PETSC_TRUE
     class is (pm_sco2_type)
       call PMSCO2SetFlowMode(pm_flow,pm_well,option)
@@ -438,6 +436,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   use Dataset_module
   use Patch_module
   use Parameter_module
+  use PM_RT_class
   use EOS_module !to be removed as already present above
   use Discretization_module
 
@@ -446,6 +445,7 @@ subroutine FactorySubsurfSetupRealization(simulation)
   class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: realization
+  class(pm_rt_type), pointer :: pm_rt
   type(option_type), pointer :: option
   PetscErrorCode :: ierr
 
@@ -463,6 +463,36 @@ subroutine FactorySubsurfSetupRealization(simulation)
   call ParameterSetup(realization%parameter_list,option)
   select case(option%itranmode)
     case(RT_MODE)
+      select type(pm=>simulation%tran_process_model_coupler%pm_list)
+        class is(pm_rt_type)
+            pm_rt => pm
+      end select
+      ! map temperature dependence flags
+      select case(pm_rt%transport_temperature_dependence)
+        case(RT_TEMPERATURE_FOLLOW_FLOW)
+          if (option%iflowmode == NULL_MODE) then
+            option%transport%isothermal_transport = PETSC_TRUE
+          else
+            option%transport%isothermal_transport = option%flow%isothermal
+          endif
+        case(RT_TEMPERATURE_ISOTHERMAL)
+          option%transport%isothermal_transport = PETSC_TRUE
+        case(RT_TEMPERATURE_ANISOTHERMAL)
+          option%transport%isothermal_transport = PETSC_FALSE
+      end select
+      select case(pm_rt%reaction_temperature_dependence)
+        case(RT_TEMPERATURE_FOLLOW_FLOW)
+          if (option%iflowmode == NULL_MODE) then
+            option%transport%isothermal_reaction = PETSC_TRUE
+          else
+            option%transport%isothermal_reaction = option%flow%isothermal
+          endif
+        case(RT_TEMPERATURE_ISOTHERMAL)
+          option%transport%isothermal_reaction = PETSC_TRUE
+        case(RT_TEMPERATURE_ANISOTHERMAL)
+          option%transport%isothermal_reaction = PETSC_FALSE
+      end select
+
       if (.not.associated(realization%reaction)) then
         option%io_buffer = 'A CHEMISTRY block must be included in the input &
           &deck when the SUBSURFACE_TRANSPORT process model is specified &

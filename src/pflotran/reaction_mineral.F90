@@ -1920,7 +1920,7 @@ function ReactionMnrlSaturationIndex(imnrl,rt_auxvar,global_auxvar, &
 
   mineral => reaction%mineral
 
-  if (.not.option%use_isothermal) then
+  if (.not.option%transport%isothermal_reaction) then
     call ReactionMnrlUpdateTempDepCoefs(global_auxvar%temp, &
                                    global_auxvar%pres(iphase), &
                                    reaction%mineral, &

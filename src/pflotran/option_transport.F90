@@ -32,6 +32,8 @@ module Option_Transport_module
     PetscBool :: sc_fixed_water_density
     PetscBool :: anisotropic_tortuosity
     PetscBool :: conservative_transport_only
+    PetscBool :: isothermal_transport
+    PetscBool :: isothermal_reaction
 
     PetscBool :: force_decouple_co2
     PetscBool :: couple_co2
@@ -124,6 +126,8 @@ subroutine OptionTransportInitRealization(option)
   option%numerical_derivatives = PETSC_FALSE
   option%debug_derivatives = PETSC_FALSE
   option%conservative_transport_only = PETSC_TRUE
+  option%isothermal_transport = PETSC_TRUE
+  option%isothermal_reaction = PETSC_TRUE
 
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE

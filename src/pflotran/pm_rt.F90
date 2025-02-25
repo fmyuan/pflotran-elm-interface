@@ -21,6 +21,11 @@ module PM_RT_class
   PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 2
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
 
+  ! flags reactive transport temperature dependence
+  PetscInt, parameter, public :: RT_TEMPERATURE_FOLLOW_FLOW = 1
+  PetscInt, parameter, public :: RT_TEMPERATURE_ISOTHERMAL = 2
+  PetscInt, parameter, public :: RT_TEMPERATURE_ANISOTHERMAL = 3
+
   type, public, extends(pm_base_type) :: pm_rt_type
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
@@ -35,14 +40,14 @@ module PM_RT_class
     PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
-    PetscBool :: temperature_dependent_diffusion
-    PetscBool :: millington_quirk_tortuosity
-    ! for transport only
     PetscBool :: transient_porosity
     PetscBool :: operator_split
     PetscBool :: debug_update
     PetscReal :: debug_derivatives_rtol
     PetscReal :: debug_derivatives_row_rtol
+    PetscBool :: millington_quirk_tortuosity
+    PetscInt :: transport_temperature_dependence
+    PetscInt :: reaction_temperature_dependence
     ! for convergence
     PetscBool :: refactored_convergence
     PetscBool, pointer :: converged_flag(:)
@@ -146,9 +151,9 @@ subroutine PMRTInit(pm_rt)
   nullify(pm_rt%max_volfrac_change)
   pm_rt%volfrac_change_governor = 1.d0
   pm_rt%cfl_governor = UNINITIALIZED_DOUBLE
-  pm_rt%temperature_dependent_diffusion = PETSC_FALSE
   pm_rt%millington_quirk_tortuosity = PETSC_FALSE
-  ! these flags can only be true for transport only
+  pm_rt%transport_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+  pm_rt%reaction_temperature_dependence = RT_TEMPERATURE_FOLLOW_FLOW
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
   pm_rt%debug_update = PETSC_FALSE
@@ -183,6 +188,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
   type(input_type), pointer :: input
 
   character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
@@ -223,7 +229,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('NERNST_PLANCK')
         option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%temperature_dependent_diffusion = PETSC_TRUE
+        call InputKeywordDeprecated(keyword,'TRANSPORT_TEMPERATURE_DEPENDENCE&
+                                    & ANISOTHERMAL',option)
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
         this%millington_quirk_tortuosity = PETSC_TRUE
       case('PRINT_EKG')
@@ -242,6 +249,30 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
+      case('TRANSPORT_TEMPERATURE_DEPENDENCE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('ISOTHERMAL')
+            this%transport_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+          case('ANISOTHERMAL')
+            this%transport_temperature_dependence = RT_TEMPERATURE_ANISOTHERMAL
+          case default
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+        end select
+      case('REACTION_TEMPERATURE_DEPENDENCE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('ISOTHERMAL')
+            this%reaction_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+          case('ANISOTHERMAL')
+            this%reaction_temperature_dependence = RT_TEMPERATURE_ANISOTHERMAL
+          case default
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+        end select
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -390,7 +421,7 @@ subroutine PMRTSetup(this)
   ! pass down flags from PMRT class
   ! these flags are set after RTSetup as been called
   rt_parameter%temperature_dependent_diffusion = &
-    this%temperature_dependent_diffusion
+    .not.this%option%transport%isothermal_transport
   rt_parameter%millington_quirk_tortuosity = &
     this%millington_quirk_tortuosity
 
@@ -406,7 +437,7 @@ subroutine PMRTSetup(this)
     enddo
     if (lflag) then
       this%option%io_buffer = 'A DIFFUSION_ACTIVATION_ENERGY must be &
-        &assigned to each fluid phase for TEMPERATURE_DEPENDENT_DIFFUSION.'
+        &assigned to each fluid phase for RT_TEMPERATURE_DEPENDENT_DIFFUSION.'
       call PrintErrMsg(this%option)
     endif
   endif

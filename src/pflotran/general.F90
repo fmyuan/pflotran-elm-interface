@@ -204,7 +204,7 @@ subroutine GeneralSetup(realization)
   patch%aux%General%num_aux_ss = sum_connection
 
   ! create array for zeroing Jacobian entries if isothermal and/or no air
-  if (general_isothermal .or. general_no_air) then
+  if (option%flow%isothermal .or. general_no_air) then
     allocate(patch%aux%General%zero_array(grid%nlmax))
     patch%aux%General%zero_array = UNINITIALIZED_INTEGER
   endif
@@ -1702,7 +1702,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call VecRestoreArrayReadF90(r,r_p,ierr);CHKERRQ(ierr)
   endif
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
     ! zero energy residual
     do local_id = 1, grid%nlmax
@@ -2084,7 +2084,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   call MatrixZeroingZeroMatEntries(patch%aux%General%matrix_zeroing,A)
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
     ! zero energy residual
     zeros => patch%aux%General%zero_array
@@ -2509,7 +2509,7 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
                               general_auxvars(idof,ghosted_id)%pert
           enddo
         enddo
-        if (general_isothermal) then
+        if (option%flow%isothermal) then
           Jac(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
           Jac(:,GENERAL_ENERGY_EQUATION_INDEX) = 0.d0
         endif
