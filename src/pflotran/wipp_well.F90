@@ -1099,6 +1099,8 @@ subroutine PMWellSolveWIPP(pm_well,time,qi_coupling,ierr)
 
 end subroutine PMWellSolveWIPP
 
+! ************************************************************************** !
+
 subroutine PMWellSolveWIPPSequential(this,time,ierr)
   !
   ! Author: Michael Nole
@@ -1332,12 +1334,21 @@ subroutine WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
     !  ss_check_s(:,1) = this%well%gas%s(:)
     !endif
 
+    call PMWellPostSolveFlow(this)  ! Added this, so this subroutine does the
+                                    ! same thing as PMWellSolveFlowWIPPSeq.
+                                    ! Is PMWellSolveFlowWIPPSeq needed anymore?
+
   enddo
 
 end subroutine WIPPWellSolveFlowSequential
 
 ! ************************************************************************** !
 
+! this subroutine appears to never get called
+! from wipp_flow.F90, call pm_well%UpdateFlowRates happens, which then
+! points to PMWellUpdateFlowRatesWIPPQI in wipp_well.F90, which then
+! calls this%SolveFlow, which points to PMWellSolveFlowWIPPQI, which then
+! simply does call WIPPWellSolveFlowSequential.
 subroutine PMWellSolveFlowWIPPSeq(this,perturbation_index,ierr)
   !
   ! Author: Michael Nole
@@ -1347,6 +1358,7 @@ subroutine PMWellSolveFlowWIPPSeq(this,perturbation_index,ierr)
   implicit none
 
   class(pm_well_wipp_seq_type) :: this
+  !class(pm_well_wipp_qi_type) :: this  ! why doesn't this work?
   PetscInt :: perturbation_index
   PetscErrorCode :: ierr
 
@@ -1419,6 +1431,10 @@ subroutine PMWellSolveFlowWIPPQI(this,perturbation_index,ierr)
   PetscErrorCode :: ierr
 
   call WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
+  ! call PMWellSolveFlowWIPPSeq(this,perturbation_index,ierr)
+  ! shouldn't this call PMWellSolveFlowWIPPSeq? otherwise, the convergence
+  ! info during the well flow step within wipp_flow isn't printed to screen
+  ! because PostSolveFlow is never called.
 
 end subroutine PMWellSolveFlowWIPPQI
 
