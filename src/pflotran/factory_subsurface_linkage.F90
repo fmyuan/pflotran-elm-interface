@@ -989,8 +989,6 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
     pm_well_temp%flow_coupling = pm_well%flow_coupling
     pm_well_temp%well%well_model_type = pm_well%well%well_model_type
     select case (pm_well_temp%well%well_model_type)
-      ! case(WELL_MODEL_WIPP_SEQUENTIAL)
-      !   pm_well%next_well => PMWellWIPPSeqCreate()
       case(WELL_MODEL_WIPP_QI)
         pm_well%next_well => PMWellWIPPQICreate()
       case(WELL_MODEL_HYDROSTATIC)

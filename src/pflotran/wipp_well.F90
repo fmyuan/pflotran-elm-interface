@@ -45,19 +45,6 @@ module WIPP_Well_class
   PetscInt, parameter :: PERT_WRT_PL = 1
   PetscInt, parameter :: PERT_WRT_SG = 2
 
-  ! ! WIPP Sequential Well Model
-  ! type, public, extends(pm_well_sequential_type) :: pm_well_wipp_seq_type
-  ! contains
-  !   procedure, public :: ReadPMBlock => PMWellReadPMBlockWIPPSeq
-  !   procedure, public :: ReadSimulationOptionsBlock => &
-  !                          PMWellReadSimOptionsBlockWIPPSeq
-  !   procedure, public :: Setup => PMWellSetupWIPPSequential
-  !   procedure, public :: Solve => PMWellSolveWIPPSequential
-  !   procedure, public :: SolveFlow => PMWellSolveFlowWIPPSeq
-  !   procedure, public :: InitializeTimestep => PMWellInitializeTimestepWIPPSeq
-  !   procedure, public :: UpdateFlowProperties => UpdateFlowPropertiesWIPPSeq
-  ! end type pm_well_wipp_seq_type
-
   ! WIPP Quasi-Implicit Well Model
   type, public, extends(pm_well_qi_type) :: pm_well_wipp_qi_type
   contains
@@ -74,44 +61,10 @@ module WIPP_Well_class
     procedure, public :: UpdateFlowProperties => UpdateFlowPropertiesWIPPQI
   end type pm_well_wipp_qi_type
 
-  ! public :: PMWellWIPPSeqCreate, &
-  !           PMWellWIPPQICreate, &
-  !           PMWellQISolveTran
-
   public :: PMWellWIPPQICreate, &
             PMWellQISolveTran
 
   contains
-
-! ! ************************************************************************** !
-
-! function PMWellWIPPSeqCreate()
-!   !
-!   ! Creates the WIPP sequential well process model.
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 02/03/2025
-!   !
-
-!   implicit none
-
-!   class(pm_well_sequential_type), pointer :: PMWellWIPPSeqCreate
-!   class(pm_well_sequential_type), pointer :: pm_well
-
-!   allocate(pm_well)
-!   call PMWellSequentialInit(pm_well)
-
-!   pm_well%intrusion_time_start = UNINITIALIZED_DOUBLE
-!   pm_well%bh_zero_value = 1.d-20
-
-!   pm_well%well%well_model_type = WELL_MODEL_WIPP_SEQUENTIAL
-!   pm_well%flow_coupling = SEQUENTIAL_WELL
-
-!   nullify(pm_well%next_well)
-
-!   PMWellWIPPSeqCreate => pm_well
-
-! end function PMWellWIPPSeqCreate
 
 ! ************************************************************************** !
 
@@ -265,24 +218,6 @@ subroutine PMWellSetupWIPP(pm_well)
 
 end subroutine PMWellSetupWIPP
 
-! ! ************************************************************************** !
-
-! subroutine PMWellSetupWIPPSequential(this)
-!   !
-!   ! Initializes variables associated with the base well process model.
-!   !
-!   ! Author: Jennifer M. Frederick, SNL
-!   ! Date: 08/04/2021
-!   !
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-
-!   call PMWellSetupWIPP(this)
-
-! end subroutine PMWellSetupWIPPSequential
-
 ! ************************************************************************** !
 
 subroutine PMWellSetupWIPPQI(this)
@@ -300,27 +235,6 @@ subroutine PMWellSetupWIPPQI(this)
   call PMWellSetupWIPP(this)
 
 end subroutine PMWellSetupWIPPQI
-
-! ! ************************************************************************** !
-
-! subroutine PMWellReadSimOptionsBlockWIPPSeq(this,input)
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 03/08/24
-!   !
-
-!   use Input_Aux_module
-!   use String_module
-!   use Option_module
-
-!   implicit none
-
-!   type(input_type), pointer :: input
-!   class(pm_well_wipp_seq_type) :: this
-
-!   call PMWellReadSimOptionsBlockBase(this,input)
-
-! end subroutine PMWellReadSimOptionsBlockWIPPSeq
 
 ! ************************************************************************** !
 
@@ -517,21 +431,6 @@ subroutine PMWellReadPMBlockWIPP(pm_well,input)
 
 end subroutine PMWellReadPMBlockWIPP
 
-! ! ************************************************************************** !
-
-! subroutine PMWellReadPMBlockWIPPSeq(this,input)
-
-!   use Input_Aux_module
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-!   type(input_type), pointer :: input
-
-!   call PMWellReadPMBlockWIPP(this,input)
-
-! end subroutine PMWellReadPMBlockWIPPSeq
-
 ! ************************************************************************** !
 
 subroutine PMWellReadPMBlockWIPPQI(this,input)
@@ -570,18 +469,6 @@ subroutine PMWellInitializeTimestepWIPP(pm_well)
   endif
 
 end subroutine PMWellInitializeTimestepWIPP
-
-! ! ************************************************************************** !
-
-! subroutine PMWellInitializeTimestepWIPPSeq(this)
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-
-!   call PMWellInitializeTimestepWIPP(this)
-
-! end subroutine PMWellInitializeTimestepWIPPSeq
 
 ! ************************************************************************** !
 
@@ -1102,24 +989,6 @@ subroutine PMWellSolveWIPP(pm_well,time,qi_coupling,ierr)
 
 end subroutine PMWellSolveWIPP
 
-! ! ************************************************************************** !
-
-! subroutine PMWellSolveWIPPSequential(this,time,ierr)
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 02/03/2025
-!   !
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-!   PetscReal :: time
-!   PetscErrorCode :: ierr
-
-!   call PMWellSolveWIPP(this,time,PETSC_FALSE,ierr)
-
-! end subroutine PMWellSolveWIPPSequential
-
 ! ************************************************************************** !
 
 subroutine PMWellSolveWIPPQI(this,time,ierr)
@@ -1343,29 +1212,6 @@ subroutine WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
 
 end subroutine WIPPWellSolveFlowSequential
 
-! ! ************************************************************************** !
-
-! subroutine PMWellSolveFlowWIPPSeq(this,perturbation_index,ierr)
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 12/01/2021
-!   !
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-!   PetscInt :: perturbation_index
-!   PetscErrorCode :: ierr
-
-!   PetscLogDouble :: log_start_time, log_end_time
-
-!   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
-!   call WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
-!   call PMWellPostSolveFlow(this)
-!   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
-
-! end subroutine PMWellSolveFlowWIPPSeq
-
 ! ************************************************************************** !
 
 subroutine PMWellPostSolveFlow(pm_well)
@@ -1566,26 +1412,6 @@ subroutine UpdateFlowPropertiesWIPP(pm_well,pert,index)
 
   enddo
 end subroutine UpdateFlowPropertiesWIPP
-
-! ! ************************************************************************** !
-
-! subroutine UpdateFlowPropertiesWIPPSeq(this,pert,index)
-!   !
-!   ! Updates flow well object properties, when WIPP_FLOW is the flow mode.
-!   !
-!   ! Author: Michael Nole
-!   ! Date: 01/06/2022
-!   !
-
-!   implicit none
-
-!   class(pm_well_wipp_seq_type) :: this
-!   PetscBool :: pert
-!   PetscInt :: index
-
-!   call UpdateFlowPropertiesWIPP(this,pert,index)
-
-! end subroutine UpdateFlowPropertiesWIPPSeq
 
 ! ************************************************************************** !
 
