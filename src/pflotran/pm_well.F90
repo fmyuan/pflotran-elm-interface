@@ -6187,27 +6187,15 @@ subroutine PMWellUpdateReservoirSrcSinkFlow(pm_well)
 
         select case(option%iflowmode)
           case(WF_MODE)
-            if (wippflo_well_quasi_imp_coupled) then
-              source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-                0.d0 ! [kmol/s]
-              source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-                0.d0 ! [kmol/s]
-              ! access to Q is needed in NWT Mode, so load Q into 3 & 4:
-              source_sink%flow_condition%general%rate%dataset%rarray(3) = &
-                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
-              source_sink%flow_condition%general%rate%dataset%rarray(4) = &
-                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
-            else
-              source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
-              source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
-              ! access to Q is needed in NWT Mode, so load Q into 3 & 4:
-              source_sink%flow_condition%general%rate%dataset%rarray(3) = &
-                -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
-              source_sink%flow_condition%general%rate%dataset%rarray(4) = &
-                -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
-            endif
+            source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+              0.d0 ! [kmol/s]
+            source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+              0.d0 ! [kmol/s]
+            ! access to Q is needed in NWT Mode, so load Q into 3 & 4:
+            source_sink%flow_condition%general%rate%dataset%rarray(3) = &
+              -1.d0 * pm_well%well%liq%Q(k) ! [kmol/s]
+            source_sink%flow_condition%general%rate%dataset%rarray(4) = &
+              -1.d0 * pm_well%well%gas%Q(k) ! [kmol/s]
 
             source_sink%flow_condition%general%liquid_pressure%aux_real(1) = &
                                                             pm_well%well%pl(k)

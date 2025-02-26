@@ -543,9 +543,9 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
             pm => PMWellHydrostaticCreate()
             option%flow%well_coupling = WELL_MODEL_HYDROSTATIC
         !-----------------------------
-          case('WIPP_SEQUENTIAL')
-            pm => PMWellWIPPSeqCreate()
-            option%flow%well_coupling = WELL_MODEL_WIPP_SEQUENTIAL
+          ! case('WIPP_SEQUENTIAL')
+          !   pm => PMWellWIPPSeqCreate()
+          !   option%flow%well_coupling = WELL_MODEL_WIPP_SEQUENTIAL
         !-----------------------------
           case('WIPP_QI','WIPP_QUASI_IMPLICIT')
             pm => PMWellWIPPQICreate()
@@ -2538,8 +2538,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
             well => PMWellUShapeCreate()
           case(WELL_MODEL_COAXIAL)
             well => PMWellCoaxialCreate()
-          case(WELL_MODEL_WIPP_SEQUENTIAL)
-            well => PMWellWIPPSeqCreate()
+          ! case(WELL_MODEL_WIPP_SEQUENTIAL)
+          !   well => PMWellWIPPSeqCreate()
           case(WELL_MODEL_WIPP_QI)
             well => PMWellWIPPQICreate()
           case default

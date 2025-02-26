@@ -431,8 +431,6 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
         enddo
         allocate(this%dirichlet_dofs_ints(2,icount))
         this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
-      case ('QUASI_IMPLICIT_WELLBORE_COUPLING')
-        wippflo_well_quasi_imp_coupled = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -1075,16 +1073,16 @@ subroutine PMWIPPFloInitializeTimestep(this)
   !MAN: not sure if this is needed
   if (associated(this%pmwell_ptr)) then
     select type (pm_well => this%pmwell_ptr)
-      class is (pm_well_wipp_seq_type)
-        if (.not.pm_well%well_on) then
-          if (Initialized(pm_well%intrusion_time_start) .and. &
-              this%realization%option%time >=  &
-              pm_well%intrusion_time_start) then
-                pm_well%well_on = PETSC_TRUE
-          elseif (Uninitialized(pm_well%intrusion_time_start)) then
-            pm_well%well_on = PETSC_TRUE
-          endif
-        endif
+      ! class is (pm_well_wipp_seq_type)
+      !   if (.not.pm_well%well_on) then
+      !     if (Initialized(pm_well%intrusion_time_start) .and. &
+      !         this%realization%option%time >=  &
+      !         pm_well%intrusion_time_start) then
+      !           pm_well%well_on = PETSC_TRUE
+      !     elseif (Uninitialized(pm_well%intrusion_time_start)) then
+      !       pm_well%well_on = PETSC_TRUE
+      !     endif
+      !   endif
       class is (pm_well_wipp_qi_type)
         if (.not.pm_well%well_on) then
           if (Initialized(pm_well%intrusion_time_start) .and. &
