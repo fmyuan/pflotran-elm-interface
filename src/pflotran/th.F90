@@ -4309,7 +4309,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
     r_p (istart:iend)= r_p(istart:iend)/material_auxvars(ghosted_id)%volume
   enddo
 
-  if (option%use_isothermal) then
+  if (option%flow%isothermal) then
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle

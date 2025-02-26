@@ -128,7 +128,6 @@ module General_Aux_module
   PetscInt, public, pointer :: dof_to_primary_variable(:,:)
   PetscInt, public :: general_2ph_energy_dof = GENERAL_TEMPERATURE_INDEX
   PetscInt, public :: general_gas_air_mass_dof = GENERAL_AIR_PRESSURE_INDEX
-  PetscBool, public :: general_isothermal = PETSC_FALSE
   PetscBool, public :: general_no_air = PETSC_FALSE
   PetscBool, public :: general_soluble_matrix = PETSC_FALSE
   PetscBool, public :: general_update_permeability = PETSC_FALSE
@@ -3076,7 +3075,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
         endif
 
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-          if (.not.general_isothermal) then
+          if (.not.option%flow%isothermal) then
             x(GENERAL_ENERGY_DOF) = x(GENERAL_ENERGY_DOF) * &
                                    (1.d0 + epsilon - epsilon)
           endif
@@ -3603,7 +3602,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         endif
 
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-          if (.not.general_isothermal) then
+          if (.not.option%flow%isothermal) then
             X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
                                    (1.d0 + epsilon - epsilon)
           endif
@@ -3671,7 +3670,7 @@ subroutine GeneralAuxVarUpdateState4(x,gen_auxvar,global_auxvar, &
         endif
 
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-          if (.not.general_isothermal) then
+          if (.not.option%flow%isothermal) then
             X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
                                    (1.d0 + epsilon - epsilon)
           endif

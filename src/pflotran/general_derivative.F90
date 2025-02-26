@@ -861,7 +861,7 @@ subroutine GeneralDerivativeSetFlowMode(option)
 
   option%nflowdof = 3
   option%nflowspec = 2
-  option%use_isothermal = PETSC_FALSE
+  option%flow%isothermal = PETSC_FALSE
 
 end subroutine GeneralDerivativeSetFlowMode
 

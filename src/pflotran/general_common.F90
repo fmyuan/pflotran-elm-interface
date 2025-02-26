@@ -4625,7 +4625,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     J(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
     J(:,GENERAL_ENERGY_EQUATION_INDEX) = 0.d0
   endif
@@ -4830,7 +4830,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     endif ! forward diff
   endif
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     Jup(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
     Jup(:,GENERAL_ENERGY_EQUATION_INDEX) = 0.d0
     Jdn(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
@@ -4974,7 +4974,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     endif !forward difference
   endif
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     Jdn(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
     Jdn(:,GENERAL_ENERGY_EQUATION_INDEX) = 0.d0
   endif
@@ -5089,7 +5089,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
     endif !forward diff
   endif
 
-  if (general_isothermal) then
+  if (option%flow%isothermal) then
     Jac(GENERAL_ENERGY_EQUATION_INDEX,:) = 0.d0
     Jac(:,GENERAL_ENERGY_EQUATION_INDEX) = 0.d0
   endif

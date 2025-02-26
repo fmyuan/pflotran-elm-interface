@@ -255,8 +255,8 @@ function ReactionDBCheckLegitLogKs(dbaserxn,species_name,temperatures, &
   ReactionDBCheckLegitLogKs = PETSC_TRUE
 
   if (.not.associated(dbaserxn)) return
-  if (option%use_isothermal .and. &
-      Equal(option%flow%reference_temperature,25.d0)) return
+  if (option%transport%isothermal_reaction .and. &
+      Equal(option%transport%reference_temperature,25.d0)) return
 
   string = ''
   do itemp = 1, size(dbaserxn%logK)

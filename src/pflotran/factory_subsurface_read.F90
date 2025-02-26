@@ -1393,16 +1393,6 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !......................
 
-      case('NONISOTHERMAL')
-        option%use_isothermal = PETSC_FALSE
-
-!......................
-
-      case('ISOTHERMAL')
-        option%use_isothermal = PETSC_TRUE
-
-!......................
-
       case('UPDATE_FLOW_PERMEABILITY')
         option%flow%update_flow_perm = PETSC_TRUE
 

@@ -290,7 +290,7 @@ subroutine PMHydrateSetFlowMode(pm_well,option)
 
   option%nflowdof = 4
   option%nflowspec = 3
-  option%use_isothermal = PETSC_FALSE
+  option%flow%isothermal = PETSC_FALSE
 
   if (associated(pm_well)) then
     if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
