@@ -108,7 +108,6 @@ module Option_module
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
 
-    PetscBool :: use_isothermal
     PetscBool :: use_sc           ! If true, multiple continuum formulation is used.
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
@@ -466,7 +465,6 @@ subroutine OptionInitRealization(option)
   option%ierror = 0
   option%io_buffer = ''
 
-  option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
   option%use_sc = PETSC_FALSE
 
@@ -608,9 +606,6 @@ subroutine OptionCheckCommandLine(option)
                            ierr);CHKERRQ(ierr)
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-snes_mf", &
                            option%use_matrix_free,ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
-                           "-use_isothermal",option%use_isothermal, &
-                           ierr);CHKERRQ(ierr)
   call PetscOptionsHasName(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-use_sc", &
                            option%use_sc,ierr);CHKERRQ(ierr)
 

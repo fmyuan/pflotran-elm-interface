@@ -79,6 +79,8 @@ subroutine RTTimeCut(realization)
     call SecondaryRTTimeCut(realization)
   endif
 
+  rt_ts_cut_count = rt_ts_cut_count + 1
+
 end subroutine RTTimeCut
 
 ! ************************************************************************** !
@@ -131,7 +133,7 @@ subroutine RTSetup(realization)
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase, local_id, i, ndof
+  PetscInt :: iphase, local_id, i, ndof, temp_int
   PetscInt :: flag(10)
   PetscBool, allocatable :: dof_is_active(:)
   PetscBool :: allocate_perturbation_auxvars
@@ -141,9 +143,14 @@ subroutine RTSetup(realization)
   grid => patch%grid
   reaction => realization%reaction
 
-  patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase)
+  temp_int = 1
+  if (associated(reaction%aq_diffusion_coefficients) .or. &
+      associated(reaction%gas_diffusion_coefficients)) then
+    temp_int = reaction%naqcomp
+  endif
+  patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase,temp_int)
   rt_parameter => patch%aux%RT%rt_parameter
-  ! rt_parameter %naqcomp and %nphase set in RTAuxCreate()
+  ! rt_parameter %naqcomp, %ndiffcoef, and %nphase set in RTAuxCreate()
 
   rt_parameter%ncomp = reaction%ncomp
   rt_parameter%offset_aqueous = reaction%offset_aqueous
@@ -358,7 +365,6 @@ subroutine RTSetup(realization)
     cur_generic_parameter => reaction%aq_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
-      rt_parameter%species_dependent_diffusion = PETSC_TRUE
       i = ReactionAuxGetPriSpecIDFromName(cur_generic_parameter%name, &
                                           reaction,PETSC_FALSE,option)
       if (option%transport%use_np) then
@@ -408,7 +414,6 @@ subroutine RTSetup(realization)
     endif
     ! gas diffusion
     iphase = option%gas_phase
-    rt_parameter%species_dependent_diffusion = PETSC_TRUE
     cur_generic_parameter => reaction%gas_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
@@ -433,8 +438,7 @@ subroutine RTSetup(realization)
     enddo
   endif
 
-  if (rt_parameter%species_dependent_diffusion .and. &
-      .not.option%transport%use_np) then
+  if (rt_parameter%ndiffcoef > 1 .and. .not.option%transport%use_np) then
     if (reaction%gas%nactive_gas > 0) then
       if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
         option%io_buffer = 'Active gas transport is not supported when &
@@ -479,6 +483,10 @@ subroutine RTSetup(realization)
       &using multi-continuum.'
     call PrintErrMsg(option)
   endif
+
+  rt_ts_count = 0
+  rt_ni_count = 0
+  rt_ts_cut_count = 0
 
 end subroutine RTSetup
 
@@ -1017,7 +1025,7 @@ subroutine RTUpdateKineticState(realization)
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    if (.not.option%use_isothermal) then
+    if (.not.option%transport%isothermal_reaction) then
       call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                     PETSC_FALSE,option)
     endif
@@ -1127,7 +1135,7 @@ subroutine RTUpdateFixedAccumulation(realization)
       rt_auxvars(ghosted_id)%immobile = xx_p(istartim:iendim)
     endif
 
-    if (.not.option%use_isothermal) then
+    if (.not.option%transport%isothermal_reaction) then
       call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                      PETSC_FALSE,option)
     endif
@@ -1802,7 +1810,8 @@ subroutine RTCalculateTransportMatrix(realization,T)
   call MatrixZeroingZeroMatEntries(patch%aux%RT%matrix_zeroing,T)
 
   if (realization%debug%matview_Matrix) then
-    string = 'Tmatrix'
+    call DebugWriteFilename(realization%debug,string,'Tmatrix','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(T,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2141,13 +2150,15 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   call MatrixZeroingZeroVecEntries(patch%aux%RT%matrix_zeroing,r)
 
   if (realization%debug%vecview_residual) then
-    string = 'RTresidual'
+    call DebugWriteFilename(realization%debug,string,'RTresidual','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'RTxx'
+    call DebugWriteFilename(realization%debug,string,'RTxx','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2745,7 +2756,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       iendall = offset + reaction%ncomp
       Res = 0.d0
       Jup = 0.d0
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
@@ -2924,7 +2935,8 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
 
   if (realization%debug%matview_Matrix) then
-    string = 'RTjacobian'
+    call DebugWriteFilename(realization%debug,string,'RTjacobian','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -2935,13 +2947,16 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
                                ierr);CHKERRQ(ierr)
 
     if (realization%debug%matview_Matrix) then
-      string = 'RTjacobianLog'
+    call DebugWriteFilename(realization%debug,string,'RTjacobianLog','', &
+                            rt_ts_count,rt_ts_cut_count,rt_ni_count)
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     endif
 
   endif
+
+  rt_ni_count = rt_ni_count + 1
 
   call PetscLogEventEnd(logging%event_rt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -3311,7 +3326,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
       Res = 0.d0
       Jup = 0.d0
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif
@@ -3648,7 +3663,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         iendim = offset + reaction%offset_immobile + reaction%immobile%nimmobile
         rt_auxvars(ghosted_id)%immobile = xx_loc_p(istartim:iendim)
       endif
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id), &
                                        reaction,PETSC_FALSE, &
                                        option)
@@ -3765,7 +3780,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
           ! no need to update boundary fluid density since it is already set
           rt_auxvars_bc(sum_connection)%pri_molal = &
             xxbc(istartaq_loc:iendaq_loc)
-          if (.not.option%use_isothermal) then
+          if (.not.option%transport%isothermal_reaction) then
             call RUpdateTempDependentCoefs(patch%aux%Global% &
                                              auxvars_bc(sum_connection), &
                                            reaction,PETSC_FALSE, &

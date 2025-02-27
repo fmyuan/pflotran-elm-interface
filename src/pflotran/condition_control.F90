@@ -1635,7 +1635,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
         enddo
       endif
 
-      if (.not.option%use_isothermal) then
+      if (.not.option%transport%isothermal_reaction) then
         equilibrate_at_each_cell = PETSC_TRUE
       endif
 

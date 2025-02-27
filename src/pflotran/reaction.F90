@@ -1519,7 +1519,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     return
   endif
 
-  if (.not.option%use_isothermal) then
+  if (.not.option%transport%isothermal_reaction) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
   endif
 
@@ -2186,10 +2186,10 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
         option%flow%reference_density(option%liquid_phase)
-      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%temp = option%transport%reference_temperature
       global_auxvar%sat(iphase) = option%flow%reference_saturation
     case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
-      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%temp = option%transport%reference_temperature
   end select
 
   bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
@@ -2238,13 +2238,13 @@ subroutine ReactionPrintConstraint(global_auxvar,rt_auxvar, &
     enddo
   else
 
-    if (.not.option%use_isothermal) then
+    if (.not.option%transport%isothermal_reaction) then
       call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
     endif
 
     if (associated(aq_species_constraint)) then
       ! CO2-specific
-      if (.not.option%use_isothermal .and.  &
+      if (.not.option%transport%isothermal_reaction .and.  &
           option%transport%couple_co2) then
         if (associated(reaction%gas%paseqlogKcoef)) then
           do i = 1, reaction%naqcomp
@@ -2911,7 +2911,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     global_auxvar => constraint_coupler%global_auxvar
 
     iphase = 1
-    global_auxvar%temp = option%flow%reference_temperature
+    global_auxvar%temp = option%transport%reference_temperature
     tempk = tk + global_auxvar%temp
 
     potential = 0.1d0 ! initial guess
@@ -3900,7 +3900,7 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
   ierror = 0
   option%ierror = 0
 
-  if (.not.option%use_isothermal) then
+  if (.not.option%transport%isothermal_reaction) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
   endif
 

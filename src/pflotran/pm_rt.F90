@@ -17,9 +17,15 @@ module PM_RT_class
 
   private
 
-  PetscInt, parameter :: REL_UPDATE_INDEX = 1
-  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 2
+  PetscInt, parameter :: ABS_UPDATE_INDEX = 1
+  PetscInt, parameter :: REL_UPDATE_INDEX = 2
+  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 3
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
+
+  ! flags reactive transport temperature dependence
+  PetscInt, parameter, public :: RT_TEMPERATURE_FOLLOW_FLOW = 1
+  PetscInt, parameter, public :: RT_TEMPERATURE_ISOTHERMAL = 2
+  PetscInt, parameter, public :: RT_TEMPERATURE_ANISOTHERMAL = 3
 
   type, public, extends(pm_base_type) :: pm_rt_type
     class(realization_subsurface_type), pointer :: realization
@@ -35,14 +41,15 @@ module PM_RT_class
     PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
-    PetscBool :: temperature_dependent_diffusion
-    PetscBool :: millington_quirk_tortuosity
-    ! for transport only
     PetscBool :: transient_porosity
     PetscBool :: operator_split
     PetscBool :: debug_update
     PetscReal :: debug_derivatives_rtol
     PetscReal :: debug_derivatives_row_rtol
+    PetscBool :: millington_quirk_tortuosity
+    PetscInt :: transport_temperature_dependence
+    PetscInt :: reaction_temperature_dependence
+    PetscReal :: reference_temperature
     ! for convergence
     PetscBool :: refactored_convergence
     PetscBool, pointer :: converged_flag(:)
@@ -146,9 +153,10 @@ subroutine PMRTInit(pm_rt)
   nullify(pm_rt%max_volfrac_change)
   pm_rt%volfrac_change_governor = 1.d0
   pm_rt%cfl_governor = UNINITIALIZED_DOUBLE
-  pm_rt%temperature_dependent_diffusion = PETSC_FALSE
   pm_rt%millington_quirk_tortuosity = PETSC_FALSE
-  ! these flags can only be true for transport only
+  pm_rt%transport_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+  pm_rt%reaction_temperature_dependence = RT_TEMPERATURE_FOLLOW_FLOW
+  pm_rt%reference_temperature = UNINITIALIZED_DOUBLE
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
   pm_rt%debug_update = PETSC_FALSE
@@ -183,6 +191,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
   type(input_type), pointer :: input
 
   character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
@@ -223,7 +232,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('NERNST_PLANCK')
         option%transport%use_np = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%temperature_dependent_diffusion = PETSC_TRUE
+        call InputKeywordDeprecated(keyword,'TRANSPORT_TEMPERATURE_DEPENDENCE&
+                                    & ANISOTHERMAL',option)
       case('USE_MILLINGTON_QUIRK_TORTUOSITY')
         this%millington_quirk_tortuosity = PETSC_TRUE
       case('PRINT_EKG')
@@ -242,6 +252,33 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('REFACTORED_CONVERGENCE')
         this%refactored_convergence = PETSC_TRUE
         this%check_post_convergence = PETSC_TRUE
+      case('TRANSPORT_TEMPERATURE_DEPENDENCE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('ISOTHERMAL')
+            this%transport_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+          case('ANISOTHERMAL')
+            this%transport_temperature_dependence = RT_TEMPERATURE_ANISOTHERMAL
+          case default
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+        end select
+      case('REACTION_TEMPERATURE_DEPENDENCE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('ISOTHERMAL')
+            this%reaction_temperature_dependence = RT_TEMPERATURE_ISOTHERMAL
+          case('ANISOTHERMAL')
+            this%reaction_temperature_dependence = RT_TEMPERATURE_ANISOTHERMAL
+          case default
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+        end select
+      case('REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,this%reference_temperature)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -323,6 +360,10 @@ subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
   select case(trim(keyword))
     case('NUMERICAL_JACOBIAN')
       option%transport%numerical_derivatives = PETSC_TRUE
+    case('ITOL_ABSOLUTE_UPDATE')
+      call InputReadDouble(input,option,rt_itol_abs_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
     case('ITOL_RELATIVE_UPDATE')
       call InputReadDouble(input,option,rt_itol_rel_update)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -390,14 +431,14 @@ subroutine PMRTSetup(this)
   ! pass down flags from PMRT class
   ! these flags are set after RTSetup as been called
   rt_parameter%temperature_dependent_diffusion = &
-    this%temperature_dependent_diffusion
+    .not.this%option%transport%isothermal_transport
   rt_parameter%millington_quirk_tortuosity = &
     this%millington_quirk_tortuosity
 
   if (rt_parameter%temperature_dependent_diffusion) then
     lflag = PETSC_FALSE
     do iphase = 1, rt_parameter%nphase
-      do i = 1, rt_parameter%naqcomp
+      do i = 1, rt_parameter%ndiffcoef
         if (Uninitialized(rt_parameter% &
                             diffusion_activation_energy(i,iphase))) then
           lflag = PETSC_TRUE
@@ -406,7 +447,7 @@ subroutine PMRTSetup(this)
     enddo
     if (lflag) then
       this%option%io_buffer = 'A DIFFUSION_ACTIVATION_ENERGY must be &
-        &assigned to each fluid phase for TEMPERATURE_DEPENDENT_DIFFUSION.'
+        &assigned to each fluid phase for RT_TEMPERATURE_DEPENDENT_DIFFUSION.'
       call PrintErrMsg(this%option)
     endif
   endif
@@ -1161,6 +1202,7 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)
+  PetscReal :: absolute_change
   PetscReal :: relative_change
   PetscReal :: scaled_residual
   PetscMPIInt :: mpi_int
@@ -1195,10 +1237,15 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
         ! relative change in concentration
         if (this%realization%reaction%use_log_formulation) then
           tempreal = exp(C0_p(index))
-          relative_change = &
-            dabs((exp(C0_p(index)-dC_p(index))-tempreal)/tempreal)
+          absolute_change = abs(exp(C0_p(index)-dC_p(index))-tempreal)
+          relative_change = absolute_change/tempreal
         else
-          relative_change = dabs(dC_p(index)/C0_p(index))
+          absolute_change = abs(dC_p(index))
+          relative_change = absolute_change/C0_p(index)
+        endif
+        if (absolute_change > this%converged_real(idof,ABS_UPDATE_INDEX)) then
+          this%converged_real(idof,ABS_UPDATE_INDEX) = absolute_change
+          this%converged_cell(idof,ABS_UPDATE_INDEX) = natural_id
         endif
         if (relative_change > this%converged_real(idof,REL_UPDATE_INDEX)) then
           this%converged_real(idof,REL_UPDATE_INDEX) = relative_change
@@ -1294,6 +1341,10 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 #endif
 
   if (this%check_post_convergence) then
+    if (Initialized(rt_itol_abs_update)) then
+      this%converged_flag(ABS_UPDATE_INDEX) = &
+        (maxval(this%converged_real(:,ABS_UPDATE_INDEX)) < rt_itol_abs_update)
+    endif
     if (Initialized(rt_itol_rel_update)) then
       this%converged_flag(REL_UPDATE_INDEX) = &
         (maxval(this%converged_real(:,REL_UPDATE_INDEX)) < rt_itol_rel_update)
@@ -1315,6 +1366,11 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
             & " -diverged")') it, fnorm, xnorm, unorm
       call PrintMsg(option,out_string)
       return
+    endif
+
+    if (Initialized(rt_itol_abs_update) .and. &
+        this%converged_flag(ABS_UPDATE_INDEX)) then
+      reason = 13
     endif
 
     if (Initialized(rt_itol_scaled_res) .and. &
@@ -1348,6 +1404,8 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           rsn_string = 'itol_rel_upd'
         case(12)
           rsn_string = 'itol_scl_res'
+        case(13)
+          rsn_string = 'itol_abs_upd'
         case default
           write(rsn_string,'(i3)') reason
       end select
@@ -1367,11 +1425,20 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
         StringWrite('(es9.2)',inorm_residual)
       icount = icount - 1
       if (it > 0) then
+        tempreal = maxval(this%converged_real(:,ABS_UPDATE_INDEX))
+      else
+        tempreal = 0.d0
+      endif
+      out_string = trim(out_string) // ' iu: ' // &
+        StringWrite('(es9.2)',tempreal)
+      icount = icount - 1
+      if (it > 0) then
         tempreal = maxval(this%converged_real(:,REL_UPDATE_INDEX))
       else
         tempreal = 0.d0
       endif
-      out_string = trim(out_string) // ' iru: ' // StringWrite('(es9.2)',tempreal)
+      out_string = trim(out_string) // ' iru: ' // &
+        StringWrite('(es9.2)',tempreal)
       icount = icount - 1
     if (icount > 0) then
       icount = icount - 1
@@ -1465,6 +1532,8 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
   use Reactive_Transport_module
   use Condition_module
   use Integral_Flux_module
+  use Reactive_Transport_Aux_module, only : rt_ts_count, rt_ni_count, &
+                                            rt_ts_cut_count
 
   implicit none
 
@@ -1501,6 +1570,10 @@ subroutine PMRTUpdateSolution2(this,update_kinetics)
                             this%realization%patch%boundary_tran_fluxes, &
                             INTEGRATE_TRANSPORT,this%option)
   endif
+
+  rt_ts_count = rt_ts_count + 1
+  rt_ni_count = 0
+  rt_ts_cut_count = 0
 
 end subroutine PMRTUpdateSolution2
 

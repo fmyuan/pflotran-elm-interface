@@ -16,9 +16,15 @@ module Reactive_Transport_Aux_module
 
   PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
+  PetscReal, public :: rt_itol_abs_update = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_min_saturation = 1.d-40
 
   PetscReal, public :: rt_numerical_derivative_tol = 1.d-6
+
+  ! debugging
+  PetscInt, public :: rt_ts_count
+  PetscInt, public :: rt_ni_count
+  PetscInt, public :: rt_ts_cut_count
 
   type, public :: reactive_transport_auxvar_type
     ! molality
@@ -88,7 +94,7 @@ module Reactive_Transport_Aux_module
     PetscInt :: offset_aqueous
     PetscInt :: offset_immobile
     PetscInt :: offset_auxiliary
-    PetscBool :: species_dependent_diffusion
+    PetscInt :: ndiffcoef
     PetscBool :: millington_quirk_tortuosity
     PetscBool :: anisotropic_tortuosity
     PetscReal, pointer :: diffusion_coefficient(:,:)
@@ -140,7 +146,7 @@ contains
 
 ! ************************************************************************** !
 
-function RTAuxCreate(naqcomp,nphase)
+function RTAuxCreate(naqcomp,nphase,ndiffcoef)
   !
   ! Allocate and initialize auxiliary object
   !
@@ -153,6 +159,7 @@ function RTAuxCreate(naqcomp,nphase)
 
   PetscInt :: naqcomp
   PetscInt :: nphase
+  PetscInt :: ndiffcoef
   type(reactive_transport_type), pointer :: RTAuxCreate
 
   type(reactive_transport_type), pointer :: aux
@@ -169,8 +176,9 @@ function RTAuxCreate(naqcomp,nphase)
   allocate(aux%rt_parameter)
   aux%rt_parameter%naqcomp = naqcomp
   aux%rt_parameter%nphase = nphase
-  allocate(aux%rt_parameter%diffusion_coefficient(naqcomp,nphase))
-  allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
+  aux%rt_parameter%ndiffcoef = ndiffcoef
+  allocate(aux%rt_parameter%diffusion_coefficient(ndiffcoef,nphase))
+  allocate(aux%rt_parameter%diffusion_activation_energy(ndiffcoef,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = UNINITIALIZED_DOUBLE
   nullify(aux%rt_parameter%pri_spec_diff_coef)
@@ -181,7 +189,6 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%offset_aqueous = 0
   aux%rt_parameter%offset_immobile = 0
   aux%rt_parameter%offset_auxiliary = 0
-  aux%rt_parameter%species_dependent_diffusion = PETSC_FALSE
   aux%rt_parameter%millington_quirk_tortuosity = PETSC_FALSE
   aux%rt_parameter%anisotropic_tortuosity = PETSC_FALSE
   aux%rt_parameter%calculate_transverse_dispersion = PETSC_FALSE

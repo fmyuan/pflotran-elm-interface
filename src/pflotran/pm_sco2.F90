@@ -334,7 +334,7 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         sco2_thermal = PETSC_FALSE
         sco2_isothermal_temperature = tempreal
-        option%use_isothermal = PETSC_TRUE
+        option%flow%isothermal = PETSC_TRUE
         option%flow%reference_temperature = tempreal
       case('ISOTHERMAL_GRADIENT')
         sco2_isothermal_gradient = PETSC_TRUE

@@ -1944,7 +1944,7 @@ end subroutine SCO2BCFlux
 
 subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           sco2_auxvar_ss,sco2_auxvar,global_auxvar, &
-                          global_auxvar_ss,material_auxvar, &
+                          global_auxvar_ss,material_auxvar,ss_flow_vol_flux, &
                           characteristic_curves, sco2_parameter, &
                           natural_id, scale,Res,aux_var_compute_only)
   !
@@ -1966,6 +1966,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   type(sco2_auxvar_type) :: sco2_auxvar,sco2_auxvar_ss
   type(global_auxvar_type) :: global_auxvar,global_auxvar_ss
   type(material_auxvar_type) :: material_auxvar
+  PetscReal :: ss_flow_vol_flux(option%nphase)
   class(characteristic_curves_type) :: characteristic_curves
   type(sco2_parameter_type), pointer :: sco2_parameter
   PetscInt :: natural_id
@@ -1978,6 +1979,7 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: mob_tot
   PetscReal :: xxss(option%nflowdof)
   PetscInt :: lid, gid, pid, wid, co2_id, co2_pressure_id, sid
+  PetscReal :: qsrc_water, qsrc_co2
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1988,6 +1990,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   sid = option%salt_id
 
   Res = 0.d0
+  qsrc_water = 0.d0
+  qsrc_co2 = 0.d0
 
   ! Extraction
   if (qsrc(wid)<0.d0 .or. qsrc(co2_id)<0.d0) then
@@ -2050,35 +2054,39 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
       mob_tot = sco2_auxvar%mobility(lid) + sco2_auxvar%mobility(gid)
       if (sco2_auxvar%sat(gid) <= 0.d0) then
         ! kg/sec total to kg/sec component
-        Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * sco2_auxvar%xmass(wid,lid)
-        Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
-                                       sco2_auxvar%xmass(co2_id,lid)
+        qsrc_water = qsrc(1) * sco2_auxvar%xmass(wid,lid)
+        qsrc_co2 = qsrc(1) * sco2_auxvar%xmass(co2_id,lid)
+        Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+        Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%xmass(sid,lid)
         if (sco2_thermal) then
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(lid)
         endif
       elseif (sco2_auxvar%sat(lid) <= 0.d0) then
         ! kg/sec total to kg/sec component
-        Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * sco2_auxvar%xmass(wid,gid)
-        Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
-                                       sco2_auxvar%xmass(co2_id,gid)
+        qsrc_water = qsrc(1) * sco2_auxvar%xmass(wid,gid)
+        qsrc_co2 = qsrc(1) * sco2_auxvar%xmass(co2_id,gid)
+        Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+        Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
         Res(SCO2_SALT_EQUATION_INDEX) = 0.d0
         if (sco2_thermal) then
           Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(1) * sco2_auxvar_ss%H(gid)
         endif
       else
         ! Water component
-        Res(SCO2_WATER_EQUATION_INDEX) = qsrc(1) * &
-                                         (sco2_auxvar%mobility(lid)/mob_tot * &
-                                          sco2_auxvar%xmass(wid,lid) + &
-                                          sco2_auxvar%mobility(gid)/mob_tot * &
-                                          sco2_auxvar%xmass(wid,gid))
+        qsrc_water = qsrc(1) * &
+                    (sco2_auxvar%mobility(lid)/mob_tot * &
+                    sco2_auxvar%xmass(wid,lid) + &
+                    sco2_auxvar%mobility(gid)/mob_tot * &
+                    sco2_auxvar%xmass(wid,gid))
+        qsrc_co2 = qsrc(1) * &
+                  (sco2_auxvar%mobility(lid)/mob_tot * &
+                  sco2_auxvar%xmass(co2_id,lid) + &
+                  sco2_auxvar%mobility(gid)/mob_tot * &
+                  sco2_auxvar%xmass(co2_id,gid))
+        Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
         ! CO2 component
-        Res(SCO2_CO2_EQUATION_INDEX) = qsrc(1) * &
-                                        (sco2_auxvar%mobility(lid)/mob_tot * &
-                                         sco2_auxvar%xmass(co2_id,lid) + &
-                                         sco2_auxvar%mobility(gid)/mob_tot * &
-                                         sco2_auxvar%xmass(co2_id,gid))
+        Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
 
         ! Salt component
         Res(SCO2_SALT_EQUATION_INDEX) = qsrc(1) * &
@@ -2094,43 +2102,54 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
         endif
 
       endif
-
+      ss_flow_vol_flux(wid) = qsrc_water / sco2_auxvar%den_kg(lid)
+      ss_flow_vol_flux(co2_id) = qsrc_co2 / sco2_auxvar%den_kg(gid)
     case(MASS_RATE_SS)
-      Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid)
-      Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id)
+      qsrc_water = qsrc(wid)
+      qsrc_co2 = qsrc(co2_id)
+      Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+      Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid)
       if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = qsrc(wid) * &
                   sco2_auxvar_ss%H(lid) + qsrc(gid) * &
                   sco2_auxvar_ss%H(gid)
       endif
+      ss_flow_vol_flux(wid) = qsrc_water / sco2_auxvar%den_kg(lid)
+      ss_flow_vol_flux(co2_id) = qsrc_co2 / sco2_auxvar%den_kg(gid)
     case(SCALED_MASS_RATE_SS)
-      Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * scale
-      Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * scale
+      qsrc_water = qsrc(wid) * scale
+      qsrc_co2 = qsrc(co2_id) * scale
+      Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+      Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * scale
       if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = scale * (qsrc(wid) * &
                   sco2_auxvar_ss%H(lid) + qsrc(gid) * &
                   sco2_auxvar_ss%H(gid))
       endif
+      ss_flow_vol_flux(wid) = qsrc_water / sco2_auxvar%den_kg(lid)
+      ss_flow_vol_flux(co2_id) = qsrc_co2 / sco2_auxvar%den_kg(gid)
     case(VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
-      Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * sco2_auxvar%den_kg(lid)
-      Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
-                                     sco2_auxvar%den_kg(gid)
+      qsrc_water = qsrc(wid) * sco2_auxvar%den_kg(lid)
+      qsrc_co2 = qsrc(co2_id) * sco2_auxvar%den_kg(gid)
+      Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+      Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG
       if (sco2_thermal) then
         Res(SCO2_ENERGY_EQUATION_INDEX) = (qsrc(wid) * &
                    sco2_auxvar%den_kg(lid) * sco2_auxvar%H(lid) + qsrc(gid) * &
                    sco2_auxvar%den_kg(gid)) * sco2_auxvar%H(gid)
       endif
+      ss_flow_vol_flux(wid) = qsrc(wid)
+      ss_flow_vol_flux(co2_id) = qsrc(co2_id)
     case(SCALED_VOLUMETRIC_RATE_SS)
       ! This would have to be in m^3/sec phase
-      Res(SCO2_WATER_EQUATION_INDEX) = qsrc(wid) * sco2_auxvar%den_kg(lid) * &
-                                       scale
-      Res(SCO2_CO2_EQUATION_INDEX) = qsrc(co2_id) * &
-                                     sco2_auxvar%den_kg(gid) * scale
-
+      qsrc_water = qsrc(wid) * sco2_auxvar%den_kg(lid) * scale
+      qsrc_co2 = qsrc(co2_id) * sco2_auxvar%den_kg(gid) * scale
+      Res(SCO2_WATER_EQUATION_INDEX) = qsrc_water
+      Res(SCO2_CO2_EQUATION_INDEX) = qsrc_co2
       Res(SCO2_SALT_EQUATION_INDEX) = qsrc(sid) * SALT_DENSITY_KG * &
                                       scale
       if (sco2_thermal) then
@@ -2138,6 +2157,8 @@ subroutine SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                                         sco2_auxvar%H(lid) + qsrc(gid) * &
                                         sco2_auxvar%H(gid)) * scale
       endif
+      ss_flow_vol_flux(wid) = qsrc(wid) * scale
+      ss_flow_vol_flux(co2_id) = qsrc(co2_id) * scale
   end select
 
   ! If there's a heater
@@ -2535,6 +2556,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
   PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
   PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
+  PetscReal :: ss_flow_vol_flux(option%nphase)
 
   res = 0.d0
   res_pert_plus = 0.d0
@@ -2552,6 +2574,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
     call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                     sco2_auxvar_ss(ZERO_INTEGER), sco2_auxvar(ZERO_INTEGER), &
                     global_auxvar, global_auxvar_ss, material_auxvar, &
+                    ss_flow_vol_flux, &
                     characteristic_curves, sco2_parameter, natural_id, &
                     scale,res,PETSC_FALSE)
   endif
@@ -2565,7 +2588,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                         sco2_auxvar_ss(ONE_INTEGER), &
                         sco2_auxvar(idof), global_auxvar, global_auxvar_ss, &
-                        material_auxvar,characteristic_curves, &
+                        material_auxvar, ss_flow_vol_flux, characteristic_curves, &
                         sco2_parameter, natural_id, scale, res_pert_plus, &
                         PETSC_FALSE)
 
@@ -2575,7 +2598,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
                         sco2_auxvar_ss(ONE_INTEGER), &
                         sco2_auxvar(idof+option%nflowdof),global_auxvar,&
                         global_auxvar_ss, &
-                        material_auxvar,characteristic_curves, &
+                        material_auxvar,ss_flow_vol_flux, characteristic_curves, &
                         sco2_parameter, natural_id, scale, res_pert_minus, &
                         PETSC_FALSE)
 
@@ -2591,7 +2614,7 @@ subroutine SCO2SrcSinkDerivative(option,source_sink,sco2_auxvar_ss, &
       call SCO2AuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                         sco2_auxvar_ss(ONE_INTEGER), &
                         sco2_auxvar(idof),global_auxvar, global_auxvar_ss, &
-                        material_auxvar,characteristic_curves, &
+                        material_auxvar,ss_flow_vol_flux, characteristic_curves, &
                         sco2_parameter, natural_id, scale, res_pert_plus, &
                         PETSC_FALSE)
       do irow = 1, option%nflowdof - well_ndof

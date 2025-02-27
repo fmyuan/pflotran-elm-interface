@@ -1270,7 +1270,6 @@ subroutine MphaseAccumulation(auxvar,global_auxvar,por,vol,rock_dencpr, &
     eng = eng + auxvar%sat(np) * auxvar%den(np) * auxvar%u(np)
   enddo
   mol = mol * porXvol
- ! if (option%use_isothermal == PETSC_FALSE) &
   eng = eng * porXvol + (1.d0 - por) * vol * rock_dencpr * auxvar%temp
 
 ! Reaction terms here
@@ -1290,13 +1289,9 @@ subroutine MphaseAccumulation(auxvar,global_auxvar,por,vol,rock_dencpr, &
       endif
   end select
 !#endif
-! if (option%use_isothermal)then
-!   Res(1:option%nflowdof) = mol(:)
-! else
-    Res(1:option%nflowdof-1) = vol_frac_prim * mol(:)
-    Res(option%nflowdof) = vol_frac_prim * eng
+  Res(1:option%nflowdof-1) = vol_frac_prim * mol(:)
+  Res(option%nflowdof) = vol_frac_prim * eng
 
-! endif
 end subroutine MphaseAccumulation
 
 ! ************************************************************************** !
@@ -1611,13 +1606,11 @@ subroutine MphaseFlux(auxvar_up,por_up,tor_up,sir_up,dd_up,perm_up,Dk_up, &
       ! upstream weighting
       if (dphi >= 0.D0) then
         ukvr = auxvar_up%kvr(np)
-        ! if (option%use_isothermal == PETSC_FALSE) &
         uh = auxvar_up%h(np)
         uxmol(1:option%nflowspec) = &
           auxvar_up%xmol((np-1)*option%nflowspec + 1 : np*option%nflowspec)
       else
         ukvr = auxvar_dn%kvr(np)
-      ! if (option%use_isothermal == PETSC_FALSE) &
         uh = auxvar_dn%h(np)
         uxmol(1:option%nflowspec) = &
           auxvar_dn%xmol((np-1)*option%nflowspec + 1 : np*option%nflowspec)
@@ -1631,7 +1624,6 @@ subroutine MphaseFlux(auxvar_up,por_up,tor_up,sir_up,dd_up,perm_up,Dk_up, &
         do ispec=1, option%nflowspec
           fluxm(ispec)=fluxm(ispec) + q * density_ave * uxmol(ispec)
         enddo
-      ! if (option%use_isothermal == PETSC_FALSE) &
         fluxe = fluxe + q*density_ave*uh
       endif
     endif
@@ -1698,18 +1690,12 @@ subroutine MphaseFlux(auxvar_up,por_up,tor_up,sir_up,dd_up,perm_up,Dk_up, &
   enddo
 
 ! conduction term
-  !if (option%use_isothermal == PETSC_FALSE) then
   Dk = (Dk_up * Dk_dn) / (dd_dn*Dk_up + dd_up*Dk_dn)
   cond = vol_frac_prim * Dk*area * (auxvar_up%temp-auxvar_dn%temp)
   fluxe = fluxe + cond
- ! end if
 
-  !if (option%use_isothermal)then
-  !   Res(1:option%nflowdof) = fluxm(:) * option%flow_dt
- ! else
   Res(1:option%nflowdof-1) = fluxm(:) * option%flow_dt
   Res(option%nflowdof) = fluxe * option%flow_dt
- ! end if
  ! note: Res is the flux contribution, for node 1 R = R + Res_FL
  !                                              2 R = R - Res_FL
 
@@ -1830,11 +1816,9 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
         uxmol = 0.D0
         mol_total_flux(np) = q*density_ave
         if (v_darcy >= 0.D0) then
-!     if (option%use_isothermal == PETSC_FALSE) &
           uh = auxvar_up%h(np)
           uxmol(:) = auxvar_up%xmol((np-1)*option%nflowspec+1 : np * option%nflowspec)
         else
-!     if (option%use_isothermal == PETSC_FALSE) &
           uh = auxvar_dn%h(np)
           uxmol(:) = auxvar_dn%xmol((np-1)*option%nflowspec+1 : np * option%nflowspec)
         endif
@@ -1872,7 +1856,6 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
     do ispec=1, option%nflowspec
       fluxm(ispec) = fluxm(ispec) + mol_total_flux(np)*uxmol(ispec)
     enddo
-      !if (option%use_isothermal == PETSC_FALSE) &
     fluxe = fluxe + mol_total_flux(np)*uh
 !   print *,'FLBC', ibndtype(1),np, ukvr, v_darcy, uh, uxmol, mol_total_flux
   enddo
@@ -1898,21 +1881,19 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   end select
 
 ! Conduction term
-! if (option%use_isothermal == PETSC_FALSE) then
-    select case(ibndtype(MPH_TEMPERATURE_DOF))
-      case(DIRICHLET_BC)
-        Dk =  Dk_dn / dd_up
-        cond = vol_frac_prim * Dk*area*(auxvar_up%temp - auxvar_dn%temp)
-        fluxe = fluxe + cond
-      case(NEUMANN_BC)
-        fluxe = fluxe + auxvars(MPH_TEMPERATURE_DOF)*area*option%scale
-        ! auxvars(MPH_TEMPERATURE_DOF) stores heat flux, 1.d-6 is to convert
-        ! from W to MW, Added by Satish Karra, LANL 10/05/11
-      case(ZERO_GRADIENT_BC)
-      ! No change in fluxe
-    end select
+  select case(ibndtype(MPH_TEMPERATURE_DOF))
+    case(DIRICHLET_BC)
+      Dk =  Dk_dn / dd_up
+      cond = vol_frac_prim * Dk*area*(auxvar_up%temp - auxvar_dn%temp)
+      fluxe = fluxe + cond
+    case(NEUMANN_BC)
+      fluxe = fluxe + auxvars(MPH_TEMPERATURE_DOF)*area*option%scale
+      ! auxvars(MPH_TEMPERATURE_DOF) stores heat flux, 1.d-6 is to convert
+      ! from W to MW, Added by Satish Karra, LANL 10/05/11
+    case(ZERO_GRADIENT_BC)
+    ! No change in fluxe
+  end select
 !   print *, fluxe, auxvars
-! end if
 
   Res(1:option%nflowspec) = fluxm(:) * option%flow_dt
   Res(option%nflowdof) = fluxe * option%flow_dt
@@ -2936,7 +2917,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   enddo
 
 ! print *,'finished rp vol scale'
-  if (option%use_isothermal) then
+  if (option%flow%isothermal) then
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)   ! corresponding ghost index
       if (associated(patch%imat)) then

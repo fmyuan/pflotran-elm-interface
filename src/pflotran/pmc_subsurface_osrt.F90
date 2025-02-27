@@ -296,7 +296,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
     ! RTCalculateTransportMatrix() calculates flux coefficients and the
     ! t^(k+1) coefficient in accumulation term
-    if (rt_parameter%species_dependent_diffusion) then
+    if (rt_parameter%ndiffcoef > 1) then
       option%io_buffer = 'Operator-split reactive transport is not &
         &currently configured to handle species-dependent diffusion.'
       call PrintErrMsg(option)
