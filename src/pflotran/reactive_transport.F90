@@ -133,7 +133,7 @@ subroutine RTSetup(realization)
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase, local_id, i, ndof
+  PetscInt :: iphase, local_id, i, ndof, temp_int
   PetscInt :: flag(10)
   PetscBool, allocatable :: dof_is_active(:)
   PetscBool :: allocate_perturbation_auxvars
@@ -143,9 +143,14 @@ subroutine RTSetup(realization)
   grid => patch%grid
   reaction => realization%reaction
 
-  patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase)
+  temp_int = 1
+  if (associated(reaction%aq_diffusion_coefficients) .or. &
+      associated(reaction%gas_diffusion_coefficients)) then
+    temp_int = reaction%naqcomp
+  endif
+  patch%aux%RT => RTAuxCreate(reaction%naqcomp,option%transport%nphase,temp_int)
   rt_parameter => patch%aux%RT%rt_parameter
-  ! rt_parameter %naqcomp and %nphase set in RTAuxCreate()
+  ! rt_parameter %naqcomp, %ndiffcoef, and %nphase set in RTAuxCreate()
 
   rt_parameter%ncomp = reaction%ncomp
   rt_parameter%offset_aqueous = reaction%offset_aqueous
@@ -360,7 +365,6 @@ subroutine RTSetup(realization)
     cur_generic_parameter => reaction%aq_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
-      rt_parameter%species_dependent_diffusion = PETSC_TRUE
       i = ReactionAuxGetPriSpecIDFromName(cur_generic_parameter%name, &
                                           reaction,PETSC_FALSE,option)
       if (option%transport%use_np) then
@@ -410,7 +414,6 @@ subroutine RTSetup(realization)
     endif
     ! gas diffusion
     iphase = option%gas_phase
-    rt_parameter%species_dependent_diffusion = PETSC_TRUE
     cur_generic_parameter => reaction%gas_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
@@ -435,8 +438,7 @@ subroutine RTSetup(realization)
     enddo
   endif
 
-  if (rt_parameter%species_dependent_diffusion .and. &
-      .not.option%transport%use_np) then
+  if (rt_parameter%ndiffcoef > 1 .and. .not.option%transport%use_np) then
     if (reaction%gas%nactive_gas > 0) then
       if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
         option%io_buffer = 'Active gas transport is not supported when &

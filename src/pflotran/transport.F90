@@ -81,10 +81,10 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
-  PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%naqcomp, &
+  PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%ndiffcoef, &
                                              rt_parameter%nphase)
 
-  PetscInt :: iphase, nphase, iaqcomp
+  PetscInt :: iphase, nphase, idiffcoef
   PetscReal :: abs_dist(3)
   PetscReal :: dist_up, dist_dn
   PetscReal :: sat_up, sat_dn
@@ -98,10 +98,10 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscInt, parameter :: TRANSVERSE_VERTICAL = 3
   PetscReal :: mechanical_dispersion_up
   PetscReal :: mechanical_dispersion_dn
-  PetscReal :: molecular_diffusion_up(rt_parameter%naqcomp)
-  PetscReal :: molecular_diffusion_dn(rt_parameter%naqcomp)
-  PetscReal :: hydrodynamic_dispersion_up(rt_parameter%naqcomp)
-  PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
+  PetscReal :: molecular_diffusion_up(rt_parameter%ndiffcoef)
+  PetscReal :: molecular_diffusion_dn(rt_parameter%ndiffcoef)
+  PetscReal :: hydrodynamic_dispersion_up(rt_parameter%ndiffcoef)
+  PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%ndiffcoef)
   PetscReal :: tort_up, tort_dn
   PetscReal :: v_up, v_dn
   PetscReal :: vi2_over_v_up, vj2_over_v_up, vk2_over_v_up
@@ -131,14 +131,14 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
-          do iaqcomp = 1, rt_parameter%naqcomp
+          do idiffcoef = 1, rt_parameter%ndiffcoef
             activation_energy = &
-              rt_parameter%diffusion_activation_energy(iaqcomp,iphase)
-            molecular_diffusion_up(iaqcomp) = &
-              molecular_diffusion_up(iaqcomp) * &
+              rt_parameter%diffusion_activation_energy(idiffcoef,iphase)
+            molecular_diffusion_up(idiffcoef) = &
+              molecular_diffusion_up(idiffcoef) * &
               Arrhenius(activation_energy,global_auxvar_up%temp,TREF)
-            molecular_diffusion_dn(iaqcomp) = &
-              molecular_diffusion_dn(iaqcomp) * &
+            molecular_diffusion_dn(idiffcoef) = &
+              molecular_diffusion_dn(idiffcoef) * &
               Arrhenius(activation_energy,global_auxvar_dn%temp,TREF)
           enddo
         case(GAS_PHASE)
@@ -285,10 +285,9 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: dist_dn(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
-  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
-                                             rt_parameter%nphase)
+  PetscReal :: tran_coefs_over_dist(rt_parameter%ndiffcoef,rt_parameter%nphase)
 
-  PetscInt :: iphase, nphase, iaqcomp
+  PetscInt :: iphase, nphase, idiffcoef
   PetscReal :: sat_up, sat_dn
   PetscReal :: abs_dist_dn(3)
   PetscReal :: velocity_dn(3)
@@ -298,8 +297,8 @@ subroutine TDispersionBC(ibndtype, &
   PetscInt, parameter :: TRANSVERSE_HORIZONTAL = 2
   PetscInt, parameter :: TRANSVERSE_VERTICAL = 3
   PetscReal :: mechanical_dispersion
-  PetscReal :: molecular_diffusion(rt_parameter%naqcomp)
-  PetscReal :: hydrodynamic_dispersion(rt_parameter%naqcomp)
+  PetscReal :: molecular_diffusion(rt_parameter%ndiffcoef)
+  PetscReal :: hydrodynamic_dispersion(rt_parameter%ndiffcoef)
   PetscReal :: tort_dn
   PetscReal :: v_dn
   PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn
@@ -323,11 +322,11 @@ subroutine TDispersionBC(ibndtype, &
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
-          do iaqcomp = 1, rt_parameter%naqcomp
-            molecular_diffusion(iaqcomp) = &
-              molecular_diffusion(iaqcomp) * &
+          do idiffcoef = 1, rt_parameter%ndiffcoef ! 1 or naqcomp
+            molecular_diffusion(idiffcoef) = &
+              molecular_diffusion(idiffcoef) * &
               Arrhenius(rt_parameter% &
-                          diffusion_activation_energy(iaqcomp,iphase), &
+                          diffusion_activation_energy(idiffcoef,iphase), &
                         global_auxvar_up%temp,TREF)
           enddo
         case(GAS_PHASE)
@@ -541,7 +540,7 @@ subroutine TFluxCoef(rt_parameter, &
   PetscReal :: velocity(*)
   ! this is the harmonic mean of saturation * porosity * (mechanical
   !   dispersion + tortuosity * molecular_diffusion) / distance
-  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+  PetscReal :: tran_coefs_over_dist(rt_parameter%ndiffcoef, &
                                     rt_parameter%nphase)
   PetscReal :: fraction_upwind
   PetscBool :: check_upwind_saturation
@@ -574,12 +573,22 @@ subroutine TFluxCoef(rt_parameter, &
 
     ! upstream weighting
     ! units = (m^3 water/m^2 bulk/sec)
-    if (q > 0.d0) then
-      coef_up(:) =  tran_coefs_over_dist(:,iphase)+q
-      coef_dn(:) = -tran_coefs_over_dist(:,iphase)
+    if (rt_parameter%ndiffcoef > 1) then
+      if (q > 0.d0) then
+        coef_up(:) =  tran_coefs_over_dist(:,iphase)+q
+        coef_dn(:) = -tran_coefs_over_dist(:,iphase)
+      else
+        coef_up(:) =  tran_coefs_over_dist(:,iphase)
+        coef_dn(:) = -tran_coefs_over_dist(:,iphase)+q
+      endif
     else
-      coef_up(:) =  tran_coefs_over_dist(:,iphase)
-      coef_dn(:) = -tran_coefs_over_dist(:,iphase)+q
+      if (q > 0.d0) then
+        coef_up(:) =  tran_coefs_over_dist(1,iphase)+q
+        coef_dn(:) = -tran_coefs_over_dist(1,iphase)
+      else
+        coef_up(:) =  tran_coefs_over_dist(1,iphase)
+        coef_dn(:) = -tran_coefs_over_dist(1,iphase)+q
+      endif
     endif
 
     ! units = (m^3 water/m^2 bulk/sec)*(m^2 bulk)*(1000 L water/m^3 water)
@@ -614,7 +623,7 @@ subroutine TFluxCoefBC(bctype,rt_parameter, &
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
-  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+  PetscReal :: tran_coefs_over_dist(rt_parameter%ndiffcoef, &
                                     rt_parameter%nphase)
   PetscReal :: fraction_upwind
   PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)

@@ -438,7 +438,7 @@ subroutine PMRTSetup(this)
   if (rt_parameter%temperature_dependent_diffusion) then
     lflag = PETSC_FALSE
     do iphase = 1, rt_parameter%nphase
-      do i = 1, rt_parameter%naqcomp
+      do i = 1, rt_parameter%ndiffcoef
         if (Uninitialized(rt_parameter% &
                             diffusion_activation_energy(i,iphase))) then
           lflag = PETSC_TRUE
