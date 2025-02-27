@@ -631,7 +631,8 @@ factory_subsurface_linkage.o : \
   timestepper_TS.o \
   timestepper_steady.o \
   waypoint.o \
-  wipp_flow_aux.o
+  wipp_flow_aux.o \
+  wipp_well.o
 factory_subsurface_read.o : \
   characteristic_curves.o \
   characteristic_curves_thermal.o \
@@ -724,7 +725,8 @@ factory_subsurface_read.o : \
   utility.o \
   waypoint.o \
   well_grid.o \
-  wipp.o
+  wipp.o \
+  wipp_well.o
 field.o : \
   pflotran_constants.o
 fluid.o : \
@@ -1606,7 +1608,8 @@ nw_transport.o : \
   string.o \
   transport_constraint_nwt.o \
   utility.o \
-  wipp_flow_aux.o
+  wipp_flow_aux.o \
+  wipp_well.o
 nw_transport_aux.o : \
   input_aux.o \
   matrix_zeroing.o \
@@ -2503,9 +2506,6 @@ pm_waste_form.o : \
   units.o \
   utility.o
 pm_well.o : \
-  characteristic_curves.o \
-  characteristic_curves_base.o \
-  characteristic_curves_wipp.o \
   condition.o \
   connection.o \
   coupler.o \
@@ -2572,7 +2572,8 @@ pm_wipp_flow.o : \
   utility.o \
   variables.o \
   wipp_flow.o \
-  wipp_flow_aux.o
+  wipp_flow_aux.o \
+  wipp_well.o
 pm_wipp_srcsink.o : \
   data_mediator_vec.o \
   discretization.o \
@@ -4006,7 +4007,8 @@ wipp_flow.o : \
   variables.o \
   wipp.o \
   wipp_flow_aux.o \
-  wipp_flow_common.o
+  wipp_flow_common.o \
+  wipp_well.o
 wipp_flow_aux.o : \
   characteristic_curves.o \
   characteristic_curves_wipp.o \
@@ -4030,6 +4032,39 @@ wipp_flow_common.o : \
   option.o \
   pflotran_constants.o \
   upwind_direction.o \
+  wipp_flow_aux.o
+wipp_well.o : \
+  characteristic_curves.o \
+  characteristic_curves_base.o \
+  characteristic_curves_wipp.o \
+  condition.o \
+  connection.o \
+  coupler.o \
+  dataset.o \
+  dataset_ascii.o \
+  dataset_base.o \
+  eos_gas.o \
+  eos_water.o \
+  geometry.o \
+  global_aux.o \
+  grid.o \
+  input_aux.o \
+  material_aux.o \
+  nw_transport_aux.o \
+  option.o \
+  pflotran_constants.o \
+  pm_base.o \
+  pm_well.o \
+  reactive_transport_aux.o \
+  realization_subsurface.o \
+  sco2_aux.o \
+  strata.o \
+  string.o \
+  transport_constraint.o \
+  transport_constraint_base.o \
+  transport_constraint_nwt.o \
+  utility.o \
+  well_grid.o \
   wipp_flow_aux.o
 zflow.o : \
   characteristic_curves.o \

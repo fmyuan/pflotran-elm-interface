@@ -103,6 +103,7 @@ mode_obj = \
 	${common_src}th.o \
 	${common_src}wipp_flow.o \
 	${common_src}wipp_flow_common.o \
+	${common_src}wipp_well.o \
 	${common_src}zflow.o \
 	${common_src}zflow_common.o
 

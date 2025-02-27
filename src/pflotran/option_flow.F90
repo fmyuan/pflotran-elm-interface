@@ -62,6 +62,7 @@ module Option_Flow_module
 
     character(len=MAXSTRINGLENGTH) :: co2_database_filename
     PetscBool :: update_transport_h2o_src
+    PetscInt :: well_coupling
 
   end type flow_option_type
 
@@ -180,6 +181,7 @@ subroutine OptionFlowInitRealization(option)
 
   option%co2_database_filename = ''
   option%update_transport_h2o_src = PETSC_TRUE
+  option%well_coupling = UNINITIALIZED_INTEGER
 
 end subroutine OptionFlowInitRealization
 

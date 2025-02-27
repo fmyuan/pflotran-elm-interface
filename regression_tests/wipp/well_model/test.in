@@ -22,6 +22,7 @@ SIMULATION
     #END
 
     WELL_MODEL well01
+      TYPE WIPP_SEQUENTIAL
       OPTIONS
         TYPE WIPP_DARCY
       /

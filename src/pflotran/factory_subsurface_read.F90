@@ -512,6 +512,7 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
 
   use PM_Base_class
   use PM_Well_class
+  use WIPP_Well_class
 
   implicit none
 
@@ -524,9 +525,6 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
 
   error_string = 'SIMULATION,PROCESS_MODELS,WELL_MODEL'
 
-  pm => PMWellCreate()
-  pm%option => option
-
   word = ''
   call InputPushBlock(input,option)
   do
@@ -535,7 +533,39 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
+      case('TYPE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('HYDROSTATIC')
+            pm => PMWellHydrostaticCreate()
+            option%flow%well_coupling = WELL_MODEL_HYDROSTATIC
+        !-----------------------------
+          case('WIPP_QI','WIPP_QUASI_IMPLICIT')
+            pm => PMWellWIPPQICreate()
+            option%flow%well_coupling = WELL_MODEL_WIPP_QI
+        !-----------------------------
+          case('CLOSED_LOOP_COAXIAL')
+            pm => PMWellCoaxialCreate()
+            option%flow%well_coupling = WELL_MODEL_COAXIAL
+        !-----------------------------
+          case('CLOSED_LOOP_U_SHAPE')
+            pm => PMWellUShapeCreate()
+            option%flow%well_coupling = WELL_MODEL_U_SHAPE
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+        pm%option => option
       case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
         call pm%ReadSimulationOptionsBlock(input)
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
@@ -543,6 +573,7 @@ subroutine FactorySubsurfReadWellPM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+
   call InputPopBlock(input,option)
 
 end subroutine FactorySubsurfReadWellPM
@@ -918,6 +949,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
   use Time_Storage_module
   use TH_Aux_module
   use Survey_module
+  use WIPP_Well_class
 
   implicit none
 
@@ -2485,7 +2517,21 @@ subroutine FactorySubsurfReadInput(simulation,input)
 
 !....................
       case ('WELLBORE_MODEL')
-        well => PMWellCreate()
+        select case (option%flow%well_coupling)
+          case(WELL_MODEL_HYDROSTATIC)
+            well => PMWellHydrostaticCreate()
+          case(WELL_MODEL_U_SHAPE)
+            well => PMWellUShapeCreate()
+          case(WELL_MODEL_COAXIAL)
+            well => PMWellCoaxialCreate()
+          case(WELL_MODEL_WIPP_QI)
+            well => PMWellWIPPQICreate()
+          case default
+            option%io_buffer = 'Well model coupling must be specified in the &
+                                &SIMULATION block.'
+            call PrintErrMsg(option)
+        end select
+
         call InputReadWord(input,option,well%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'WELLBORE_MODEL','name')
         call PrintMsg(option,well%name)

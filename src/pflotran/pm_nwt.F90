@@ -1207,9 +1207,16 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
 
   call NWTResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
   if (associated(this%pmwell_ptr)) then
-    if (this%pmwell_ptr%tran_soln%cut_ts_flag) then
-      this%controls%well_cut_dt = PETSC_TRUE
-    endif
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_qi_type)
+        if (pm_well%tran_soln%cut_ts_flag) then
+          this%controls%well_cut_dt = PETSC_TRUE
+        endif
+      class default
+        this%option%io_buffer = 'NW Transport can only be used with a quasi &
+                            &implicit well model.'
+        call PrintErrMsg(this%option)
+    end select
   endif
 
 end subroutine PMNWTResidual
@@ -1740,10 +1747,17 @@ subroutine PMNWTTimeCut(this)
   call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
   if (.not. this%controls%well_cut_dt) then
     if (associated(this%pmwell_ptr)) then
-      this%pmwell_ptr%well%aqueous_mass = &
-        this%pmwell_ptr%tran_soln%prev_soln%aqueous_mass
-      this%pmwell_ptr%well%aqueous_conc =  &
-        this%pmwell_ptr%tran_soln%prev_soln%aqueous_conc
+      select type (pm_well => this%pmwell_ptr)
+        class is (pm_well_qi_type)
+          pm_well%well%aqueous_mass = &
+            pm_well%tran_soln%prev_soln%aqueous_mass
+          pm_well%well%aqueous_conc =  &
+            pm_well%tran_soln%prev_soln%aqueous_conc
+        class default
+          option%io_buffer = 'NW Transport can only be used with a quasi &
+                              &implicit well model.'
+          call PrintErrMsg(option)
+      end select
     endif
   endif
   this%controls%well_cut_dt = PETSC_FALSE

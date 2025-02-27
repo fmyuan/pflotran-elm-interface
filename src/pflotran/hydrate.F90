@@ -1097,7 +1097,7 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
         if (Initialized(cur_well%well%bh_p)) then
           do idof = 1,option%nflowdof
             call PMWellCopyWell(cur_well%well,cur_well%well_pert(idof), &
-                                cur_well%transport)
+                                PETSC_FALSE)
           enddo
         endif
       endif

@@ -6,6 +6,7 @@ module PM_WIPP_Flow_class
   use PM_Subsurface_Flow_class
   use PM_WIPP_SrcSink_class
   use PM_Well_class
+  use WIPP_Well_class
 
   use PFLOTRAN_Constants_module
 
@@ -430,8 +431,6 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
         enddo
         allocate(this%dirichlet_dofs_ints(2,icount))
         this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
-      case ('QUASI_IMPLICIT_WELLBORE_COUPLING')
-        wippflo_well_quasi_imp_coupled = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -1073,19 +1072,19 @@ subroutine PMWIPPFloInitializeTimestep(this)
 
   !MAN: not sure if this is needed
   if (associated(this%pmwell_ptr)) then
-    if (.not.this%pmwell_ptr%well_on) then
-      if (Initialized(this%pmwell_ptr%intrusion_time_start) .and. &
-          this%realization%option%time >=  &
-          this%pmwell_ptr%intrusion_time_start) then
-        this%pmwell_ptr%well_on = PETSC_TRUE
-      elseif (Uninitialized(this%pmwell_ptr%intrusion_time_start)) then
-        this%pmwell_ptr%well_on = PETSC_TRUE
-      endif
-    endif
-    ! (jmf 3/13/2023) this call to InitializeTimestep() doesn't seem to be needed
-    ! since within InitializeTimestep() there was a line that always
-    ! kicks you out if quasi-implicit flow is turned on
-    !call this%pmwell_ptr%InitializeTimestep()
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_wipp_qi_type)
+        if (.not.pm_well%well_on) then
+          if (Initialized(pm_well%intrusion_time_start) .and. &
+              this%realization%option%time >=  &
+              pm_well%intrusion_time_start) then
+                pm_well%well_on = PETSC_TRUE
+          elseif (Uninitialized(pm_well%intrusion_time_start)) then
+            pm_well%well_on = PETSC_TRUE
+          endif
+        endif
+      class default
+    end select
   endif
 
   this%convergence_flags = 0
@@ -1111,9 +1110,13 @@ subroutine PMWIPPFloFinalizeTimestep(this)
     call this%pmwss_ptr%FinalizeTimestep()
   endif
   if (associated(this%pmwell_ptr)) then
-    this%pmwell_ptr%update_for_wippflo_qi_coupling = PETSC_TRUE
-    this%pmwell_ptr%flow_soln%soln_save%pl = this%pmwell_ptr%well%pl
-    this%pmwell_ptr%flow_soln%soln_save%sg = this%pmwell_ptr%well%gas%s
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_wipp_qi_type)
+        pm_well%update_for_flow_qi_coupling = PETSC_TRUE
+        pm_well%flow_soln%soln_save%pl = pm_well%well%pl
+        pm_well%flow_soln%soln_save%sg = pm_well%well%gas%s
+      class default
+    end select
   endif
   call PMSubsurfaceFlowFinalizeTimestep(this)
 
@@ -2175,8 +2178,11 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   endif
 
   if (associated(this%pmwell_ptr)) then
-    call MPI_Allreduce(MPI_IN_PLACE,this%pmwell_ptr%well_force_ts_cut, &
-              ONE_INTEGER,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_wipp_qi_type)
+        call MPI_Allreduce(MPI_IN_PLACE,pm_well%well_force_ts_cut, &
+                  ONE_INTEGER,MPIU_INTEGER,MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
+    end select
   endif
 
   ! Update well model with new state variables.
@@ -2231,11 +2237,14 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     endif
   endif
   if (associated(this%pmwell_ptr)) then
-    if (this%pmwell_ptr%well_force_ts_cut > 0) then
-      converged_flag = CONVERGENCE_CUT_TIMESTEP
-      reason_string(8:8) = 'W'
-    endif
-    this%pmwell_ptr%well_force_ts_cut = 0
+    select type (pm_well => this%pmwell_ptr)
+      class is (pm_well_wipp_qi_type)
+        if (pm_well%well_force_ts_cut > 0) then
+          converged_flag = CONVERGENCE_CUT_TIMESTEP
+          reason_string(8:8) = 'W'
+        endif
+        pm_well%well_force_ts_cut = 0
+    end select
   endif
   if (converged_flag == CONVERGENCE_CONVERGED) then
     ! converged based on NI criteria, but need to check TS
