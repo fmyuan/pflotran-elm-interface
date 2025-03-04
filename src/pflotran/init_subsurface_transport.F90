@@ -9,49 +9,9 @@ module Init_Subsurface_Tran_module
   private
 
 
-  public :: InitSubsurfTranSetupRealization, &
-            InitFlowGlobalAuxVar
+  public :: InitFlowGlobalAuxVar
 
 contains
-
-! ************************************************************************** !
-
-subroutine InitSubsurfTranSetupRealization(realization)
-  !
-  ! Initializes material property data structres and assign them to the domain.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 12/04/14
-  !
-  use Realization_Subsurface_class
-  use Option_module
-  use NW_Transport_module
-  use Reactive_Transport_module
-  use Condition_Control_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-
-  type(option_type), pointer :: option
-
-  option => realization%option
-
-  ! initialize densities and saturations
-  call InitFlowGlobalAuxVar(realization,option)
-
-  ! initial concentrations must be assigned after densities are set !!!
-  select case(option%itranmode)
-    case(RT_MODE)
-      call RTSetup(realization)
-      call CondControlAssignRTTranInitCond(realization)
-    case(NWT_MODE)
-      call NWTSetup(realization)
-      call CondControlAssignNWTranInitCond(realization)
-  end select
-
-
-end subroutine InitSubsurfTranSetupRealization
 
 ! ************************************************************************** !
 
