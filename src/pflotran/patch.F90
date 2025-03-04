@@ -12038,6 +12038,8 @@ subroutine PatchDestroy(patch)
 
   type(patch_type), pointer :: patch
 
+  if (.not.associated(patch)) return
+
   call DeallocateArray(patch%imat)
   call DeallocateArray(patch%imat_internal_to_external)
   call DeallocateArray(patch%cc_id)
@@ -12057,7 +12059,6 @@ subroutine PatchDestroy(patch)
 
   call DeallocateArray(patch%flow_upwind_direction)
   call DeallocateArray(patch%flow_upwind_direction_bc)
-
 
   if (associated(patch%material_property_array)) &
     deallocate(patch%material_property_array)

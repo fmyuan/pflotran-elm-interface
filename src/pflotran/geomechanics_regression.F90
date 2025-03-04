@@ -541,7 +541,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                                          geomech_discretization,ONEDOF, &
                                          global_vec,GLOBAL,option)
   cur_variable => geomechanics_realization%output_option% &
-                  output_snap_variable_list%first
+                    output_snap_variable_list%first
 
   do
     if (.not.associated(cur_variable)) exit
