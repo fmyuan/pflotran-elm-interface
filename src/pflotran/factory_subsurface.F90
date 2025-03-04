@@ -340,7 +340,6 @@ subroutine FactorySubsurfaceInitSimulation(simulation)
   use Init_Subsurface_module
   use Init_Subsurface_Flow_module
   use Init_Subsurface_Tran_module
-  use Init_Subsurface_Geop_module
   use Init_Common_module
   use Waypoint_module
   use Strata_module

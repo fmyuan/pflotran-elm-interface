@@ -530,7 +530,6 @@ factory_subsurface.o : \
   init_subsurface.o \
   init_subsurface_flow.o \
   init_subsurface_geomechanics.o \
-  init_subsurface_geophysics.o \
   init_subsurface_transport.o \
   logging.o \
   option.o \
@@ -554,6 +553,7 @@ factory_subsurface.o : \
   pm_pnf.o \
   pm_richards.o \
   pm_richards_ts.o \
+  pm_rt.o \
   pm_sco2.o \
   pm_subsurface_flow.o \
   pm_th.o \
@@ -1213,8 +1213,6 @@ init_common.o : \
   grid.o \
   hdf5.o \
   hdf5_aux.o \
-  input_aux.o \
-  logging.o \
   option.o \
   output.o \
   output_aux.o \
@@ -1308,18 +1306,10 @@ init_subsurface_geomechanics.o : \
   units.o \
   utility.o \
   waypoint.o
-init_subsurface_geophysics.o : \
-  ert.o \
-  option.o \
-  pflotran_constants.o \
-  realization_subsurface.o
 init_subsurface_transport.o : \
-  condition_control.o \
   global.o \
-  nw_transport.o \
   option.o \
   pflotran_constants.o \
-  reactive_transport.o \
   realization_subsurface.o \
   variables.o
 inlinesurface.o : \
