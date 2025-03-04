@@ -1049,8 +1049,10 @@ subroutine InitSubsurfGeomechSetupPMC(simulation,pm_geomech, &
   call InputFindStringErrorMsg(input,option,string)
   geomech_realization%output_option => &
     OutputOptionDuplicate(simulation%output_option)
-  nullify(geomech_realization%output_option%output_snap_variable_list)
-  nullify(geomech_realization%output_option%output_obs_variable_list)
+  call OutputVariableListDestroy(geomech_realization%output_option% &
+                                   output_snap_variable_list)
+  call OutputVariableListDestroy(geomech_realization%output_option% &
+                                   output_obs_variable_list)
   geomech_realization%output_option%output_snap_variable_list => &
     OutputVariableListCreate()
   geomech_realization%output_option%output_obs_variable_list => &

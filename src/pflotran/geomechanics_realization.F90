@@ -76,17 +76,11 @@ function GeomechRealizCreate(option)
   type(option_type), pointer :: option
 
   allocate(geomech_realization)
-  geomech_realization%id = 0
-  if (associated(option)) then
-    geomech_realization%option => option
-  else
-    geomech_realization%option => OptionCreate()
-  endif
+  call RealizationBaseInit(geomech_realization,option)
 
   geomech_realization%geomech_discretization => GeomechDiscretizationCreate()
 
   geomech_realization%geomech_field => GeomechFieldCreate()
-  geomech_realization%output_option => OutputOptionCreate()
   geomech_realization%geomech_debug => GeomechDebugCreate()
 
   allocate(geomech_realization%geomech_region_list)
@@ -1156,9 +1150,12 @@ subroutine GeomechRealizDestroy(geomech_realization)
 
   if (.not.associated(geomech_realization)) return
 
-  call GeomechFieldDestroy(geomech_realization%geomech_field)
-
+  ! OutputOptionDestroy must be called before RealizationBaseStrip as
+  ! output_option is solely nullified in RealizationBaseStrip
   call OutputOptionDestroy(geomech_realization%output_option)
+  call RealizationBaseStrip(geomech_realization)
+
+  call GeomechFieldDestroy(geomech_realization%geomech_field)
 
   call GeomechRegionDestroyList(geomech_realization%geomech_region_list)
 
@@ -1176,10 +1173,6 @@ subroutine GeomechRealizDestroy(geomech_realization)
   call GeomechanicsMaterialPropertyDestroy(geomech_realization% &
                                            geomech_material_properties)
   call GeomechDiscretizationDestroy(geomech_realization%geomech_discretization)
-
-  if (associated(geomech_realization%output_option)) &
-    deallocate(geomech_realization%output_option)
-  nullify(geomech_realization%output_option)
 
   if (associated(geomech_realization)) deallocate(geomech_realization)
   nullify(geomech_realization)
