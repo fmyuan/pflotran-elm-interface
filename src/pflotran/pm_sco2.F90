@@ -336,8 +336,8 @@ subroutine PMSCO2ReadSimOptionsBlock(this,input)
         sco2_isothermal_temperature = tempreal
         option%flow%isothermal = PETSC_TRUE
         option%flow%reference_temperature = tempreal
-      case('ISOTHERMAL_GRADIENT')
-        sco2_isothermal_gradient = PETSC_TRUE
+      case('FIXED_TEMPERATURE_GRADIENT')
+        sco2_fixed_temp_gradient = PETSC_TRUE
       case('UPWIND_VISCOSITY')
         sco2_harmonic_viscosity = PETSC_FALSE
       case('PHASE_PARTITIONING')
@@ -1857,7 +1857,7 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           accumulation = accum2_p(ival)
           update = dX_p(ival)
 
-          if (sco2_thermal .and. sco2_isothermal_gradient) then
+          if (sco2_thermal .and. sco2_fixed_temp_gradient) then
             res_scaled = 0.d0
           elseif (sco2_thermal) then
             if (idof == FOUR_INTEGER) then

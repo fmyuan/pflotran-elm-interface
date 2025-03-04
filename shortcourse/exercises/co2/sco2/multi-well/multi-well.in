@@ -1,5 +1,5 @@
 # 3D CO2 injection well + production well model short course problem
-# Optional: turn ISOTHERMAL_GRADIENT on.
+# Optional: turn FIXED_TEMPERATURE_GRADIENT on.
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -8,7 +8,7 @@ SIMULATION
       MODE SCO2
       OPTIONS
         NO_STATE_TRANSITION_OUTPUT
-        #ISOTHERMAL_GRADIENT
+        #FIXED_TEMPERATURE_GRADIENT
       /
     /
     WELL_MODEL well

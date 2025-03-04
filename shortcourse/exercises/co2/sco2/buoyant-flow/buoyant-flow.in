@@ -7,7 +7,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE SCO2
       OPTIONS
-        ISOTHERMAL_GRADIENT
+        FIXED_TEMPERATURE_GRADIENT
       /
     /
   /
