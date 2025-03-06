@@ -772,17 +772,22 @@ subroutine NWTResidual(snes,xx,r,realization,pmwell_ptr,ierr)
             ! loads the source_sink object with well model transport sol'n
             ! this should only be done during the first petsc residual call,
             ! not both, which is the reason for the check against option%time
+            call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
             call PMWellQISolveTran(pm_well)
             call MPI_Barrier(option%comm%communicator,ierr);CHKERRQ(ierr)
-            call MPI_Bcast(pm_well%tran_soln%tran_time,ONE_INTEGER_MPI, &
-                          MPI_DOUBLE_PRECISION,0,option%mycomm,ierr);CHKERRQ(ierr)
-            call MPI_Bcast(pm_well%tran_soln%cut_ts_flag,ONE_INTEGER_MPI, &
-                          MPI_LOGICAL,0,option%mycomm,ierr);CHKERRQ(ierr)
+
+            call MPI_Allreduce(MPI_IN_PLACE,pm_well%tran_soln%tran_time, &
+              ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MAX, &
+              option%comm%communicator,ierr);CHKERRQ(ierr)
+            call MPI_Allreduce(MPI_IN_PLACE,pm_well%tran_soln%cut_ts_flag, &
+              ONE_INTEGER_MPI,MPI_LOGICAL,MPI_LOR,option%comm%communicator, &
+              ierr);CHKERRQ(ierr)
+
             if (pm_well%tran_soln%cut_ts_flag) return
         endif
       class default
-        option%io_buffer = 'NW Transport can only be used with a quasi implicit &
-                            & well model.'
+        option%io_buffer = 'NW Transport can only be used with a &
+          &WELLBORE_MODEL of TYPE WIPP_QUASI_IMPLICIT.'
         call PrintErrMsg(option)
     end select
   endif
