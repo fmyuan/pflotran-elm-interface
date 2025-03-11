@@ -13,6 +13,7 @@ module WIPP_Well_class
   use NW_Transport_Aux_module
   use Well_Grid_module
   use Condition_module
+  use String_module
 
   implicit none
 
@@ -102,7 +103,6 @@ subroutine PMWellSetupWIPP(pm_well)
 
   use Grid_module
   use Utility_module
-  use String_module
   use Coupler_module
   use Connection_module
   use Condition_module
@@ -245,7 +245,6 @@ subroutine PMWellReadSimOptionsBlockWIPPQI(this,input)
   !
 
   use Input_Aux_module
-  use String_module
   use Option_module
 
   implicit none
@@ -267,7 +266,6 @@ subroutine PMWellReadPMBlockWIPP(pm_well,input)
   ! Date: 08/04/2021
 
   use Input_Aux_module
-  use String_module
   use Option_module
 
   implicit none
@@ -1101,7 +1099,7 @@ subroutine WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
         if (this%print_output) then
           out_string = ' Maximum number of FLOW Newton iterations reached. &
                         &Cutting timestep!'
-          call PrintMsg(this%option,out_string)
+          call PMWellPrint(this,out_string)
         endif
         call PMWellCutTimestepFlow(this)
         n_iter = 0
@@ -1111,22 +1109,21 @@ subroutine WIPPWellSolveFlowSequential(this,perturbation_index,ierr)
         if (ss_step_count > 2 .and. this%ss_check) then
           at_steady_state = PETSC_TRUE
           this%cumulative_dt_flow = this%realization%option%flow_dt
-          WRITE(out_string,'(" PM Well FLOW convergence declared due to &
+          write(out_string,'(" PM Well FLOW convergence declared due to &
             &automatic time step control criterion. ")')
-          call PrintMsg(this%option,out_string)
+          call PMWellPrint(this,out_string)
         endif
-
 
         exit
       endif
       if (ts_cut > flow_soln%max_ts_cut) then
-        this%realization%option%io_buffer = &
-          ' Maximum timestep cuts reached in PM Well FLOW. Solution has not &
-           &converged. Exiting.'
+        option%io_buffer = ' Maximum timestep cuts reached in PM Well FLOW. &
+                           &Solution has not converged. Exiting.'
         if (this%print_well) then
           call PMWellOutputSequential(this)
         endif
-        call PrintErrMsg(this%realization%option)
+        call PMWellPrint(this,option%io_buffer)
+        call PrintErrMsg(option)
       endif
 
       if (this%dt_flow <= this%min_dt_flow) then
@@ -1233,7 +1230,7 @@ subroutine PMWellPostSolveFlow(pm_well)
                     &",a4,"Total Newton Its =",i8)') &
                     cur_time_converted,pm_well%output_option%tunit, &
                     pm_well%flow_soln%n_newton
-  call PrintMsg(pm_well%option,out_string)
+  call PMWellPrint(pm_well,out_string)
 
 end subroutine PMWellPostSolveFlow
 
@@ -2697,10 +2694,10 @@ subroutine PMWellCheckConvergenceFlow(pm_well,n_iter,fixed_accum)
           n_iter,max_absolute_residual,max_scaled_residual, &
           max_absolute_update_p,max_absolute_update_s, &
           max_relative_update_p,max_relative_update_s
-    call PrintMsg(pm_well%option,out_string)
+    call PMWellPrint(pm_well,out_string)
     if (flow_soln%converged) then
       out_string = ' WELL FLOW Solution converged!  ---> ' // trim(rsn_string)
-      call PrintMsg(pm_well%option,out_string)
+      call PMWellPrint(pm_well,out_string)
     endif
   endif
 
@@ -2872,9 +2869,8 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
 
   call MPI_Barrier(pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
   write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", es10.3)')&
-        n_iter,max_absolute_residual,max_scaled_residual, &
-        max_update
-  call PrintMsg(pm_well%option,out_string)
+        n_iter,max_absolute_residual,max_scaled_residual,max_update
+  call PMWellPrint(pm_well,out_string)
 
   if (pm_well%well_comm%commsize > 1) then
     tag = 0
@@ -2899,7 +2895,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
     soln%converged = PETSC_TRUE
     soln%not_converged = PETSC_FALSE
     out_string = ' WELL TRAN Solution converged!  ---> ' // trim(rsn_string)
-    call PrintMsg(pm_well%option,out_string)
+    call PMWellPrint(pm_well,out_string)
     pm_well%cumulative_dt_tran = pm_well%cumulative_dt_tran + pm_well%dt_tran
   else
     soln%converged = PETSC_FALSE
@@ -3120,7 +3116,7 @@ subroutine PMWellSolveTran(pm_well,ierr)
         soln%cut_ts_flag = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
-        call PrintMsg(pm_well%option,out_string)
+        call PMWellPrint(pm_well,out_string)
         call PMWellCutTimestepTran(pm_well)
         ! make sure well-flow doesn't get re-solved:
         pm_well%update_for_flow_qi_coupling = PETSC_TRUE
@@ -3133,6 +3129,7 @@ subroutine PMWellSolveTran(pm_well,ierr)
         if (pm_well%print_well) then
           call PMWellOutputSequential(pm_well)
         endif
+        call PMWellPrint(pm_well,pm_well%realization%option%io_buffer)
         call PrintErrMsg(pm_well%realization%option)
       endif
 
@@ -3993,7 +3990,7 @@ subroutine PMWellPreSolveFlow(pm_well)
                          1pe12.5," ",a4)') &
                        (pm_well%flow_soln%n_steps+1),cur_time_converted, &
                        dt_converted,pm_well%output_option%tunit
-      call PrintMsg(pm_well%option,out_string)
+      call PMWellPrint(pm_well,out_string)
     endif
 
   end subroutine PMWellPreSolveFlow
@@ -4028,8 +4025,7 @@ subroutine PMWellPreSolveFlow(pm_well)
                      1pe12.5," ",a4)') &
                      (pm_well%tran_soln%n_steps+1),cur_time_converted, &
                      dt_converted,pm_well%output_option%tunit
-
-    call PrintMsg(pm_well%option,out_string)
+    call PMWellPrint(pm_well,out_string)
 
   end subroutine PMWellPreSolveTran
 
@@ -4152,6 +4148,24 @@ subroutine PMWellCutTimestepTran(pm_well)
   call PMWellUpdatePropertiesTran(pm_well)
 
 end subroutine PMWellCutTimestepTran
+
+! ************************************************************************** !
+
+subroutine PMWellPrint(pm_well,string)
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 03/06/2025
+
+  implicit none
+
+  class(pm_well_sequential_type) :: pm_well
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (MINVAL(pm_well%well_comm%petsc_rank_list) == pm_well%option%myrank) then
+    write(STDOUT_UNIT,'(a)') trim(string)
+  endif
+
+end subroutine PMWellPrint
 
 ! ************************************************************************** !
 end module WIPP_Well_class
