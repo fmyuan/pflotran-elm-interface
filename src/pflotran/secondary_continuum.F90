@@ -1687,6 +1687,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_module
+  use Reaction_Mineral_module
   use Global_Aux_module
   use Material_Aux_module
 
@@ -1702,9 +1703,10 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars, &
   PetscReal :: vol(sec_transport_vars%ncells)
   PetscReal :: res_react(reaction%naqcomp)
   PetscReal :: jac_react(reaction%naqcomp,reaction%naqcomp)
-  PetscInt :: i,j
+  PetscInt :: i
   type(material_auxvar_type), allocatable :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
+  PetscBool :: flag
 
   call GlobalAuxVarInit(global_auxvar,option)
   call GlobalAuxVarCopy(fracture_global_auxvar,global_auxvar,option)
@@ -1723,27 +1725,12 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars, &
   do i = 1, ngcells
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
-    call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   sec_transport_vars%sec_rt_auxvar(i), &
-                   global_auxvar,material_auxvar,reaction,option)
+    call ReactionMnrlUpdateKineticState(sec_transport_vars%sec_rt_auxvar(i), &
+                                        global_auxvar,material_auxvar, &
+                                        reaction,flag,option)
   enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
-
-  if (reaction%mineral%nkinmnrl > 0) then
-    do i = 1, ngcells
-      do j = 1, reaction%mineral%nkinmnrl
-        sec_transport_vars%sec_rt_auxvar(i)%mnrl_volfrac(j) = &
-          sec_transport_vars%sec_rt_auxvar(i)%mnrl_volfrac(j) + &
-          sec_transport_vars%sec_rt_auxvar(i)%mnrl_rate(j)* &
-          reaction%mineral%kinmnrl_molar_vol(j)* &
-          option%tran_dt
-          if (sec_transport_vars%sec_rt_auxvar(i)%mnrl_volfrac(j) < 0.d0) &
-            sec_transport_vars%sec_rt_auxvar(i)%mnrl_volfrac(j) = 0.d0
-      enddo
-    enddo
-  endif
-
   call GlobalAuxVarStrip(global_auxvar)
 
 end subroutine SecondaryRTUpdateKineticState
