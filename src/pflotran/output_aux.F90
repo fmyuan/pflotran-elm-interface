@@ -782,7 +782,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'TORTUOSITY','PROCESS_ID','VOLUME','MATERIAL_ID', &
            'NATURAL_ID','LOCAL_ID','GHOSTED_ID','PETSC_ID', &
            'TORTUOSITY_X','TORTUOSITY_Y','TORTUOSITY_Z', &
-           'MATERIAL_ID_KLUDGE_FOR_VISIT', &
+           'MATERIAL_ID_KLUDGE_FOR_VISIT','LIQUID_PRESSURE', &
            'X_COORDINATE','Y_COORDINATE','Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
            'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE', &
