@@ -65,6 +65,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   use PM_Fracture_class
   use PM_Material_Transform_class
   use PM_Parameter_class
+  use PM_Unit_Test_class
   use PM_Geomechanics_Force_class
   use Factory_Subsurface_Linkage_module
   use Realization_Subsurface_class
@@ -89,6 +90,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_geomech_force_type), pointer :: pm_geomech
   class(pm_parameter_type), pointer :: pm_parameter_list
+  class(pm_unittest_type), pointer :: pm_unittest
   class(realization_subsurface_type), pointer :: realization
 
   option => simulation%option
@@ -104,6 +106,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   nullify(pm_geomech)
   nullify(pm_well_list)
   nullify(pm_parameter_list)
+  nullify(pm_unittest)
 
   call FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                        pm_waste_form,pm_ufd_decay, &
@@ -111,7 +114,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list,pm_fracture, &
-                                       pm_geomech)
+                                       pm_geomech,pm_unittest)
 
   call FactorySubsurfaceSetFlowMode(pm_flow,pm_well_list,option)
   call FactorySubsurfaceSetGeopMode(pm_geop,option)
@@ -127,7 +130,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
                                    pm_ufd_biosphere,pm_geop,pm_auxiliary, &
                                    pm_well_list,pm_material_transform, &
                                    pm_parameter_list,pm_fracture, &
-                                   pm_geomech)
+                                   pm_geomech,pm_unittest)
 
   call FactSubLinkAddPMCEvolvingStrata(simulation)
   call FactSubLinkAddPMCInversion(simulation)

@@ -9,22 +9,23 @@ module Fracture_module
 
   private
 
-  PetscInt, parameter, public :: frac_init_pres_index = 1
-  PetscInt, parameter, public :: frac_alt_pres_index = 2
-  PetscInt, parameter, public :: frac_max_poro_index = 3
-  PetscInt, parameter, public :: frac_poro_exp_index = 4
+  PetscInt, parameter, public :: init_pres_index = 1
+  PetscInt, parameter, public :: ful_alt_pres_index = 2
+  PetscInt, parameter, public :: ful_alt_poro_index = 3
+  PetscInt, parameter, public :: poro_exp_index = 4
   PetscInt, parameter, public :: frac_change_perm_x_index = 1
   PetscInt, parameter, public :: frac_change_perm_y_index = 2
   PetscInt, parameter, public :: frac_change_perm_z_index = 3
 
   type, public :: fracture_type
-    PetscReal :: init_pressure
-    PetscReal :: altered_pressure
-    PetscReal :: maximum_porosity
+    PetscReal :: initiating_pressure
+    PetscReal :: fully_altered_pressure
+    PetscReal :: fully_altered_porosity
     PetscReal :: porosity_exponent
     PetscReal :: change_perm_x
     PetscReal :: change_perm_y
     PetscReal :: change_perm_z
+    PetscInt :: material_property_id
   contains
     procedure, public :: Read => FractureRead
   end type fracture_type
@@ -34,6 +35,7 @@ module Fracture_module
   public :: FractureInit, &
             FractureCreate, &
             FractureSetInitialPressure, &
+            FractureCalcFracPorosity, &
             FractureAuxVarInit, &
             FracturePropertytoAux, &
             FractureDestroy, &
@@ -74,13 +76,14 @@ subroutine FractureInit(this)
 
   class(fracture_type), pointer :: this
 
-  this%init_pressure = UNINITIALIZED_DOUBLE
-  this%altered_pressure = UNINITIALIZED_DOUBLE
-  this%maximum_porosity = UNINITIALIZED_DOUBLE
+  this%initiating_pressure = UNINITIALIZED_DOUBLE
+  this%fully_altered_pressure = UNINITIALIZED_DOUBLE
+  this%fully_altered_porosity = UNINITIALIZED_DOUBLE
   this%porosity_exponent = UNINITIALIZED_DOUBLE
   this%change_perm_x = 0.d0
   this%change_perm_y = 0.d0
   this%change_perm_z = 0.d0
+  this%material_property_id = UNINITIALIZED_INTEGER
 
 end subroutine FractureInit
 
@@ -124,13 +127,13 @@ subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
   if (associated(fracture_auxvar)) then
     if (associated(fracture_property)) then
       fracture_auxvar%fracture_is_on = PETSC_TRUE
-      fracture_auxvar%properties(frac_init_pres_index) = &
-        fracture_property%init_pressure
-      fracture_auxvar%properties(frac_alt_pres_index) = &
-        fracture_property%altered_pressure
-      fracture_auxvar%properties(frac_max_poro_index) = &
-        fracture_property%maximum_porosity
-      fracture_auxvar%properties(frac_poro_exp_index) = &
+      fracture_auxvar%properties(init_pres_index) = &
+        fracture_property%initiating_pressure
+      fracture_auxvar%properties(ful_alt_pres_index) = &
+        fracture_property%fully_altered_pressure
+      fracture_auxvar%properties(ful_alt_poro_index) = &
+        fracture_property%fully_altered_porosity
+      fracture_auxvar%properties(poro_exp_index) = &
         fracture_property%porosity_exponent
       fracture_auxvar%vector(frac_change_perm_x_index) = &
         fracture_property%change_perm_x
@@ -149,7 +152,7 @@ end subroutine FracturePropertytoAux
 
 ! ************************************************************************** !
 
-subroutine FractureRead(this,input,option)
+subroutine FractureRead(this,input,option,material_id)
   !
   ! Author: Heeho Park
   ! Date: 4/7/15
@@ -157,6 +160,7 @@ subroutine FractureRead(this,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Communicator_Aux_module
 
   implicit none
 
@@ -164,45 +168,47 @@ subroutine FractureRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
+  PetscInt :: material_id
 
   option%flow%fracture_on = PETSC_TRUE
+  this%material_property_id = material_id
   call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
-                                    'MATERIAL_PROPERTY,WIPP-FRACTURE')
+                                   'MATERIAL_PROPERTY,WIPP-FRACTURE')
 
       if (InputCheckExit(input,option)) exit
 
       if (InputError(input)) exit
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
-                          'MATERIAL_PROPERTY,WIPP-FRACTURE')
+                         'MATERIAL_PROPERTY,WIPP-FRACTURE')
       select case(trim(word))
         case('INITIATING_PRESSURE')
           call InputReadDouble(input,option, &
-                                this%init_pressure)
+                               this%initiating_pressure)
           call InputErrorMsg(input,option, &
                               'initiating pressure of fracturing', &
                               'MATERIAL_PROPERTY,WIPP-FRACTURE')
         case('ALTERED_PRESSURE')
           call InputReadDouble(input,option, &
-                                this%altered_pressure)
+                               this%fully_altered_pressure)
           call InputErrorMsg(input,option, &
-                              'altered pressure of fracturing', &
+                              'fully altered pressure of fracturing', &
                               'MATERIAL_PROPERTY,WIPP-FRACTURE')
         case('MAXIMUM_FRACTURE_POROSITY')
           call InputReadDouble(input,option, &
-                                this%maximum_porosity)
+                               this%fully_altered_porosity)
           call InputErrorMsg(input,option, &
-                              'maximum fracture porosity', &
+                              'fully altered fracture porosity', &
                               'MATERIAL_PROPERTY,WIPP-FRACTURE')
         case('FRACTURE_EXPONENT')
           call InputReadDouble(input,option, &
                               this%porosity_exponent)
           call InputErrorMsg(input,option, &
-                          'dimensionless fracture exponent for porosity', &
-                              'MATERIAL_PROPERTY,WIPP-FRACTURE')
+                             'dimensionless fracture exponent for porosity', &
+                             'MATERIAL_PROPERTY,WIPP-FRACTURE')
         case('ALTER_PERM_X')
           this%change_perm_x = 1.d0
         case('ALTER_PERM_Y')
@@ -222,7 +228,8 @@ end subroutine FractureRead
 
 subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
   !
-  ! Sets the pressure referenced in fracture
+  ! Sets the initial pressure in the simulation, referred to as P_0 in
+  ! the BRAGFLO UM Version 7.00, Eq. (160) on pg. 61.
   !
   use Material_Aux_module
 
@@ -232,13 +239,102 @@ subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
   PetscReal, intent(in) :: initial_cell_pressure
 
   fracture%initial_pressure = initial_cell_pressure
-!  fracture%properties(frac_init_pres_index) = &
-!    fracture%properties(frac_init_pres_index) + initial_cell_pressure
-!  fracture%properties(frac_alt_pres_index) = &
-!    fracture%properties(frac_alt_pres_index) + &
-!    fracture%properties(frac_init_pres_index)
 
 end subroutine FractureSetInitialPressure
+
+! ************************************************************************** !
+
+subroutine FractureCalcFulAltrdCompress(intact_compressibility, &
+          intact_porosity,initiating_pressure,fully_altered_pressure, &
+          reference_pressure,fully_altered_porosity,fully_alt_compressibility)
+  !
+  ! Calculates the fully altered compressibility, referred to as C_a in
+  ! the BRAGFLO UM Version 7.00, Eq. (162) on pg. 62.
+  !
+  ! Author: Jennifer M. Frederick (SNL)
+  ! Date: 02/19/2025
+  !
+  implicit none
+
+  PetscReal :: intact_compressibility,intact_porosity
+  PetscReal :: initiating_pressure,fully_altered_pressure
+  PetscReal :: reference_pressure
+  PetscReal :: fully_altered_porosity
+  PetscReal :: fully_alt_compressibility
+
+  PetscReal :: term1, term2
+  PetscReal :: Pa,P0,Pi,por_a,por_0,Ci
+
+  Pa = fully_altered_pressure
+  Pi = initiating_pressure
+  P0 = reference_pressure
+
+  por_a = fully_altered_porosity
+  por_0 = intact_porosity
+
+  Ci = intact_compressibility
+
+  term1 = 1.d0 - (2.d0*((Pa-P0)/(Pa-Pi)))
+  term2 = (2.d0/(Pa-Pi))*log(por_a/por_0)
+
+  fully_alt_compressibility = intact_compressibility*term1 + term2
+
+end subroutine FractureCalcFulAltrdCompress
+
+! ************************************************************************** !
+
+subroutine FractureCalcFracPorosity(intact_compressibility,intact_porosity, &
+          initiating_pressure,fully_altered_pressure,reference_pressure, &
+          pressure,fully_altered_porosity,fully_alt_compressibility,porosity)
+  !
+  ! Calculates the fracture porosity, referred to as por in the BRAGFLO UM
+  ! Version 7.00, Eq. (161) on pg. 62.
+  !
+  ! Author: Jennifer M. Frederick (SNL)
+  ! Date: 02/19/2025
+  !
+  implicit none
+
+  PetscReal :: intact_compressibility,intact_porosity
+  PetscReal :: initiating_pressure,fully_altered_pressure
+  PetscReal :: reference_pressure,pressure
+  PetscReal :: fully_altered_porosity
+  PetscReal :: fully_alt_compressibility
+  PetscReal :: porosity
+
+  PetscReal :: Pa,P0,Pi,P
+  PetscReal :: por_a,por_0
+  PetscReal :: Ci,Ca
+  PetscReal :: term1,term2,term3
+
+  Pa = fully_altered_pressure
+  Pi = initiating_pressure
+  P0 = reference_pressure
+  P = pressure
+
+  por_a = fully_altered_porosity
+  por_0 = intact_porosity
+
+  Ci = intact_compressibility
+  Ca = fully_alt_compressibility
+
+  if (P < Pi) then
+    term1 = Ci*(P-P0)
+    porosity = por_0*exp(term1)
+  elseif (P < Pa) then
+    term1 = Ci*(P-P0)
+    ! term2 = (Ca-Ci)/(Pa-Pi)
+    ! term3 = ((P-Pi)**2.d0)/2.d0
+    ! porosity = por_0*exp(term1+(term2*term3))
+    term2 = (Ca-Ci)*(P-Pi)**2.d0  ! Heeho
+    term3 = 2.d0*(Pa-Pi)  ! Heeho
+    porosity = por_0*exp(term1+(term2/term3))  ! Heeho
+    porosity = MIN(porosity,por_a)
+  elseif (P >= Pa) then
+    porosity = por_a
+  endif
+
+end subroutine FractureCalcFracPorosity
 
 ! ************************************************************************** !
 
@@ -250,14 +346,13 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   !
   ! Author: Heeho Park
   ! Date: 03/12/15
+  ! Modified by Jennifer M. Frederick on 02/19/2025
   !
-
   use Option_module
   use Material_Aux_module
 
   implicit none
 
-!  class(fracture_type) :: this
   type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
@@ -278,41 +373,54 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     return
   endif
 
-
   Ci = auxvar%soil_properties(soil_compressibility_index)
   if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
     ! convert bulk compressibility to pore compressibility
     Ci = auxvar%soil_properties(soil_compressibility_index) / &
          auxvar%porosity_base
   endif
-!  P0 = auxvar%soil_properties(soil_reference_pressure_index)
   P0 = auxvar%fracture%initial_pressure
-  Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
-  Pa = auxvar%fracture%properties(frac_alt_pres_index) + Pi
-  phia = auxvar%fracture%properties(frac_max_poro_index)
+  Pi = auxvar%fracture%properties(init_pres_index) + P0
+  Pa = auxvar%fracture%properties(ful_alt_pres_index) + Pi
+  phia = auxvar%fracture%properties(ful_alt_poro_index)
   phi0 = auxvar%porosity_base
 
-  if (P0 < -998.d0) then ! not yet initialized
+  if (Uninitialized(P0)) then
     compressed_porosity = phi0
     return
   endif
 
-  if (pressure < Pi) then
-!    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
-!                              dcompressed_porosity_dp)
-    compressed_porosity = phi0 * exp(Ci*(pressure-P0))
-  else if (pressure < Pa) then
-    Ca = Ci*(1.d0 - 2.d0 * (Pa-P0)/(Pa-Pi)) + &
-      2.d0/(Pa-Pi)*log(phia/phi0)
-    compressed_porosity = phi0 * exp(Ci*(pressure-P0) + &
-      ((Ca-Ci)*(pressure-Pi)**2.d0)/(2.d0*(Pa-Pi)))
-    compressed_porosity=min(compressed_porosity, phia)
+  call FractureCalcFulAltrdCompress(Ci,phi0,Pi,Pa,P0,phia,Ca)
+
+!   if (pressure < Pi) then
+! !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
+! !                              dcompressed_porosity_dp)
+!     compressed_porosity = phi0 * exp(Ci*(pressure-P0))
+!   else if (pressure < Pa) then
+!     Ca = Ci*(1.d0 - 2.d0 * (Pa-P0)/(Pa-Pi)) + &
+!       2.d0/(Pa-Pi)*log(phia/phi0)
+!     compressed_porosity = phi0 * exp(Ci*(pressure-P0) + &
+!       ((Ca-Ci)*(pressure-Pi)**2.d0)/(2.d0*(Pa-Pi)))
+!     compressed_porosity=min(compressed_porosity, phia)
+!     !mathematica solution
+!     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
+!       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
+!       phi0 * (Ci + ((Ca-Ci)*(pressure-Pi)) / (Pa-Pi))
+!   else if (pressure >= Pa) then
+!     compressed_porosity = phia
+!     dcompressed_porosity_dp = 0.d0
+!   endif
+
+
+  call FractureCalcFracPorosity(Ci,phi0,Pi,Pa,P0,pressure,phia,Ca, &
+                                compressed_porosity)
+
+  if (pressure < Pa) then
     !mathematica solution
     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
       phi0 * (Ci + ((Ca-Ci)*(pressure-Pi)) / (Pa-Pi))
-  else if (pressure >= Pa) then
-    compressed_porosity = phia
+  elseif (pressure >= Pa) then
     dcompressed_porosity_dp = 0.d0
   endif
 
@@ -361,12 +469,12 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
          auxvar%porosity_base
   endif
   P0 = auxvar%fracture%initial_pressure
-  Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
+  Pi = auxvar%fracture%properties(init_pres_index) + P0
 
   phi = effective_porosity
   phi0 = auxvar%porosity_base
 
-  n = auxvar%fracture%properties(frac_poro_exp_index)
+  n = auxvar%fracture%properties(poro_exp_index)
 
   if (P0 < -998.d0) then ! not yet initialized
     scaling_factor = 1.d0
@@ -892,6 +1000,7 @@ module Klinkenberg_module
 
   public :: KlinkenbergInit, &
             KlinkenbergCreate, &
+            KlinkenbergGetPtr, &
             KlinkenbergDestroy
 
   contains
@@ -943,6 +1052,7 @@ subroutine KlinkenbergRead(this,input,option)
   use String_module
   use Utility_module
   use Units_module
+  use Communicator_Aux_module
 
   implicit none
 
@@ -990,6 +1100,28 @@ subroutine KlinkenbergRead(this,input,option)
   endif
 
 end subroutine KlinkenbergRead
+
+! ************************************************************************** !
+
+function KlinkenbergGetPtr()
+  !
+  ! Author: David Fukuyama
+  ! Date: 03/18/25
+  !
+
+  implicit none
+
+  type(klinkenberg_type), pointer :: KlinkenbergGetPtr
+
+  if (.not.associated(klinkenberg)) then
+    allocate(klinkenberg)
+    ! nullify(klinkenberg%creep_closure_tables)
+    ! nullify(wipp%creep_closure_tables_array)
+  endif
+
+  KlinkenbergGetPtr => klinkenberg
+
+end function KlinkenbergGetPtr
 
 ! ************************************************************************** !
 

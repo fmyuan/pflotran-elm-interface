@@ -74,7 +74,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_auxiliary,pm_well_list, &
                                            pm_material_transform, &
                                            pm_parameter_list,pm_fracture, &
-                                           pm_geomech)
+                                           pm_geomech,pm_unittest)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -95,6 +95,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   use PM_Material_Transform_class
   use PM_Fracture_class
   use PM_Parameter_class
+  use PM_Unit_Test_class
   use Option_module
   use Simulation_Subsurface_class
   use PM_Geomechanics_Force_class
@@ -114,6 +115,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
+  class(pm_unittest_type), pointer :: pm_unittest
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
   class(pm_geomech_force_type), pointer :: pm_geomech
@@ -171,6 +173,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
         else
           pm_parameter_list => cur_pm
         endif
+      class is(pm_unittest_type)
+        pm_unittest => cur_pm
       class default
         option%io_buffer = &
          'PM Class unrecognized in FactSubLinkExtractPMsFromPMList.'
@@ -194,7 +198,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list,pm_fracture, &
-                                       pm_geomech)
+                                       pm_geomech,pm_unittest)
   !
   ! Sets up all PMC linkages
   !
@@ -216,6 +220,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_SCO2_class
   use PM_Hydrate_class
   use PM_Parameter_class
+  use PM_Unit_Test_class
   use PM_Geomechanics_Force_class
   use Factory_Subsurface_Read_module
   use Realization_Subsurface_class
@@ -235,6 +240,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_well_type), pointer :: pm_well_list
   class(pm_material_transform_type), pointer :: pm_material_transform
   class(pm_parameter_type), pointer :: pm_parameter_list
+  class(pm_unittest_type), pointer :: pm_unittest
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_geomech_force_type), pointer :: pm_geomech
 
@@ -242,6 +248,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   type(input_type), pointer :: input
   class(realization_subsurface_type), pointer :: realization
   class(pm_parameter_type), pointer :: cur_pm_parameter
+!  class(pm_unittest_type), pointer :: cur_pm_unittest
   class(pm_base_type), pointer :: next_pm
 
   realization => simulation%realization
@@ -258,7 +265,6 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
     call FactSubLinkAddPMCSubsurfGeophys(simulation,pm_geop, &
                                          'PMCSubsurfaceGeophysics')
   endif
-
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   call FactorySubsurfReadRequiredCards(simulation,input)
@@ -319,6 +325,10 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
       class is (pm_wippflo_type)
         call FactSubLinkAddPMWippSrcSink(realization,pm_flow,input)
     end select
+  endif
+
+  if (associated(pm_unittest)) then
+    call FactSubLinkAddPMCUnitTest(simulation,pm_unittest)
   endif
 
   call PMParameterSortPMs(pm_parameter_list)
@@ -1379,6 +1389,47 @@ subroutine FactSubLinkAddPMCParameter(simulation,pm_parameter)
   nullify(pmc_general)
 
 end subroutine FactSubLinkAddPMCParameter
+
+! ************************************************************************** !
+
+subroutine FactSubLinkAddPMCUnitTest(simulation,pm_unittest)
+!
+! Adds a unit test process model
+!
+! Author: David Fukuyama, SNL
+! Date: 03/18/25
+!
+
+  use Option_module
+  use PMC_General_class
+  use PMC_Base_class
+  use PM_Unit_Test_class
+  use Simulation_Subsurface_class
+
+  implicit none
+  class(simulation_subsurface_type) :: simulation
+  class(pm_unittest_type), pointer :: pm_unittest
+
+  type(option_type), pointer :: option
+  class(pmc_general_type), pointer :: pmc_general
+  class(pmc_base_type), pointer :: pmc_dummy
+
+  option => simulation%option
+  pm_unittest%realization => simulation%realization
+  pm_unittest%option => option
+
+  nullify(pmc_dummy)
+
+  pmc_general => PMCGeneralCreate(pm_unittest%name, &
+                                  pm_unittest%CastToBase())
+
+  call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
+             simulation%process_model_coupler_list%CastToBase(), &
+             pmc_dummy,PM_APPEND)
+  nullify(pmc_general)
+
+
+end subroutine FactSubLinkAddPMCUnitTest
 
 ! ************************************************************************** !
 
