@@ -575,11 +575,12 @@ subroutine PMFracSetup(this)
     cur_fracture%normal%x = cur_fracture%normal%x/vmag
     cur_fracture%normal%y = cur_fracture%normal%y/vmag
     cur_fracture%normal%z = cur_fracture%normal%z/vmag
-    a1 = cur_fracture%normal%x; b1 = cur_fracture%normal%x + 0.25
-    a2 = cur_fracture%normal%y; b2 = cur_fracture%normal%y + 0.5
-    a3 = cur_fracture%normal%z; b3 = cur_fracture%normal%z + 1.0
+    a1 = cur_fracture%normal%x; b1 = 0.d0
+    a2 = cur_fracture%normal%y; b2 = 0.d0
+    a3 = cur_fracture%normal%z; b3 = 1.d0
+    ! take the cross product, c = a x b
     c1 = a2*b3 - a3*b2
-    c2 = -1.d0*(a1*b3 - a3*b1)
+    c2 = a3*b1 - a1*b3
     c3 = a1*b2 - a2*b1
 
     cur_fracture%parallel%x = c1
@@ -588,9 +589,11 @@ subroutine PMFracSetup(this)
     vmag = sqrt((cur_fracture%parallel%x)**2.d0 + &
               (cur_fracture%parallel%y)**2.d0 + &
               (cur_fracture%parallel%z)**2.d0)
-    cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
-    cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
-    cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
+    if (vmag > 1.d-20) then
+      cur_fracture%parallel%x = cur_fracture%parallel%x/vmag
+      cur_fracture%parallel%y = cur_fracture%parallel%y/vmag
+      cur_fracture%parallel%z = cur_fracture%parallel%z/vmag
+    endif
     c1 = cur_fracture%parallel%x
     c2 = cur_fracture%parallel%y
     c3 = cur_fracture%parallel%z
@@ -1769,46 +1772,6 @@ end subroutine PMFracGenerateFracFam
 
 ! ************************************************************************** !
 
-subroutine PMFracCalc_dK(L,d_hap,RM,kx,ky,kz)
-  !
-  ! Calculates change in cell anisotropic permeability from fracture
-  ! permeability.
-  !
-  ! Author: Jennifer M. Frederick, SNL
-  ! Date: 12/18/2023
-  !
-
-  implicit none
-
-  PetscReal :: L
-  PetscReal :: d_hap ! change in hap
-  PetscReal :: RM(3,3)
-  PetscReal :: kx,ky,kz
-
-  PetscReal :: K_frac(3,3)
-  PetscReal :: K_frac_rot(3,3)
-  PetscReal :: K_domain(3,3)
-
-  ! the math:
-  ! K = (1.d0/12.d0)*(hap**3.0d0)/L
-  ! d_K/d_hap = (3.d0/12.d0)*(hap**2.0d0)/L
-
-  K_frac(:,:) = 0.d0
-  K_frac(1,1) = (3.d0/12.d0)*(d_hap**2.0d0)/L ! kxx
-  K_frac(2,2) = (3.d0/12.d0)*(d_hap**2.0d0)/L ! kyy
-  ! note: zero in kzz
-
-  K_frac_rot = MATMUL(RM,K_frac)
-  K_domain = MATMUL(K_frac_rot,TRANSPOSE(RM))
-
-  kx = K_domain(1,1)
-  ky = K_domain(2,2)
-  kz = K_domain(3,3)
-
-end subroutine PMFracCalc_dK
-
-! ************************************************************************** !
-
 subroutine PMFracCalcK(L,hap,RM,kx,ky,kz)
   !
   ! Calculates cell anisotropic permeability from fracture permeability.
@@ -1873,7 +1836,6 @@ subroutine PMFracSolve(this,time,ierr)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
   PetscReal :: cur_temperature,L
   PetscReal :: kx,ky,kz
-  PetscReal :: dkx,dky,dkz
   PetscInt :: icell,k
 
   option => this%option
@@ -1920,10 +1882,6 @@ subroutine PMFracSolve(this,time,ierr)
       cur_fracture%hap(k) = cur_fracture%hap(k) - cur_fracture%dL(k)
       ! make sure aperature doesn't go negative
       cur_fracture%hap(k) = max(0.d0,cur_fracture%hap(k))
-
-      ! get change in anisotropic domain permeability from rotation transform
-      call PMFracCalc_dK(L,-1.d0*cur_fracture%dL(k),cur_fracture%RM, &
-                         dkx,dky,dkz)
 
       ! get anisotropic domain permeability from rotation transformation
       call PMFracCalcK(L,cur_fracture%hap(k),cur_fracture%RM,kx,ky,kz)
