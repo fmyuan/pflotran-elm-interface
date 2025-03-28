@@ -308,6 +308,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
 
   use HDF5_module
   use Grid_Eclipse_module
+  use Dataset_Gridded_HDF5_class
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -336,6 +337,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  class(dataset_gridded_hdf5_type), pointer :: gridded_dataset
   PetscInt :: local_id, ghosted_id, material_id, i
   PetscInt :: natural_id, rprnc
   PetscReal :: poro, permx, permy, permz
@@ -628,6 +630,20 @@ subroutine InitSubsurfAssignMatProperties(realization)
                           NUMBER_SECONDARY_CELLS)
       endif
     endif
+  enddo
+
+  ! clean up gridded dataset so that they are not stored for the full
+  ! simulation but can still be read later
+  do material_id = 1, size(patch%material_property_array)
+    material_property => &
+            patch%material_property_array(material_id)%ptr
+    if (.not.associated(material_property)) cycle
+    gridded_dataset => &
+      DatasetGriddedHDF5Cast(material_property%permeability_dataset)
+    call DatasetGriddedHDF5Prune(gridded_dataset)
+    gridded_dataset => &
+      DatasetGriddedHDF5Cast(material_property%porosity_dataset)
+    call DatasetGriddedHDF5Prune(gridded_dataset)
   enddo
 
   ! update ghosted values
@@ -1147,7 +1163,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: local_id, ghosted_id, natural_id
   PetscReal :: tempreal
   PetscErrorCode :: ierr
@@ -1179,12 +1194,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
         enddo
         ! now we strip the dataset to save storage, saving only the name
         ! and filename incase it must be read later
-        filename = dataset%filename
-        dataset_name = dataset%name
-        call DatasetGriddedHDF5Strip(dataset)
-        call DatasetGriddedHDF5Init(dataset)
-        dataset%filename = filename
-        dataset%name = trim(dataset_name)
       class is(dataset_common_hdf5_type)
         dataset_name = dataset%hdf5_dataset_name
         call HDF5ReadCellIndexedRealArray(realization,field%work, &

@@ -33,6 +33,7 @@ module Dataset_Gridded_HDF5_class
 
   public :: DatasetGriddedHDF5Create, &
             DatasetGriddedHDF5Init, &
+            DatasetGriddedHDF5Prune, &
             DatasetGriddedHDF5Cast, &
             DatasetGriddedHDF5Verify, &
             DatasetGriddedHDF5Load, &
@@ -92,6 +93,33 @@ subroutine DatasetGriddedHDF5Init(this)
   nullify(this%discretization)
 
 end subroutine DatasetGriddedHDF5Init
+
+! ************************************************************************** !
+
+subroutine DatasetGriddedHDF5Prune(this)
+  !
+  ! Destroys the allocated content while preserving the filename and dataset
+  ! name for reuse later in the simulation if read again
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/27/25
+
+  implicit none
+
+  class(dataset_gridded_hdf5_type), pointer :: this
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: filename
+
+  if (.not.associated(this)) return
+  filename = this%filename
+  dataset_name = this%name
+  call DatasetGriddedHDF5Strip(this)
+  call DatasetGriddedHDF5Init(this)
+  this%filename = filename
+  this%name = trim(dataset_name)
+
+end subroutine DatasetGriddedHDF5Prune
 
 ! ************************************************************************** !
 
