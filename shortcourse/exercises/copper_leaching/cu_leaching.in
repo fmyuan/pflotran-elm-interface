@@ -107,7 +107,6 @@ CHEMISTRY
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Chrysocolla2
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       PREFACTOR
         RATE_CONSTANT 1.d-10 mol/cm^2-sec
         PREFACTOR_SPECIES H+
@@ -116,7 +115,6 @@ CHEMISTRY
       /
     /
     Goethite
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Gypsum
@@ -129,18 +127,15 @@ CHEMISTRY
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Kaolinite
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     Muscovite
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-13 mol/cm^2-sec
     /
     SiO2(am)
       RATE_CONSTANT 1.d-11 mol/cm^2-sec
     /
     Quartz
-      SURFACE_AREA_VOL_FRAC_POWER 0.666666667d0
       RATE_CONSTANT 1.d-14 mol/cm^2-sec
     /
   /
