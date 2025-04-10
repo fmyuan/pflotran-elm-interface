@@ -1676,7 +1676,9 @@ end subroutine pflotranModelSetICs
 
     select type (simulation => model%simulation)
       class is (simulation_subsurface_type)
-         call WaypointInsertInList(waypoint, simulation%waypoint_list_subsurface)
+         call WaypointInsertInList(waypoint, &
+                                   simulation%waypoint_list_subsurface, &
+                                   model%option)
       class default
          nullify(realization)
          model%option%io_buffer = "pflotranModelInsertWaypoint only " // &

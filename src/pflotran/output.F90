@@ -262,7 +262,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             case('MASS_BALANCE_FILE')
               waypoint%print_msbl_output = PETSC_TRUE
           end select
-          call WaypointInsertInList(waypoint,waypoint_list)
+          call WaypointInsertInList(waypoint,waypoint_list,option)
         enddo
         call DeallocateArray(temp_real_array)
 
@@ -316,7 +316,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                       waypoint => WaypointCreate()
                       waypoint%time = temp_real
                       waypoint%print_snap_output = PETSC_TRUE
-                      call WaypointInsertInList(waypoint,waypoint_list)
+                      call WaypointInsertInList(waypoint,waypoint_list,option)
                       temp_real = temp_real + &
                            output_option%periodic_snap_output_time_incr
                       if (temp_real > temp_real2) exit
@@ -327,7 +327,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                       waypoint => WaypointCreate()
                       waypoint%time = temp_real
                       waypoint%print_obs_output = PETSC_TRUE
-                      call WaypointInsertInList(waypoint,waypoint_list)
+                      call WaypointInsertInList(waypoint,waypoint_list,option)
                       temp_real = temp_real + &
                            output_option%periodic_obs_output_time_incr
                       if (temp_real > temp_real2) exit
@@ -338,7 +338,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                       waypoint => WaypointCreate()
                       waypoint%time = temp_real
                       waypoint%print_msbl_output = PETSC_TRUE
-                      call WaypointInsertInList(waypoint,waypoint_list)
+                      call WaypointInsertInList(waypoint,waypoint_list,option)
                       temp_real = temp_real + &
                            output_option%periodic_msbl_output_time_incr
                       if (temp_real > temp_real2) exit

@@ -1122,7 +1122,7 @@ subroutine GeomechRealizAddWaypointsToList(geomech_realization,waypoint_list)
             waypoint => WaypointCreate()
             waypoint%time = times(itime)
             waypoint%update_conditions = PETSC_TRUE
-            call WaypointInsertInList(waypoint,waypoint_list)
+            call WaypointInsertInList(waypoint,waypoint_list,option)
           enddo
           deallocate(times)
           nullify(times)

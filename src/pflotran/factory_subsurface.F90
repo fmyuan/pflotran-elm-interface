@@ -627,7 +627,7 @@ subroutine FactorySubsurfSetupWaypointList(simulation)
 
   ! create sync waypoint list to be used a few lines below
   sync_waypoint_list => &
-    WaypointCreateSyncWaypointList(simulation%waypoint_list_subsurface)
+    WaypointCreateSyncWaypointList(simulation%waypoint_list_subsurface,option)
 
   ! merge in outer waypoints (e.g. checkpoint times)
   ! creates a copy of outer and merges to subsurface

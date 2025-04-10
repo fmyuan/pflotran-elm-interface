@@ -339,7 +339,7 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
       if (.not.associated(this%local_waypoint_list)) then
         this%local_waypoint_list => WaypointListCreate()
       endif
-      call WaypointInsertInList(waypoint,this%local_waypoint_list)
+      call WaypointInsertInList(waypoint,this%local_waypoint_list,option)
     case default
       found = PETSC_FALSE
   end select
@@ -393,7 +393,7 @@ subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list, &
       call PrintErrMsg(option)
     endif
     waypoint => WaypointCreate(waypoint) ! creates a new copy
-    call WaypointInsertInList(waypoint,this%local_waypoint_list)
+    call WaypointInsertInList(waypoint,this%local_waypoint_list,option)
     nullify(waypoint)
     call WaypointListFillIn(this%local_waypoint_list,option)
     call WaypointListRemoveExtraWaypnts(this%local_waypoint_list, &
