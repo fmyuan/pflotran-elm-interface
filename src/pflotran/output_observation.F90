@@ -3624,7 +3624,8 @@ subroutine OutputMassBalance(realization_base)
   enddo
 
   ! Print the cumulative mass fluxes through coupled wells
-  if (associated(patch%well_coupler_list)) then
+  if (associated(patch%well_coupler_list) .and. &
+      (option%itranmode /= NWT_MODE)) then
     coupler => patch%well_coupler_list%first
     global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
     if (option%ntrandof > 0) then
