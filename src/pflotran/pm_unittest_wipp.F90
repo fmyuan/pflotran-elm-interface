@@ -408,7 +408,8 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
     write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') gas_pressure(k)
 
     write(fu_out,'(a)') '[out]  gas permeability (x,y,z) [m2]:'
-    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/perm_x(k)*permeability_scale(k,1),perm_y(k)*permeability_scale(k,2),perm_z(k)*permeability_scale(k,3)/)
+    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/perm_x(k)*permeability_scale(k,1), &
+      perm_y(k)*permeability_scale(k,2),perm_z(k)*permeability_scale(k,3)/)
     write(fu_out,'(a)') '[correct]  gas permeability (x,y,z) [m2]:'
     write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/correct_perm_out_x(k),correct_perm_out_y(k),correct_perm_out_z(k)/)
 
