@@ -1923,7 +1923,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                 waypoint => WaypointCreate()
                 waypoint%time = temp_real_array(temp_int)*units_conversion
                 waypoint%print_snap_output = PETSC_TRUE
-                call WaypointInsertInList(waypoint,waypoint_list)
+                call WaypointInsertInList(waypoint,waypoint_list,option)
               enddo
               call DeallocateArray(temp_real_array)
             case('OUTPUT_FILE')
@@ -1999,7 +1999,8 @@ subroutine FactorySubsurfReadInput(simulation,input)
                         waypoint => WaypointCreate()
                         waypoint%time = temp_real
                         waypoint%print_snap_output = PETSC_TRUE
-                        call WaypointInsertInList(waypoint,waypoint_list)
+                        call WaypointInsertInList(waypoint,waypoint_list, &
+                                                  option)
                         temp_real = temp_real + &
                           output_option%periodic_snap_output_time_incr
                         if (temp_real > temp_real2) exit
@@ -2038,11 +2039,11 @@ subroutine FactorySubsurfReadInput(simulation,input)
                 waypoint => WaypointCreate()
                 waypoint%time = temp_real_array(temp_int)*units_conversion
                 waypoint%print_obs_output = PETSC_TRUE
-                call WaypointInsertInList(waypoint,waypoint_list)
+                call WaypointInsertInList(waypoint,waypoint_list,option)
                 waypoint => WaypointCreate()
                 waypoint%time = temp_real_array(temp_int)*units_conversion
                 waypoint%print_msbl_output = PETSC_TRUE
-                call WaypointInsertInList(waypoint,waypoint_list)
+                call WaypointInsertInList(waypoint,waypoint_list,option)
               enddo
               call DeallocateArray(temp_real_array)
             case('PERIODIC_OBSERVATION')
@@ -2303,7 +2304,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
               waypoint%time = temp_real*temp_real2
               waypoint%print_snap_output = PETSC_TRUE
               ! do not place final time in waypoint_list_time_card
-              call WaypointInsertInList(waypoint,waypoint_list)
+              call WaypointInsertInList(waypoint,waypoint_list,option)
             case('INITIAL_TIMESTEP_SIZE')
               call InputReadDouble(input,option,dt_init)
               call InputErrorMsg(input,option,'INITIAL_TIMESTEP_SIZE',card)
@@ -2352,7 +2353,7 @@ subroutine FactorySubsurfReadInput(simulation,input)
                 waypoint_list_time_card => WaypointListCreate()
               endif
               call WaypointInsertInList(waypoint, &
-                                        waypoint_list_time_card)
+                                        waypoint_list_time_card,option)
             case default
               call InputKeywordUnrecognized(input,word,'TIME',option)
           end select

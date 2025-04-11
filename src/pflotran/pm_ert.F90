@@ -264,7 +264,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
           waypoint => WaypointCreate()
           waypoint%time = temp_real_array(temp_int)*units_conversion
           waypoint%sync = PETSC_TRUE
-          call WaypointInsertInList(waypoint,this%waypoint_list)
+          call WaypointInsertInList(waypoint,this%waypoint_list,option)
         enddo
         call DeallocateArray(temp_real_array)
       case('MOBILITY_DATABASE')

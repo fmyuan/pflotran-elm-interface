@@ -1409,7 +1409,7 @@ subroutine CheckpointRead(input,option,waypoint_list)
           waypoint => WaypointCreate()
           waypoint%time = temp_real_array(i)*units_conversion
           waypoint%print_checkpoint = PETSC_TRUE
-          call WaypointInsertInList(waypoint,waypoint_list)
+          call WaypointInsertInList(waypoint,waypoint_list,option)
         enddo
         call DeallocateArray(temp_real_array)
 #else
@@ -1421,7 +1421,7 @@ subroutine CheckpointRead(input,option,waypoint_list)
           waypoint => WaypointCreate()
           waypoint%time = temp_real * units_conversion
           waypoint%print_checkpoint = PETSC_TRUE
-          call WaypointInsertInList(waypoint,waypoint_list)
+          call WaypointInsertInList(waypoint,waypoint_list,option)
         enddo
 #endif
       case ('FORMAT')
@@ -1524,7 +1524,7 @@ subroutine CheckpointPeriodicTimeWaypoints(waypoint_list,option)
         waypoint => WaypointCreate()
         waypoint%time = temp_real
         waypoint%print_checkpoint = PETSC_TRUE
-        call WaypointInsertInList(waypoint,waypoint_list)
+        call WaypointInsertInList(waypoint,waypoint_list,option)
         if ((num_waypoints > warning_num_waypoints) .and. &
             OptionPrintToScreen(option)) then
           call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
