@@ -335,6 +335,11 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
         call GeomechStrataRead(strata,input,option)
         call GeomechRealizAddStrata(geomech_realization,strata)
         nullify(strata)
+
+      !.........................................................................
+      case ('GEOMECHANICS_IMPROVE_TET_WEIGHTING')
+        option%geomechanics%improve_tet_weighting = PETSC_TRUE
+
       !.........................................................................
       case ('END_GEOMECHANICS')
         exit

@@ -17,6 +17,7 @@ module Option_Geomechanics_module
     PetscInt :: subsurf_coupling
     PetscReal :: gravity(3)
     PetscInt :: split_scheme
+    PetscBool :: improve_tet_weighting
 
   end type geomechanics_option_type
 
@@ -98,6 +99,7 @@ subroutine OptionGeomechanicsInitRealization(option)
   option%split_scheme = 0
   option%gravity(:) = 0.d0
   option%gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
+  option%improve_tet_weighting = PETSC_FALSE
 
 end subroutine OptionGeomechanicsInitRealization
 

@@ -832,6 +832,146 @@ end subroutine GeomechForceResidualPatch
 
 ! ************************************************************************** !
 
+subroutine ComputeTetVolAtVertex(vert_0, &
+                                 vert_1, &
+                                 vert_2, &
+                                 vert_3, &
+                                 volume)
+  ! Returns the volume of the specified tetrahedron after
+  ! being clipped on the positive side of the planes computed
+  ! in this function.
+  ! This works by calling ClippedVolume() recursively on one plane
+  ! at a time.
+  ! ClippedVolume() clips on the given plane, splits the resulting
+  ! polyhedron into tetrahedra, and then calls itself recursively.
+
+  PetscReal :: vert_0(3)
+  PetscReal :: vert_1(3)
+  PetscReal :: vert_2(3)
+  PetscReal :: vert_3(3)
+
+  PetscReal :: midPoints(3, 3), normals(3, 3)
+  PetscReal :: volume
+
+  midPoints(1, :) = (vert_0(:) + vert_1(:))*0.5
+  midPoints(2, :) = (vert_0(:) + vert_2(:))*0.5
+  midPoints(3, :) = (vert_0(:) + vert_3(:))*0.5
+
+  normals(1, :) = vert_0(:) - vert_1(:)
+  normals(2, :) = vert_0(:) - vert_2(:)
+  normals(3, :) = vert_0(:) - vert_3(:)
+
+  normals(1, :) = normals(1, :) / sqrt(dot_product(normals(1, :), normals(1, :)))
+  normals(2, :) = normals(2, :) / sqrt(dot_product(normals(2, :), normals(2, :)))
+  normals(3, :) = normals(3, :) / sqrt(dot_product(normals(3, :), normals(3, :)))
+
+  volume = ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, 3)
+end subroutine ComputeTetVolAtVertex
+
+recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, nSize_in) result(nRet)
+  PetscReal :: vert_0(3), vert_1(3), vert_2(3), vert_3(3)
+  PetscReal :: midPoints(3, 3), normals(3, 3)
+  PetscInt :: nSize_in
+  PetscInt :: nSize
+  PetscReal :: nRet
+  PetscReal :: vP(3), vN(3), vvert_0(3), vvert_1(3), vvert_2(3), vvert_3(3), vvert_4(3)
+  PetscReal :: V(4, 3)
+  PetscReal :: d(4)
+  PetscReal :: dot, cross, Length
+
+  nRet = 0
+  nSize = nSize_in
+
+  if (nSize == 0) then
+    nRet = abs(dot_product(cross_product(vert_1 - vert_0, vert_2 - vert_0), vert_3 - vert_0) / 6.0)
+  else
+    nSize = nSize - 1
+    vP = midPoints(nSize + 1, :)
+    vN = normals(nSize + 1, :)
+    V(1, :) = vert_0
+    d(1) = dot_product(vert_0 - vP, vN)
+    V(2, :) = vert_1
+    d(2) = dot_product(vert_1 - vP, vN)
+    V(3, :) = vert_2
+    d(3) = dot_product(vert_2 - vP, vN)
+    V(4, :) = vert_3
+    d(4) = dot_product(vert_3 - vP, vN)
+
+    call sort(V, d)
+
+    if (d(1) <= 0.0) then
+      nRet = 0.0
+    else if (d(4) >= 0.0) then
+      nRet = nRet + ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, nSize)
+    else if (d(3) > 0.0) then
+      vvert_0 = Intersect(V(1, :), V(4, :), d(1), d(4))
+      vvert_1 = Intersect(V(2, :), V(4, :), d(2), d(4))
+      vvert_2 = Intersect(V(3, :), V(4, :), d(3), d(4))
+      nRet = nRet + ClippedVolume(V(1, :), V(2, :), V(3, :), vvert_2, midPoints, normals, nSize) + &
+             ClippedVolume(V(1, :), vvert_0, V(2, :), vvert_2, midPoints, normals, nSize) + &
+             ClippedVolume(V(2, :), vvert_0, vvert_1, vvert_2, midPoints, normals, nSize)
+    else if (d(3) == 0.0) then
+      vvert_0 = Intersect(V(1, :), V(4, :), d(1), d(4))
+      vvert_1 = Intersect(V(2, :), V(4, :), d(2), d(4))
+      nRet = nRet + ClippedVolume(V(1, :), vvert_0, V(2, :), V(3, :), midPoints, normals, nSize) + &
+             ClippedVolume(V(2, :), vvert_0, vvert_1, V(3, :), midPoints, normals, nSize)
+    else if (d(2) > 0.0) then
+      vvert_1 = Intersect(V(1, :), V(3, :), d(1), d(3))
+      vvert_2 = Intersect(V(1, :), V(4, :), d(1), d(4))
+      vvert_3 = Intersect(V(2, :), V(3, :), d(2), d(3))
+      vvert_4 = Intersect(V(2, :), V(4, :), d(2), d(4))
+      nRet = nRet + ClippedVolume(V(1, :), vvert_1, vvert_2, vvert_3, midPoints, normals, nSize) + &
+             ClippedVolume(V(1, :), vvert_2, vvert_3, vvert_4, midPoints, normals, nSize) + &
+             ClippedVolume(V(1, :), V(2, :), vvert_3, vvert_4, midPoints, normals, nSize)
+    else
+      vvert_1 = Intersect(V(1, :), V(2, :), d(1), d(2))
+      vvert_2 = Intersect(V(1, :), V(3, :), d(1), d(3))
+      vvert_3 = Intersect(V(1, :), V(4, :), d(1), d(4))
+      nRet = nRet + ClippedVolume(V(1, :), vvert_1, vvert_2, vvert_3, midPoints, normals, nSize)
+    end if
+  end if
+end function ClippedVolume
+
+function Intersect(v1, v2, d1, d2) result(v)
+  PetscReal :: v1(3), v2(3)
+  PetscReal :: d1, d2
+  PetscReal :: v(3)
+
+  v = v1 * (-d2 / (d1 - d2)) + v2 * (d1 / (d1 - d2))
+end function Intersect
+
+function cross_product(v1, v2) result(v)
+  PetscReal :: v1(3), v2(3)
+  PetscReal :: v(3)
+
+  v(1) = v1(2) * v2(3) - v1(3) * v2(2)
+  v(2) = v1(3) * v2(1) - v1(1) * v2(3)
+  v(3) = v1(1) * v2(2) - v1(2) * v2(1)
+end function cross_product
+
+subroutine sort(V, d)
+  PetscReal :: V(4, 3)
+  PetscReal :: d(4)
+  integer :: i, j
+  PetscReal :: temp_d
+  PetscReal :: temp_V(3)
+
+  do i = 1, 3
+    do j = i + 1, 4
+      if (d(i) < d(j)) then
+        temp_d = d(i)
+        d(i) = d(j)
+        d(j) = temp_d
+        temp_V = V(i, :)
+        V(i, :) = V(j, :)
+        V(j, :) = temp_V
+      end if
+    end do
+  end do
+end subroutine sort
+
+! ************************************************************************** !
+
 subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
                                          local_disp, &
                                          local_press,local_temp, &
@@ -880,7 +1020,9 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
   PetscInt :: load_type
   PetscReal :: bf(THREE_INTEGER)
   PetscReal :: identity(THREE_INTEGER,THREE_INTEGER)
+  PetscReal :: gauss_tot_weight
   PetscReal, allocatable :: N(:,:)
+  PetscReal, allocatable :: gauss_tet_vol_weight(:)
   PetscReal, allocatable :: vecB_transpose(:,:)
   PetscReal, allocatable :: kron_B_eye(:,:)
   PetscReal, allocatable :: kron_B_transpose_eye(:,:)
@@ -909,6 +1051,42 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
       if (i == j) identity(i,j) = 1.d0
     enddo
   enddo
+
+  if(option%geomechanics%improve_tet_weighting .and. &
+    eletype.eq.2 .and. len_w.eq.4) then
+    allocate(gauss_tet_vol_weight(len_w))
+    call ComputeTetVolAtVertex(local_coordinates(1, :), &
+                               local_coordinates(2, :), &
+                               local_coordinates(3, :), &
+                               local_coordinates(4, :), &
+                               gauss_tet_vol_weight(1))
+
+    call ComputeTetVolAtVertex(local_coordinates(2, :), &
+                               local_coordinates(3, :), &
+                               local_coordinates(4, :), &
+                               local_coordinates(1, :), &
+                               gauss_tet_vol_weight(2))
+
+    call ComputeTetVolAtVertex(local_coordinates(3, :), &
+                               local_coordinates(4, :), &
+                               local_coordinates(1, :), &
+                               local_coordinates(2, :), &
+                               gauss_tet_vol_weight(3))
+
+    call ComputeTetVolAtVertex(local_coordinates(4, :), &
+                               local_coordinates(1, :), &
+                               local_coordinates(2, :), &
+                               local_coordinates(3, :), &
+                               gauss_tet_vol_weight(4))
+
+    gauss_tot_weight = gauss_tet_vol_weight(1) + &
+                       gauss_tet_vol_weight(2) + &
+                       gauss_tet_vol_weight(3) + &
+                       gauss_tet_vol_weight(4)
+    do i = 1, 4
+      gauss_tet_vol_weight(i) = gauss_tet_vol_weight(i) / gauss_tot_weight
+    enddo
+  endif
 
   call Transposer(option%ngeomechdof,size_elenodes,Trans)
 
@@ -947,7 +1125,21 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
     Kmat = Kmat + w(igpt)*mu*matmul(kron_B_eye,kron_B_transpose_eye)*detJ_map
     Kmat = Kmat + w(igpt)*mu* &
       matmul(matmul(kron_B_eye,kron_eye_B_transpose),Trans)*detJ_map
-    force = force + w(igpt)*density*matmul(kron_N_eye,bf)*detJ_map
+    if(option%geomechanics%improve_tet_weighting .and. &
+       eletype.eq.2 .and. len_w.eq.4) then
+      ! w(igpt) = 1/4 * 1/6 = 1/n_gausspoints * reference_tet_volume
+      ! and detJ_map * reference_tet_volume = current_tet_volume
+      ! so w(igpt)*detJ_map = 1/4 * current_tet_volume = proportion_of_current_tet_assigned_to_this_gauss_point
+      ! However we can do better than just using 1/4 (i.e. assigning it evenly).
+      ! This is what gauss_tet_vol_weight is
+      ! (a more careful assigning of the volume of the tetrahedron amongst the gauss points).
+      ! This approach only works for tetrahedrons with 4 gauss points,
+      ! as each guass point sits near a unique vertex.
+      force = force + w(igpt)*4*gauss_tet_vol_weight(igpt)*density* &
+                      matmul(kron_N_eye,bf)*detJ_map
+    else
+      force = force + w(igpt)*density*matmul(kron_N_eye,bf)*detJ_map
+    endif
     force = force + w(igpt)*beta*dot_product(N(:,1),local_press)* &
       vecB_transpose(:,1)*detJ_map
     force = force + w(igpt)*alpha*(3*lambda+2*mu)* &
@@ -960,6 +1152,11 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
     deallocate(kron_eye_B_transpose)
     deallocate(kron_N_eye)
   enddo
+
+  if(option%geomechanics%improve_tet_weighting .and. &
+     eletype.eq.2 .and. len_w.eq.4) then
+    deallocate(gauss_tet_vol_weight)
+  endif
 
   call ConvertMatrixToVector(transpose(local_disp),vec_local_disp)
   res_vec_mat = matmul(Kmat,vec_local_disp)
