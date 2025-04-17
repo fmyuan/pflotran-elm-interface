@@ -168,8 +168,8 @@ subroutine WaypointListMerge(waypoint_list1,waypoint_list2,option)
 
   type(waypoint_list_type), pointer :: waypoint_list1
   type(waypoint_list_type), pointer :: waypoint_list2
-
   type(option_type) :: option
+
   type(waypoint_type), pointer :: cur_waypoint, next_waypoint
 
   if (.not.associated(waypoint_list1) .and. &
@@ -190,7 +190,7 @@ subroutine WaypointListMerge(waypoint_list1,waypoint_list2,option)
     if (.not.associated(cur_waypoint)) exit
     next_waypoint => cur_waypoint%next
     nullify(cur_waypoint%next)
-    call WaypointInsertInList(cur_waypoint,waypoint_list1)
+    call WaypointInsertInList(cur_waypoint,waypoint_list1,option)
     cur_waypoint => next_waypoint
     nullify(next_waypoint)
   enddo
@@ -231,20 +231,23 @@ end subroutine WaypointListCopyAndMerge
 
 ! ************************************************************************** !
 
-subroutine WaypointInsertInList(new_waypoint,waypoint_list)
+subroutine WaypointInsertInList(new_waypoint,waypoint_list,option)
   !
   ! Correctly inserts a waypoing in a list
   !
   ! Author: Glenn Hammond
   ! Date: 11/09/07
   !
-
   use Utility_module
+  use Option_module
+  use String_module
 
   type(waypoint_type), pointer :: new_waypoint
   type(waypoint_list_type) :: waypoint_list
+  type(option_type) :: option
 
   type(waypoint_type), pointer :: waypoint
+  character(len=MAXWORDLENGTH) :: word
 
   ! place new waypoint in proper location within list
   waypoint => waypoint_list%first
@@ -260,6 +263,18 @@ subroutine WaypointInsertInList(new_waypoint,waypoint_list)
         if (Equal(new_waypoint%time,waypoint%time)) then
           call WaypointMerge(waypoint,new_waypoint)
           return ! do not increment num_waypoints at bottom
+        else if (dabs((new_waypoint%time-waypoint%time)/ &
+                      waypoint%time) < 1.d-14) then
+          ! relative difference is very small, merge the two
+          write(word,*) waypoint%time
+          option%io_buffer = 'Merging waypoints with rounding error (' // &
+            trim(adjustl(word))
+          write(word,*) new_waypoint%time
+          option%io_buffer = trim(option%io_buffer) // ' <-- ' // &
+            trim(adjustl(word)) // ').'
+          call PrintMsg(option)
+          call WaypointMerge(waypoint,new_waypoint)
+          return
         else if (associated(waypoint%next)) then
           if (new_waypoint%time-waypoint%time > 1.d-10 .and. & ! within list
               new_waypoint%time-waypoint%next%time < -1.d-10) then
@@ -271,11 +286,18 @@ subroutine WaypointInsertInList(new_waypoint,waypoint_list)
           else
             waypoint => waypoint%next
           endif
-        else ! at end of list
+        else if (new_waypoint%time > waypoint%time .and. &
+                 associated(waypoint,waypoint_list%last)) then ! at end of list
           waypoint%next => new_waypoint
           new_waypoint%prev => waypoint
           waypoint_list%last => new_waypoint
           exit
+        else ! try to fix a number that is slightly off due to rounding error
+          option%io_buffer = 'Unable to insert waypoint at time ' // &
+            StringWrite(new_waypoint%time) // ' into waypoint list likely &
+            &due to rounding error. Please email your input deck to &
+            &pflotran-dev@googlegroups.com.'
+          call PrintErrMsg(option)
         endif
       enddo
     endif
@@ -828,7 +850,7 @@ end function WaypointForceMatchToTime
 
 ! ************************************************************************** !
 
-function WaypointCreateSyncWaypointList(waypoint_list)
+function WaypointCreateSyncWaypointList(waypoint_list,option)
   !
   ! Creates a list of waypoints for outer synchronization of simulation process
   ! model couplers
@@ -836,12 +858,12 @@ function WaypointCreateSyncWaypointList(waypoint_list)
   ! Author: Glenn Hammond
   ! Date: 10/08/14
   !
-
   use Option_module
 
   implicit none
 
   type(waypoint_list_type), pointer :: waypoint_list
+  type(option_type) :: option
 
   type(waypoint_list_type), pointer :: WaypointCreateSyncWaypointList
 
@@ -856,7 +878,7 @@ function WaypointCreateSyncWaypointList(waypoint_list)
     if (.not.associated(cur_waypoint)) exit
     if (cur_waypoint%sync .or. cur_waypoint%final) then
       new_waypoint => WaypointCreate(cur_waypoint)
-      call WaypointInsertInList(new_waypoint,new_waypoint_list)
+      call WaypointInsertInList(new_waypoint,new_waypoint_list,option)
       if (cur_waypoint%final) exit
     endif
     cur_waypoint => cur_waypoint%next

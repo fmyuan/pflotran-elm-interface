@@ -1811,7 +1811,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
             waypoint => WaypointCreate()
             waypoint%time = times(itime)
             waypoint%update_conditions = PETSC_TRUE
-            call WaypointInsertInList(waypoint,waypoint_list)
+            call WaypointInsertInList(waypoint,waypoint_list,option)
           enddo
           deallocate(times)
           nullify(times)
@@ -1833,7 +1833,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
           waypoint => WaypointCreate()
           waypoint%time = cur_constraint_coupler%time
           waypoint%update_conditions = PETSC_TRUE
-          call WaypointInsertInList(waypoint,waypoint_list)
+          call WaypointInsertInList(waypoint,waypoint_list,option)
         endif
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
@@ -1851,7 +1851,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
           waypoint => WaypointCreate()
           waypoint%time = time_storage_ptr%times(itime)
           waypoint%update_conditions = PETSC_TRUE
-          call WaypointInsertInList(waypoint,waypoint_list)
+          call WaypointInsertInList(waypoint,waypoint_list,option)
         enddo
       endif
     endif
@@ -1870,7 +1870,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
               waypoint => WaypointCreate()
               waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
-              call WaypointInsertInList(waypoint,waypoint_list)
+              call WaypointInsertInList(waypoint,waypoint_list,option)
             enddo
           endif
         class default
@@ -1892,7 +1892,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
               waypoint => WaypointCreate()
               waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
-              call WaypointInsertInList(waypoint,waypoint_list)
+              call WaypointInsertInList(waypoint,waypoint_list,option)
             enddo
           endif
         class default
@@ -1909,13 +1909,13 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
       waypoint => WaypointCreate()
       waypoint%time = cur_strata%start_time
       waypoint%sync = PETSC_TRUE
-      call WaypointInsertInList(waypoint,waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list,option)
     endif
     if (Initialized(cur_strata%final_time)) then
       waypoint => WaypointCreate()
       waypoint%time = cur_strata%final_time
       waypoint%sync = PETSC_TRUE
-      call WaypointInsertInList(waypoint,waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list,option)
     endif
     cur_strata => cur_strata%next
   enddo

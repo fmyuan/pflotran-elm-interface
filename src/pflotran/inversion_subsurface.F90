@@ -1239,7 +1239,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
     waypoint%time = real_array(i)
     waypoint%sync = PETSC_TRUE
     call WaypointInsertInList(waypoint, &
-                              this%forward_simulation%waypoint_list_outer)
+                              this%forward_simulation%waypoint_list_outer, &
+                              this%realization%option)
   enddo
 
 

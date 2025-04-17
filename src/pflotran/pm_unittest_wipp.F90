@@ -414,7 +414,6 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
       (/perm_x(k),perm_y(k),perm_z(k)/)
     write(fu_out,'(a)') '[in]  gas pressure [Pa]:'
     write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') gas_pressure(k)
-
     write(fu_out,'(a)') '[out]  gas permeability (x,y,z) [m2]:'
     write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') &
       (/perm_x(k)*permeability_scale(k,1), &

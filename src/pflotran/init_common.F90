@@ -376,7 +376,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       waypoint => WaypointCreate()
       waypoint%time = temp_real
       waypoint%print_snap_output = PETSC_TRUE
-      call WaypointInsertInList(waypoint,waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list,option)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
         call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
@@ -404,7 +404,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       waypoint => WaypointCreate()
       waypoint%time = temp_real
       waypoint%print_obs_output = PETSC_TRUE
-      call WaypointInsertInList(waypoint,waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list,option)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
         call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
@@ -432,7 +432,7 @@ subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
       waypoint => WaypointCreate()
       waypoint%time = temp_real
       waypoint%print_msbl_output = PETSC_TRUE
-      call WaypointInsertInList(waypoint,waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list,option)
       if ((num_waypoints > warning_num_waypoints) .and. &
           OptionPrintToScreen(option)) then
         call PrintProgressBarInt(num_waypoints,TEN_INTEGER,k)
