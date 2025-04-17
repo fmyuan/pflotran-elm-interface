@@ -205,7 +205,8 @@ end subroutine PMGeomechForceFinalizeRun
 
 ! ************************************************************************** !
 
-subroutine PMGeomechForceSetRealization(this, geomech_realization)
+subroutine PMGeomechForceSetRealization(this, geomech_realization, &
+                                        subsurf_realization)
   !
   ! This routine
   !
@@ -214,14 +215,16 @@ subroutine PMGeomechForceSetRealization(this, geomech_realization)
   !
 
   use Grid_module
+  use Realization_Subsurface_class
 
   implicit none
 
   class(pm_geomech_force_type) :: this
   class(realization_geomech_type), pointer :: geomech_realization
+  class(realization_subsurface_type), pointer :: subsurf_realization
 
   this%geomech_realization => geomech_realization
-  this%realization_base => geomech_realization
+  this%realization_base => subsurf_realization
 
   this%solution_vec = geomech_realization%geomech_field%disp_xx
   this%residual_vec = geomech_realization%geomech_field%disp_r
