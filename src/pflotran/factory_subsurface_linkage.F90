@@ -74,7 +74,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
                                            pm_auxiliary,pm_well_list, &
                                            pm_material_transform, &
                                            pm_parameter_list,pm_fracture, &
-                                           pm_geomech,pm_unittest)
+                                           pm_geomech,pm_ponded_water, &
+                                           pm_unittest)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -95,6 +96,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   use PM_Material_Transform_class
   use PM_Fracture_class
   use PM_Parameter_class
+  use PM_Ponded_Water_class
   use PM_Unit_Test_class
   use Option_module
   use Simulation_Subsurface_class
@@ -119,6 +121,7 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_base_type), pointer :: cur_pm, next_pm, cur_pm2
   class(pm_geomech_force_type), pointer :: pm_geomech
+  class(pm_ponded_water_type), pointer :: pm_ponded_water
 
   option => simulation%option
 
@@ -127,11 +130,14 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
   nullify(pm_waste_form)
   nullify(pm_ufd_decay)
   nullify(pm_ufd_biosphere)
+  nullify(pm_geop)
   nullify(pm_auxiliary)
   nullify(pm_well_list)
   nullify(pm_material_transform)
+  nullify(pm_parameter_list)
   nullify(pm_fracture)
   nullify(pm_geomech)
+  nullify(pm_ponded_water)
 
   cur_pm => simulation%process_model_list
   do
@@ -173,6 +179,8 @@ subroutine FactSubLinkExtractPMsFromPMList(simulation,pm_flow,pm_tran, &
         else
           pm_parameter_list => cur_pm
         endif
+      class is (pm_ponded_water_type)
+        pm_ponded_water => cur_pm
       class is(pm_unittest_type)
         pm_unittest => cur_pm
       class default
@@ -198,7 +206,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        pm_auxiliary,pm_well_list, &
                                        pm_material_transform, &
                                        pm_parameter_list,pm_fracture, &
-                                       pm_geomech,pm_unittest)
+                                       pm_geomech,pm_ponded_water, &
+                                       pm_unittest)
   !
   ! Sets up all PMC linkages
   !
@@ -220,6 +229,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_SCO2_class
   use PM_Hydrate_class
   use PM_Parameter_class
+  use PM_Ponded_Water_class
   use PM_Unit_Test_class
   use PM_Geomechanics_Force_class
   use Factory_Subsurface_Read_module
@@ -243,6 +253,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   class(pm_unittest_type), pointer :: pm_unittest
   class(pm_fracture_type), pointer :: pm_fracture
   class(pm_geomech_force_type), pointer :: pm_geomech
+  class(pm_ponded_water_type), pointer :: pm_ponded_water
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
@@ -285,7 +296,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
                                        associated(pm_ufd_decay),input)
   endif
   if (associated(pm_auxiliary)) then
-    call FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,'SALINITY')
+    call FactSubLinkAddPMCSalinity(simulation,pm_auxiliary,'SALINITY')
   endif
   if (associated(pm_material_transform)) then
     call FactSubLinkAddPMCMaterialTrans(simulation,pm_material_transform, &
@@ -297,7 +308,10 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   endif
   if (associated(pm_geomech)) then
     call FactSubLinkAddPMCSubsurfGeomech(simulation,pm_geomech, &
-                                      'PMCSubsurfaceGeomechanics', input)
+                                      'PMCSubsurfaceGeomechanics',input)
+  endif
+  if (associated(pm_ponded_water)) then
+    call FactSubLinkAddPMCPondedWater(simulation,pm_ponded_water)
   endif
   if (associated(pm_well_list)) then
     call FactSubLinkAddPMCWell(simulation,pm_well_list,'PMCWell',input)
@@ -817,7 +831,7 @@ end subroutine FactSubLinkAddPMCSubsurfGeophys
 
 ! ************************************************************************** !
 
-subroutine FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,pmc_name)
+subroutine FactSubLinkAddPMCSalinity(simulation,pm_auxiliary,pmc_name)
   !
   ! Adds an auxiliary PMC
   !
@@ -870,7 +884,7 @@ subroutine FactSubLinkAddPMCGeneral(simulation,pm_auxiliary,pmc_name)
 
   call LoggingCreateStage(string,pmc_general%stage)
 
-end subroutine FactSubLinkAddPMCGeneral
+end subroutine FactSubLinkAddPMCSalinity
 
 ! ************************************************************************** !
 
@@ -1389,6 +1403,39 @@ subroutine FactSubLinkAddPMCParameter(simulation,pm_parameter)
   nullify(pmc_general)
 
 end subroutine FactSubLinkAddPMCParameter
+
+! ************************************************************************** !
+
+subroutine FactSubLinkAddPMCPondedWater(simulation,pm_ponded_water)
+  !
+  ! Adds a ponded water process model through a pmc general
+  !
+  ! Author: Glenn Hammmond
+  ! Date: 02/10/25
+  !
+  use PMC_Base_class
+  use PM_Ponded_Water_class
+  use PMC_General_class
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_ponded_water_type), pointer :: pm_ponded_water
+
+  class(pmc_base_type), pointer :: pmc_dummy
+  class(pmc_general_type), pointer :: pmc_general
+
+  nullify(pmc_dummy)
+
+  call pm_ponded_water%SetRealization(simulation%realization)
+  pmc_general => PMCGeneralCreate('Ponded Water',pm_ponded_water%CastToBase())
+  call PMCBaseSetChildPeerPtr(pmc_general%CastToBase(),PM_CHILD, &
+             simulation%flow_process_model_coupler%CastToBase(), &
+             pmc_dummy,PM_APPEND)
+
+end subroutine FactSubLinkAddPMCPondedWater
 
 ! ************************************************************************** !
 

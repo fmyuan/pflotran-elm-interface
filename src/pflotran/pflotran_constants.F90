@@ -224,6 +224,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MEMBRANE_BC = 32
   PetscInt, parameter, public :: AT_SOLUBILITY_BC = 33
   PetscInt, parameter, public :: PRES_REG_MASS_RATE_SS = 34
+  PetscInt, parameter, public :: PONDED_WATER_BC = 35
 
   PetscInt, parameter, public :: WELL_SS = 100
 

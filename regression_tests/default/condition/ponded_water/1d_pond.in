@@ -1,0 +1,169 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+        /
+      /
+    /
+    PONDED_WATER
+      
+    /
+  /
+END
+
+SUBSURFACE
+
+REGRESSION
+  CELL_IDS
+    5
+    10
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 10
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.1
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT TECPLOT POINT
+  PERIODIC_OBSERVATION TIMESTEP 1 
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+  /
+  MASS_BALANCE
+END
+
+OBSERVATION
+  REGION top
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10. d
+  INITIAL_TIMESTEP_SIZE 1. h
+  MAXIMUM_TIMESTEP_SIZE 1. h
+END
+
+#=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 10.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 0.d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial_pressure
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+#  LIQUID_PRESSURE -1.d8
+  LIQUID_PRESSURE 0.d0
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    LIQUID_FLUX NEUMANN
+  /
+  LIQUID_FLUX LIST
+    TIME_UNITS d
+    DATA_UNITS m/d
+    0. 0.
+    5. 1.d-2
+  /
+END
+
+FLOW_CONDITION ponded_water
+  TYPE
+    LIQUID_HEAD PONDED_WATER
+  /
+  LIQUID_HEAD 10.5 m
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial_pressure
+  REGION all
+END
+
+BOUNDARY_CONDITION recharge
+  FLOW_CONDITION recharge
+  REGION top
+END
+
+BOUNDARY_CONDITION pond
+  FLOW_CONDITION ponded_water
+  REGION top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

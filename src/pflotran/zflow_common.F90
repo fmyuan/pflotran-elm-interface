@@ -582,7 +582,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     select case(bc_type)
       ! figure out the direction of flow
       case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
-           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+           PONDED_WATER_BC)
         if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > floweps) then
           ! dist(0) = scalar - magnitude of distance
           ! gravity = vector(3)
@@ -606,7 +607,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
           ddelta_pressure_dpdn = -1.d0
           select case(bc_type)
             case(DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
-                 HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+                 HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+                 PONDED_WATER_BC)
                   ! flow in         ! boundary cell is <= pref
               if (delta_pressure > 0.d0 .and. &
                   zflow_auxvar_up%pres - &
@@ -642,6 +644,17 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
           v_darcy = perm_ave_over_dist_visc * kr * delta_pressure
+
+          if (bc_type == PONDED_WATER_BC) then
+            idof = auxvar_mapping(ZFLOW_COND_WATER_INDEX)
+            tempreal = auxvars(auxvar_mapping(ZFLOW_COND_WATER_INDEX)) / &
+                       option%flow_dt
+            if (v_darcy > tempreal) then
+              v_darcy = tempreal
+              ddelta_pressure_dpdn = 0.d0
+              dkr_dp = 0.d0
+            endif
+          endif
         endif
 
       case(NEUMANN_BC)

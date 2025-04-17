@@ -453,7 +453,7 @@ subroutine PMUnitTestWIPPRunPcSat(this,realization)
   ! Date: 03/06/25
   !
 
-  use Characteristic_curves_module
+  use Characteristic_Curves_module
   use Option_module
   use String_module
 
@@ -616,7 +616,7 @@ subroutine PMUnitTestWIPPRunGasPermeability(this,realization)
   !
 
   use WIPP_Characteristic_Curve_module
-  use Characteristic_curves_module
+  use Characteristic_Curves_module
   use Option_module
   use String_module
 
@@ -754,7 +754,7 @@ subroutine PMUnitTestWIPPRunLiqPermeability(this,realization)
   !
 
   use WIPP_Characteristic_Curve_module
-  use Characteristic_curves_module
+  use Characteristic_Curves_module
   use Option_module
   use String_module
 

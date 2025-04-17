@@ -588,8 +588,17 @@ subroutine ZFlowUpdateAuxVars(realization)
           case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
               SURFACE_ZERO_GRADHEIGHT)
             xxbc(zflow_liq_flow_eq) = xx_loc_p(ghosted_offset+zflow_liq_flow_eq)
+          case(PONDED_WATER_BC)
+            xxbc(zflow_liq_flow_eq) = &
+              ! subtract 0.01 to ensure no inflow due to reference pressure
+              (option%flow%reference_pressure-0.01d0) + &
+              max(boundary_condition%flow_aux_real_var(water_index,iconn)* &
+                  dot_product(option%gravity, &
+                              cur_connection_set%dist(1:3,iconn))* &
+                  zflow_density_kg,0.d0)
           case default
-            option%io_buffer = 'flow boundary itype not set up in ZFlowUpdateAuxVars'
+            option%io_buffer = 'flow boundary itype not set up in &
+              &ZFlowUpdateAuxVars'
             call PrintErrMsg(option)
         end select
       endif
@@ -606,7 +615,8 @@ subroutine ZFlowUpdateAuxVars(realization)
           case(ZERO_GRADIENT_BC)
             xxbc(zflow_sol_tran_eq) = xx_loc_p(ghosted_offset+zflow_sol_tran_eq)
           case default
-            option%io_buffer = 'solute boundary itype not set up in ZFlowUpdateAuxVars'
+            option%io_buffer = 'solute boundary itype not set up in &
+              &ZFlowUpdateAuxVars'
             call PrintErrMsg(option)
         end select
       endif

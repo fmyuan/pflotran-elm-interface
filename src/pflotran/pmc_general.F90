@@ -90,6 +90,7 @@ recursive subroutine PMCGeneralRunToTime(this,sync_time,stop_flag)
   use PM_Auxiliary_class
   use PM_Inversion_class
   use PM_Parameter_class
+  use PM_Ponded_Water_class
   use PM_Unit_Test_class
   use Timestepper_Base_class
 
@@ -126,6 +127,8 @@ recursive subroutine PMCGeneralRunToTime(this,sync_time,stop_flag)
       class is(pm_inversion_type)
         call pm_%Evaluate(sync_time,ierr)
       class is(pm_parameter_type)
+        call pm_%Update(sync_time,ierr)
+      class is(pm_ponded_water_type)
         call pm_%Update(sync_time,ierr)
       class is (pm_unittest_type)
         call pm_%RunUnitTests(sync_time,ierr)
