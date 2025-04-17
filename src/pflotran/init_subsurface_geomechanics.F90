@@ -778,7 +778,8 @@ subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
   call InitSubsurfGeomechSetupRealization(simulation%realization,&
                                           simulation%geomech%realization)
 
-  call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
+  call pm_geomech%PMGeomechForceSetRealization(geomech_realization, &
+                                               subsurf_realization)
   call pm_geomech%Setup()
 
   pmc_geomech => simulation%geomech%process_model_coupler

@@ -107,7 +107,8 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   call InitSubsurfGeomechSetupRealization(subsurf_realization, &
                                           geomech_realization)
 
-  call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
+  call pm_geomech%PMGeomechForceSetRealization(geomech_realization, &
+                                               subsurf_realization)
   call pm_geomech%Setup()
 
   call pmc_geomech%SetupSolvers()
