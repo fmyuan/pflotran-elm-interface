@@ -200,10 +200,18 @@ subroutine RCO2CalculateSCO2Solubility(rt_auxvar,global_auxvar,reaction, &
 
 
   co2_molality = co2_partial_pressure_bar * effective_Henrys_constant
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_coefficient
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa*(1.d0-saturation_pressure_Pa/gas_pressure_Pa ))
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/(gas_pressure_MPa-saturation_pressure_MPa)
-  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * Henrys_constant*fugacity_MPa/((gas_pressure_Pa-saturation_pressure_Pa)*1.d-6)
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * &
+                 Henrys_constant*fugacity_coefficient
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * &
+                 Henrys_constant*fugacity_MPa / &
+                 (gas_pressure_MPa*(1.d0-saturation_pressure_Pa/ &
+                                         gas_pressure_Pa ))
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * &
+                 Henrys_constant*fugacity_MPa / &
+                 (gas_pressure_MPa-saturation_pressure_MPa)
+  co2_molality = (gas_pressure_Pa - saturation_pressure_Pa)*1.d-5 * &
+                 Henrys_constant*fugacity_MPa / 7
+                 ((gas_pressure_Pa-saturation_pressure_Pa)*1.d-6)
   co2_molality = 1.d-5 * Henrys_constant*fugacity_MPa/(1.d-6)
   co2_molality = Henrys_constant*fugacity_MPa*10
 #endif

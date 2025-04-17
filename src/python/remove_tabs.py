@@ -3,6 +3,15 @@ import shutil
 import os
 import re
 
+try:
+  pflotran_dir = os.environ['PFLOTRAN_DIR']
+except KeyError:
+  print('PFLOTRAN_DIR must point to PFLOTRAN installation directory and be defined in system environment variables.')
+  sys.exit(1)
+sys.path.append(pflotran_dir + '/src/python/util')
+
+from source_files import *
+
 path = ''
 
 def get_filename(root,suffix):
@@ -47,40 +56,6 @@ def refactor_file(filename,overwrite_file):
         mv_file(filename)
     return tabs_removed, lines_converted
 
-def get_source_files():
-    # Obtain list of source files
-    source_file_roots = []
-    for line in open('pflotran_object_files.txt','r'):
-        # find .o file
-        # could use re.split() here, but too complicated.
-        w = line.split('}')
-        if len(w) == 2:
-            w2 = w[1].split('.o')
-            source_file_roots.append(w2[0])
-    source_file_roots.append('pflotran')
-    source_file_roots.append('pflotran_rxn')
-    source_file_roots.append('pflotran_derivative')
-
-    # clm-pflotran files
-    source_file_roots.append('../clm-pflotran/pflotran_model')
-    source_file_roots.append('../clm-pflotran/pflotran_interface_main')
-    source_file_roots.append('../clm-pflotran/mapping')
-    source_file_roots.append('../clm-pflotran/clm_pflotran_interface_data')
-
-    # unit test files
-    source_file_roots.append('unittests/test_characteristic_curves.pf')
-    source_file_roots.append('unittests/test_characteristic_curves_thermal.pf')
-    source_file_roots.append('unittests/test_eos_gas.pf')
-    source_file_roots.append('unittests/test_eos_water.pf')
-    source_file_roots.append('unittests/test_geometry.pf')
-    source_file_roots.append('unittests/test_material.pf')
-    source_file_roots.append('unittests/test_saturation_function.pf')
-    source_file_roots.append('unittests/test_string.pf')
-    source_file_roots.append('unittests/test_utility.pf')
-
-    # remove pflotran_provenance.o
-    source_file_roots.remove('pflotran_provenance')
-
     # Alphabetize
     source_file_roots.sort()
     #print(source_file_roots)
@@ -101,8 +76,13 @@ def main():
             print(args)
             raise Exception('Unrecognized arguments.')
      
+    source_file_roots = get_source_file_roots() + \
+                        get_clm_pflotran_source_file_roots() + \
+                        get_unit_test_files()
+    
+    # remove pflotran_provenance.o is it does not exit before compilation
+    source_file_roots.remove('pflotran_provenance')
         
-    source_file_roots = get_source_files()
     file_count = 0
     tabs_removed = 0
     lines_converted = 0

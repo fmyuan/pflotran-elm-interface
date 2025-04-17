@@ -1,5 +1,3 @@
-import sys
-
 # Author: Glenn Hammond
 # Date: 06/03/13
 # This python script calculates the dependencies between PFLOTRAN source files
@@ -9,12 +7,34 @@ import sys
 # YOU MUST RUN THIS SCRIPT FROM WITHIN PFLOTRAN_DIR/src/pflotran
 # > python ../python/pflotran_dependencies.py
 
+import os
+import sys
+import shutil
+
+run_test = False
+if len(sys.argv) > 1:
+    run_test = 'test' in sys.argv[1:]
+
+try:
+  pflotran_dir = os.environ['PFLOTRAN_DIR']
+except KeyError:
+  print('ERROR: PFLOTRAN_DIR must point to PFLOTRAN installation directory and be defined in system environment variables.')
+  sys.exit(1)
+sys.path.append(pflotran_dir + '/src/python/util')
+
+from source_files import get_source_file_roots
+
 def get_filename(root,suffix):
   filename = []
   filename.append(root)
   filename.append(suffix)
   filename = '.'.join(filename)
   return filename
+
+# generate pflotran_provenance.F90 if it does not exit
+filename = 'pflotran_provenance.F90'
+if not os.path.exists(filename):
+  shutil.copy('pflotran_no_provenance.F90',filename)
 
 pflotran_rxn_list = []
 remove_file_list = []
@@ -27,18 +47,7 @@ module_skip_list = ('hdf5','h5lt','petsc','clm_pflotran_interface_data', \
                     'ieee_arithmetic','iso_c_binding')
 
 # Obtain list of source files
-source_file_roots = []
-for line in open('pflotran_object_files.txt','r'):
-  # find .o file
-  # could use re.split() here, but too complicated.
-  w = line.split('}')
-  if len(w) == 2:
-    w2 = w[1].split('.o')
-#    print(w2[0])
-    source_file_roots.append(w2[0])
-source_file_roots.append('pflotran')
-source_file_roots.append('pflotran_rxn')
-source_file_roots.append('pflotran_derivative')
+source_file_roots = get_source_file_roots()
 
 # Alphabetize
 source_file_roots.sort()
@@ -57,17 +66,21 @@ for root in source_file_roots:
   blank_line_count_in_file = 0
   comment_line_count_in_file = 0
   filename = get_filename(root,'F90')
-  for line in open(filename):
-    stripped = line.lstrip()
-    if stripped.startswith('!'):
-      comment_line_count += 1
-      comment_line_count_in_file += 1
-    elif len(stripped) < 1:
-      blank_line_count += 1
-      blank_line_count_in_file += 1
-    else:
-      line_count += 1
-      line_count_in_file += 1
+  try:
+    for line in open(filename):
+      stripped = line.lstrip()
+      if stripped.startswith('!'):
+        comment_line_count += 1
+        comment_line_count_in_file += 1
+      elif len(stripped) < 1:
+        blank_line_count += 1
+        blank_line_count_in_file += 1
+      else:
+        line_count += 1
+        line_count_in_file += 1
+  except Exception as e:
+    print(f'ERROR: Unexpected error {e}')
+    sys.exit(1)
   for i in range(50-len(filename)):
     f.write(' ')
   f.write('%6d  %6d  %6d\n' % (line_count_in_file,blank_line_count_in_file,
@@ -100,7 +113,8 @@ for root in source_file_roots:
 module_dictionary = dict(module_list)
 #print(module_dictionary.keys())
 
-f = open('pflotran_dependencies.txt','w')
+dependency_filename_prefix = 'pflotran_dependencies'
+f = open(dependency_filename_prefix+'.tmp','w')
 # now loop over all source files and create the dependency list
 for root in source_file_roots:
 #  print(root)
@@ -108,7 +122,7 @@ for root in source_file_roots:
     modules_to_remove = differing_pflotran_rxn_dependencies[root]
     num_times_to_print = 2
     f.write('ifdef PFLOTRAN_RXN_FLAG\n')
-  except KeyError:
+  except:
     num_times_to_print = 1
   for iprint in range(num_times_to_print):
     module_list = []
@@ -128,7 +142,7 @@ for root in source_file_roots:
     for module in module_list:
       try:
         key = module_dictionary[module]
-      except KeyError:
+      except:
         # need to skip hdf5
         if not module.startswith(module_skip_list):
           print('ERROR: Module "%s" not found in dictionary.\n' % module)
@@ -186,4 +200,9 @@ for root in source_file_roots:
     elif num_times_to_print == 2: 
       f.write('endif\n')
 f.close()  
+
+if not run_test:
+  shutil.move(dependency_filename_prefix+'.tmp',
+              dependency_filename_prefix+'.txt')
+
 print('done!')
