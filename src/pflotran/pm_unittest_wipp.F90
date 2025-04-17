@@ -164,13 +164,15 @@ subroutine PMUnitTestWIPPRunFracture(this,realization)
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running fracture unit test: '//trim(this%filename)
+  realization%option%io_buffer = 'Running fracture unit test: ' // &
+                                 trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: fracture unit test: '//trim(this%filename)
+    realization%option%io_buffer = 'File read error: fracture unit test: ' &
+                                   // trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -267,14 +269,16 @@ subroutine PMUnitTestWIPPRunFracture(this,realization)
     write(fu_out,'(a)') '  [correct]  altered porosity [-]:'
     write(fu_out,'(d17.10)') correct_compressed_phi(k)
 
-    call CalcDiff(compressed_porosity(k),correct_compressed_phi(k),tolerance,pass_fail,i)
+    call CalcDiff(compressed_porosity(k),correct_compressed_phi(k),tolerance, &
+                  pass_fail,i)
     write(fu_out,'(a)') trim(pass_fail)
 
     write(fu_out,'(a)') '  [out]  perm scaling factor [-]:'
     write(fu_out,'(d17.10)') scaling_factor(k)
     write(fu_out,'(a)') '  [correct]  perm scaling factor [-]:'
     write(fu_out,'(d17.10)') correct_scaling_factor(k)
-    call CalcDiff(scaling_factor(k),correct_scaling_factor(k),tolerance,pass_fail,i)
+    call CalcDiff(scaling_factor(k),correct_scaling_factor(k),tolerance, &
+                  pass_fail,i)
     write(fu_out,'(a)') trim(pass_fail)
     write(fu_out,*)
   enddo
@@ -330,20 +334,23 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
   character(len=8) :: date
   character(len=5) :: zone
   character(len=10) :: time
-  character(len=MAXWORDLENGTH) :: pass_fail_x,pass_fail_y,pass_fail_z, filename_out, input_filename
+  character(len=MAXWORDLENGTH) :: pass_fail_x,pass_fail_y,pass_fail_z
+  character(len=MAXWORDLENGTH) :: filename_out,input_filename
   PetscInt  :: i,k
 
   klinkenberg => KlinkenbergGetPtr()
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running Klinkenberg unit test, input ' // trim(this%filename)
+  realization%option%io_buffer = 'Running Klinkenberg unit test, input ' // &
+                                 trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: Klinkenberg unit test: '//trim(this%filename)
+    realization%option%io_buffer = 'File read error: Klinkenberg unit test: ' &
+                                   // trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -359,7 +366,6 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
     i = i + 1
     if (i > 150) exit
   enddo
-
 
   allocate(perm_x(i-1))
   allocate(perm_y(i-1))
@@ -381,7 +387,8 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
   allocate(scaling_factor(i-1))
 
   do i = 1, size(perm_x)
-    call klinkenberg%Scale((/perm_x(i),perm_y(i),perm_z(i)/),gas_pressure(i),permeability_scale(i,:))
+    call klinkenberg%Scale((/perm_x(i),perm_y(i),perm_z(i)/),gas_pressure(i), &
+                           permeability_scale(i,:))
   end do
 
   tolerance = this%tolerance
@@ -403,20 +410,26 @@ subroutine PMUnitTestWIPPRunKlinkenberg(this,realization)
     write(fu_out,'(a,I3,a)') '||-----------TEST-#',k,'-----------------------&
                              &--------------||'
     write(fu_out,'(a)') '[in]  liquid permeability (x,y,z) [m2]:'
-    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/perm_x(k),perm_y(k),perm_z(k)/)
+    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') &
+      (/perm_x(k),perm_y(k),perm_z(k)/)
     write(fu_out,'(a)') '[in]  gas pressure [Pa]:'
     write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') gas_pressure(k)
-
     write(fu_out,'(a)') '[out]  gas permeability (x,y,z) [m2]:'
-    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/perm_x(k)*permeability_scale(k,1), &
+    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') &
+      (/perm_x(k)*permeability_scale(k,1), &
       perm_y(k)*permeability_scale(k,2),perm_z(k)*permeability_scale(k,3)/)
     write(fu_out,'(a)') '[correct]  gas permeability (x,y,z) [m2]:'
-    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') (/correct_perm_out_x(k),correct_perm_out_y(k),correct_perm_out_z(k)/)
+    write(fu_out,'(" ("d17.10,", "d17.10,", "d17.10")")') &
+      (/correct_perm_out_x(k),correct_perm_out_y(k),correct_perm_out_z(k)/)
 
-    call CalcDiff(perm_x(k)*permeability_scale(k,1),correct_perm_out_x(k),tolerance,pass_fail_x,i)
-    call CalcDiff(perm_y(k)*permeability_scale(k,2),correct_perm_out_x(k),tolerance,pass_fail_y,i)
-    call CalcDiff(perm_z(k)*permeability_scale(k,3),correct_perm_out_x(k),tolerance,pass_fail_z,i)
-    write(fu_out,'(a,", "a,", "a)') trim(pass_fail_x), trim(pass_fail_y), trim(pass_fail_z)
+    call CalcDiff(perm_x(k)*permeability_scale(k,1),correct_perm_out_x(k), &
+                  tolerance,pass_fail_x,i)
+    call CalcDiff(perm_y(k)*permeability_scale(k,2),correct_perm_out_x(k), &
+                  tolerance,pass_fail_y,i)
+    call CalcDiff(perm_z(k)*permeability_scale(k,3),correct_perm_out_x(k), &
+                  tolerance,pass_fail_z,i)
+    write(fu_out,'(a,", "a,", "a)') trim(pass_fail_x), trim(pass_fail_y), &
+                                    trim(pass_fail_z)
     write(fu_out,*)
   enddo
 
@@ -478,13 +491,15 @@ subroutine PMUnitTestWIPPRunPcSat(this,realization)
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running capillary pressure-saturation unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running capillary pressure-saturation unit &
+                                 &test, input '//trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: capillary pressure-sauration unit test: '//trim(this%filename)
+    realization%option%io_buffer = 'File read error: capillary pressure-&
+                                   &sauration unit test: '//trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -530,7 +545,8 @@ subroutine PMUnitTestWIPPRunPcSat(this,realization)
        endif
      end do
      call cc%saturation_function%Saturation(pc(i),calc_sat(i),dummy,option)
-     call cc%saturation_function%CapillaryPressure(liq_sat(i),calc_pc(i),dummy,option)
+     call cc%saturation_function%CapillaryPressure(liq_sat(i),calc_pc(i), &
+                                                   dummy,option)
      cycled = PETSC_FALSE
   end do
 
@@ -633,13 +649,15 @@ subroutine PMUnitTestWIPPRunGasPermeability(this,realization)
 
   input_filename = this%filename
   ! Read input file
-  realization%option%io_buffer = 'Running gas relative permeability unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running gas relative permeability unit &
+                                 &test, input '//trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: gas relative permeability unit test: '//trim(this%filename)
+    realization%option%io_buffer = 'File read error: gas relative permeability &
+                                   &unit test: '//trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -677,7 +695,8 @@ subroutine PMUnitTestWIPPRunGasPermeability(this,realization)
          cycled = PETSC_TRUE
        endif
      end do
-     call cc%gas_rel_perm_function%RelativePermeability(gas_saturation(i),krg(i),dummy,option)
+     call cc%gas_rel_perm_function%RelativePermeability(gas_saturation(i), &
+                                                        krg(i),dummy,option)
      cycled = PETSC_FALSE
   end do
 
@@ -771,7 +790,8 @@ subroutine PMUnitTestWIPPRunLiqPermeability(this,realization)
   input_filename = trim(this%filename)
   ! Read input file
   i = 1
-  realization%option%io_buffer = 'Running liquid relative permeability unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running liquid relative permeability unit &
+                                 &test, input '//trim(this%filename)
   call PrintMsg(realization%option)
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
@@ -808,7 +828,8 @@ subroutine PMUnitTestWIPPRunLiqPermeability(this,realization)
          cycled = PETSC_TRUE
       endif
      end do
-     call cc%liq_rel_perm_function%RelativePermeability(liq_saturation(i),krl(i),dummy,option)
+     call cc%liq_rel_perm_function%RelativePermeability(liq_saturation(i), &
+                                                        krl(i),dummy,option)
      cycled = PETSC_FALSE
   end do
 
@@ -898,13 +919,15 @@ subroutine PMUnitTestWIPPRunCompressibility(this,realization)
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running compressibility unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running compressibility unit test, &
+                                 &input ' // trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: compressibility unit test.'//trim(this%filename)
+    realization%option%io_buffer = 'File read error: compressibility unit &
+                                   &test.' // trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -930,8 +953,10 @@ subroutine PMUnitTestWIPPRunCompressibility(this,realization)
   correct_altered_porosity(:) = temp_correct_altered_porosity(1:i-1)
 
   do i = 1, size(liquid_pressure)
-    call FractureCalcFracPorosity(Cr,phi0,initiating_pressure,fully_altered_pressure,P0, &
-         liquid_pressure(i),fully_altered_porosity,fully_alt_compressibility,porosity(i))
+    call FractureCalcFracPorosity(Cr,phi0,initiating_pressure, &
+                                  fully_altered_pressure,P0, &
+                                  liquid_pressure(i),fully_altered_porosity, &
+                                  fully_alt_compressibility,porosity(i))
   end do
 
   tolerance = this%tolerance
@@ -1014,13 +1039,15 @@ subroutine PMUnitTestWIPPRunEOSGasDensity(this,realization)
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running gas density unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running gas density unit test, input ' &
+                                 // trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: gas density unit test.'//trim(this%filename)
+    realization%option%io_buffer = 'File read error: gas density unit test.' &
+                                   // trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
@@ -1125,13 +1152,15 @@ subroutine PMUnitTestWIPPRunEOSWaterDensity(this,realization)
 
   input_filename = trim(this%filename)
   ! Read input file
-  realization%option%io_buffer = 'Running water density unit test, input '//trim(this%filename)
+  realization%option%io_buffer = 'Running water density unit test, input ' &
+                                 // trim(this%filename)
   call PrintMsg(realization%option)
   i = 1
   open(action='read', file=trim(input_filename), iostat=rc_in, &
        newunit=fu_in)
   if (rc_in /= 0) then
-    realization%option%io_buffer = 'File read error: fracture unit test.'//trim(this%filename)
+    realization%option%io_buffer = 'File read error: fracture unit test.' &
+                                   // trim(this%filename)
     call PrintErrMsg(realization%option)
   endif
   read(fu_in, *) ! skip header line
