@@ -2256,6 +2256,7 @@ pm_ponded_water.o : \
   dataset_ascii.o \
   dataset_common_hdf5.o \
   dataset_gridded_hdf5.o \
+  grid.o \
   input_aux.o \
   option.o \
   patch.o \
@@ -2263,6 +2264,7 @@ pm_ponded_water.o : \
   pm_base.o \
   realization_subsurface.o \
   string.o \
+  utility.o \
   zflow_aux.o
 pm_richards.o : \
   characteristic_curves.o \
