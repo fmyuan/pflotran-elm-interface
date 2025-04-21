@@ -219,6 +219,7 @@ subroutine RealizationCreateDiscretization(realization)
   use DM_Custom_module
   use Communicator_Structured_class, only : StructuredCommunicatorCreate
   use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
+  use String_module
 
   implicit none
 
@@ -228,6 +229,7 @@ subroutine RealizationCreateDiscretization(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(option_type), pointer :: option
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
   PetscInt :: ivar
 
@@ -426,7 +428,12 @@ subroutine RealizationCreateDiscretization(realization)
   end select
   call GridPrintExtents(grid,option)
   call GridPrintSize(grid,option)
-
+  ! min/max cell volume
+  call PrintMsg(option,NL//'Min/Max Cell Volumes [m^3]')
+  call VecMax(field%volume0,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
+  call PrintMsg(option,' Maximum: ' // StringWriteF('(f20.2)',tempreal))
+  call VecMin(field%volume0,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
+  call PrintMsg(option,' Maximum: ' // StringWriteF('(f20.2)',tempreal))
 
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
