@@ -484,7 +484,9 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   PetscInt :: remainder
   PetscReal, pointer :: double_buffer(:)
   PetscReal, pointer :: double_buffer_2d(:,:)
-  PetscInt, pointer :: int_buffer_2d(:,:)
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_buffer_2d(:,:)
   PetscErrorCode :: ierr
 
   integer(HID_T) :: file_id
