@@ -877,7 +877,6 @@ recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, norm
   PetscReal :: vP(3), vN(3), vvert_0(3), vvert_1(3), vvert_2(3), vvert_3(3), vvert_4(3)
   PetscReal :: V(4, 3)
   PetscReal :: d(4)
-  PetscReal :: dot, cross, Length
 
   nRet = 0
   nSize = nSize_in
