@@ -1275,7 +1275,8 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
-  PetscReal, pointer :: double_array(:)
+  PetscReal, pointer :: double_array(:)  ! 64 bit floating point
+  real*4, pointer :: real_array(:)  ! 32 bit floating point
 
   call VecGetLocalSize(vec,local_size,ierr);CHKERRQ(ierr)
   call VecGetSize(vec,global_size,ierr);CHKERRQ(ierr)
@@ -1343,6 +1344,24 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
     call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
     call DeallocateArray(double_array)
+    call h5pclose_f(prop_id,hdf5_err)
+  endif
+
+  if (data_type == H5T_NATIVE_REAL) then
+    allocate(real_array(local_size))
+    call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    do i=1,local_size
+      real_array(i) = vec_ptr(i)
+    enddo
+    call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+
+    call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
+    call h5dwrite_f(data_set_id,data_type,real_array,dims, &
+                    hdf5_err,memory_space_id,file_space_id,prop_id)
+    call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
+
+    deallocate(real_array)
+    nullify(real_array)
     call h5pclose_f(prop_id,hdf5_err)
   endif
 
