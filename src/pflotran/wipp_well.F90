@@ -2735,10 +2735,12 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   PetscBool :: all_cnvgd_due_to_scaled_res
   PetscBool :: all_cnvgd_due_to_residual
   PetscBool :: all_cnvgd_due_to_update
+  PetscBool :: all_cnvgd(4)
   PetscReal :: vol_vec(pm_well%well_grid%nsegments*pm_well%tran_soln%ndof)
   PetscReal :: aq_mass_vec(pm_well%well_grid%nsegments*pm_well%tran_soln%ndof)
   PetscReal :: max_scaled_residual,max_absolute_residual
   PetscReal :: max_update
+  PetscReal :: max_criteria(3)
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
   PetscInt :: loc_max_update
   PetscInt :: k,n,j,S
@@ -2761,6 +2763,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   all_cnvgd_due_to_scaled_res = PETSC_FALSE
   all_cnvgd_due_to_residual = PETSC_FALSE
   all_cnvgd_due_to_update = PETSC_FALSE
+  all_cnvgd(:) = PETSC_FALSE
   rsn_string = ''
 
   ! Update the residual
@@ -2797,14 +2800,17 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   enddo
 
   max_absolute_residual = maxval(dabs(soln%residual))
+  max_criteria(1) = max_absolute_residual
   loc_max_abs_residual = maxloc(dabs(soln%residual),1)
 
   max_scaled_residual = maxval(dabs(soln%residual/ &
                                     (fixed_accum/pm_well%dt_tran)))
+  max_criteria(2) = max_scaled_residual
   loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
                                         (fixed_accum/pm_well%dt_tran)),1)
 
   max_update = maxval(dabs(soln%update*vol_vec/aq_mass_vec))
+  max_criteria(3) = max_update
   loc_max_update = maxloc(dabs(soln%update*vol_vec/aq_mass_vec),1)
 
   do k = 1,(pm_well%well_grid%nsegments*soln%ndof)
@@ -2816,40 +2822,38 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   call MPI_Barrier(pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
   if (all(cnvgd_due_to_abs_res)) then
     all_cnvgd_due_to_abs_res = PETSC_TRUE
+    all_cnvgd(1) = all_cnvgd_due_to_abs_res
     rsn_string = trim(rsn_string) // ' aR '
   endif
   if (all(cnvgd_due_to_scaled_res)) then
     all_cnvgd_due_to_scaled_res = PETSC_TRUE
+    all_cnvgd(2) = all_cnvgd_due_to_scaled_res
     rsn_string = trim(rsn_string) // ' sR '
   endif
   if (all(cnvgd_due_to_update)) then
     all_cnvgd_due_to_update = PETSC_TRUE
+    all_cnvgd(3) = all_cnvgd_due_to_update
     rsn_string = trim(rsn_string) // ' rU '
   endif
   if (all(cnvgd_due_to_residual)) then
     all_cnvgd_due_to_residual = PETSC_TRUE
+    all_cnvgd(4) = all_cnvgd_due_to_residual
   endif
 
-  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd_due_to_abs_res,ONE_INTEGER, &
-                     MPI_LOGICAL,MPI_LAND,pm_well%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd_due_to_scaled_res,ONE_INTEGER, &
-                     MPI_LOGICAL,MPI_LAND,pm_well%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd_due_to_update,ONE_INTEGER, &
-                     MPI_LOGICAL,MPI_LAND,pm_well%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd_due_to_residual,ONE_INTEGER, &
-                     MPI_LOGICAL,MPI_LAND,pm_well%well_comm%comm,ierr)
-
-  call MPI_Allreduce(MPI_IN_PLACE,max_absolute_residual,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,max_scaled_residual,ONE_INTEGER, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
-  call MPI_Allreduce(MPI_IN_PLACE,max_update,ONE_INTEGER, &
+  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd,FOUR_INTEGER,MPI_LOGICAL, &
+                     MPI_LAND,pm_well%well_comm%comm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,max_criteria,THREE_INTEGER, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)
 
   call MPI_Barrier(pm_well%well_comm%comm,ierr);CHKERRQ(ierr)
   write(out_string,'(i4,"    aR:",es10.3,"    sR:",es10.3,"    rU:", es10.3)')&
-        n_iter,max_absolute_residual,max_scaled_residual,max_update
+        n_iter,max_criteria(1),max_criteria(2),max_criteria(3)
   call PMWellPrint(pm_well,out_string)
+
+  all_cnvgd_due_to_abs_res = all_cnvgd(1)
+  all_cnvgd_due_to_scaled_res = all_cnvgd(2)
+  all_cnvgd_due_to_update = all_cnvgd(3)
+  all_cnvgd_due_to_residual = all_cnvgd(4)
 
   if (all_cnvgd_due_to_residual .and. all_cnvgd_due_to_update) then
     soln%converged = PETSC_TRUE
