@@ -7,7 +7,7 @@ source /opt/intel/oneapi/setvars.sh
 export PATH=/opt/intel/oneapi/compiler/latest/linux/bin/intel64:/opt/intel/oneapi/compiler/latest/linux/bin:$PATH
 export LD_LIBRARY_PATH=/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin
 
-if [[ -n $SRC_DIR ]]; then
+if [ -n "$SRC_DIR" ]; then
   cd $SRC_DIR
 else
   cd $PFLOTRAN_DIR/src/pflotran
