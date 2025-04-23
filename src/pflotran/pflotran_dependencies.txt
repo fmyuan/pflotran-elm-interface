@@ -43,6 +43,7 @@ carbon_sandbox_base.o : \
   pflotran_constants.o \
   reaction_aux.o \
   reaction_equation.o \
+  reaction_immobile_aux.o \
   reaction_inhibition_aux.o \
   reactive_transport_aux.o \
   string.o \

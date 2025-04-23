@@ -63,6 +63,7 @@ module Carbon_Sandbox_Base_class
             CarbonRxnBaseCreate, &
             CarbonBaseInit, &
             CarbonBaseReadSelectCase, &
+            CarbonBaseGetSpeciesIDFromName, &
             CarbonBaseSetup, &
             CarbonBaseStrip, &
             CarbonRxnBaseSetup, &
@@ -217,6 +218,49 @@ subroutine CarbonBaseReadSelectCase(this,input,keyword,found,err_string,option)
   end select
 
 end subroutine CarbonBaseReadSelectCase
+
+! ************************************************************************** !
+
+function CarbonBaseGetSpeciesIDFromName(name,reaction,option)
+  !
+  ! Returns the species id associated with a species name WITHIN the sandbox
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/28/25
+  !
+  use Option_module
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+
+  character(len=MAXWORDLENGTH) :: name
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+
+  PetscInt :: CarbonBaseGetSpeciesIDFromName
+
+  PetscInt :: species_id
+
+  species_id = &
+    ReactionAuxGetPriSpecIDFromName(name,reaction,PETSC_FALSE,option)
+  if (Initialized(species_id)) then
+    CarbonBaseGetSpeciesIDFromName = species_id
+    return
+  endif
+
+  species_id = &
+    ReactionImGetSpeciesIDFromName(name,reaction%immobile,PETSC_FALSE,option)
+  if (Initialized(species_id)) then
+    CarbonBaseGetSpeciesIDFromName = species_id
+    return
+  endif
+
+  option%io_buffer = 'Species "' // trim(name) // &
+    '" not found among primary or immobile species in &
+      &CarbonBaseGetSpeciesIDFromName(). Please check to ensure that the &
+      &species is defined and is spelled correctly.'
+  call PrintErrMsg(option)
+
+end function CarbonBaseGetSpeciesIDFromName
 
 ! ************************************************************************** !
 
