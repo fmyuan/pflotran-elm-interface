@@ -2,7 +2,11 @@
 
 . $PFLOTRAN_DIR/.gitlab/skip_on_error.sh
 
-cd $SRC_DIR
+if [ -n "$SRC_DIR" ]; then
+  cd $SRC_DIR
+else
+  cd $PFLOTRAN_DIR/src/pflotran
+fi
 
 # initialize to an unitialized value, not 0
 UNIT_EXIT_CODE=-999

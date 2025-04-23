@@ -2,7 +2,7 @@
 
 . $PFLOTRAN_DIR/.gitlab/skip_on_error.sh
 
-if [[ -n $SRC_DIR ]]; then
+if [ -n "$SRC_DIR" ]; then
   cd $SRC_DIR
 else
   cd $PFLOTRAN_DIR/src/pflotran

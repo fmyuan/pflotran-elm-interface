@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [[ -n $ARTIFACT_DIR ]]; then
+if [ -n "$ARTIFACT_DIR" ]; then
   LOG_DIR=$ARTIFACT_DIR/logs
   # remove artifact directory if it exists
   rm -Rf $ARTIFACT_DIR
