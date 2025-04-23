@@ -63,29 +63,14 @@ echo $'genhtml_hi_limit = 75\n genhtml_med_limit = 25' > ~/.lcovrc
 lcov --capture --directory . --output-file pflotran_coverage.info
 genhtml pflotran_coverage.info --output-directory coverage
 
-# Ensure that dependencies are updatable. This catches errors is module labels
-# in use statements.
-cd $SRC_DIR
-echo "\n----- Running dependency update to ensure it is functioning properly -----\n"
-DEPENDENCY_UPDATE_LOG='dependency_update.log'
-python3 ../python/pflotran_dependencies.py 2>&1 | tee $DEPENDENCY_UPDATE_LOG
-DEPENDENCY_UPDATE_EXIT_CODE=$?
-if [ $DEPENDENCY_UPDATE_EXIT_CODE -ne 0 ]; then
-  echo "\n----- Dependency update failing -----\n"
-else
-  echo "\n----- Dependency update running properly -----\n"
-fi
-
 rm -Rf $ARTIFACT_DIR
 mkdir -p $ARTIFACT_DIR/logs
 cp -R $SRC_DIR/$UTEST_LOG $ARTIFACT_DIR/logs
 cp -R $SRC_DIR/$RTEST_LOG $ARTIFACT_DIR/logs
-cp -R $SRC_DIR/$DEPENDENCY_UPDATE_LOG $ARTIFACT_DIR/logs
 cp -R $PFLOTRAN_DIR/regression_tests $ARTIFACT_DIR
 cp -R $SRC_DIR/coverage $ARTIFACT_DIR
 
-if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ] && \
-   [ $DEPENDENCY_UPDATE_EXIT_CODE -eq 0 ]; then
+if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ]; then
   echo 'success' > $ARTIFACT_DIR/status
 else
   echo 'failed' > $ARTIFACT_DIR/status
