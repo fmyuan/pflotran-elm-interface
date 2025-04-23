@@ -573,12 +573,14 @@ function StringFindEntryInList(string,string_array)
   implicit none
 
   character(len=*) :: string
-  character(len=*) :: string_array(:)
+  character(len=*), pointer :: string_array(:)
 
   PetscInt :: StringFindEntryInList
   PetscInt :: i
 
   StringFindEntryInList = 0
+
+  if (.not.associated(string_array)) return
 
   do i = 1, size(string_array)
     if (StringCompare(string,string_array(i))) then

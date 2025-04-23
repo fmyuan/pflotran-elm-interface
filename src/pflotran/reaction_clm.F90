@@ -683,7 +683,7 @@ subroutine ReaReactionCLMDecSetup(this,reaction,option)
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
 
-  character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
+  character(len=MAXWORDLENGTH), pointer :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
 
   PetscInt, pointer :: species_id_pool_c(:)
@@ -911,7 +911,7 @@ subroutine ReaReactionCLMDecSetup(this,reaction,option)
     cur_rxn => cur_rxn%next
   enddo
 
-  deallocate(pool_names)
+  call DeallocateArray(pool_names)
   call DeallocateArray(pool_is_aqueous)
   call DeallocateArray(species_id_pool_c)
   call DeallocateArray(species_id_pool_n)
