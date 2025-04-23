@@ -1351,7 +1351,7 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
     allocate(real_array(local_size))
     call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     do i=1,local_size
-      real_array(i) = vec_ptr(i)
+      real_array(i) = real(vec_ptr(i))
     enddo
     call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
