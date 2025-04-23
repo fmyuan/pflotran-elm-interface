@@ -321,6 +321,7 @@ subroutine CLM_CN_Map(this,reaction,option)
   use Option_module
   use String_module
   use Reaction_Immobile_Aux_module
+  use Utility_module
 
   implicit none
 
@@ -328,7 +329,7 @@ subroutine CLM_CN_Map(this,reaction,option)
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
 
-  character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
+  character(len=MAXWORDLENGTH), pointer :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
 
   PetscInt :: icount
@@ -458,7 +459,7 @@ subroutine CLM_CN_Map(this,reaction,option)
     cur_rxn => cur_rxn%next
   enddo
 
-  deallocate(pool_names)
+  call DeallocateArray(pool_names)
 
 end subroutine CLM_CN_Map
 
