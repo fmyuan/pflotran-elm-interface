@@ -1,12 +1,14 @@
 #!/bin/sh
 
 if [ -n "$ARTIFACT_DIR" ]; then
+  echo "ARTIFACT_DIR defined externally."
   LOG_DIR=$ARTIFACT_DIR/logs
   # remove artifact directory if it exists
   rm -Rf $ARTIFACT_DIR
   mkdir -p $LOG_DIR
   cd $SRC_DIR
 else
+  echo 'ARTIFACT_DIR defined internally as ".".'
   ARTIFACT_DIR=.
   LOG_DIR=.
   cd $PFLOTRAN_DIR/src/pflotran

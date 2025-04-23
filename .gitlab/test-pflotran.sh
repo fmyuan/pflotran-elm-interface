@@ -3,8 +3,10 @@
 . $PFLOTRAN_DIR/.gitlab/skip_on_error.sh
 
 if [ -n "$SRC_DIR" ]; then
+  echo 'Using SRC_DIR.'
   cd $SRC_DIR
 else
+  echo 'Using PFLOTRAN_DIR/src/pflotran.'
   cd $PFLOTRAN_DIR/src/pflotran
 fi
 
