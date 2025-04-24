@@ -1491,6 +1491,7 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
                          this%option)
       call cur_pm%RestartHDF5(h5_pm_grp_id)
       call HDF5GroupClose(h5_pm_grp_id,this%option)
+      call this%SetAuxData()
       cur_pm => cur_pm%next
     enddo
 

@@ -247,6 +247,8 @@ subroutine SimSubsurfInitializeRun(this)
         '). Only *.chk and *.h5 supported.'
       call PrintErrMsg(this%option)
     endif
+    ! Get Aux data for geomechanics
+    call this%process_model_coupler_list%GetAuxData()
   endif
 
   if (associated(this%realization%patch%aux%inversion_aux)) then

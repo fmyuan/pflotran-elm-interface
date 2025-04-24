@@ -182,6 +182,9 @@ subroutine FactoryGeomechanicsInitialize(simulation)
     cur_process_model_coupler => cur_process_model_coupler%peer
     call cur_process_model_coupler%GetAuxData()
     call cur_process_model_coupler%SetAuxData()
+    ! Switch back to geomech and fetch flow data
+    cur_process_model_coupler => simulation%process_model_coupler_list
+    call cur_process_model_coupler%GetAuxData()
     select type(pmc => cur_process_model_coupler)
       class is(pmc_geomechanics_type)
         call GeomechStoreInitialPressTemp(pmc%geomech_realization)
