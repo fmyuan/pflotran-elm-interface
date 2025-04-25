@@ -693,6 +693,7 @@ subroutine SimSubsurfExecuteRun(this)
   use Waypoint_module
   use Timestepper_Base_class
   use Checkpoint_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -712,7 +713,8 @@ subroutine SimSubsurfExecuteRun(this)
 
   final_time = SimSubsurfGetFinalWaypointTime(this)
   cur_waypoint => this%waypoint_list_outer%first
-  if (cur_waypoint%print_checkpoint) then
+  if (cur_waypoint%print_checkpoint .and. &
+      Equal(cur_waypoint%time,this%option%time)) then
     append_name = &
          CheckpointAppendNameAtTime(this%process_model_coupler_list% &
                                         option%time, &
