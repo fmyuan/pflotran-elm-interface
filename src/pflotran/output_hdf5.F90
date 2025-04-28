@@ -27,7 +27,8 @@ module Output_HDF5_module
             OutputHDF5DatasetStringArray, &
             OutputHDF5AttributeStringArray, &
             OutputHDF5OpenFile, &
-            OutputHDF5CloseFile
+            OutputHDF5CloseFile, &
+            OutputHDF5WriteSnapShotAtts
 
   public :: OutputH5OpenFile, &
             OutputH5CloseFile, &
