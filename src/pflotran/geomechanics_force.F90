@@ -837,13 +837,17 @@ subroutine ComputeTetVolAtVertex(vert_0, &
                                  vert_2, &
                                  vert_3, &
                                  volume)
+  !
   ! Returns the volume of the specified tetrahedron after
   ! being clipped on the positive side of the planes computed
   ! in this function.
   ! This works by calling ClippedVolume() recursively on one plane
   ! at a time.
-  ! ClippedVolume() clips on the given plane, splits the resulting
-  ! polyhedron into tetrahedra, and then calls itself recursively.
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 29/04/2025
+  !
+
 
   PetscReal :: vert_0(3)
   PetscReal :: vert_1(3)
@@ -869,6 +873,15 @@ subroutine ComputeTetVolAtVertex(vert_0, &
 end subroutine ComputeTetVolAtVertex
 
 recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, nSize_in) result(nRet)
+  !
+  ! Clips on the given plane, splits the resulting
+  ! polyhedron into tetrahedra, and then calls itself recursively,
+  ! ultimately returning the volume.
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 29/04/2025
+  !
+
   PetscReal :: vert_0(3), vert_1(3), vert_2(3), vert_3(3)
   PetscReal :: midPoints(3, 3), normals(3, 3)
   PetscInt :: nSize_in
@@ -932,6 +945,13 @@ recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, norm
 end function ClippedVolume
 
 function Intersect(v1, v2, d1, d2) result(v)
+  !
+  ! Computes the intesection
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 29/04/2025
+  !
+
   PetscReal :: v1(3), v2(3)
   PetscReal :: d1, d2
   PetscReal :: v(3)
@@ -940,6 +960,13 @@ function Intersect(v1, v2, d1, d2) result(v)
 end function Intersect
 
 function cross_product(v1, v2) result(v)
+  !
+  ! Computes the cross product between v1 and v2
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 29/04/2025
+  !
+
   PetscReal :: v1(3), v2(3)
   PetscReal :: v(3)
 
@@ -949,6 +976,13 @@ function cross_product(v1, v2) result(v)
 end function cross_product
 
 subroutine sort(V, d)
+  !
+  ! Sorts vectors V and d based on d
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 29/04/2025
+  !
+
   PetscReal :: V(4, 3)
   PetscReal :: d(4)
   integer :: i, j
