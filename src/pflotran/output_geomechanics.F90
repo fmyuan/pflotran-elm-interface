@@ -1194,6 +1194,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
+  use Output_HDF5_module, only: OutputHDF5WriteSnapShotAtts
 
   implicit none
 
@@ -1315,6 +1316,9 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   call HDF5GroupOpenOrCreate(file_id,string,grp_id,option)
   group_name=string
+
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
 
   ! write out data sets
   call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
