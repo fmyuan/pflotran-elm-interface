@@ -1,0 +1,55 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    END
+    WELL_MODEL well01
+      TYPE HYDROSTATIC
+      OPTIONS
+        FLOW_COUPLING FULLY_IMPLICIT
+      END
+    END
+  END
+END
+
+SUBSURFACE
+
+#=========================== regression test ==================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+!=========================== discretization ===================================
+GRID
+  GRAVITY 0.0d0  0.0d0  -9.81d0
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    -1. -1. -1.
+     1.  1.  1.
+  /
+END
+
+!=========================== wellbore model ===================================
+WELLBORE_MODEL well01
+  WELL_GRID
+    NUMBER_OF_SEGMENTS 1
+    TOP_OF_HOLE    0.0d0 0.d0  1.0d0   # [x,y,z] in meters
+    BOTTOM_OF_HOLE 0.0d0 0.d0 -1.0d0   # [x,y,z] in meters
+    CASING 0
+  /
+  WELL
+    DIAMETER 0.02d0
+    FRICTION_COEFFICIENT -1.0d0
+    SKIN_FACTOR 0
+    WELL_INDEX_MODEL SCALE_BY_PERM
+  /
+  USE_WELL_COUPLER
+END
+
+EXTERNAL_FILE rescell_wellseg_base.txt
+
+END_SUBSURFACE

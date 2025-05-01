@@ -217,11 +217,7 @@ subroutine FactorySubsurfaceSetFlowMode(pm_flow,pm_well,option)
       option%water_id = 1
       option%air_id = 2
     class is (pm_richards_type)
-      option%iflowmode = RICHARDS_MODE
-      option%nphase = 1
-      option%nflowdof = 1
-      option%nflowspec = 1
-      option%flow%isothermal = PETSC_TRUE
+      call PMRichardsSetFlowMode(pm_well,option)
     class is (pm_zflow_type)
       option%iflowmode = ZFLOW_MODE
       option%nphase = 1

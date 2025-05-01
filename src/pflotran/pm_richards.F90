@@ -4,6 +4,7 @@ module PM_Richards_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
+  use PM_Well_class
 
   use PFLOTRAN_Constants_module
 
@@ -25,12 +26,14 @@ module PM_Richards_class
     PetscReal :: residual_scaled_inf_tol
     PetscReal :: abs_update_inf_tol
     PetscReal :: rel_update_inf_tol
+    class(pm_well_type), pointer :: pmwell_ptr
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMRichardsReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMRichardsReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMRichardsInitializeTimestep
     procedure, public :: Setup => PMRichardsSetup
+    procedure, public :: InitializeRun => PMRichardsInitializeRun
     procedure, public :: Residual => PMRichardsResidual
     procedure, public :: Jacobian => PMRichardsJacobian
     procedure, public :: UpdateTimestep => PMRichardsUpdateTimestep
@@ -49,6 +52,7 @@ module PM_Richards_class
   end type pm_richards_type
 
   public :: PMRichardsCreate, &
+            PMRichardsSetFlowMode, &
             PMRichardsInit, &
             PMRichardsDestroy, &
             PMRichardsCheckConvergence
@@ -82,9 +86,55 @@ function PMRichardsCreate()
   this%abs_update_inf_tol = 1.d0
   this%rel_update_inf_tol = 1.d-5
 
+  nullify(this%pmwell_ptr)
+
   PMRichardsCreate => this
 
 end function PMRichardsCreate
+
+! ************************************************************************** !
+
+subroutine PMRichardsSetFlowMode(pm_well,option)
+!
+! Sets the flow mode for Richards mode
+!
+! Author: Joe Eyles, WSP
+! Date: 02/05/2025
+!
+
+  use Option_module
+  use Richards_Aux_module
+
+  implicit none
+
+  class(pm_well_type), pointer :: pm_well
+  type(option_type) :: option
+
+  option%iflowmode = RICHARDS_MODE
+  option%nphase = 1
+  option%nflowdof = 1
+  option%nflowspec = 1
+  option%flow%isothermal = PETSC_TRUE
+
+  if (associated(pm_well)) then
+    if (pm_well%flow_coupling == FULLY_IMPLICIT_WELL) then
+      if (pm_well%well%well_model_type /= WELL_MODEL_HYDROSTATIC) then
+        option%io_buffer = 'Currently, Richards mode can only be &
+                  &used with the HYDROSTATIC well model.'
+        call PrintErrMsg(option)
+      endif
+      richards_well_coupling = RICHARDS_FULLY_IMPLICIT_WELL
+      option%nflowdof = option%nflowdof + 1
+      option%coupled_well = PETSC_TRUE
+      RICHARDS_WELL_DOF = option%nflowdof
+    else
+      option%io_buffer = 'Currently, only FULLY_IMPLICIT &
+                  &wellbore coupling is implemented for Richards Mode.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
+end subroutine PMRichardsSetFlowMode
 
 ! ************************************************************************** !
 
@@ -271,6 +321,57 @@ end subroutine PMRichardsSetup
 
 ! ************************************************************************** !
 
+recursive subroutine PMRichardsInitializeRun(this)
+  !
+  ! Initializes the time stepping
+  !
+  ! Author: Joe Eyles, WSP
+  ! Date: 01/05/2025
+
+  use Realization_Base_class
+
+  implicit none
+
+  class(pm_richards_type) :: this
+
+  class(pm_well_type), pointer :: pm_well
+  PetscErrorCode :: ierr
+
+  ! setup coupling in jacobian matrix for the well model
+  if (this%option%coupled_well .and. associated(this%pmwell_ptr)) then
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_TRUE, &
+                      ierr);CHKERRQ(ierr)
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call PMWellModifyDummyFlowJacobian(pm_well,this%solver%M,ierr)
+        if (this%solver%M /= this%solver%Mpre) then
+          call PMWellModifyDummyFlowJacobian(pm_well,this%solver%Mpre,ierr)
+        endif
+      endif
+      pm_well => pm_well%next_well
+    enddo
+    call MatAssemblyBegin(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+    call MatAssemblyBegin(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr); &
+                         CHKERRQ(ierr)
+    call MatAssemblyEnd(this%solver%Mpre,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatSetOption(this%solver%Mpre,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE, &
+                      ierr);CHKERRQ(ierr)
+  endif
+
+  ! call parent implementation
+  call PMSubsurfaceFlowInitializeRun(this)
+
+end subroutine PMRichardsInitializeRun
+
+! ************************************************************************** !
+
 subroutine PMRichardsInitializeTimestep(this)
   !
   ! Should not need this as it is called in PreSolve.
@@ -285,10 +386,24 @@ subroutine PMRichardsInitializeTimestep(this)
   implicit none
 
   class(pm_richards_type) :: this
+  class (pm_well_type), pointer :: pm_well
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
-  call RichardsInitializeTimestep(this%realization)
+  call RichardsInitializeTimestep(this%realization,this%pmwell_ptr)
+  if (associated(this%pmwell_ptr)) then
+    pm_well => this%pmwell_ptr
+    do
+      if (.not. associated(pm_well)) exit
+      if (any(pm_well%well_grid%h_rank_id == pm_well%option%myrank)) then
+        call pm_well%UpdateFlowRates(ZERO_INTEGER,ZERO_INTEGER, &
+                                     UNINITIALIZED_INTEGER,this%option%ierror)
+      endif
+      call PMWellUpdateReservoirSrcSinkFlow(pm_well)
+      pm_well => pm_well%next_well
+    enddo
+    if (initialize_well_flow) initialize_well_flow = PETSC_FALSE
+  endif
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMRichardsInitializeTimestep
@@ -408,7 +523,7 @@ subroutine PMRichardsResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-  call RichardsResidual(snes,xx,r,this%realization,ierr)
+  call RichardsResidual(snes,xx,r,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMRichardsResidual
 
@@ -430,7 +545,7 @@ subroutine PMRichardsJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
 
-  call RichardsJacobian(snes,xx,A,B,this%realization,ierr)
+  call RichardsJacobian(snes,xx,A,B,this%realization,this%pmwell_ptr,ierr)
 
 end subroutine PMRichardsJacobian
 
@@ -451,6 +566,7 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   use Richards_Aux_module
   use Global_Aux_module
   use Patch_module
+  use Utility_module, only : Equal
 
   implicit none
 
@@ -470,10 +586,15 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   type(field_type), pointer :: field
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(richards_auxvar_type) :: rich_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(pm_well_type), pointer :: cur_well
   PetscInt :: local_id, ghosted_id
+  PetscInt :: well_index, offset
   PetscReal :: P_R, P0, P1, delP
   PetscReal :: scale, sat, sat_pert, pert, pc_pert, press_pert, delP_pert
   PetscReal :: dpc_dsatl
+  PetscReal, parameter :: delta = 1.d-5
 
   patch => this%realization%patch
   grid => patch%grid
@@ -554,6 +675,84 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
       ! transition from unsaturated to saturated
       if (P0 < P_R .and. P1 > P_R) then
         dX_p(local_id) = scale*delP
+      endif
+
+      if (richards_well_coupling == RICHARDS_FULLY_IMPLICIT_WELL) then
+        ghosted_id = grid%nL2G(local_id)
+        rich_auxvar = rich_auxvars(ghosted_id)
+        global_auxvar = global_auxvars(ghosted_id)
+        offset = (local_id-1)*option%nflowdof
+        well_index = offset + ONE_INTEGER
+
+        dX_p(well_index) = sign(min(5.d5,dabs(dX_p(well_index))), &
+                                dX_p(well_index))
+        cur_well => this%pmwell_ptr
+        do
+          if (.not. associated(cur_well)) exit
+          if (cur_well%well_grid%h_rank_id(ONE_INTEGER) == &
+              option%myrank) then
+            if (ghosted_id == cur_well%well_grid% &
+                h_ghosted_id(ONE_INTEGER)) then
+              if (cur_well%well%total_rate < 0.d0) then
+                if (Equal(X_p(well_index),global_auxvar% &
+                                          pres(option%liquid_phase))) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (rich_auxvar%well%bh_p - &
+                                    global_auxvar%pres(option%liquid_phase))
+                elseif (.not. Equal(X_p(well_index), cur_well%well%bh_p)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              else
+                if (X_p(well_index) == global_auxvar% &
+                                      pres(option%liquid_phase)) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (rich_auxvar%well%bh_p - &
+                                    global_auxvar% &
+                                    pres(option%liquid_phase))
+                elseif (X_p(well_index) /= cur_well%well%bh_p) then
+                  dX_p(well_index) = dX_p(well_index) + &
+                                    (cur_well%well%bh_p - X_p(well_index))
+                endif
+              endif
+
+              ! Check whether the well should be pressure- or rate-controlled
+              ! Check to see if we flip from pressure to rate-controlled
+              if ((X_p(well_index) + dX_p(well_index)) > &
+                    cur_well%pressure_threshold_max) then
+                ! Hit the fracture pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_max - &
+                                    X_p(well_index)
+              elseif ((X_p(well_index) + dX_p(well_index)) < &
+                      cur_well%pressure_threshold_min) then
+                ! Hit the min pressure threshold
+                cur_well%pressure_controlled = PETSC_TRUE
+                dX_p(well_index) = cur_well%pressure_threshold_min - &
+                                    X_p(well_index)
+              endif
+              if (cur_well%pressure_controlled) then
+                if (cur_well%well%total_rate < 0.d0) then
+                  ! production well
+                  if (sum(cur_well%well%liq%Q(:)) > &
+                      dabs(cur_well%well%total_rate) * (1.d0 + delta)) then
+                    ! Pressure is too low, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                  endif
+                elseif (cur_well%well%th_ql > 0.d0) then
+                  if (dabs(sum(cur_well%well%liq%Q(:))) > &
+                      cur_well%well%th_ql * (1.d0 + delta)) then
+                    ! Pressure is too high, switch to rate-controlled and force
+                    ! a timestep cut
+                    cur_well%pressure_controlled = PETSC_FALSE
+                  endif
+                endif
+              endif
+            endif
+          endif
+          cur_well => cur_well%next_well
+        enddo
       endif
     enddo
     call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -849,7 +1048,7 @@ subroutine PMRichardsTimeCut(this)
   class(pm_richards_type) :: this
 
   call PMSubsurfaceFlowTimeCut(this)
-  call RichardsTimeCut(this%realization)
+  call RichardsTimeCut(this%realization,this%pmwell_ptr)
   call PMSubsurfaceFlowTimeCutPostInit(this)
 
 end subroutine PMRichardsTimeCut
@@ -886,7 +1085,7 @@ subroutine PMRichardsUpdateAuxVars(this)
 
   class(pm_richards_type) :: this
 
-  call RichardsUpdateAuxVars(this%realization)
+  call RichardsUpdateAuxVars(this%realization,this%pmwell_ptr)
 
 end subroutine PMRichardsUpdateAuxVars
 

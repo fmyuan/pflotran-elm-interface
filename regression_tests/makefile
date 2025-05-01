@@ -123,6 +123,7 @@ STANDARD_CFG = \
 	shortcourse/electron_tower/electron_tower.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg \
 	ufd/ufd.cfg \
+	well_model/richards/richards.cfg \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \

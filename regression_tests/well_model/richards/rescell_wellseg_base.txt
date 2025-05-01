@@ -1,0 +1,171 @@
+skip
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    END
+    WELL_MODEL well01
+      TYPE HYDROSTATIC
+      OPTIONS
+        FLOW_COUPLING FULLY_IMPLICIT
+      END
+    END
+  END
+END
+
+
+SUBSURFACE
+noskip
+
+#=========================== Numerical methods ================================
+NUMERICAL_METHODS FLOW
+    LINEAR_SOLVER
+        SOLVER BCGS
+        PC_TYPE NONE
+    /
+END
+
+!=========================== discretization ===================================
+GRID
+  GRAVITY 0.0d0  0.0d0  -9.81d0
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    -1. -1. -1.
+     1.  1.  1.
+  /
+END
+
+
+!=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 0.0 # 1.d-9
+END
+
+EOS WATER
+  DENSITY CONSTANT 1.0000000000E+03
+  VISCOSITY CONSTANT 1.50000E-03
+END
+
+!=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 99
+  CHARACTERISTIC_CURVES default
+  POROSITY 1.D-04
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0D-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+!=========================== saturation functions =============================
+CHARACTERISTIC_CURVES default 
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+!=========================== output options ===================================
+skip
+OUTPUT
+  VELOCITY_AT_CENTER
+  SNAPSHOT_FILE
+    PERIODIC TIMESTEP 1
+    FORMAT HDF5
+  /
+  VARIABLES
+  COORDINATES
+    LIQUID_PRESSURE
+  /
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+END
+
+DEBUG
+  PRINT_SOLUTION
+  PRINT_RESIDUAL
+  PRINT_JACOBIAN
+  FORMAT ASCII
+  APPEND_COUNTS_TO_FILENAMES
+END
+noskip
+
+!=========================== times ============================================
+TIME
+  FINAL_TIME 1.d-2 s
+  INITIAL_TIMESTEP_SIZE 1.d-3 s
+  MAXIMUM_TIMESTEP_SIZE 1.d-3 s
+  MINIMUM_TIMESTEP_SIZE 1.d-3 s
+END
+
+!=========================== regions ==========================================
+REGION all
+  INFINITE
+END
+
+REGION west
+  FACE WEST
+  CARTESIAN_BOUNDARY WEST
+END
+
+!=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 2.0d6 Pa
+END
+
+    
+FLOW_CONDITION boundary
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.0d6 Pa
+END
+
+FLOW_CONDITION injection
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 1 kg/s
+END
+
+!=========================== condition couplers ===============================
+INITIAL_CONDITION ic
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bc
+  FLOW_CONDITION boundary
+  REGION west
+END
+
+WELL_COUPLER well
+  FLOW_CONDITION injection
+  WELL well01
+END
+
+!=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+END
+
+!=========================== wellbore model ===================================
+WELL_MODEL_OUTPUT
+  WELL_LIQ_PRESSURE
+  WELL_LIQ_Q
+/
+

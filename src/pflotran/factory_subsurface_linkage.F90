@@ -228,6 +228,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use PM_Fracture_class
   use PM_SCO2_class
   use PM_Hydrate_class
+  use PM_Richards_class
   use PM_Parameter_class
   use PM_Ponded_Water_class
   use PM_Unit_Test_class
@@ -323,6 +324,8 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
         class is (pm_sco2_type)
           pm_flow%pmwell_ptr => pm_well_list
         class is (pm_hydrate_type)
+          pm_flow%pmwell_ptr => pm_well_list
+        class is (pm_richards_type)
           pm_flow%pmwell_ptr => pm_well_list
       end select
     endif
@@ -1068,11 +1071,12 @@ subroutine FactSubLinkAddPMCWell(simulation,pm_well_list,pmc_name,input)
 
     select case(option%iflowmode)
 
-      case (WF_MODE, SCO2_MODE, H_MODE)
+      case (WF_MODE, SCO2_MODE, H_MODE, RICHARDS_MODE)
 
       case default
         option%io_buffer = 'Currently, the WELLBORE_MODEL process model can &
-               &only be used with WIPP_FLOW mode, SCO2 mode, and HYDRATE mode.'
+               &only be used with WIPP_FLOW mode, SCO2 mode, RICHARDS mode &
+               &and HYDRATE mode.'
         call PrintErrMsg(option)
     end select
 

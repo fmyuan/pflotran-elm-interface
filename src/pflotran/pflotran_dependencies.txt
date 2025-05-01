@@ -235,6 +235,7 @@ condition_control.o : \
   reactive_transport_aux.o \
   realization_subsurface.o \
   region.o \
+  richards_aux.o \
   sco2_aux.o \
   secondary_continuum_aux.o \
   transport_constraint_base.o \
@@ -611,6 +612,7 @@ factory_subsurface_linkage.o : \
   pm_parameter.o \
   pm_pnf.o \
   pm_ponded_water.o \
+  pm_richards.o \
   pm_richards_ts.o \
   pm_rt.o \
   pm_sco2.o \
@@ -2280,6 +2282,8 @@ pm_richards.o : \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
+  pm_well.o \
+  realization_base.o \
   realization_subsurface.o \
   richards.o \
   richards_aux.o \
@@ -2565,6 +2569,7 @@ pm_well.o : \
   pm_base.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
+  richards_aux.o \
   sco2_aux.o \
   strata.o \
   string.o \
@@ -3433,6 +3438,7 @@ regression.o : \
   timestepper_base.o \
   utility.o
 richards.o : \
+  condition.o \
   connection.o \
   coupler.o \
   debug.o \
@@ -3451,6 +3457,7 @@ richards.o : \
   output_aux.o \
   patch.o \
   pflotran_constants.o \
+  pm_well.o \
   realization_base.o \
   realization_subsurface.o \
   region.o \
