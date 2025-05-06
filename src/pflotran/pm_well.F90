@@ -131,6 +131,8 @@ module PM_Well_class
     type(well_reservoir_type), pointer :: reservoir_save
     ! mass balance of liquid [kmol/s????????]
     PetscReal, pointer :: mass_balance_liq(:)
+    ! mass balance of aqueous mass [mol]
+    PetscReal, pointer :: aq_mass_balance(:,:)
     ! well fluid properties
     type(well_fluid_type), pointer :: liq
     type(well_fluid_type), pointer :: gas
@@ -202,6 +204,10 @@ module PM_Well_class
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
+    ! well species q aqueous mass [mol/s]
+    PetscReal, pointer :: aqueous_mass_ql(:,:)
+    ! well species Q aqueous mass [mol/s]
+    PetscReal, pointer :: aqueous_mass_Q(:,:)
     ! well species q cumulative aqueous mass [mol] (ispecies,mass@segment)
     PetscReal, pointer :: aqueous_mass_q_cumulative(:,:)
     ! well species Q cumulative aqueous mass [mol] (ispecies,mass@segment)
@@ -522,6 +528,7 @@ module PM_Well_class
             PMWellUpdateReservoirSrcSinkTran, &
             PMWellUpdateReservoirConcTran, &
             PMWellMassBalance, &
+            PMWellMassBalanceTran, &
             PMWellCalcCumulativeQFlux, &
             PMWellCalcCumulativeTranFlux, &
             PMWellInitializeWellFlow, &
@@ -883,6 +890,7 @@ subroutine PMWellVarCreate(well)
   well%well_model_type = UNINITIALIZED_INTEGER
   well%well_constraint_type = UNINITIALIZED_INTEGER
   nullify(well%mass_balance_liq)
+  nullify(well%aq_mass_balance)
   nullify(well%liq)
   nullify(well%gas)
   nullify(well%area)
@@ -919,6 +927,8 @@ subroutine PMWellVarCreate(well)
   nullify(well%species_parent_decay_rate)
   nullify(well%aqueous_conc)
   nullify(well%aqueous_mass)
+  nullify(well%aqueous_mass_ql)
+  nullify(well%aqueous_mass_Q)
   nullify(well%aqueous_mass_q_cumulative)
   nullify(well%aqueous_mass_Qcumulative)
   well%output_aqc = PETSC_FALSE
@@ -5045,8 +5055,11 @@ subroutine PMWellInitWellVars(well,well_grid,with_transport,nsegments,nspecies)
   allocate(well%mass_balance_liq(nsegments))
 
   if (with_transport) then
+    allocate(well%aq_mass_balance(nspecies,nsegments))
     allocate(well%aqueous_conc(nspecies,nsegments))
     allocate(well%aqueous_mass(nspecies,nsegments))
+    allocate(well%aqueous_mass_ql(nspecies,nsegments))
+    allocate(well%aqueous_mass_Q(nspecies,nsegments))
     allocate(well%aqueous_mass_q_cumulative(nspecies,nsegments))
     allocate(well%aqueous_mass_Qcumulative(nspecies,nsegments))
     well%aqueous_mass_q_cumulative(:,:) = 0.d0
@@ -8753,6 +8766,21 @@ subroutine PMWellOutputHeaderSequential(pm_well)
           units_string = 'mol'
           call OutputWriteToHeader(fid,variable_string,units_string, &
                                    cell_string,icolumn)
+          variable_string = 'Well q Aqueous Mass. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol/s'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Well Q Aqueous Mass. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol/s'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Well Aq mass balance. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
           variable_string = 'Well q-Cumu Aqueous Mass. ' &
                              // trim(pm_well%well%species_names(i))
           units_string = 'mol'
@@ -9085,6 +9113,9 @@ subroutine PMWellOutputSequential(pm_well)
         do i = 1,pm_well%nspecies
           write(fid,100,advance="no") pm_well%well%aqueous_conc(i,j), &
                                 pm_well%well%aqueous_mass(i,j), &
+                                pm_well%well%aqueous_mass_ql(i,j), &
+                                pm_well%well%aqueous_mass_Q(i,j), &
+                                pm_well%well%aq_mass_balance(i,j), &
                                 pm_well%well%aqueous_mass_q_cumulative(i,j), &
                                 pm_well%well%aqueous_mass_Qcumulative(i,j), &
                                 pm_well%well%reservoir%aqueous_conc(i,j)
@@ -9291,6 +9322,7 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
       well%aqueous_mass_q_cumulative(i,k) = &
         ! [mol-species]                      + [m2*[m/s]*[mol/m3]*s]
         well%aqueous_mass_q_cumulative(i,k) + (dt*area*(q_liq*conc-diffusion))
+      well%aqueous_mass_ql(i,k) = area*(q_liq*conc-diffusion)
     enddo
 
     den_avg = 0.5d0*(well%liq%den(k)+resr%den_l(k))
@@ -9307,6 +9339,7 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
       !     [m^3-liq/sec]*[mol-species/m^3-liq] = [mol-species/sec]
       Qin = coef_Qin*pm_well%tran_soln%prev_soln%resr_aqueous_conc(i,k)
       Qout = coef_Qout*pm_well%tran_soln%prev_soln%aqueous_conc(i,k)
+      well%aqueous_mass_Q(i,k) = Qin + Qout
       well%aqueous_mass_Qcumulative(i,k) = &
       ! [mol-species]                      + [mol-species/sec]*[sec]
         well%aqueous_mass_Qcumulative(i,k) + ((Qin+Qout)*dt)
@@ -9403,6 +9436,56 @@ subroutine PMWellMassBalance(pm_well)
   enddo
 
 end subroutine PMWellMassBalance
+
+! ************************************************************************** !
+
+subroutine PMWellMassBalanceTran(pm_well)
+  !
+  ! transport mass balance in the well process model.
+  !
+  ! Author: Rosie
+  ! Date: 5/5/25
+  !
+
+  implicit none
+
+  class(pm_well_sequential_type) :: pm_well
+
+  type(well_type), pointer :: well
+  PetscInt :: k, nsegments
+  PetscInt:: i,nspecies
+  PetscReal :: aq_mass_rate_up, aq_mass_rate_dn
+
+  well => pm_well%well
+  nsegments = pm_well%well_grid%nsegments
+  nspecies = pm_well%nspecies
+
+  do k = 1, nsegments
+    do i = 1, nspecies
+      if ((k > 1) .and. (k < nsegments)) then
+    ! ----------------------------------------INTERIOR-FLUXES------------------
+        aq_mass_rate_up = well%aqueous_mass_ql(i,k)
+        aq_mass_rate_dn = well%aqueous_mass_ql(i,k-1)
+
+    ! ----------------------------------------BOUNDARY-FLUXES------------------
+      elseif (k == 1) then
+        ! ----- bottom of well -----
+        aq_mass_rate_up = well%aqueous_mass_ql(i,k)
+        aq_mass_rate_dn = 0.d0
+
+        ! ----- top of well -----
+      else !k = nsegments
+        aq_mass_rate_up = 0.d0
+        aq_mass_rate_dn = well%aqueous_mass_ql(i,k-1)
+
+      endif
+
+      well%aq_mass_balance(i,k) = aq_mass_rate_up - aq_mass_rate_dn &
+                                  - well%aqueous_mass_Q(i,k)
+    enddo
+  enddo
+
+end subroutine PMWellMassBalanceTran
 
 ! ************************************************************************** !
 
@@ -9666,8 +9749,11 @@ subroutine PMWellDestroySequential(this)
   if (this%transport) then
     call DeallocateArray(this%well%aqueous_conc)
     call DeallocateArray(this%well%aqueous_mass)
+    call DeallocateArray(this%well%aqueous_mass_ql)
+    call DeallocateArray(this%well%aqueous_mass_Q)
     call DeallocateArray(this%well%aqueous_mass_q_cumulative)
     call DeallocateArray(this%well%aqueous_mass_Qcumulative)
+    call DeallocateArray(this%well%aq_mass_balance)
   endif
   nullify(this%well)
 

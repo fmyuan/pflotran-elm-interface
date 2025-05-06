@@ -2771,6 +2771,9 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   soln%residual = fixed_accum/pm_well%dt_tran
   call PMWellResidualTran(pm_well)
 
+  ! Call mass balance
+  call PMWellMassBalanceTran(pm_well)
+
   do k = 1,(pm_well%well_grid%nsegments*soln%ndof)
     ! Absolute Residual
     temp_real = dabs(soln%residual(k))
