@@ -431,9 +431,9 @@ subroutine RealizationCreateDiscretization(realization)
   ! min/max cell volume
   call PrintMsg(option,NL//'Min/Max Cell Volumes [m^3]')
   call VecMax(field%volume0,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
-  call PrintMsg(option,' Maximum: ' // StringWriteF('(f20.2)',tempreal))
+  call PrintMsg(option,' Maximum: ' // StringWrite('(es13.6)',tempreal))
   call VecMin(field%volume0,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
-  call PrintMsg(option,' Maximum: ' // StringWriteF('(f20.2)',tempreal))
+  call PrintMsg(option,' Minimum: ' // StringWrite('(es13.6)',tempreal))
 
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values
   ! have been set
