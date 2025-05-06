@@ -94,6 +94,7 @@ subroutine PMGeomechReadSimOptionsBlock(this,input)
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
+  PetscBool :: found
 
   option => this%option
 
@@ -108,6 +109,12 @@ subroutine PMGeomechReadSimOptionsBlock(this,input)
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
+
+    found = PETSC_TRUE
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+    if (found) cycle
+
     select case(trim(keyword))
       case('COUPLING')
         call InputReadCard(input,option,word,PETSC_FALSE)

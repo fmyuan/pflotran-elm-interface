@@ -450,6 +450,9 @@ subroutine InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  geomech_discretization%grid  => GMGridCreate()
+  ugrid => UGridCreate()
+
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -470,17 +473,6 @@ subroutine InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
             geomech_discretization%itype = UNSTRUCTURED_GRID
             call InputReadFilename(input,option,geomech_discretization%filename)
             call InputErrorMsg(input,option,'keyword','filename')
-
-            geomech_discretization%grid  => GMGridCreate()
-            ugrid => UGridCreate()
-            call UGridRead(ugrid,geomech_discretization%filename,option)
-            call UGridDecompose(ugrid,option)
-            call CopySubsurfaceGridtoGeomechGrid(ugrid, &
-                                                 geomech_discretization%grid, &
-                                                 option)
-            patch => GeomechanicsPatchCreate()
-            patch%geomech_grid => geomech_discretization%grid
-            geomech_realization%geomech_patch => patch
           case default
             option%io_buffer = 'Geomechanics supports only unstructured grid'
             call PrintErrMsg(option)
@@ -499,11 +491,24 @@ subroutine InitSubsurfGeomechReadGridBlock(geomech_realization,input,option)
             write(option%fid_out,'(/," *GEOMECH_GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomechanics%gravity(1:3)
+      case ('MAX_CELLS_SHARING_A_VERTEX')
+        call InputReadInt(input,option,ugrid%max_cells_sharing_a_vertex)
+        call InputErrorMsg(input,option,'max_cells_sharing_a_vertex', &
+                           'GEOMECHANICS_GRID')
       case default
         call InputKeywordUnrecognized(input,word,'GEOMECHANICS_GRID',option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  call UGridRead(ugrid,geomech_discretization%filename,option)
+  call UGridDecompose(ugrid,option)
+  call CopySubsurfaceGridtoGeomechGrid(ugrid, &
+                                       geomech_discretization%grid, &
+                                       option)
+  patch => GeomechanicsPatchCreate()
+  patch%geomech_grid => geomech_discretization%grid
+  geomech_realization%geomech_patch => patch
 
 end subroutine InitSubsurfGeomechReadGridBlock
 
