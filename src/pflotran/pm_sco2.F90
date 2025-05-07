@@ -2289,15 +2289,15 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         option%convergence == CONVERGENCE_CONVERGED) then
       string = '   Converged'
       call PrintMsg(option,string)
-      write(string,'(4x," R:",9es8.1)') this%converged_real(:,:,RESIDUAL_INDEX)
+      write(string,'(4x," R:",16es8.1)') this%converged_real(:,:,RESIDUAL_INDEX)
       call PrintMsg(option,string)
-      write(string,'(4x,"SR:",9es8.1)') &
+      write(string,'(4x,"SR:",16es8.1)') &
         this%converged_real(:,:,SCALED_RESIDUAL_INDEX)
       call PrintMsg(option,string)
-      write(string,'(4x,"AU:",9es8.1)') &
+      write(string,'(4x,"AU:",16es8.1)') &
         this%converged_real(:,:,ABS_UPDATE_INDEX)
       call PrintMsg(option,string)
-      write(string,'(4x,"RU:",9es8.1)') &
+      write(string,'(4x,"RU:",16es8.1)') &
         this%converged_real(:,:,REL_UPDATE_INDEX)
       call PrintMsg(option,string)
     endif
