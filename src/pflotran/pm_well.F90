@@ -9322,7 +9322,6 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
       well%aqueous_mass_q_cumulative(i,k) = &
         ! [mol-species]                      + [m2*[m/s]*[mol/m3]*s]
         well%aqueous_mass_q_cumulative(i,k) + (dt*area*(q_liq*conc-diffusion))
-      well%aqueous_mass_ql(i,k) = area*(q_liq*conc-diffusion)
     enddo
 
     den_avg = 0.5d0*(well%liq%den(k)+resr%den_l(k))
@@ -9339,7 +9338,6 @@ subroutine PMWellCalcCumulativeTranFlux(pm_well)
       !     [m^3-liq/sec]*[mol-species/m^3-liq] = [mol-species/sec]
       Qin = coef_Qin*pm_well%tran_soln%prev_soln%resr_aqueous_conc(i,k)
       Qout = coef_Qout*pm_well%tran_soln%prev_soln%aqueous_conc(i,k)
-      well%aqueous_mass_Q(i,k) = Qin + Qout
       well%aqueous_mass_Qcumulative(i,k) = &
       ! [mol-species]                      + [mol-species/sec]*[sec]
         well%aqueous_mass_Qcumulative(i,k) + ((Qin+Qout)*dt)
@@ -9480,8 +9478,8 @@ subroutine PMWellMassBalanceTran(pm_well)
 
       endif
 
-      well%aq_mass_balance(i,k) = aq_mass_rate_up - aq_mass_rate_dn &
-                                  - well%aqueous_mass_Q(i,k)
+      well%aq_mass_balance(i,k) = (aq_mass_rate_up - aq_mass_rate_dn &
+                                  - well%aqueous_mass_Q(i,k))*pm_well%dt_tran
     enddo
   enddo
 
