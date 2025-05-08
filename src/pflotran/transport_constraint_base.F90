@@ -15,6 +15,7 @@ module Transport_Constraint_Base_module
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: equilibrate_at_each_cell
+    PetscInt :: verbosity
     class(tran_constraint_base_type), pointer :: next
   contains
     procedure, public :: Strip => TranConstraintBaseStrip
@@ -62,6 +63,7 @@ subroutine TranConstraintBaseInit(this,option)
   this%id = 0
   this%name = ''
   this%equilibrate_at_each_cell = PETSC_FALSE
+  this%verbosity = 0
   nullify(this%next)
 
 end subroutine TranConstraintBaseInit
@@ -125,6 +127,9 @@ subroutine TranConstraintBaseRdSelectCase(this,input,keyword,found,option)
       this%equilibrate_at_each_cell = PETSC_TRUE
     case('DO_NOT_EQUILIBRATE_AT_EACH_CELL')
       this%equilibrate_at_each_cell = PETSC_FALSE
+    case('VERBOSITY')
+      call InputReadInt(input,option,this%verbosity)
+      call InputErrorMsg(input,option,keyword,'CONSTRAINT')
     case default
       found = PETSC_FALSE
   end select

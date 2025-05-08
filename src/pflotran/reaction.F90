@@ -1664,6 +1664,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+
     ! check for infinite complex concentrations
     if (reaction%neqcplx > 0) then
       tempreal = maxval(rt_auxvar%sec_molal)
@@ -1930,6 +1931,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       endif
     else
       use_log_formulation = PETSC_FALSE
+    endif
+
+    if (constraint%verbosity > 9 .and. num_iterations < 20) then
+      write(option%fid_out,'(a)') NL // &
+            'Full constraint geochemistry for iteration ' // &
+            StringWrite(num_iterations+1) // NL
+      call ReactionPrintConstraint(global_auxvar,rt_auxvar, &
+                                    null_constraint_coupler, &
+                                    reaction,option)
     endif
 
     Res_history = cshift(Res_history,shift=-1,dim=2)
