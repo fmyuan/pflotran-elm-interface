@@ -872,6 +872,8 @@ subroutine ComputeTetVolAtVertex(vert_0, &
   volume = ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, 3)
 end subroutine ComputeTetVolAtVertex
 
+! ************************************************************************** !
+
 recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, normals, nSize_in) result(nRet)
   !
   ! Clips on the given plane, splits the resulting
@@ -944,6 +946,8 @@ recursive function ClippedVolume(vert_0, vert_1, vert_2, vert_3, midPoints, norm
   end if
 end function ClippedVolume
 
+! ************************************************************************** !
+
 function Intersect(v1, v2, d1, d2) result(v)
   !
   ! Computes the intesection
@@ -958,6 +962,8 @@ function Intersect(v1, v2, d1, d2) result(v)
 
   v = v1 * (-d2 / (d1 - d2)) + v2 * (d1 / (d1 - d2))
 end function Intersect
+
+! ************************************************************************** !
 
 function cross_product(v1, v2) result(v)
   !
@@ -974,6 +980,8 @@ function cross_product(v1, v2) result(v)
   v(2) = v1(3) * v2(1) - v1(1) * v2(3)
   v(3) = v1(1) * v2(2) - v1(2) * v2(1)
 end function cross_product
+
+! ************************************************************************** !
 
 subroutine sort(V, d)
   !
@@ -1086,7 +1094,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
   enddo
 
   if(option%geomechanics%improve_tet_weighting .and. &
-    eletype.eq.2 .and. len_w.eq.4) then
+    eletype == TET_TYPE .and. len_w == 4) then
     allocate(gauss_tet_vol_weight(len_w))
     call ComputeTetVolAtVertex(local_coordinates(1, :), &
                                local_coordinates(2, :), &
@@ -1159,7 +1167,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
     Kmat = Kmat + w(igpt)*mu* &
       matmul(matmul(kron_B_eye,kron_eye_B_transpose),Trans)*detJ_map
     if(option%geomechanics%improve_tet_weighting .and. &
-       eletype.eq.2 .and. len_w.eq.4) then
+       eletype == TET_TYPE .and. len_w == 4) then
       ! w(igpt) = 1/4 * 1/6 = 1/n_gausspoints * reference_tet_volume
       ! and detJ_map * reference_tet_volume = current_tet_volume
       ! so w(igpt)*detJ_map = 1/4 * current_tet_volume = proportion_of_current_tet_assigned_to_this_gauss_point

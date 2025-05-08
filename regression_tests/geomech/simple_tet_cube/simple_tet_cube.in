@@ -17,7 +17,7 @@ END
 SUBSURFACE
     #=================== Discretization =========================
     GRID
-        TYPE unstructured_explicit simple_tet_cube_grid.h5
+        TYPE unstructured_explicit simple_tet_cube_grid.uge
         GRAVITY 0.d0 0.d0 0.d0
         UPWIND_FRACTION_METHOD CELL_VOLUME
         PERM_TENSOR_TO_SCALAR_MODEL FLOW
@@ -29,18 +29,6 @@ SUBSURFACE
     END
     
     #=================== Material properties =========================
-    DATASET Permeability
-        FILENAME simple_tet_cube_prop.h5
-    END
-    DATASET Compressibility
-        FILENAME simple_tet_cube_prop.h5
-    END
-    DATASET Porosity
-        FILENAME simple_tet_cube_prop.h5
-    END
-    DATASET Tortuosity
-        FILENAME simple_tet_cube_prop.h5
-    END
     MATERIAL_PROPERTY RockMatrix3D
         ID 1
         POROSITY 4.e-002
