@@ -38,7 +38,7 @@
       PetscReal, private :: aco2(4),bco2(4),capa(5),capb(5),capc(5),capd(5)
       PetscReal, private :: av(0:4)
 
-      PetscReal, private :: denc,tc,rg,pc
+      PetscReal, private :: rhoc,tc,rg,pc
       PetscReal ,private, allocatable :: co2_prop_spwag(:,:,:)
       PetscReal, private :: p,t
 
@@ -59,13 +59,15 @@ subroutine initialize_span_wagner(itable,myrank,option)
       implicit none
       PetscInt, optional :: itable
 
-      PetscReal :: pl,tl,tmp,tmp2,dtemp,dpres
-
-      PetscReal :: rhodp,rhodt,fgdp,fgdt,engdp,engdt,entdp,entdt,vdp,vdt
+      PetscReal :: pl,tl,tmp,tmp2
 
       PetscInt :: iitable,i,j
       PetscMPIInt :: myrank
       PetscInt :: iflag
+
+#ifdef PC_BUG
+      PetscReal :: temparray(15)
+#endif
 
       character*3 :: q
       character*1 :: tab
@@ -86,7 +88,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
       iitable = 0
       if (present(itable)) iitable=itable
 
-      denc = 467.6d0
+      rhoc = 467.6d0
       tc = 304.1282d0
       rg = 0.1889241d0
       pc = 7.3773d0
@@ -337,81 +339,6 @@ subroutine initialize_span_wagner(itable,myrank,option)
         co2_prop_spwag(i,j,11),co2_prop_spwag(i,j,12),co2_prop_spwag(i,j,13),&
         co2_prop_spwag(i,j,14),co2_prop_spwag(i,j,15),iflag)
 
-!       p = p + dp
-        dpres = 1.e-3
-        call co2_span_wagner(pl+dpres,tl,rhodp,co2_prop_spwag(i,j,4),&
-        co2_prop_spwag(i,j,5),fgdp,co2_prop_spwag(i,j,7),&
-        co2_prop_spwag(i,j,8),engdp,entdp,&
-        co2_prop_spwag(i,j,11),co2_prop_spwag(i,j,12),vdp,&
-        co2_prop_spwag(i,j,14),co2_prop_spwag(i,j,15),iflag)
-
-!       t = t + dt
-        dtemp = 1.e-4
-        call co2_span_wagner(pl,tl+dtemp,rhodt,co2_prop_spwag(i,j,4),&
-        co2_prop_spwag(i,j,5),fgdt,co2_prop_spwag(i,j,7),&
-        co2_prop_spwag(i,j,8),engdt,entdt,&
-        co2_prop_spwag(i,j,11),co2_prop_spwag(i,j,12),vdt,&
-        co2_prop_spwag(i,j,14),co2_prop_spwag(i,j,15),iflag)
-
-! compute derivatives numerically: 1-p,2-T,3-d,4-dddt,5-dddp,6-fg,7-dfgdp,8-dfgdt,
-!                 9-energy,10-enthalpy,11-dhdt,12-dhdp,13-visc,14-dvdt,15-dvdp
-!#if 0
-
-          !dddt
-          co2_prop_spwag(i,j,4) = (rhodt-co2_prop_spwag(i,j,3))/dtemp
-
-          !dfgdt
-          co2_prop_spwag(i,j,8) = (fgdt-co2_prop_spwag(i,j,6))/dtemp
-
-          !dhdt
-          co2_prop_spwag(i,j,11) = (entdt-co2_prop_spwag(i,j,10))/dtemp
-
-          !dvdt
-          co2_prop_spwag(i,j,14) = (vdt-co2_prop_spwag(i,j,13))/dtemp
-
-          !dddp
-          co2_prop_spwag(i,j,5) = (rhodp-co2_prop_spwag(i,j,3))/dpres
-
-          !dfgdp
-          co2_prop_spwag(i,j,7) = (fgdp-co2_prop_spwag(i,j,6))/dpres
-
-          !dhdp
-          co2_prop_spwag(i,j,12) = (entdp-co2_prop_spwag(i,j,10))/dpres
-
-          !dvdp
-          co2_prop_spwag(i,j,15) = (vdp-co2_prop_spwag(i,j,13))/dpres
-!#endif
-#if 0
-        if (j>0) then
-          dtemp = tl-co2_prop_spwag(i,j-1,2)
-
-          !dddt
-          co2_prop_spwag(i,j,4) = (co2_prop_spwag(i,j,3)-co2_prop_spwag(i,j-1,3))/dtemp
-
-          !dfgdt
-          co2_prop_spwag(i,j,8) = (co2_prop_spwag(i,j,6)-co2_prop_spwag(i,j-1,6))/dtemp
-
-          !dhdt
-          co2_prop_spwag(i,j,11) = (co2_prop_spwag(i,j,10)-co2_prop_spwag(i,j-1,10))/dtemp
-
-          !dvdt
-          co2_prop_spwag(i,j,14) = (co2_prop_spwag(i,j,13)-co2_prop_spwag(i,j-1,13))/dtemp
-        endif
-        if (i>0) then
-          dpres = pl-co2_prop_spwag(i-1,j,1)
-          !dddp
-          co2_prop_spwag(i,j,5) = (co2_prop_spwag(i,j,3)-co2_prop_spwag(i-1,j,3))/dpres
-
-          !dfgdp
-          co2_prop_spwag(i,j,7) = (co2_prop_spwag(i,j,6)-co2_prop_spwag(i-1,j,6))/dpres
-
-          !dhdp
-          co2_prop_spwag(i,j,12) = (co2_prop_spwag(i,j,10)-co2_prop_spwag(i-1,j,10))/dpres
-
-          !dvdp
-          co2_prop_spwag(i,j,15) = (co2_prop_spwag(i,j,13)-co2_prop_spwag(i-1,j,13))/dpres
-        endif
-#endif
         tmp = co2_prop_spwag(i,j,3)
         if (j==0) tmp2 = co2_prop_spwag(i,j,3)
       ! print *, co2_prop_spwag(i,j,:)
@@ -483,18 +410,26 @@ end subroutine initialize_span_wagner
 
 ! ************************************************************************** !
 
-subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
+subroutine co2_span_wagner(pl,tl,rho,drho_dt,drho_dp,fg,dfgdp,dfgdt, &
       eng,ent,dhdt,dhdp,visc,dvdt,dvdp,iflag,itable)
 
   use co2_sw_rtsafe_module
 
   implicit none
 
-      PetscReal :: pl,tl,rho,eng,ent,dhdt,dhdp,dddt,dddp,visc,dvdt,dvdp
-      PetscReal :: fiot,fiott,fird,firt,firdt,firdd,firtt,ftau,fdel,del,tau,fir
+      PetscReal :: pl,tl,rho,eng,ent,dhdt,dhdp,drho_dt,drho_dp,visc,dvdt,dvdp
+      PetscReal :: dphio_dtau
+      PetscReal :: d2phio_dtaudtau
+      PetscReal :: dphir_ddel
+      PetscReal :: dphir_dtau
+      PetscReal :: d2phir_ddeldtau
+      PetscReal :: d2phir_ddelddel
+      PetscReal :: d2phir_dtaudtau
+      PetscReal :: ftau,fdel,del,tau,phir
 !     PetscReal :: vpartial, rho_h2o, Cs, xco2, rho_wco2
       PetscReal :: fg,dfgdp,fg1,dfgdt
       PetscReal :: rho1,rho2
+      PetscReal :: w, dtaudt
       PetscInt :: iflag
 
 !     PetscInt :: it
@@ -508,21 +443,21 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       if (present(itable)) iitable = itable
 
 !     co2data0.dat - units:
-!      1-P      : MPa
-!      2-T      : K
-!      3-d (den): kg/m^3
-!      4-dddT   : kg/m3/C
-!      5-dddp   : kg/m3/MPa
-!      6-fg     : -
-!      7-dfgdp  : 1/MPa
-!      8-dfgdT  : 1/C
-!      9-u(eng) : MJ/Kg
-!     10-h(ent) : MJ/Kg
-!     11-dhdT   : MJ/kg/C
-!     12-dhdp   : MJ/Kg/MPa
-!     13-vis    : Pa.s
-!     14-dvdT   : Pa.s/C
-!     15-dvdp   : Pa.s/Mpa
+!      1-P       : MPa
+!      2-T       : K
+!      3-d (den) : kg/m^3
+!      4-drho_dt : kg/m3/C
+!      5-drho_dp : kg/m3/MPa
+!      6-fg      : -
+!      7-dfgdp   : 1/MPa
+!      8-dfgdT   : 1/C
+!      9-u(eng)  : MJ/Kg
+!     10-h(ent)  : MJ/Kg
+!     11-dhdT    : MJ/kg/C
+!     12-dhdp    : MJ/Kg/MPa
+!     13-vis     : Pa.s
+!     14-dvdT    : Pa.s/C
+!     15-dvdp    : Pa.s/Mpa
 
 !     print *,'span_wag: ',p,t,tc,pc,rg,iitable
 
@@ -536,14 +471,6 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
   isucc=1
   tmp = (p - p0_tab) / dp_tab; i1 = floor(tmp); i2 = ceiling(tmp); iindex=tmp
   tmp = (t - t0_tab) / dt_tab; j1 = floor(tmp); j2 = ceiling(tmp); jindex=tmp
-
-  if (iindex > ntab_p .or. iindex < 0.d0 .or. jindex < 0.d0 .or. jindex > ntab_t) then
-    print  *,' Out of Table Bounds (Span-Wagner): ', 'p [MPa] =',p, &
-    ' t [C] =',t-T273K,' i=',iindex,' j=',jindex
-!geh    isucc=0
-    iflag = -1
-    return
-  endif
 
   if (isucc > 0) then
 
@@ -590,12 +517,12 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
     rho = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
          + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
     i=i+1
-    dddt = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
-         + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
+    drho_dt = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
+              + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
 
     i=i+1
-    dddp= factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
-         + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
+    drho_dp = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
+              + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
 
     i=i+1
     fg= factor(1)* co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
@@ -648,32 +575,32 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       call guess(rho1,rho2)
 !     print *,'spanwag-guess: ',p,t,rho1,rho2,iitable
 
-      call bracket(co2den,rho1,rho2)
+      call bracket(co2den_no_deriv,rho1,rho2)
 
       rho = rtsafe(co2den,rho1,rho2,1.d-10)
 
-      del = rho/denc
+      del = rho/rhoc
       tau = tc/t
-      call phir(fir,del,tau)
-      call dphiodtau(fiot,del,tau)
-      call dphirddel(fird,del,tau)
-      call dphirdtau(firt,del,tau)
-      call dphirdddel(firdd,del,tau)
-      call dphirdtautau(firtt,del,tau)
-      call dphirddeldtau(firdt,del,tau)
-      call dphiodtautau(fiott,del,tau)
+      call calc_phir(phir,del,tau)
+      call calc_dphiodtau(dphio_dtau,del,tau)
+      call calc_dphirddel(dphir_ddel,del,tau)
+      call calc_dphirdtau(dphir_dtau,del,tau)
+      call calc_dphirdddel(d2phir_ddelddel,del,tau)
+      call calc_dphirdtautau(d2phir_dtaudtau,del,tau)
+      call calc_dphirddeldtau(d2phir_ddeldtau,del,tau)
+      call calc_dphiodtautau(d2phio_dtaudtau,del,tau)
 
-      ent = rg*t*(1.0d0+tau*(fiot+firt)+del*fird) + 506.78d0
+      ent = rg*t*(1.0d0+tau*(dphio_dtau+dphir_dtau)+del*dphir_ddel) + 506.78d0
       eng = ent - p/rho*1.d3
 
-!     dhdt = -rg*tau*tau*((-1.d0/(tau*tau))+fiott+firtt+ &
-!         ((del*firdt)/tau)-((del*fird)/(tau*tau)))
+!     dhdt = -rg*tau*tau*((-1.d0/(tau*tau))+d2phio_dtaudtau+d2phir_dtaudtau+ &
+!         ((del*d2phir_ddeldtau)/tau)-((del*dphir_ddel)/(tau*tau)))
 
-      dhdt = rg*((1.d0+del*(fird-tau*firdt))**2/(1.d0+del*(2.d0*fird+del*firdd))- &
-             tau*tau*(fiott+firtt))
+      dhdt = rg*((1.d0+del*(dphir_ddel-tau*d2phir_ddeldtau))**2/(1.d0+del*(2.d0*dphir_ddel+del*d2phir_ddelddel))- &
+             tau*tau*(d2phio_dtaudtau+d2phir_dtaudtau))
 
-      dhdp = (1000.d0/denc)*((tau*firdt)+(del*firdd)+fird)/ &
-          (1.d0+(del*del*firdd)+(2.d0*del*fird))
+      dhdp = (1000.d0/rhoc)*((tau*d2phir_ddeldtau)+(del*d2phir_ddelddel)+dphir_ddel)/ &
+          (1.d0+(del*del*d2phir_ddelddel)+(2.d0*del*dphir_ddel))
 
 !     change units to MJ/kg from KJ/Kg
       ent = ent*1.d-3
@@ -681,24 +608,28 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       dhdt = dhdt*1.d-3
       dhdp = dhdp*1.d-3
 
-      ftau = (del*del*firdt)-(1000.d0*p/(denc*rg*tc))
-      fdel = (2.d0*del*fird)+(del*del*firdd)+1.d0
-      dddt = (denc*tc/(t*t))*(ftau/fdel)
-      dddp = 1000.d0/(rg*t*(1.d0+(del*del*firdd)+(2.d0*del*fird)))
+      ftau = (del*del*d2phir_ddeldtau)-(1000.d0*p/(rhoc*rg*tc))
+      fdel = (2.d0*del*dphir_ddel)+(del*del*d2phir_ddelddel)+1.d0
+      drho_dt = (rhoc*tc/(t*t))*(ftau/fdel)
+      drho_dp = 1000.d0/(rg*t*(1.d0+(del*del*d2phir_ddelddel)+(2.d0*del*dphir_ddel)))
 
-!     print *,'co2_span: ','p=',p,'t=',t,'rho=',rho,'dddt=',dddt,'dddp=',dddp,'del=',del, &
-!     'ftau=',ftau,'fdel=',fdel,'firdt=',firdt,'firdd=',firdd,'fird=',fird
+!     print *,'co2_span: ','p=',p,'t=',t,'rho=',rho,'drho_dt=',drho_dt,'drho_dp=',drho_dp,'del=',del, &
+!     'ftau=',ftau,'fdel=',fdel,'d2phir_ddeldtau=',d2phir_ddeldtau,'d2phir_ddelddel=',d2phir_ddelddel,'dphir_ddel=',dphir_ddel
 
 !     fugacity
-      fg1 = exp(fir+(del*fird)-log(1.d0+(del*fird)))
+      fg1 = exp(phir+(del*dphir_ddel)-log(1.d0+(del*dphir_ddel)))
       fg = fg1*p
-      dfgdp = (fird*(1.d0+(2.d0*del*fird)+(del*del*firdd))/ &
-          (1.d0+(del*fird)))*dddp/denc
+      dfgdp = (dphir_ddel*(1.d0+(2.d0*del*dphir_ddel)+(del*del*d2phir_ddelddel))/ &
+          (1.d0+(del*dphir_ddel)))*drho_dp/rhoc
       dfgdp = fg1+(fg*dfgdp)
 
-      dfgdt = (firt+(del*firt*fird)+(del*del*firdt*fird))/ &
-          (1.d0+(del*fird))
-      dfgdt = -fg*dfgdt*tc/(t*t)
+      w = 1.d0 - 1.d0/(1.d0 + del*dphir_ddel)
+      dtaudt = -tc/(t*t);
+      dfgdt = fg*(dphir_dtau*dtaudt + &
+                  dphir_ddel*drho_dt/rhoc + &
+                  w*((drho_dt/rhoc)*dphir_ddel + &
+                      del*d2phir_ddeldtau*dtaudt + &
+                      del*d2phir_ddelddel*drho_dt/rhoc))
 
 !      write(*,*) "Molality?"
 !      read(*,*) mol
@@ -720,15 +651,12 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
 !     rho_wco2 = rho_h2o + (1.96d2*Xco2) + (1.54d4*Xco2*Xco2)
 !      write(*,*) rho_wco2
 
-      call viscosity(pl,tl,rho,dddp,dddt,visc,dvdt,dvdp)
+      call viscosity(pl,tl,rho,drho_dp,drho_dt,visc,dvdt,dvdp)
 
 !     change units to Pa.s from microPa.s
       visc = visc*1d-6
       dvdt = dvdt*1d-6
       dvdp = dvdp*1d-6
-
-      if (allocated(co2_prop_spwag)) deallocate(co2_prop_spwag)
-
 
 end subroutine co2_span_wagner
 
@@ -760,7 +688,7 @@ subroutine guess(lguess,uguess)
             tr = 1.d0-ts/tc
             rhov =a1*(tr**t1)+a2*(tr**t2)+a3*(tr**t3)+ &
                     a4*(tr**t4)+a5*(tr**t5)
-            rhov =denc*exp(rhov)
+            rhov =rhoc*exp(rhov)
 
 !liquid density
             a1 = 1.9245108d0
@@ -773,9 +701,9 @@ subroutine guess(lguess,uguess)
             t4 = 11.d0/6.d0
             rhol =a1*(tr**t1)+a2*(tr**t2)+a3*(tr**t3)+ &
                     a4*(tr**t4)
-            rhol =denc*exp(rhol)
+            rhol =rhoc*exp(rhol)
 
-!           print *,'guess: ',p,t,ts,tc,denc,tr,rhov,rhol
+!           print *,'guess: ',p,t,ts,tc,rhoc,tr,rhov,rhol
 
         if (t.le.ts) then ! sub-critical liquid region
           if (p.lt.6.d0) then
@@ -844,22 +772,39 @@ end subroutine guess
 
 ! ************************************************************************** !
 
-subroutine co2den(den,f,df)
+subroutine co2den(den,f,df_drho)
 
     IMPLICIT NONE
       PetscReal :: den,tau1,del1
-      PetscReal :: f1,df1,f,df
+      PetscReal :: f1,df1,f,df_drho
 
       tau1 = tc/t
-      del1 = den/denc
+      del1 = den/rhoc
 
-      call dphirddel(f1,del1,tau1)
-      call dphirdddel(df1,del1,tau1)
-      f = del1*(1.d0+del1*f1)-(p/(denc*0.001d0*rg*t))
-      df = 1.d0+(2.d0*del1*f1)+(del1*del1*df1)
+      call calc_dphirddel(f1,del1,tau1)
+      call calc_dphirdddel(df1,del1,tau1)
+      f = del1*(1.d0+del1*f1)-(p/(rhoc*0.001d0*rg*t))
+      df_drho = (1.d0+(2.d0*del1*f1)+(del1*del1*df1))/rhoc
 
       return
 end subroutine co2den
+
+! ************************************************************************** !
+
+subroutine co2den_no_deriv(den,f)
+
+    IMPLICIT NONE
+      PetscReal :: den,tau1,del1
+      PetscReal :: f1, f
+
+      tau1 = tc/t
+      del1 = den/rhoc
+
+      call calc_dphirddel(f1,del1,tau1)
+      f = del1*(1.d0+del1*f1)-(p/(rhoc*0.001d0*rg*t))
+
+      return
+end subroutine co2den_no_deriv
 
 ! ************************************************************************** !
 
@@ -878,7 +823,7 @@ end subroutine co2den
 
 ! ************************************************************************** !
 
-subroutine dphiodtau(dr,del2,tau2)
+subroutine calc_dphiodtau(dr,del2,tau2)
       implicit none
       PetscInt :: i
       PetscReal :: del2,tau2,dr
@@ -897,11 +842,11 @@ subroutine dphiodtau(dr,del2,tau2)
       enddo
       dr = derti_helm
 
-end subroutine dphiodtau
+end subroutine calc_dphiodtau
 
 ! ************************************************************************** !
 
-subroutine dphiodtautau(dr,del2,tau2)
+subroutine calc_dphiodtautau(dr,del2,tau2)
 
       implicit none
 
@@ -919,11 +864,11 @@ subroutine dphiodtautau(dr,del2,tau2)
       enddo
       dr = dihelm_dtautau
 
-end subroutine dphiodtautau
+end subroutine calc_dphiodtautau
 
 ! ************************************************************************** !
 
-subroutine phir(r_helm,del2,tau2)
+subroutine calc_phir(r_helm,del2,tau2)
 
 !     residual helmholtz energy: Span & Wagner (1996), p. 1544, eq. (6.5)
 !     Table 32
@@ -962,11 +907,11 @@ subroutine phir(r_helm,del2,tau2)
       enddo
 
       return
-end subroutine phir
+end subroutine calc_phir
 
 ! ************************************************************************** !
 
-subroutine dphirddel(dr,del2,tau2)
+subroutine calc_dphirddel(dr,del2,tau2)
 
 !     Span & Wagner (1996) Table 32
 
@@ -974,6 +919,7 @@ subroutine dphirddel(dr,del2,tau2)
       PetscInt :: i
       PetscReal :: del2,tau2,dr,derdr_helm
       PetscReal :: psi1,capdel1,dsidd,ddelbdd
+      PetscReal :: del2_pow_c
 !     PetscReal :: d1,d2,d3,d4,d5,d6,d7,d9
 !     PetscReal :: e1,e2,e3,e4,e5,e6
 !     PetscReal :: tsqr,t1,t2,t3,t6,t7,t8,t12,t14,t16,t22,t24,t28
@@ -985,8 +931,9 @@ subroutine dphirddel(dr,del2,tau2)
         derdr_helm=derdr_helm+(n(i)*d(i)*(del2**(d(i)-1.d0))*(tau2**ti(i)))
       enddo
       do i = 8, 34
+        del2_pow_c = del2**c(i)
         derdr_helm=derdr_helm+(n(i)*(del2**(d(i)-1.d0))*(tau2**ti(i)) &
-        *exp(-del2**c(i))*(d(i)-(c(i)*(del2**c(i)))))
+        *exp(-del2_pow_c)*(d(i)-(c(i)*(del2_pow_c))))
       enddo
       do i = 35, 39
         derdr_helm = derdr_helm+(n(i)*(del2**d(i))*(tau2**ti(i))* &
@@ -1004,17 +951,18 @@ subroutine dphirddel(dr,del2,tau2)
       enddo
       dr = derdr_helm
 
-end subroutine dphirddel
+end subroutine calc_dphirddel
 
 ! ************************************************************************** !
 
-subroutine dphirdddel(dpdd,del2,tau2)
+subroutine calc_dphirdddel(dpdd,del2,tau2)
       implicit none
       PetscInt :: i
       PetscReal :: del2,tau2,derdr_helm
       PetscReal :: dpdd,psi1,capdel1
       PetscReal :: dsidd,d2sidd,ddelbdd
       PetscReal :: d2delbdd
+      PetscReal :: del2_pow_c
 !     PetscReal :: d1,d2,d3,d4,d5,d6,d7,d8,d9
 !     PetscReal :: e1,e2,e3,e4,e5,e6
 !     PetscReal :: tsqr,t1,t2,t3,t6,t7,t8,t12,t14,t16,t22,t24,t28
@@ -1028,10 +976,11 @@ subroutine dphirdddel(dpdd,del2,tau2)
       enddo
 
       do i = 8, 34
+        del2_pow_c = del2**c(i)
         derdr_helm=derdr_helm+(n(i)*(del2**(d(i)-2.d0))*(tau2**ti(i))* &
-        exp(-del2**c(i))*(((d(i)-(c(i)*(del2**c(i))))* &
-        (d(i)-1.d0-(c(i)*(del2**c(i)))))-((c(i)**2.d0)* &
-        (del2**c(i)))))
+        exp(-del2_pow_c)*(((d(i)-(c(i)*(del2_pow_c)))* &
+        (d(i)-1.d0-(c(i)*(del2_pow_c))))-((c(i)**2.d0)* &
+        (del2_pow_c))))
       enddo
 
       do i = 35, 39
@@ -1055,16 +1004,16 @@ subroutine dphirdddel(dpdd,del2,tau2)
         dsidd)+(del2*d2sidd)))+(2.d0*ddelbdd*(psi1+(del2*dsidd))) &
         +(d2delbdd*del2*psi1)))
 
-!       print *,'dphirdddel: ',i,psi1,capdel1,dsidd,d2sidd,ddelbdd,derdr_helm
+!       print *,'calc_dphirdddel: ',i,psi1,capdel1,dsidd,d2sidd,ddelbdd,derdr_helm
       enddo
 
       dpdd = derdr_helm
 
-end subroutine dphirdddel
+end subroutine calc_dphirdddel
 
 ! ************************************************************************** !
 
-subroutine dphirdtau(dpdtau,del2,tau2)
+subroutine calc_dphirdtau(dpdtau,del2,tau2)
 
       implicit none
       PetscInt :: i
@@ -1101,11 +1050,11 @@ subroutine dphirdtau(dpdtau,del2,tau2)
       enddo
       dpdtau = derdr_helm
 
-end subroutine dphirdtau
+end subroutine calc_dphirdtau
 
 ! ************************************************************************** !
 
-subroutine dphirdtautau(dpdtt,del2,tau2)
+subroutine calc_dphirdtautau(dpdtt,del2,tau2)
 
       implicit none
       PetscInt :: i
@@ -1148,11 +1097,11 @@ subroutine dphirdtautau(dpdtt,del2,tau2)
 
       dpdtt = derdr_helm
 
-end subroutine dphirdtautau
+end subroutine calc_dphirdtautau
 
 ! ************************************************************************** !
 
-subroutine dphirddeldtau(dpddt,del2,tau2)
+subroutine calc_dphirddeldtau(dpddt,del2,tau2)
 
       implicit none
       PetscInt :: i
@@ -1198,7 +1147,7 @@ subroutine dphirddeldtau(dpddt,del2,tau2)
 
       dpddt = derdr_helm
 
-end subroutine dphirddeldtau
+end subroutine calc_dphirddeldtau
 
 ! ************************************************************************** !
 
@@ -1480,7 +1429,7 @@ end subroutine vappr
 
 ! ************************************************************************** !
 
-subroutine viscosity(p,t,rho,drhodp,drhodt,mu,dmudt,dmudp)
+subroutine viscosity(p,t,rho,drho_dp,drho_dt,mu,dmu_dt,dmu_dp)
 
 ! Fenghour, A., W. A. Wakeham, and V. Vesovic,
 ! The viscosity of carbon dioxide,
@@ -1488,9 +1437,9 @@ subroutine viscosity(p,t,rho,drhodp,drhodt,mu,dmudt,dmudp)
 
       implicit none
       PetscReal :: p, t, rho
-      PetscReal :: xsection1, xsection2, drhodt, drhodp,dmudp,dmudt
-      PetscReal :: dtxsection,dt_zerodenmu,dp_zerodenmu,drho_excessmu
-      PetscReal :: dp_excessmu, dt_excessmu
+      PetscReal :: xsection1, xsection2, drho_dt, drho_dp,dmu_dp,dmu_dt
+      PetscReal :: dzerodenmu_dt,dzerodenmu_dp,dexcessmu_drho
+      PetscReal :: dexcessmu_dp, dexcessmu_dt
       PetscReal :: t_star, xsection, zeroden_mu, excess_mu, mu
       PetscReal :: lnstr,r2,r4,r5,r6,r7,r8
 
@@ -1530,30 +1479,29 @@ subroutine viscosity(p,t,rho,drhodp,drhodt,mu,dmudt,dmudp)
       xsection2 = av(1) + (2.d0*av(2) + &
           (3.d0*av(3) + 4.d0*av(4)*lnstr)*lnstr)*lnstr
 
-      dtxsection = xsection2/(251.196d0*t_star)
-      dt_zerodenmu =  exp(xsection1)*dtxsection
+      dzerodenmu_dt =  (1.00697d0/(xsection*(t**0.5d0)))*(0.5d0 - xsection2)
 
-      dp_zerodenmu = 0.d0
+      dzerodenmu_dp = 0.d0
 
-      drho_excessmu = 0.4071119d-2+2.d0*0.7198037d-4*rho+ &
+      dexcessmu_drho = 0.4071119d-2+2.d0*0.7198037d-4*rho+ &
           6.d0*0.2411697d-16*r5/(t_star**3)+ &
           8.d0*0.2971072d-22*r7+ &
           8.d0*(-0.1627888d-22)*r7/t_star
 
-      dp_excessmu = drho_excessmu
+      dexcessmu_dp = dexcessmu_drho
 
-      dt_excessmu = 0.4071119d-2*drhodt+ &
-          2.d0*0.7198037d-4*rho*drhodt+ &
-          (0.2411697d-16*r5*((6.d0*t_star*drhodt) &
+      dexcessmu_dt = 0.4071119d-2*drho_dt+ &
+          2.d0*0.7198037d-4*rho*drho_dt+ &
+          (0.2411697d-16*r5*((6.d0*t_star*drho_dt) &
           -(3.d0*rho/251.196d0))/ &
           (t_star**4))+ &
-          (8.d0*0.2971072d-22*r7*drhodt)+ &
-          (-0.1627888d-22*r7*((8.d0*t_star*drhodt)- &
+          (8.d0*0.2971072d-22*r7*drho_dt)+ &
+          (-0.1627888d-22*r7*((8.d0*t_star*drho_dt)- &
           (rho/251.196d0))/(t_star**2))
 
-      dmudt = dt_excessmu + dt_zerodenmu
+      dmu_dt = dexcessmu_dt + dzerodenmu_dt
 
-      dmudp = dp_zerodenmu + (dp_excessmu*drhodp)
+      dmu_dp = dzerodenmu_dp + (dexcessmu_dp*drho_dp)
 
 end subroutine viscosity
 
