@@ -1407,6 +1407,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: i
   PetscInt :: icomp, jcomp, kcomp
   PetscInt :: imnrl
   PetscInt :: icplx
@@ -1427,6 +1428,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   class(tran_constraint_coupler_rt_type), pointer :: null_constraint_coupler
 
   PetscReal :: Res(reaction%naqcomp)
+  PetscReal :: Res_history(reaction%naqcomp,10)
   PetscReal :: update(reaction%naqcomp)
   PetscReal :: total_conc(reaction%naqcomp)
   PetscReal :: free_conc(reaction%naqcomp)
@@ -1456,12 +1458,18 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: istartaq, iendaq
   PetscInt :: irate
 
+  PetscReal, parameter :: history_tol = 1.d-2
+  PetscReal, parameter :: history_pert = 1.d-40
+  PetscInt :: oscillation_count
+
   PetscInt :: num_it_act_coef_turned_on
   PetscInt :: ierror
 
   if (.not.associated(constraint%aqueous_species)) return
 
   nullify(null_constraint_coupler)
+  Res_history = 0.d0
+  oscillation_count = 0
 
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
@@ -1661,7 +1669,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       tempreal = maxval(rt_auxvar%sec_molal)
       if (tempreal > 1.d200) then
         option%io_buffer = 'ERROR: Infinite concentrations found in &
-          &constraint "' // trim(constraint%name) // '".'
+          &constraint "' // trim(constraint%name) // '" after ' // &
+          StringWrite(num_iterations) // ' iterations.'
         call PrintMsgByRank(option)
         ! now figure out which species have zero concentrations
         do idof = 1, reaction%neqcplx
@@ -1673,6 +1682,12 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
             call PrintMsgByRank(option)
           endif
         enddo
+        write(option%fid_out,'(a)') NL // 'Full constraint geochemistry at &
+          &failure:' // NL
+        call ReactionPrintConstraint(global_auxvar,rt_auxvar, &
+                                     null_constraint_coupler, &
+                                     reaction,option)
+        write(option%fid_out,'(a)') NL
         option%io_buffer = 'Secondary aqueous concentrations RESULTING from &
           &constraint concentrations must be reasonable.'
         call PrintErrMsgByRank(option)
@@ -1916,6 +1931,37 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     else
       use_log_formulation = PETSC_FALSE
     endif
+
+    Res_history = cshift(Res_history,shift=-1,dim=2)
+    Res_history(:,1) = Res
+    if (Res_history(1,5) > 0.d0) then
+      flag = PETSC_FALSE
+      do i = 2, 7
+        if (maxval(dabs((Res_history(:,1)-Res_history(:,i))/ &
+                        (Res_history(:,1)+history_pert))) < history_tol) then
+          ! check next 2 sets of numbers
+          if (maxval(dabs((Res_history(:,2)-Res_history(:,i+1))/ &
+                          (Res_history(:,2)+history_pert))) < &
+              history_tol .and. &
+              maxval(dabs((Res_history(:,3)-Res_history(:,i+2))/ &
+                          (Res_history(:,3)+history_pert))) < &
+              history_tol) then
+            flag = PETSC_TRUE
+          endif
+        endif
+      enddo
+      if (flag) then
+        oscillation_count = oscillation_count + 1
+        option%io_buffer = 'Potential oscillatory convergence in &
+          &ReactionEquilibrateConstraint, iteration:' // &
+          StringWrite(num_iterations)
+        if (oscillation_count > 1000000) then
+          call PrintErrMsg(option)
+        endif
+        call PrintWrnMsg(option)
+      endif
+    endif
+
 
     ! ierror is a dummy error flag since stop_on_error = PETSC_TRUE
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
