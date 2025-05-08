@@ -1424,6 +1424,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
 
+  class(tran_constraint_coupler_rt_type), pointer :: null_constraint_coupler
+
   PetscReal :: Res(reaction%naqcomp)
   PetscReal :: update(reaction%naqcomp)
   PetscReal :: total_conc(reaction%naqcomp)
@@ -1458,6 +1460,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscInt :: ierror
 
   if (.not.associated(constraint%aqueous_species)) return
+
+  nullify(null_constraint_coupler)
 
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
@@ -2000,8 +2004,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     num_iterations = num_iterations + 1
 
     if (mod(num_iterations,1000) == 0 .or. num_iterations > 10000) then
-      option%io_buffer = 'Constraint "' // trim(constraint%name) // &
-        '" iteration count: ' // StringWrite(num_iterations)
+      option%io_buffer = NL // 'Constraint "' // trim(constraint%name) // &
+        '" iteration count: ' // StringWrite(num_iterations) // NL
       call PrintMsg(option)
       option%io_buffer = 'species_name   free_ion    prev_free  &
                          & abs_dfree   rel_dfree   residual'
@@ -2015,7 +2019,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         call PrintMsg(option)
       enddo
 200   format(a12,1x,5es12.4)
-      if (num_iterations >= 10004) then
+      if (num_iterations >= 10000) then
+        write(option%fid_out,'(a)') NL // 'Full constraint geochemistry:' // &
+                                    NL
+        call ReactionPrintConstraint(global_auxvar,rt_auxvar, &
+                                     null_constraint_coupler, &
+                                     reaction,option)
+        write(option%fid_out,'(a)') NL
+      endif
+      if (num_iterations >= 10003) then
         print *, 'cell id (natural):', option%iflag
         print *, 'constraint:', conc
         print *, 'constraint type:', constraint_type
