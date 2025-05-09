@@ -1967,7 +1967,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         endif
       enddo
       if (flag) then
-      stop
+      stop 'need to dampen more than a single iterations'
         oscillation_free_count = 0
         oscillation_count = oscillation_count + 1
         option%io_buffer = 'Potential oscillatory convergence in &
