@@ -1461,6 +1461,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscReal, parameter :: history_tol = 1.d-2
   PetscReal, parameter :: history_pert = 1.d-40
   PetscInt :: oscillation_count
+  PetscInt :: oscillation_free_count
+  PetscInt, parameter :: max_permitted_oscillation = 20
+  PetscReal :: damping_factor
 
   PetscInt :: num_it_act_coef_turned_on
   PetscInt :: ierror
@@ -1470,6 +1473,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   nullify(null_constraint_coupler)
   Res_history = 0.d0
   oscillation_count = 0
+  oscillation_free_count = 0
+  damping_factor = 1.d0
 
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
@@ -1934,9 +1939,10 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     endif
 
     if (constraint%verbosity > 9 .and. num_iterations < 20) then
-      write(option%fid_out,'(a)') NL // &
+      option%io_buffer = NL // &
             'Full constraint geochemistry for iteration ' // &
             StringWrite(num_iterations+1) // NL
+      call PrintMsg(option)
       call ReactionPrintConstraint(global_auxvar,rt_auxvar, &
                                     null_constraint_coupler, &
                                     reaction,option)
@@ -1961,14 +1967,28 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         endif
       enddo
       if (flag) then
+      stop
+        oscillation_free_count = 0
         oscillation_count = oscillation_count + 1
         option%io_buffer = 'Potential oscillatory convergence in &
           &ReactionEquilibrateConstraint, iteration:' // &
           StringWrite(num_iterations)
-        if (oscillation_count > 1000000) then
+        if (oscillation_count > max_permitted_oscillation) then
           call PrintErrMsg(option)
         endif
         call PrintWrnMsg(option)
+        damping_factor = &
+          max(0.1d0, &
+              dble(max_permitted_oscillation-oscillation_count)/ &
+              dble(max_permitted_oscillation))
+      else
+        oscillation_count = 0
+        oscillation_free_count = oscillation_free_count + 1
+        damping_factor = &
+          min(1.d0, &
+              max(damping_factor, &
+                  dble(oscillation_free_count-max_permitted_oscillation)/ &
+                  dble(max_permitted_oscillation)))
       endif
     endif
 
@@ -2009,6 +2029,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       rt_auxvar%pri_molal = prev_molal - update
       ! could use:
       ! rt_auxvar%pri_molal = prev_molal - update * minval(abs(prev_molal/update))
+    endif
+
+    if (num_iterations > max_permitted_oscillation .and. &
+        (oscillation_count > 0 .or. &
+         oscillation_free_count < max_permitted_oscillation)) then
+      rt_auxvar%pri_molal = damping_factor * &
+                            (rt_auxvar%pri_molal-prev_molal) + prev_molal
     endif
 
     ! check to ensure that minimum concentration is not less than or equal
