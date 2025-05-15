@@ -112,6 +112,7 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
                             this%timestepper%target_time)
   endif
 
+#if 0
   ! ensure that the first waypoint is not at time zero.
   if (associated(this%cur_waypoint)) then
     if (this%cur_waypoint%time < 1.d-40) then
@@ -120,6 +121,7 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
       call PrintErrMsg(this%option)
     endif
   endif
+#endif
 
   call PMCBaseInitializeRun(this)
 

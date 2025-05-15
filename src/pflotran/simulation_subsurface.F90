@@ -410,6 +410,7 @@ subroutine SimSubsurfJumpStart(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
+  PetscInt :: stop_flag
   PetscErrorCode :: ierr
   PetscBool :: bypass_final_time_check
 
@@ -439,6 +440,22 @@ subroutine SimSubsurfJumpStart(this)
   endif
   if (associated(this%tran_process_model_coupler)) then
     tran_timestepper => this%tran_process_model_coupler%timestepper
+  endif
+
+  ! check whether there is geophysic survey at time 0
+  if (associated(this%geop_process_model_coupler)) then
+    if (associated(this%geop_process_model_coupler%cur_waypoint)) then
+      if (this%geop_process_model_coupler%cur_waypoint%time < 1.d-40) then
+        stop_flag = TS_CONTINUE
+        call this%geop_process_model_coupler%StepDT(stop_flag)
+        if (stop_flag /= TS_CONTINUE) then
+          option%io_buffer = 'Geophysics ERT calculation at time zero failed.'
+          call PrintErrMsg(option)
+        endif
+        this%geop_process_model_coupler%cur_waypoint => &
+          this%geop_process_model_coupler%cur_waypoint%next
+      endif
+    endif
   endif
 
   ! jaa: want to set the geomech dt equal to flow dt
