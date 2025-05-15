@@ -878,7 +878,7 @@ subroutine PMERTPreSolve(this)
   PetscReal :: cond_w_no_tracer
   PetscReal :: diff_water_cond
   PetscReal :: relative_tracer_concentration
-  PetscReal :: dstress,drho_geomech,rho_geomech,cond_geomech
+  PetscReal :: dstress,drho_geomech
   PetscReal :: cond_baseline
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
