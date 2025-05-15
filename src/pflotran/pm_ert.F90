@@ -879,7 +879,7 @@ subroutine PMERTPreSolve(this)
   PetscReal :: diff_water_cond
   PetscReal :: relative_tracer_concentration
   PetscReal :: dstress,drho_geomech,rho_geomech,cond_geomech
-  PetscReal :: cond_surface
+  PetscReal :: cond_baseline
   PetscReal, pointer :: dcond_dsat_vec_ptr(:),dcond_dconc_vec_ptr(:)
   PetscReal, pointer :: dcond_dpor_vec_ptr(:)
   PetscBool :: cementation_cell_by_cell
@@ -887,6 +887,7 @@ subroutine PMERTPreSolve(this)
   PetscBool :: tortuosity_cell_by_cell
   PetscBool :: surf_cond_cell_by_cell
   PetscBool :: clay_cond_cell_by_cell
+  PetscBool :: mat_elec_cond_cell_by_cell
   PetscErrorCode :: ierr
 
   option => this%option
@@ -894,7 +895,8 @@ subroutine PMERTPreSolve(this)
   grid => patch%grid
   reaction => patch%reaction
 
-  if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
+  if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE .and. &
+      option%igeommode == NULL_MODE) return
 
   option%io_buffer = ' Calculating bulk electrical conductivity'
   call PrintMsg(option)
@@ -936,6 +938,7 @@ subroutine PMERTPreSolve(this)
   tortuosity_cell_by_cell = (archie_tortuosity_index > 0)
   surf_cond_cell_by_cell = (surf_elec_conduct_index > 0)
   clay_cond_cell_by_cell = (ws_clay_conduct_index > 0)
+  mat_elec_cond_cell_by_cell = (material_elec_conduct_index > 0)
 
   if (this%coupled_ert_flow_jacobian) then
     call VecGetArrayF90(this%dconductivity_dsaturation, &
@@ -1009,8 +1012,10 @@ subroutine PMERTPreSolve(this)
       cond_c = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                       WAXMAN_SMITS_CLAY_CONDUCTIVITY)
     endif
-
-    cond_surface = cond_s
+    if (mat_elec_cond_cell_by_cell) then
+      cond_baseline = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                      MATERIAL_ELECTRICAL_CONDUCTIVITY)
+    endif
 
     if (option%geomechanics%subsurf_coupling == GEOMECH_ERT_COUPLING) then
       parameter_index = ParameterGetIDFromName('geomechanics_stress',option)
@@ -1019,18 +1024,13 @@ subroutine PMERTPreSolve(this)
       drho_geomech = 0.d0
       ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
       drho_geomech = this%brace_stress_resistivity_slope * dstress * 1.0d-8
-      if (cond_s /= 0.d0) then
-        rho_geomech = 1.d0/cond_s + drho_geomech
-        cond_geomech = 1.d0/rho_geomech
-      endif
-      cond_w = 0.d0
-      cond_surface = cond_geomech
     endif
 
-    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_surface, &
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &
+                                         drho_geomech, cond_baseline, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
-                                         dcond_dpor)
+                                         dcond_dpor, option)
     ert_auxvars(ghosted_id)%bulk_conductivity = cond
     if (this%coupled_ert_flow_jacobian) then
       if (local_id > 0) dcond_dsat_vec_ptr(local_id) = dcond_dsat
