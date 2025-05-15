@@ -926,6 +926,8 @@ subroutine PMERTPreSolve(this)
   cond_w = UNINITIALIZED_DOUBLE
   cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
+  cond_baseline = 0.d0
+  cond = 0.d0
 
   if (Initialized(this%tracer_water_conductivity)) then
     diff_water_cond = this%tracer_water_conductivity - cond_w_no_tracer
