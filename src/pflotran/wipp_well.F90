@@ -3275,8 +3275,7 @@ subroutine PMWellResidualTranSrcSink(pm_well)
       k = ispecies
       Qin = coef_Qin*resr%aqueous_conc(ispecies,isegment)
       Qout = coef_Qout*well%aqueous_conc(ispecies,isegment)
-      well%aqueous_mass_Q(ispecies,isegment) = Qin + Qout
-      Res(k) = well%aqueous_mass_Q(ispecies,isegment)
+      Res(k) = Qin + Qout
     enddo
 
     pm_well%tran_soln%residual(istart:iend) = &
@@ -3405,9 +3404,7 @@ subroutine PMWellResidualTranFlux(pm_well)
         Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
       endif
 
-      ! store for printing
-      pm_well%well%aqueous_mass_ql(k,isegment) = area_up * &
-                                                 (q_up*conc - diffusion)
+
       ! south surface:
       if (q_dn < 0.d0) then ! flow is down well
         conc = pm_well%well%aqueous_conc(k,isegment)
@@ -3457,9 +3454,6 @@ subroutine PMWellResidualTranFlux(pm_well)
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
 
-    ! store for printing
-    pm_well%well%aqueous_mass_ql(k,isegment) = area_up * &
-                                               (q_up*conc - diffusion)
 
     ! south surface:
     if (q_dn < 0.d0) then ! flow is down the well
@@ -3508,9 +3502,7 @@ subroutine PMWellResidualTranFlux(pm_well)
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
 
-    ! store for printing
-    pm_well%well%aqueous_mass_ql(k,isegment) = area_up * &
-                                               (q_up*conc - diffusion)
+
     ! south surface:
     if (q_dn < 0.d0) then ! flow is down the well
       conc = pm_well%well%aqueous_conc(k,isegment)
