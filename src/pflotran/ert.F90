@@ -572,12 +572,13 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
 
   ! local variables
   PetscReal :: rho
-  PetscBool :: use_flow, use_geomech
+  PetscBool :: use_flow, use_trans, use_geomech
 
   use_flow    = (option%iflowmode   /= NULL_MODE)
+  use_trans   = (option%itranmode  /= NULL_MODE)
   use_geomech = (option%igeommode   /= NULL_MODE)
 
-  if (use_flow) then
+  if (use_flow .or. use_trans) then
     ! Archie's law
     cond = cond_w * (por**m) * (sat**n) / a
 
@@ -611,7 +612,8 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
       cond = 1.d0 / rho
     endif
 
-  elseif (.not. use_flow .and. use_geomech .and. cond_baseline > 1e-12) then
+  elseif (.not. use_flow .and. .not. use_trans .and. use_geomech .and. &
+          cond_baseline > 1e-12) then
     ! get updated resistivity
     rho = 1.d0 / cond_baseline + drho_geomech
     cond = 1.d0 / rho
