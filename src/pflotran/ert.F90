@@ -50,7 +50,7 @@ subroutine ERTSetup(realization)
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
-  type(coupler_type), pointer :: cur_coupler
+!  type(coupler_type), pointer :: cur_coupler
   type(survey_type), pointer :: survey
 
   type(material_auxvar_type), pointer :: material_auxvars(:)
@@ -210,6 +210,8 @@ subroutine ERTSetup(realization)
   call PatchCreateZeroArray(patch,dof_is_active, &
                             patch%aux%ERT%matrix_zeroing,option)
 
+! we are now allowing zero flux ert to be used with prescribed pressure
+#if 0
   ! ensure that prescribed_conditions are solely DIRICHLET type
   cur_coupler => patch%prescribed_condition_list%first
   do
@@ -223,6 +225,7 @@ subroutine ERTSetup(realization)
     endif
     cur_coupler => cur_coupler%next
   enddo
+#endif
 
 end subroutine ERTSetup
 
