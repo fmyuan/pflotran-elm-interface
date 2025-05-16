@@ -194,7 +194,8 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
   ! Memory allocation
   allocate(new)
   if (.not. associated(new)) return ! Memory allocation failed, abort
-
+  new%pres_poly => PolynomialCreate()
+  new%sat_poly => PolynomialCreate()
   ! Derivatives have been defined to enable smooth unsaturated extensions
   new%analytical_derivative_available = PETSC_TRUE
 
@@ -824,7 +825,7 @@ function RPFWIPPctor(liquid, KRP, Swr, Sgr, expon) result (new)
   ! Memory allocation
   allocate(new)
   if (.not. associated(new)) return ! Memory allocation failed, abort
-
+  new%poly => PolynomialCreate()
   ! Derivatives have been defined to enable smooth unsaturated extensions
   new%analytical_derivative_available = .TRUE.
 

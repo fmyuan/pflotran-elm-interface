@@ -768,7 +768,7 @@ subroutine SaturationFunctionDestroy(sf)
   if (.not.associated(sf)) return
 
   call PolynomialDestroy(sf%sat_poly)
-  call PolynomialDestroy(sf%sat_poly)
+  call PolynomialDestroy(sf%pres_poly)
   deallocate(sf)
   nullify(sf)
 
