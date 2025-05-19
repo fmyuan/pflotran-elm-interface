@@ -524,8 +524,9 @@ end subroutine ERTCalculateMatrix
 
 subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                            cond_c,empirical_law,cond, &
+                                           drho_geomech, cond_baseline, &
                                            tracer_scale,dcond_dsat, &
-                                           dcond_dconc,dcond_dpor)
+                                           dcond_dconc,dcond_dpor,option)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -534,7 +535,11 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   ! Date: 03/18/21
   !
 
+  use Option_module
+
   implicit none
+
+  type(option_type) :: option
 
   PetscReal :: por, sat  ! porosity and saturation
 
@@ -554,6 +559,10 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   ! calculated bulk conductivity
   PetscReal :: cond
 
+  ! variables for geomechanics coupling
+  PetscReal :: drho_geomech
+  PetscReal :: cond_baseline
+
   ! to get dconductivty/dsaturation
   PetscReal :: tracer_scale
   PetscReal :: dcond_dsat
@@ -561,31 +570,54 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: dcond_dpor
   PetscReal :: cond_ws
 
-  ! Archie's law
-  cond = cond_w * (por**m) * (sat**n) / a
+  ! local variables
+  PetscReal :: rho
+  PetscBool :: use_flow, use_trans, use_geomech
 
-  ! dcond/dsat
-  dcond_dsat = n * cond / sat
+  use_flow    = (option%iflowmode   /= NULL_MODE)
+  use_trans   = (option%itranmode  /= NULL_MODE)
+  use_geomech = (option%igeommode   /= NULL_MODE)
 
-  !dcond/dpor
-  dcond_dpor = m * cond / por
+  if (use_flow .or. use_trans) then
+    ! Archie's law
+    cond = cond_w * (por**m) * (sat**n) / a
 
-  ! Modify by adding surface conductivity
-  cond = cond + cond_s
+    ! dcond/dsat
+    dcond_dsat = n * cond / sat
 
-  !dcond/dconc
-  dcond_dconc = tracer_scale * (por**m) * (sat**n) / a
+    !dcond/dpor
+    dcond_dpor = m * cond / por
 
-  select case(empirical_law)
-    case(ARCHIE)
-      ! do nothing
-    case(WAXMAN_SMITS)
-      ! Waxmax-Smits equations/Dual-Water model
-      cond_ws = cond_c * Vc * (1.d0-por) * sat**(n-1.d0)
-      cond = cond + cond_ws
-      dcond_dsat = dcond_dsat + (n-1.d0) * cond_ws / sat
-      dcond_dpor = dcond_dpor - cond_c * Vc * sat**(n-1.d0)
-  end select
+    ! Modify by adding surface conductivity
+    cond = cond + cond_s
+
+    !dcond/dconc
+    dcond_dconc = tracer_scale * (por**m) * (sat**n) / a
+
+    select case(empirical_law)
+      case(ARCHIE)
+        ! do nothing
+      case(WAXMAN_SMITS)
+        ! Waxmax-Smits equations/Dual-Water model
+        cond_ws = cond_c * Vc * (1.d0-por) * sat**(n-1.d0)
+        cond = cond + cond_ws
+        dcond_dsat = dcond_dsat + (n-1.d0) * cond_ws / sat
+        dcond_dpor = dcond_dpor - cond_c * Vc * sat**(n-1.d0)
+    end select
+
+    if (use_geomech .and. cond > 1d-12) then
+      ! Geomechanics coupling
+      ! get updated resistivity
+      rho = 1.d0 / cond + drho_geomech
+      cond = 1.d0 / rho
+    endif
+
+  elseif (.not. use_flow .and. .not. use_trans .and. use_geomech .and. &
+          cond_baseline > 1e-12) then
+    ! get updated resistivity
+    rho = 1.d0 / cond_baseline + drho_geomech
+    cond = 1.d0 / rho
+  endif
 
 end subroutine ERTConductivityFromEmpiricalEqs
 
