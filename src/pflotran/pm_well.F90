@@ -131,6 +131,10 @@ module PM_Well_class
     type(well_reservoir_type), pointer :: reservoir_save
     ! mass balance of liquid [kmol/s????????]
     PetscReal, pointer :: mass_balance_liq(:)
+    ! mass balance of aqueous mass [mol]
+    PetscReal, pointer :: aq_mass_balance(:,:)
+    ! change in mass balance of aqueous mass from last time step [mol]
+    PetscReal, pointer :: aq_mass_balance_delta(:,:)
     ! well fluid properties
     type(well_fluid_type), pointer :: liq
     type(well_fluid_type), pointer :: gas
@@ -522,6 +526,7 @@ module PM_Well_class
             PMWellUpdateReservoirSrcSinkTran, &
             PMWellUpdateReservoirConcTran, &
             PMWellMassBalance, &
+            PMWellMassBalanceTran, &
             PMWellCalcCumulativeQFlux, &
             PMWellCalcCumulativeTranFlux, &
             PMWellInitializeWellFlow, &
@@ -919,6 +924,8 @@ subroutine PMWellVarCreate(well)
   nullify(well%species_parent_decay_rate)
   nullify(well%aqueous_conc)
   nullify(well%aqueous_mass)
+  nullify(well%aq_mass_balance)
+  nullify(well%aq_mass_balance_delta)
   nullify(well%aqueous_mass_q_cumulative)
   nullify(well%aqueous_mass_Qcumulative)
   well%output_aqc = PETSC_FALSE
@@ -5045,12 +5052,15 @@ subroutine PMWellInitWellVars(well,well_grid,with_transport,nsegments,nspecies)
   allocate(well%mass_balance_liq(nsegments))
 
   if (with_transport) then
+    allocate(well%aq_mass_balance(nspecies,nsegments))
+    allocate(well%aq_mass_balance_delta(nspecies,nsegments))
     allocate(well%aqueous_conc(nspecies,nsegments))
     allocate(well%aqueous_mass(nspecies,nsegments))
     allocate(well%aqueous_mass_q_cumulative(nspecies,nsegments))
     allocate(well%aqueous_mass_Qcumulative(nspecies,nsegments))
     well%aqueous_mass_q_cumulative(:,:) = 0.d0
     well%aqueous_mass_Qcumulative(:,:) = 0.d0
+    well%aq_mass_balance(:,:) = 0.d0
     allocate(well%aqueous_conc_th(nspecies))
   endif
 
@@ -8753,6 +8763,16 @@ subroutine PMWellOutputHeaderSequential(pm_well)
           units_string = 'mol'
           call OutputWriteToHeader(fid,variable_string,units_string, &
                                    cell_string,icolumn)
+          variable_string = 'Well Aq mass balance. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
+          variable_string = 'Well Aq mass balance delta. ' &
+                             // trim(pm_well%well%species_names(i))
+          units_string = 'mol'
+          call OutputWriteToHeader(fid,variable_string,units_string, &
+                                   cell_string,icolumn)
           variable_string = 'Well q-Cumu Aqueous Mass. ' &
                              // trim(pm_well%well%species_names(i))
           units_string = 'mol'
@@ -9085,6 +9105,8 @@ subroutine PMWellOutputSequential(pm_well)
         do i = 1,pm_well%nspecies
           write(fid,100,advance="no") pm_well%well%aqueous_conc(i,j), &
                                 pm_well%well%aqueous_mass(i,j), &
+                                pm_well%well%aq_mass_balance(i,j), &
+                                pm_well%well%aq_mass_balance_delta(i,j), &
                                 pm_well%well%aqueous_mass_q_cumulative(i,j), &
                                 pm_well%well%aqueous_mass_Qcumulative(i,j), &
                                 pm_well%well%reservoir%aqueous_conc(i,j)
@@ -9406,6 +9428,132 @@ end subroutine PMWellMassBalance
 
 ! ************************************************************************** !
 
+subroutine PMWellMassBalanceTran(pm_well)
+  !
+  ! transport mass balance in the well process model.
+  !
+  ! Author: Rosie
+  ! Date: 5/5/25
+  !
+
+  implicit none
+
+  class(pm_well_sequential_type) :: pm_well
+
+  type(well_type), pointer :: well
+  type(well_reservoir_type), pointer :: resr
+  PetscInt :: isegment, nsegments
+  PetscInt :: ispecies,nspecies
+  PetscReal :: diffusion,conc,den_avg
+  PetscReal :: area_up,area_dn,q_up,q_dn
+  PetscReal :: aq_mass_rate_up, aq_mass_rate_dn, aq_mass_Q
+  PetscReal :: current_mass_balance
+
+  well => pm_well%well
+  resr => pm_well%well%reservoir
+  nsegments = pm_well%well_grid%nsegments
+  nspecies = pm_well%nspecies
+
+  diffusion = 0.d0
+  conc = 0.d0
+
+  do isegment = 1, nsegments
+    do ispecies = 1, nspecies
+
+      if ((isegment > 1) .and. (isegment < nsegments)) then
+    ! ----------------------------------------INTERIOR-FLUXES------------------
+        area_up = 0.5d0 * (well%area(isegment) + &
+                  well%area(isegment+1))
+        area_dn = 0.5d0 * (well%area(isegment) + &
+                  well%area(isegment-1))
+
+        q_up = well%ql(isegment)
+        q_dn = well%ql(isegment-1)
+
+        if (q_up < 0.d0) then ! flow is down well
+          conc = well%aqueous_conc(ispecies,isegment+1)
+        elseif (q_up > 0.d0) then ! flow is up well
+          conc = well%aqueous_conc(ispecies,isegment)
+        endif
+
+        aq_mass_rate_up = area_up * (q_up*conc - diffusion)
+
+        if (q_dn < 0.d0) then
+          conc = well%aqueous_conc(ispecies,isegment)
+        elseif (q_dn > 0.d0) then
+          conc = well%aqueous_conc(ispecies,isegment)
+        endif
+
+        aq_mass_rate_dn = area_dn * (q_dn*conc - diffusion)
+
+    ! ----------------------------------------BOUNDARY-FLUXES------------------
+      elseif (isegment == 1) then
+        ! ----- bottom of well -----
+
+        area_up = 0.5d0 * (well%area(isegment) + &
+                  well%area(isegment+1))
+
+        q_up = pm_well%well%ql(isegment)
+
+        if (q_up < 0.d0) then ! flow is down the well
+          conc = well%aqueous_conc(ispecies,isegment+1)
+        elseif (q_up > 0.d0) then ! flow is up the well
+          conc = well%aqueous_conc(ispecies,isegment)
+        endif
+
+        aq_mass_rate_up = area_up * (q_up*conc - diffusion)
+
+        aq_mass_rate_dn = 0.d0
+
+        ! ----- top of well -----
+      else !isegment = nsegments
+
+        area_up = well%area(isegment)
+        area_dn = 0.5d0 * (well%area(isegment) + &
+             well%area(isegment-1))
+
+        q_up = well%ql_bc(2)
+        q_dn = well%ql(isegment-1)
+
+        if (q_up < 0.d0) then ! flow is down the well
+          conc = well%aqueous_conc_th(ispecies)
+        elseif (q_up > 0.d0) then ! flow is up the well
+          conc = well%aqueous_conc(ispecies,isegment)
+        endif
+
+        aq_mass_rate_up = area_up * (q_up*conc - diffusion)
+
+        if (q_dn < 0.d0) then ! flow is down the well
+          conc = well%aqueous_conc(ispecies,isegment)
+        elseif (q_dn > 0.d0) then ! flow is up the well
+          conc = well%aqueous_conc(ispecies,isegment-1)
+        endif
+
+        aq_mass_rate_dn = area_dn * (q_dn*conc - diffusion)
+      endif
+
+      den_avg = 0.5d0*(well%liq%den(isegment)+resr%den_l(isegment))
+      if (well%liq%Q(isegment) < 0.d0) then ! Q out of well
+        aq_mass_Q = well%liq%Q(isegment)*FMWH2O/den_avg * &
+               well%aqueous_conc(ispecies,isegment)
+      else ! Q into well
+        aq_mass_Q = well%liq%Q(isegment)*FMWH2O/den_avg * &
+                    resr%aqueous_conc(ispecies,isegment)
+      endif
+
+      current_mass_balance = (aq_mass_rate_up - aq_mass_rate_dn &
+                             - aq_mass_Q)*pm_well%dt_tran
+
+      well%aq_mass_balance_delta(ispecies,isegment) = &
+        well%aq_mass_balance(ispecies,isegment) - current_mass_balance
+      well%aq_mass_balance(ispecies,isegment) = current_mass_balance
+    enddo
+  enddo
+
+end subroutine PMWellMassBalanceTran
+
+! ************************************************************************** !
+
 subroutine PMWellUpdateMass(pm_well)
   !
   ! Verify the mass balance in the well process model.
@@ -9668,6 +9816,8 @@ subroutine PMWellDestroySequential(this)
     call DeallocateArray(this%well%aqueous_mass)
     call DeallocateArray(this%well%aqueous_mass_q_cumulative)
     call DeallocateArray(this%well%aqueous_mass_Qcumulative)
+    call DeallocateArray(this%well%aq_mass_balance)
+    call DeallocateArray(this%well%aq_mass_balance_delta)
   endif
   nullify(this%well)
 

@@ -2771,6 +2771,9 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
   soln%residual = fixed_accum/pm_well%dt_tran
   call PMWellResidualTran(pm_well)
 
+  ! Call mass balance
+  call PMWellMassBalanceTran(pm_well)
+
   do k = 1,(pm_well%well_grid%nsegments*soln%ndof)
     ! Absolute Residual
     temp_real = dabs(soln%residual(k))
@@ -3401,6 +3404,7 @@ subroutine PMWellResidualTranFlux(pm_well)
         Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
       endif
 
+
       ! south surface:
       if (q_dn < 0.d0) then ! flow is down well
         conc = pm_well%well%aqueous_conc(k,isegment)
@@ -3450,6 +3454,7 @@ subroutine PMWellResidualTranFlux(pm_well)
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
 
+
     ! south surface:
     if (q_dn < 0.d0) then ! flow is down the well
       conc = pm_well%well%aqueous_conc(k,isegment)
@@ -3496,6 +3501,7 @@ subroutine PMWellResidualTranFlux(pm_well)
     else ! q_up = 0
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
     endif
+
 
     ! south surface:
     if (q_dn < 0.d0) then ! flow is down the well
