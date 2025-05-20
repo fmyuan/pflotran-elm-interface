@@ -1,16 +1,16 @@
 -- CONCENTRATION: Total A(aq) --
-        1:   8.5205910723048E-01
+        1:   8.5205915425126E-01
 -- PRESSURE: Active Gas A(g) --
-        1:   2.7842273600873E+05
+        1:   2.7842275137345E+05
 -- CONCENTRATION: Active Gas A(g) --
-        1:   1.1231450176704E+07
+        1:   1.1231450796510E+07
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   6.7793847997109E-02
+   Time (seconds):   6.9631204998586E-02
    Time Steps:          208
    Newton Iterations:          504
    Linear Solver Iterations:          504
    Time Step Cuts:            0
-   Solution 2-Norm:   8.5448549889787E-01
-   Residual 2-Norm:   2.8561950981415E-16
+   Solution 2-Norm:   8.5448554605255E-01
+   Residual 2-Norm:   2.8082191520090E-16

@@ -1,12 +1,12 @@
 -- CONCENTRATION: Total Tracer1 --
-        1:   3.8573947523516E-01
+        1:   3.8573946946952E-01
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   7.3357921998195E-02
+   Time (seconds):   7.9303013999152E-02
    Time Steps:          210
    Newton Iterations:          569
    Linear Solver Iterations:          569
    Time Step Cuts:            0
-   Solution 2-Norm:   3.8683793781897E-01
-   Residual 2-Norm:   3.5410296628991E-20
+   Solution 2-Norm:   3.8683793203692E-01
+   Residual 2-Norm:   3.4866063484719E-20
