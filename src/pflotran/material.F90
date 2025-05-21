@@ -912,7 +912,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 material_property%multicontinuum%epsilon_dataset, &
                 word,error_str,option)
             case('APERTURE')
-              if (.not.is_nested_spheres) then
+              if (is_nested_spheres) then
                 option%io_buffer = trim(word) // ' in ' // trim(error_str) &
                             // ' is only supported for SLAB and NESTED_CUBES.'
                 call PrintErrMsg(option)
