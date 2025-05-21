@@ -1639,7 +1639,8 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars, &
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = sec_porosity
 
-
+  call SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
+                                     option)
   do j = 1, ncomp
     do i = 1, ngcells
       sec_transport_vars%sec_rt_auxvar(i)%pri_molal(j) = sec_transport_vars%&
@@ -1660,6 +1661,7 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars, &
                                global_auxvar,reaction,option)
     endif
   enddo
+
 
   ! although the allocatable material_aux object is automatically deallocated
   ! upon leaving this routine, its dynamic pointer members are not
