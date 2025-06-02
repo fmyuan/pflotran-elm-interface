@@ -571,12 +571,16 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: cond_ws
 
   ! local variables
-  PetscReal :: rho
+  PetscReal :: rho, dcond_geomech, cond_min, cond_max, rho_min
   PetscBool :: use_flow, use_trans, use_geomech
 
   use_flow    = (option%iflowmode   /= NULL_MODE)
   use_trans   = (option%itranmode  /= NULL_MODE)
   use_geomech = (option%igeommode   /= NULL_MODE)
+
+  ! Minimum allowable conductivity/resistivity
+  cond_min = 1.d-5
+  cond_max = 1.d2
 
   if (use_flow .or. use_trans) then
     ! Archie's law
@@ -608,16 +612,34 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
     if (use_geomech .and. cond > 1d-12) then
       ! Geomechanics coupling
       ! get updated resistivity
+      rho_min = 1.d0 / cond_max
       rho = 1.d0 / cond + drho_geomech
-      cond = 1.d0 / rho
+      if (rho > rho_min) then
+        ! get conductivity from resistivity
+        cond = 1.d0 / rho
+      else
+        ! resistivity is too low/negative, use linearized approx for Brace eq.
+        dcond_geomech = - drho_geomech * cond * cond
+        cond = cond + dcond_geomech
+      endif
     endif
 
   elseif (.not. use_flow .and. .not. use_trans .and. use_geomech .and. &
           cond_baseline > 1e-12) then
     ! get updated resistivity
+    rho_min = 1.d0 / cond_max
     rho = 1.d0 / cond_baseline + drho_geomech
-    cond = 1.d0 / rho
+    if (rho > rho_min) then
+      ! get conductivity from resistivity
+      cond = 1.d0 / rho
+    else
+      ! resistivity is too low/negative, use linearized approx for Brace eq.
+      dcond_geomech = - drho_geomech * cond_baseline * cond_baseline
+      cond = cond_baseline + dcond_geomech
+    endif
   endif
+
+  cond = min(max(cond, cond_min), cond_max)
 
 end subroutine ERTConductivityFromEmpiricalEqs
 
