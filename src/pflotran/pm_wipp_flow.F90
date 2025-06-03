@@ -2649,11 +2649,13 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
 
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
-  if (associated(this%pmwss_ptr)) then
-    if (.not.this%pmwss_ptr%skip_restart) then
-      call PMWSSRestartBinary(this%pmwss_ptr,viewer)
-    endif
-  endif
+  ! DF: WIPP_SOURCE_SINK does not use RESTART capability.
+  ! if (associated(this%pmwss_ptr)) then
+  !   if (.not.this%pmwss_ptr%skip_restart) then
+  !     error_string = 'Please use SKIP_RESTART in the WIPP_SOURCE_SINK module.'
+  !     call PMWSSRestartBinary(this%pmwss_ptr,viewer)
+  !   endif
+  ! endif
 
   !MAN: not sure if this is needed
   !if (associated(this%pmwell_ptr)) then
@@ -2684,11 +2686,12 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
 
   call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)
 
-  if (associated(this%pmwss_ptr)) then
-    if (.not.this%pmwss_ptr%skip_restart) then
-      call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
-    endif
-  endif
+ ! DF: WIPP_SOURCE_SINK does not use RESTART capability.
+ ! if (associated(this%pmwss_ptr)) then
+ !   if (.not.this%pmwss_ptr%skip_restart) then
+ !     call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
+ !   endif
+ ! endif
 
   !MAN: not sure if this is needed
   !if (associated(this%pmwell_ptr)) then
