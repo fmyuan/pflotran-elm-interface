@@ -2640,18 +2640,27 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
 
   use Checkpoint_module
   use Global_module
+  use Option_module
 
   implicit none
 #include "petsc/finclude/petscviewer.h"
 
   class(pm_wippflo_type) :: this
+  type(option_type), pointer :: option
   PetscViewer :: viewer
+  character(len=MAXSTRINGLENGTH) :: string
+
+  option => this%option
 
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
+  ! DF: WIPP_SOURCE_SINK does not use RESTART capability.
   if (associated(this%pmwss_ptr)) then
     if (.not.this%pmwss_ptr%skip_restart) then
-      call PMWSSRestartBinary(this%pmwss_ptr,viewer)
+      string = 'WARNING: WIPP_SOURCE_SINK does not have RESTART capability. &
+                &Automatically applying SKIP_RESTART.'
+      call PrintMsg(option,string)
+      !call PMWSSRestartBinary(this%pmwss_ptr,viewer)
     endif
   endif
 
@@ -2675,18 +2684,25 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
 
   use Checkpoint_module
   use Global_module
+  use Option_module
   use hdf5
 
   implicit none
 
   class(pm_wippflo_type) :: this
+  type(option_type), pointer :: option
   integer(HID_T) :: pm_grp_id
-
+  character(len=MAXSTRINGLENGTH) :: string
+  option => this%option
   call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)
 
+  ! DF: WIPP_SOURCE_SINK does not use RESTART capability.
   if (associated(this%pmwss_ptr)) then
     if (.not.this%pmwss_ptr%skip_restart) then
-      call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
+      string = 'WARNING: WIPP_SOURCE_SINK does not have RESTART capability. &
+                &Automatically applying SKIP_RESTART.'
+      call PrintMsg(option,string)
+      !call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
     endif
   endif
 
