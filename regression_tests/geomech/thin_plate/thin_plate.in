@@ -1,0 +1,233 @@
+#============================================
+SIMULATION
+    SIMULATION_TYPE GEOMECHANICS_SUBSURFACE
+    PROCESS_MODELS
+        SUBSURFACE_FLOW flow
+            MODE TH
+            OPTIONS
+            END
+        END
+        GEOMECHANICS_SUBSURFACE
+            OPTIONS
+                COUPLING ONE_WAY_COUPLED
+            END
+        END
+    END
+END
+SUBSURFACE
+    #=================== Discretization =========================
+    GRID
+        TYPE unstructured_explicit datafiles/MP_longplate_geomech_grid.uge
+        UPWIND_FRACTION_METHOD CELL_VOLUME
+        PERM_TENSOR_TO_SCALAR_MODEL FLOW
+    END
+    #=================== Fluid properties =========================
+    EOS WATER
+        DENSITY DEFAULT
+        VISCOSITY CONSTANT 1.e-003
+        ENTHALPY DEFAULT
+    END
+    
+    #=================== Material properties =========================
+    THERMAL_CHARACTERISTIC_CURVES cct_Material_1
+        THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
+            THERMAL_CONDUCTIVITY_DRY 3
+            THERMAL_CONDUCTIVITY_WET 3
+        END
+    END
+    MATERIAL_PROPERTY Material_1
+        ID 1
+        POROSITY 1.e-002
+        TORTUOSITY 1
+        CHARACTERISTIC_CURVES default
+        THERMAL_CHARACTERISTIC_CURVES cct_Material_1
+        ROCK_DENSITY 2500 kg/m^3
+        SPECIFIC_HEAT 1200 J/kg-C
+        SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+        SOIL_REFERENCE_PRESSURE 0 Pa
+        PERMEABILITY
+            PERM_ISO 1.e-010
+        END
+        SOIL_COMPRESSIBILITY 0
+    END
+    #=================== Characteristic curves =========================
+    CHARACTERISTIC_CURVES default
+        SATURATION_FUNCTION VAN_GENUCHTEN
+            M 0.5
+            ALPHA 0
+            LIQUID_RESIDUAL_SATURATION 0.1
+            MAX_CAPILLARY_PRESSURE 100000000
+        END
+        PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+            M 0.5
+            LIQUID_RESIDUAL_SATURATION 0.1
+        END
+    END
+    #=================== Times =========================
+    TIME
+        INITIAL_TIMESTEP_SIZE 0.1 s
+        MAXIMUM_TIMESTEP_SIZE 1 s
+        MINIMUM_TIMESTEP_SIZE 1.d-3 s
+        FINAL_TIME 0.2 s
+    END
+    #=================== Regions =========================
+    REGION All
+        COORDINATES
+            -603 -201 -5.025000075
+            603 201 5.025000075
+        END
+    END
+    REGION BC1_BC_zeroZdisplace_reg
+        FILE datafiles/MP_longplate_geomech_BC1_BC_zeroZdisplace.ex
+    END
+    REGION BC2_BC_0_reg
+        FILE datafiles/MP_longplate_geomech_BC2_BC_0.ex
+    END
+    REGION BC3_BC_20_reg
+        FILE datafiles/MP_longplate_geomech_BC3_BC_20.ex
+    END
+    REGION BC4_BC_40_reg
+        FILE datafiles/MP_longplate_geomech_BC4_BC_40.ex
+    END
+    #=================== Flow conditions =========================
+    FLOW_CONDITION initial
+        UNITS Pa
+        TYPE
+            LIQUID_PRESSURE dirichlet
+            TEMPERATURE dirichlet
+        END
+        LIQUID_PRESSURE 101325
+        TEMPERATURE 0
+    END
+    FLOW_CONDITION BC2_BC_0_flow
+        TYPE
+            RATE MASS_RATE
+            ENERGY_RATE SCALED_ENERGY_RATE VOLUME
+        END
+        INTERPOLATION LINEAR
+        RATE 0
+        ENERGY_RATE FILE datafiles/MP_longplate_geomech_BC2_BC_0_energy_rate.txt
+    END
+    FLOW_CONDITION BC3_BC_20_flow
+        TYPE
+            RATE MASS_RATE
+            ENERGY_RATE SCALED_ENERGY_RATE VOLUME
+        END
+        INTERPOLATION LINEAR
+        RATE 0
+        ENERGY_RATE FILE datafiles/MP_longplate_geomech_BC3_BC_20_energy_rate.txt
+    END
+    FLOW_CONDITION BC4_BC_40_flow
+        TYPE
+            RATE MASS_RATE
+            ENERGY_RATE SCALED_ENERGY_RATE VOLUME
+        END
+        INTERPOLATION LINEAR
+        RATE 0
+        ENERGY_RATE FILE datafiles/MP_longplate_geomech_BC4_BC_40_energy_rate.txt
+    END
+    #=================== Condition couplers =========================
+    INITIAL_CONDITION initial
+        FLOW_CONDITION initial
+        REGION All
+    END
+    SOURCE_SINK BC2_BC_0_bnd
+        FLOW_CONDITION BC2_BC_0_flow
+        REGION BC2_BC_0_reg
+    END
+    SOURCE_SINK BC3_BC_20_bnd
+        FLOW_CONDITION BC3_BC_20_flow
+        REGION BC3_BC_20_reg
+    END
+    SOURCE_SINK BC4_BC_40_bnd
+        FLOW_CONDITION BC4_BC_40_flow
+        REGION BC4_BC_40_reg
+    END
+    #=================== Stratigraphy couplers =========================
+    STRATA
+        REGION All
+        MATERIAL Material_1
+    END
+    #=================== Solvers =======================================
+    NUMERICAL_METHODS FLOW
+        LINEAR_SOLVER
+            SOLVER BCGS
+            PC_TYPE ILU
+            ATOL 1.e-050
+            RTOL 1.e-010
+            DTOL 10000
+            MAXIMUM_NUMBER_OF_ITERATIONS 10000
+        END
+        TIMESTEPPER
+            PRESSURE_CHANGE_GOVERNOR 1000000
+            TIMESTEP_OVERSTEP_REL_TOLERANCE 0.5
+        END
+        NEWTON_SOLVER FLOW
+            ATOL 1.e-050
+            RTOL 1.e-008
+            STOL 1.e-008
+            DTOL 10000
+            MAXIMUM_NUMBER_OF_ITERATIONS 12
+        END
+    END
+END_SUBSURFACE
+#=================== Geomechanics =========================
+GEOMECHANICS
+    # The central region, matching Chapter 14 in Theory of Elasticity by S. Timoshenko and J. N. Goodier
+    GEOMECHANICS_REGRESSION
+        VARIABLES
+            DISPLACEMENT_X
+            STRESS_TOTAL_XX
+        END
+        VERTICES
+            16
+            19
+        END
+    END
+    GEOMECHANICS_GRID
+        TYPE UNSTRUCTURED datafiles/MP_longplate_geomech_grid_geo.ugi
+        GRAVITY 0 0 0
+    END
+    GEOMECHANICS_MAPPING_FILE datafiles/MP_longplate_geomech_mappping_geo.dat
+    GEOMECHANICS_TIME
+        COUPLING_TIMESTEP_SIZE 0.1 s
+    END
+    GEOMECHANICS_OUTPUT
+        FORMAT HDF5
+    END
+    #=================== Geomechanics Boundary Conditions =========================
+    EXTERNAL_FILE datafiles//MP_longplate_geomech_geomech.txt
+    #=================== Geomechanics Material Regions =========================
+    GEOMECHANICS_REGION Material_1_material_reg
+        FILE datafiles/MP_longplate_geomech_Material_1_material_geo.vset
+    END
+    #=================== Geomechanics Strata =========================
+    GEOMECHANICS_STRATA
+        GEOMECHANICS_REGION Material_1_material_reg
+        GEOMECHANICS_MATERIAL Material_1
+    END
+    #=================== Geomechanics Material Properties =========================
+    GEOMECHANICS_MATERIAL_PROPERTY Material_1
+        ID 1
+        ROCK_DENSITY 2500 kg/m^3
+        YOUNGS_MODULUS 6.e+010
+        POISSONS_RATIO 0.25
+        BIOT_COEFFICIENT 0
+        THERMAL_EXPANSION_COEFFICIENT 7.7e-006
+    END
+    LINEAR_SOLVER GEOMECHANICS
+        SOLVER BCGS
+        PC_TYPE ILU
+        ATOL 1.e-020
+        RTOL 1.e-010
+        DTOL 10000
+        MAXIMUM_NUMBER_OF_ITERATIONS 10000
+    END
+    NEWTON_SOLVER GEOMECHANICS
+        ATOL 1.e-050
+        RTOL 1.e-008
+        STOL 1.e-008
+        DTOL 10000
+        MAXIMUM_NUMBER_OF_ITERATIONS 12
+    END
+END_GEOMECHANICS
