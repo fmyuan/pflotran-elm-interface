@@ -26,7 +26,8 @@ module Reaction_Mineral_module
             ReactionMnrlSaturationIndex, &
             ReactionMnrlUpdateTempDepCoefs, &
             ReactionMnrlUpdateSpecSurfArea, &
-            ReactionMnrlUpdateKineticState
+            ReactionMnrlUpdateKineticState, &
+            ReactionMnrlReportZeroSurfArea
 
 contains
 
@@ -1060,15 +1061,6 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
           MINERAL_SURF_AREA_PER_MNRL_MASS) then
         ! m^2 mnrl/m^3 mnrl -> m^2 mnrl/m^3 bulk
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
-#if 0
-        if (tempreal < epsilon) then
-          option%io_buffer = 'The zero volume fraction assigned to &
-            &mineral "' // trim(mineral_name) // '" in constraint "' // &
-            trim(constraint_name) // '" prevents the use of a mass-based &
-            &surface area in the constraint.'
-          call PrintErrMsg(option)
-        endif
-#endif
       endif
     endif
     ! this is where we scale the constraint surface area (if initialized)
@@ -1076,7 +1068,14 @@ subroutine ReactionMnrlProcessConstraint(mineral,constraint_name, &
       ! tempreal converts input value to m^2 mnrl/m^3 bulk
       constraint%constraint_area(imnrl) = tempreal * &
         constraint%constraint_area(imnrl)
+
+      ! check for zero initial surface areas
+      call ReactionMnrlReportZeroSurfArea(imnrl, &
+                                          constraint%constraint_area(imnrl), &
+                                          mineral,constraint_name, &
+                                          constraint,option)
     endif
+
   enddo
 
 end subroutine ReactionMnrlProcessConstraint
@@ -2204,5 +2203,51 @@ subroutine ReactionMnrlUpdateKineticState(rt_auxvar,global_auxvar, &
   enddo
 
 end subroutine ReactionMnrlUpdateKineticState
+
+! ************************************************************************** !
+
+subroutine ReactionMnrlReportZeroSurfArea(imnrl,surface_area,mineral, &
+                                          constraint_name, &
+                                          mineral_constraint,option)
+  !
+  ! Reports an error is the initial mineral reactive surface area is zero
+  ! and settings are not configure to overcome that
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/19/25
+  !
+
+  use Option_module
+
+  implicit none
+
+  PetscInt :: imnrl
+  PetscReal :: surface_area
+  type(mineral_type), pointer :: mineral
+  character(len=MAXWORDLENGTH) :: constraint_name
+  type(mineral_constraint_type), pointer :: mineral_constraint
+  type(option_type) :: option
+
+  PetscReal, parameter :: epsilon = 1.d-40
+
+  if (mineral_constraint%acknowledge_zero_surface_area) return
+
+  ! to not throw this error, the initial surface area must be > 0 or
+  ! nucleation must be specified for the mineral.
+
+  if (surface_area < epsilon .and. &
+      mineral%kinmnrl_nucleation_id(imnrl) == 0) then
+    option%io_buffer = 'The volume fraction and/or specific &
+      &surface area assigned to mineral "' // &
+      trim(mineral%kinmnrl_names(imnrl)) // &
+      '" in constraint "' // trim(constraint_name) // &
+      '" results in a zero reactive mineral surface area. Please add &
+      &ACKNOWLEDGE_ZERO_SURFACE_AREA to the CONSTRAINT block or &
+      &assign a nucleation reaction to the mineral &
+      &to avoid this error message.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ReactionMnrlReportZeroSurfArea
 
 end module Reaction_Mineral_module

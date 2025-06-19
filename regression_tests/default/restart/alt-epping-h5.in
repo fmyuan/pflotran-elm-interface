@@ -287,10 +287,6 @@ CONSTRAINT inflow
     SO4--      0.2      T   
     Na+        0.39562  T
   /
-  MINERALS
-    Calcite               0.0   0.0
-    Gypsum                0.0   0.0
-  /
 END
 
 CONSTRAINT outflow
@@ -301,10 +297,6 @@ CONSTRAINT outflow
     H+        9.33        pH
     SO4--     1.69512e-4  T
     Na+       3.2e-4      T
-  /
-  MINERALS
-    Calcite               0.0   0.0
-    Gypsum                0.0   0.0   
   /
 END
 

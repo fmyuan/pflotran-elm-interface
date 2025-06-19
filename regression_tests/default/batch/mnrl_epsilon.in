@@ -144,6 +144,7 @@ CONSTRAINT initial
   MINERALS
     Calcite  0.d0 0.d0 m^2/m^3
   /
+  ACKNOWLEDGE_ZERO_SURFACE_AREA
 END
 
 #=========================== condition couplers ===============================
