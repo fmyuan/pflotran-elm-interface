@@ -98,6 +98,7 @@ module Reaction_Mineral_Aux_module
     PetscInt, pointer :: area_units_type(:)
     PetscBool, pointer :: external_vol_frac_dataset(:)
     PetscBool, pointer :: external_area_dataset(:)
+    PetscBool :: acknowledge_zero_surface_area
   end type mineral_constraint_type
 
   type, public :: nucleation_type
@@ -536,6 +537,7 @@ function ReactionMnrlCreateMnrlConstraint(mineral,option)
   constraint%external_vol_frac_dataset = PETSC_FALSE
   allocate(constraint%external_area_dataset(mineral%nkinmnrl))
   constraint%external_area_dataset = PETSC_FALSE
+  constraint%acknowledge_zero_surface_area = PETSC_FALSE
 
   ReactionMnrlCreateMnrlConstraint => constraint
 

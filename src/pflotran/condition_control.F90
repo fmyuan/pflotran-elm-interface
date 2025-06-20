@@ -1393,6 +1393,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   use Global_Aux_module
   use Material_Aux_module
   use Reaction_module
+  use Reaction_Mineral_module
   use HDF5_module
   use Secondary_Continuum_Aux_module
 
@@ -1581,20 +1582,17 @@ subroutine CondControlAssignRTTranInitCond(realization)
                               constraint%minerals%constraint_vol_frac(imnrl), &
                               ierr);CHKERRQ(ierr)
               endif
-              call DiscretizationLocalToGlobal(discretization,vec1_loc, &
-                                               field%work,ONEDOF)
-              call VecMin(field%work,PETSC_NULL_INTEGER,tempreal, &
-                          ierr);CHKERRQ(ierr)
-              if (tempreal < epsilon) then
-                option%io_buffer = 'A zero volume fraction assigned to &
-                  &mineral "' // &
-                  trim(reaction%mineral%kinmnrl_names(imnrl)) // &
-                  '" in constraint "' // trim(constraint%name) // &
-                  '" prevents the use of a mass-based surface area in the &
-                  &constraint.'
-                call PrintErrMsg(option)
-              endif
             endif
+
+            call DiscretizationLocalToGlobal(discretization,vec1_loc, &
+                                             field%work,ONEDOF)
+            call VecMin(field%work,PETSC_NULL_INTEGER,tempreal, &
+                        ierr);CHKERRQ(ierr)
+            call ReactionMnrlReportZeroSurfArea(imnrl,tempreal, &
+                                                reaction%mineral, &
+                                                constraint%name, &
+                                                constraint%minerals,option)
+
             ! vec1_loc holds mineral volume fraction [m^3 mnrl / m^3 bulk]
             call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
             do icell=1,initial_condition%region%num_cells

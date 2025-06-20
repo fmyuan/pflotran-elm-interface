@@ -236,6 +236,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   PetscErrorCode :: ierr
   PetscReal :: tempreal
   PetscBool :: found
+  PetscBool :: acknowledge_zero_surface_area
 
   call PetscLogEventBegin(logging%event_tran_constraint_read, &
                           ierr);CHKERRQ(ierr)
@@ -245,6 +246,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
       &CHEMISTRY block being defined in the input file.'
     call PrintErrMsg(option)
   endif
+  acknowledge_zero_surface_area = PETSC_FALSE
 
   ! read the constraint
   input%ierr = INPUT_ERROR_NONE
@@ -747,6 +749,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         endif
         constraint%immobile_species => immobile_constraint
 
+      case('ACKNOWLEDGE_ZERO_SURFACE_AREA')
+        acknowledge_zero_surface_area = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
     end select
@@ -759,6 +763,11 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
     option%io_buffer = 'A CONCENTRATION block is missing in constraint "' // &
       trim(constraint%name) // '".'
     call PrintErrMsg(option)
+  endif
+
+  if (acknowledge_zero_surface_area .and. &
+      associated(constraint%minerals)) then
+    constraint%minerals%acknowledge_zero_surface_area = PETSC_TRUE
   endif
 
   call PetscLogEventEnd(logging%event_tran_constraint_read, &
