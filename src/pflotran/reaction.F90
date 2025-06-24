@@ -1678,6 +1678,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           &constraint "' // trim(constraint%name) // '" after ' // &
           StringWrite(num_iterations) // ' iterations.'
         call PrintMsgByRank(option)
+        option%io_buffer = 'Liquid Saturation: ' // &
+                           StringWrite(global_auxvar%sat(1))
+        call PrintMsgByRank(option)
         ! now figure out which species have zero concentrations
         do idof = 1, reaction%neqcplx
           if (rt_auxvar%sec_molal(idof) > 1.d200) then
@@ -2059,6 +2062,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           call PrintMsgByRank(option)
         endif
       enddo
+      option%io_buffer = 'Liquid Saturation: ' // &
+                         StringWrite(global_auxvar%sat(1))
+      call PrintMsgByRank(option)
       option%io_buffer = 'Free ion concentrations RESULTING from &
         &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
