@@ -513,6 +513,11 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputPopBlock(input,option)
         reaction%mineral%nkinmnrl = reaction%mineral%nkinmnrl + temp_int
 
+      case('MINERAL_RATE_SCALING_FACTOR')
+        call InputReadDouble(input,option, &
+                             reaction%mineral%rate_constant_scaling_factor)
+        call InputErrorMsg(input,option,word,error_string)
+
       case('NUCLEATION_KINETICS')
         error_string = 'CHEMISTRY,NUCLEATION_KINETICS'
         call InputPushBlock(input,option)
@@ -1101,10 +1106,9 @@ subroutine ReactionReadPass2(reaction,input,option)
           end select
         enddo
       case('MOLAL','MOLALITY', &
-            'UPDATE_POROSITY','UPDATE_TORTUOSITY', &
-            'UPDATE_PERMEABILITY', &
-            'NO_RESTART_MINERAL_VOL_FRAC','USE_FULL_GEOCHEMISTRY', &
-           'DECOUPLE_CO2')
+           'UPDATE_POROSITY','UPDATE_TORTUOSITY','UPDATE_PERMEABILITY', &
+           'NO_RESTART_MINERAL_VOL_FRAC','USE_FULL_GEOCHEMISTRY', &
+           'DECOUPLE_CO2','MINERAL_RATE_SCALING_FACTOR')
         ! dummy placeholder
     end select
   enddo

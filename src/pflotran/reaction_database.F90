@@ -2567,6 +2567,26 @@ subroutine ReactionDBInitBasis(reaction,option)
     endif
 
     if (mineral%nkinmnrl > 0) then
+      ! scale rate constants
+      tempreal = mineral%rate_constant_scaling_factor
+      if (associated(mineral%kinmnrl_precip_rate_constant)) then
+        mineral%kinmnrl_precip_rate_constant = &
+          mineral%kinmnrl_precip_rate_constant * tempreal
+      endif
+      if (associated(mineral%kinmnrl_dissol_rate_constant)) then
+        mineral%kinmnrl_dissol_rate_constant = &
+          mineral%kinmnrl_dissol_rate_constant * tempreal
+      endif
+      if (associated(mineral%kinmnrl_pref_precip_rate_const)) then
+        mineral%kinmnrl_pref_precip_rate_const = &
+          mineral%kinmnrl_pref_precip_rate_const * tempreal
+      endif
+      if (associated(mineral%kinmnrl_pref_dissol_rate_const)) then
+        mineral%kinmnrl_pref_dissol_rate_const = &
+          mineral%kinmnrl_pref_dissol_rate_const * tempreal
+      endif
+
+      ! check for affinity power conflict
       if (maxval(mineral%kinmnrl_rate_limiter) > 0.d0 .and. &
           associated(mineral%kinmnrl_affinity_power)) then
         do ikinmnrl = 1, mineral%nkinmnrl

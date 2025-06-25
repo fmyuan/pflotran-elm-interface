@@ -131,20 +131,21 @@ CHEMISTRY
     Schoepite
     Coffinite
   /
+  MINERAL_RATE_SCALING_FACTOR 0.1d0
   MINERAL_KINETICS
     Schoepite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+      RATE_CONSTANT 1.d-9 mol/cm^2-sec
     /
     Coffinite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+      RATE_CONSTANT 1.d-9 mol/cm^2-sec
     /
     Calcite
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+      RATE_CONSTANT 1.d-9 mol/cm^2-sec
     /
     Uraninite
       SURFACE_AREA_VOL_FRAC_POWER 0.666667d0
       PREFACTOR
-        RATE_CONSTANT 3.5d-8      mol/m^2-sec
+        RATE_CONSTANT 3.5d-7      mol/m^2-sec
         PREFACTOR_SPECIES O2(aq)
           ALPHA 0.31d0
         /
@@ -157,10 +158,10 @@ CHEMISTRY
       SURFACE_AREA_FUNCTION VOLUME_FRACTION_RATIO
     /
     SiO2(am)
-      RATE_CONSTANT 1.d-10 mol/cm^2-sec
+      RATE_CONSTANT 1.d-9 mol/cm^2-sec
     /
     Quartz
-      RATE_CONSTANT 1.d-17 mol/cm^2-sec
+      RATE_CONSTANT 1.d-16 mol/cm^2-sec
     /
   /
   DATABASE ../../../database/hanford.dat
