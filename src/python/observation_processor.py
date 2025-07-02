@@ -26,25 +26,25 @@ for ifilename in range(len(filenames)):
       headings = header.split(',')
       for icol in range(len(headings)):
         headings[icol] = headings[icol].replace('"','')
-        print '%d: %s' % (icol+1,headings[icol])
-      print 'Enter the column ids for the desired data, delimiting with spaces:'
-      s = raw_input('-> ')
+        print('%d: %s' % (icol+1,headings[icol]))
+      print('Enter the column ids for the desired data, delimiting with spaces:')
+      s = input('-> ')
       w = s.split()
       columns = []
       columns.append(int(0))
       for i in range(len(w)):
         if not w[i].isdigit():
-          print 'Entry %s not a recognized integer' % w[i]
+          print('Entry %s not a recognized integer' % w[i])
         else:
           icol = int(w[i])-1
           if icol > 0:
             columns.append(int(w[i])-1)
-      print 'Desired columns include:'
+      print('Desired columns include:')
       for i in range(len(columns)):
-        print '%d: %s' % (i+1,headings[columns[i]])
+        print('%d: %s' % (i+1,headings[columns[i]]))
       yes = 0
       while(1):
-        s = raw_input('Are these correct [y/n]?: ').lstrip().lower()
+        s = input('Are these correct [y/n]?: ').lstrip().lower()
         if (s.startswith('y') and len(s) == 1) or \
            (s.startswith('yes') and len(s) == 3):
           yes = 1
@@ -92,5 +92,5 @@ for ifile in range(len(files)):
   files[ifile].close()
 fout.close()
 
-print 'done'
+print('done')
   
