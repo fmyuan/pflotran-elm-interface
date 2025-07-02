@@ -426,6 +426,7 @@ subroutine RealizationCreateDiscretization(realization)
                                       discretization%dm_1dof%ugdm)
       call GridComputeVolumes(grid,field%volume0,option)
   end select
+  call PrintMsg(option,NL//'Number of processes: '//StringWrite(option%comm%size))
   call GridPrintExtents(grid,option)
   call GridPrintSize(grid,option)
   ! min/max cell volume
