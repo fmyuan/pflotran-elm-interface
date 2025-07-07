@@ -2036,7 +2036,8 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
                        option%mycomm,ierr);CHKERRQ(ierr)
     iflag = i
     if (iflag > 0) then
-      option%io_buffer = 'GridLocalizeRegions, between two points'
+      option%io_buffer = 'GridLocalizeRegions: Between two points for &
+        &region "' // trim(region%name) // '".'
       call PrintErrMsg(option)
     endif
   endif
