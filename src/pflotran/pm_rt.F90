@@ -55,6 +55,12 @@ module PM_RT_class
     PetscBool, pointer :: converged_flag(:)
     PetscInt, pointer :: converged_cell(:,:)
     PetscReal, pointer :: converged_real(:,:)
+    PetscReal :: norm_history(1,10)
+    PetscInt :: oscillation_count
+    PetscBool :: dampen_oscillatory_updates
+    PetscBool :: dampen_update
+    PetscInt :: dampen_count
+    PetscReal :: dampening_factor
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMRTReadSimOptionsBlock
@@ -167,6 +173,12 @@ subroutine PMRTInit(pm_rt)
   nullify(pm_rt%converged_flag)
   nullify(pm_rt%converged_cell)
   nullify(pm_rt%converged_real)
+  pm_rt%norm_history = 0.d0
+  pm_rt%oscillation_count = 0
+  pm_rt%dampen_oscillatory_updates = PETSC_FALSE
+  pm_rt%dampen_update = PETSC_FALSE
+  pm_rt%dampen_count = 0
+  pm_rt%dampening_factor = 1.d0
 
 end subroutine PMRTInit
 
@@ -368,6 +380,8 @@ subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,rt_itol_rel_update)
       call InputErrorMsg(input,option,keyword,error_string)
       this%check_post_convergence = PETSC_TRUE
+    case('DAMPEN_OSCILLATION')
+      this%dampen_oscillatory_updates = PETSC_TRUE
     case default
       found = PETSC_FALSE
 
@@ -741,6 +755,11 @@ subroutine PMRTPreSolve(this)
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
   endif
+  this%norm_history = 0.d0
+  this%oscillation_count = 0
+  this%dampen_update = PETSC_FALSE
+  this%dampen_count = 0
+  this%dampening_factor = 1.d0
 
   call DataMediatorUpdate(this%realization%tran_data_mediator_list, &
                           this%realization%field%tran_mass_transfer, &
@@ -1080,6 +1099,10 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
   if (reaction%use_log_formulation) then
+    if (this%dampen_update) then
+      dC_p(:) = log(this%dampening_factor*exp(dC_p(:)) + &
+                    (1.d0-this%dampening_factor))
+    endif
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
     ! at this point, it does not matter whether "changed" is set to true,
@@ -1101,6 +1124,9 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     endif
   else
+    if (this%dampen_update) then
+      dC_p(:) = this%dampening_factor*dC_p(:)
+    endif
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     if (Initialized(reaction%truncated_concentration)) then
@@ -1320,6 +1346,9 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscInt :: i
   PetscReal :: inorm_residual
   PetscReal :: tempreal
+  PetscReal, parameter :: tol = 1.d-2
+  PetscReal, parameter :: pert = 1.d-40
+  PetscBool :: found
 
   option => this%option
 
@@ -1476,6 +1505,44 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
                         this%realization%patch%grid, &
                         this%option,this%solver,ierr)
+  endif
+
+  ! check for oscillatory convergence
+  this%norm_history = cshift(this%norm_history,shift=-1,dim=2)
+  this%norm_history(1,1) = fnorm
+  if (this%norm_history(1,5) > 0.d0) then
+    found = PETSC_FALSE
+    do i = 2, 7
+      if (maxval(dabs((this%norm_history(:,1)-this%norm_history(:,i))/ &
+                      (this%norm_history(:,1)+pert))) < tol) then
+        ! check next 2 sets of numbers
+        if (maxval(dabs((this%norm_history(:,2)-this%norm_history(:,i+1))/ &
+                        (this%norm_history(:,2)+pert))) < tol .and. &
+            maxval(dabs((this%norm_history(:,3)-this%norm_history(:,i+2))/ &
+                        (this%norm_history(:,3)+pert))) < tol) then
+          found = PETSC_TRUE
+        endif
+      endif
+    enddo
+    if (found) then
+      this%option%io_buffer = 'Potential oscillatory convergence'
+      call PrintWrnMsg(this%option)
+      this%oscillation_count = this%oscillation_count + 1
+      if (this%dampen_oscillatory_updates) then
+        if (mod(this%oscillation_count,2) == 0) then
+          this%dampen_update = PETSC_TRUE
+          this%dampening_factor = 0.6d0
+        endif
+      endif
+    else
+      this%oscillation_count = 0
+      if (this%dampen_count > 3) then
+        this%dampen_update = PETSC_FALSE
+        this%dampening_factor = 1.d0
+        this%dampen_count = 0
+      endif
+    endif
+    if (this%dampen_update) this%dampen_count = this%dampen_count + 1
   endif
 
 end subroutine PMRTCheckConvergence
