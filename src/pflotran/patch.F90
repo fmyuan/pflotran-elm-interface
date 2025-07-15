@@ -1605,6 +1605,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscReal :: relative_humidity
   PetscReal :: gas_sat, air_pressure, gas_pressure, liq_pressure, &
                precipitate_sat
+  PetscBool :: error_flag
 
   PetscReal :: dummy_real
   character(len=MAXSTRINGLENGTH) :: string
@@ -1622,6 +1623,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   flow_condition => coupler%flow_condition
 
   general => flow_condition%general
+  error_flag = PETSC_FALSE
   dof1 = PETSC_FALSE
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
@@ -1761,9 +1763,12 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               &within a HYDROSTATIC_BC boundary condition for GENERAL mode. &
               &A hydrostatic boundary condition may not be used to set &
               &state variables in the vadose zone for GENERAL mode.'
-            call PrintErrMsg(option)
+            call PrintMsgByRank(option)
+            error_flag = PETSC_TRUE
+            exit
           endif
         enddo
+        call PatchCheckError(error_flag,option)
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
         if (general_salt) dof4 = PETSC_TRUE
       endif
@@ -2706,6 +2711,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                liq_pressure, x_salt
   PetscReal :: dummy_real
   character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: error_flag
   PetscErrorCode :: ierr
 
   PetscInt :: num_connections
@@ -2720,6 +2726,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   flow_condition => coupler%flow_condition
 
   hydrate => flow_condition%hydrate
+  error_flag = PETSC_FALSE
   dof1 = PETSC_FALSE
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
@@ -2836,9 +2843,12 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
               &within a HYDROSTATIC_BC boundary condition for HYDRATE mode. &
               &A hydrostatic boundary condition may not be used to set &
               &state variables in the vadose zone for HYDRATE mode.'
-            call PrintErrMsg(option)
+            call PrintMsgByRank(option)
+            error_flag = PETSC_TRUE
+            exit
           endif
         enddo
+        call PatchCheckError(error_flag,option)
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
       endif
     case(G_STATE)
@@ -4639,6 +4649,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
                co2_pressure
   PetscReal :: dummy_real
   character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: error_flag
   PetscErrorCode :: ierr
 
   PetscInt :: num_connections
@@ -4653,6 +4664,7 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
   flow_condition => coupler%flow_condition
 
   sco2 => flow_condition%sco2
+  error_flag = PETSC_FALSE
   dof1 = PETSC_FALSE
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
@@ -4779,9 +4791,12 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
               &within a HYDROSTATIC_BC boundary condition for SCO2 mode. &
               &A hydrostatic boundary condition may not be used to set &
               &state variables in the vadose zone for SCO2 mode.'
-            call PrintErrMsg(option)
+            call PrintMsgByRank(option)
+            error_flag = PETSC_TRUE
+            exit
           endif
         enddo
+        call PatchCheckError(error_flag,option)
         dof1 = PETSC_TRUE
         dof2 = PETSC_TRUE
         dof3 = PETSC_TRUE
@@ -4823,9 +4838,12 @@ subroutine PatchUpdateCouplerAuxVarsSCO2(patch,coupler,option)
               &within a HYDROSTATIC_BC boundary condition for SCO2 mode. &
               &A hydrostatic boundary condition may not be used to set &
               &state variables in the vadose zone for SCO2 mode.'
-            call PrintErrMsg(option)
+            call PrintMsgByRank(option)
+            error_flag = PETSC_TRUE
+            exit
           endif
         enddo
+        call PatchCheckError(error_flag,option)
         dof1 = PETSC_TRUE
         dof2 = PETSC_TRUE
         dof3 = PETSC_TRUE
@@ -12067,6 +12085,33 @@ subroutine PatchCreateZeroArray(patch,dof_is_active,matrix_zeroing,option)
   endif
 
 end subroutine PatchCreateZeroArray
+
+! ************************************************************************** !
+
+subroutine PatchCheckError(flag,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/15/25
+
+  use Option_module
+
+  implicit none
+
+  PetscBool :: flag
+  type(option_type) :: option
+
+  PetscErrorCode :: ierr
+
+  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI, &
+                     MPI_LOGICAL,MPI_LOR,option%mycomm, &
+                     ierr);CHKERRQ(ierr)
+  if (flag) then
+    option%io_buffer = 'Stopping due to error that occurred earlier &
+      &(see above).'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine PatchCheckError
 
 ! ************************************************************************** !
 
