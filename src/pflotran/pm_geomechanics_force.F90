@@ -116,19 +116,27 @@ subroutine PMGeomechReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('COUPLING')
+      case('FLOW_COUPLING')
         call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (word)
           case ('ONE_WAY_COUPLED')
-            option%geomechanics%subsurf_coupling = GEOMECH_ONE_WAY_COUPLED
+            option%geomechanics%flow_coupling = GEOMECH_ONE_WAY_COUPLED
           case ('TWO_WAY_COUPLED')
-            option%geomechanics%subsurf_coupling = GEOMECH_TWO_WAY_COUPLED
-          case ('COUPLE_ERT')
-            option%geomechanics%subsurf_coupling = GEOMECH_ERT_COUPLING
+            option%geomechanics%flow_coupling = GEOMECH_TWO_WAY_COUPLED
           case default
             call InputKeywordUnrecognized(input,word, &
-                                trim(error_string)//',COUPLING',option)
+                                trim(error_string)//','//trim(keyword),option)
+        end select
+      case('GEOPHYSICS_COUPLING')
+        call InputReadCard(input,option,word,PETSC_FALSE)
+        call StringToUpper(word)
+        select case (word)
+          case ('COUPLE_ERT')
+            option%geomechanics%geophysics_coupling = GEOMECH_ERT_COUPLING
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                                trim(error_string)//','//trim(keyword),option)
         end select
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
