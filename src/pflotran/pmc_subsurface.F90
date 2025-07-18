@@ -723,7 +723,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
         subsurf_field => pmc%realization%field
         subsurf_material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
-        if (option%geomechanics%subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
+        if (option%geomechanics%flow_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
           call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p, &
                               ierr);CHKERRQ(ierr)

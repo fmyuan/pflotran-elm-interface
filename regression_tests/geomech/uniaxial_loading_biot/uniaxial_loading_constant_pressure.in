@@ -6,7 +6,7 @@ SIMULATION
     / 
     GEOMECHANICS_SUBSURFACE geomech
       OPTIONS
-        COUPLING ONE_WAY_COUPLED
+        FLOW_COUPLING ONE_WAY_COUPLED
       /
     /
   / 

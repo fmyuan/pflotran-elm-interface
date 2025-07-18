@@ -1019,7 +1019,7 @@ subroutine PMERTPreSolve(this)
                                       MATERIAL_ELECTRICAL_CONDUCTIVITY)
     endif
 
-    if (option%geomechanics%subsurf_coupling == GEOMECH_ERT_COUPLING) then
+    if (option%geomechanics%geophysics_coupling == GEOMECH_ERT_COUPLING) then
       parameter_index = ParameterGetIDFromName('geomechanics_stress',option)
       dstress = patch%aux% &
               Global%auxvars(ghosted_id)%parameters(parameter_index)
