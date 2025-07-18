@@ -6110,6 +6110,7 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
   class(reaction_base_type), pointer :: reaction_base
   type(option_type) :: option
 
+  call PrintMsg(option,NL//'Initializing constraints for reactive transport.')
   call PatchInitCouplerConstraints(patch%initial_condition_list, &
                                    reaction_base,option)
 

@@ -39,6 +39,7 @@ module Transport_Constraint_RT_module
     type(mineral_constraint_type), pointer :: minerals
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(immobile_constraint_type), pointer :: immobile_species
+    PetscBool :: dampen_oscillation
   contains
     procedure, public :: Strip => TranConstraintRTStrip
   end type tran_constraint_rt_type
@@ -86,6 +87,7 @@ function TranConstraintRTCreate(option)
   nullify(constraint%minerals)
   nullify(constraint%surface_complexes)
   nullify(constraint%immobile_species)
+  constraint%dampen_oscillation = PETSC_FALSE
 
   TranConstraintRTCreate => constraint
 
@@ -751,6 +753,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
       case('ACKNOWLEDGE_ZERO_SURFACE_AREA')
         acknowledge_zero_surface_area = PETSC_TRUE
+      case('DAMPEN_OSCILLATION')
+        constraint%dampen_oscillation = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
     end select
