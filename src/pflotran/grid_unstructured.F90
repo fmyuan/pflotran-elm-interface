@@ -124,8 +124,9 @@ subroutine UGridRead(unstructured_grid,filename,option)
                                  num_cells_local + 1
 
   ! allocate array to store vertices for each cell
-  allocate(unstructured_grid%cell_vertices(unstructured_grid%max_nvert_per_cell, &
-                                             num_cells_local))
+  allocate(unstructured_grid% &
+             cell_vertices(unstructured_grid%max_nvert_per_cell, &
+                           num_cells_local))
   unstructured_grid%cell_vertices = UNINITIALIZED_INTEGER
 
   ! for now, read all cells from ASCII file through io_rank and communicate
@@ -166,6 +167,11 @@ subroutine UGridRead(unstructured_grid,filename,option)
           call InputReadInt(input,option,temp_int_array(ivertex,icell))
           call InputErrorMsg(input,option,'vertex id',hint)
         enddo
+        if (input%ierr /= 0) then
+          ! since this region of the code is non-blocking, we need to exit
+          ! loop if there is an error
+          exit
+        endif
       enddo
 
       ! if the cells reside on io_rank
