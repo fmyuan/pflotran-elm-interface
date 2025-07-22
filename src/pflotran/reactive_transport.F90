@@ -3610,6 +3610,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
   class(tran_constraint_rt_type), pointer :: constraint
+  PetscReal :: molarity_to_molality
 
 #ifdef XINGYUAN_BC
   character(len=MAXSTRINGLENGTH) :: string
@@ -3729,6 +3730,9 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         istartaq = offset + istartaq_loc
         iendaq = offset + iendaq_loc
 
+        molarity_to_molality = 1.d3 / &
+          global_auxvars_bc(sum_connection)%den_kg(iphase)
+
 #ifdef XINGYUAN_BC
   if (idof_aq_dataset > 0) then
     call DatasetInterpolateReal(dataset, &
@@ -3759,9 +3763,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               ! since basis_molarity is in molarity, must convert to molality
                 ! by dividing by density of water (mol/L -> mol/kg)
               xxbc(istartaq_loc:iendaq_loc) = &
-                basis_molarity_p(1:reaction%naqcomp) / &
-                global_auxvars_bc(sum_connection)%den_kg(iphase) * &
-                1000.d0
+                basis_molarity_p(1:reaction%naqcomp) * molarity_to_molality
             case(DIRICHLET_ZERO_GRADIENT_BC,ZERO_GRADIENT_BC,MEMBRANE_BC)
               if (patch%boundary_velocities(iphase,sum_connection) < 0.d0) then
                 ! with outflow, these boundary concentrations are ignored,
@@ -3773,9 +3775,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               ! xxbc concentration will be ignored on outflow. if there is
               ! any doubt, set xxbc = 1.d-9 for vdarcy < 0 to check
               xxbc(istartaq_loc:iendaq_loc) = &
-                basis_molarity_p(1:reaction%naqcomp) / &
-                global_auxvars_bc(sum_connection)%den_kg(iphase) * &
-                1000.d0
+                basis_molarity_p(1:reaction%naqcomp) * molarity_to_molality
           end select
           ! no need to update boundary fluid density since it is already set
           rt_auxvars_bc(sum_connection)%pri_molal = &
@@ -3801,32 +3801,12 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         ! Chuan needs to fill this in.
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
-              ! don't need to do anything as the constraint below provides all
-              ! the concentrations, etc.
-
-              !geh: terrible kludge, but should work for now.
-              !geh: the problem is that ...%pri_molal() on first call is
-              !      zero and PETSC_TRUE is passed into
-              !      ReactionEquilibrateConstraint() below for
-              !      use_prev_soln_as_guess.  If the previous solution is
-              !      zero, the code will crash.
-              if (rt_auxvars_bc(sum_connection)%pri_molal(1) < &
-                  1.d-200) then
-!               rt_auxvars_bc(sum_connection)%pri_molal = 1.d-9
-                rt_auxvars_bc(sum_connection)%pri_molal = &
-                    xx_loc_p(istartaq:iendaq)
-              endif
+              rt_auxvars_bc(sum_connection)%pri_molal = &
+                basis_molarity_p(1:reaction%naqcomp) * molarity_to_molality
             case(DIRICHLET_ZERO_GRADIENT_BC)
               if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
-                  ! don't need to do anything as the constraint below
-                  ! provides all the concentrations, etc.
-
-                if (rt_auxvars_bc(sum_connection)%pri_molal(1) < &
-                    1.d-200) then
-!                 rt_auxvars_bc(sum_connection)%pri_molal = 1.d-9
-                  rt_auxvars_bc(sum_connection)%pri_molal = &
-                    xx_loc_p(istartaq:iendaq)
-                endif
+                rt_auxvars_bc(sum_connection)%pri_molal = &
+                  basis_molarity_p(1:reaction%naqcomp) * molarity_to_molality
               else
                 ! same as zero_gradient below
                 equilibrate_constraint = PETSC_FALSE
