@@ -356,9 +356,9 @@ subroutine PMCGeomechanicsSetAuxData(this)
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)
-      if (this%option%geomechanics%subsurf_coupling == &
+      if (this%option%geomechanics%flow_coupling == &
             GEOMECH_TWO_WAY_COUPLED .or. &
-          this%option%geomechanics%subsurf_coupling == &
+          this%option%geomechanics%geophysics_coupling == &
             GEOMECH_ERT_COUPLING) then
 
         grid => pmc%subsurf_realization%patch%grid
@@ -458,7 +458,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
         call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
                             ierr);CHKERRQ(ierr)
 
-        if (this%option%geomechanics%subsurf_coupling == &
+        if (this%option%geomechanics%geophysics_coupling == &
                                 GEOMECH_ERT_COUPLING) then
           ! stress
           call VecGetArrayF90(pmc%subsurf_realization%field%work, &
@@ -518,7 +518,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
                                   vec_ptr,ierr);CHKERRQ(ierr)
         endif
 
-        if (this%option%geomechanics%subsurf_coupling == &
+        if (this%option%geomechanics%flow_coupling == &
             GEOMECH_TWO_WAY_COUPLED) then
 
           ! Update porosity dataset in sim_aux%subsurf_por

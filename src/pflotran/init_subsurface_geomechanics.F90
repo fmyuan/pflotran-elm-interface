@@ -534,7 +534,8 @@ subroutine InitSubsurfGeomechSetupRealization(subsurf_realization, &
 
   call GeomechRealizCreateDiscretization(geomech_realization)
 
-  if (option%geomechanics%subsurf_coupling /= 0) then
+  if (option%geomechanics%flow_coupling /= 0 .or. &
+      option%geomechanics%geophysics_coupling /= 0) then
     call GeomechCreateGeomechSubsurfVec(subsurf_realization, &
                                         geomech_realization)
     call GeomechCreateSubsurfStressStrainVec(subsurf_realization, &
