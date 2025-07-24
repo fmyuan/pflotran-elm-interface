@@ -44,7 +44,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   use Simulation_Aux_module
   use Realization_Subsurface_class
   use Realization_Base_class
-  use Timestepper_Steady_class
+  use Timestepper_KSP_class
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
@@ -64,7 +64,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   class(pm_base_type), pointer :: cur_pm, prev_pm
   class(pm_geomech_force_type), pointer :: pm_geomech
   class(pmc_geomechanics_type), pointer :: pmc_geomech
-  class(timestepper_steady_type), pointer :: timestepper
+  class(timestepper_ksp_type), pointer :: timestepper
   type(input_type), pointer :: input
   PetscErrorCode :: ierr
 
@@ -101,7 +101,7 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   subsurf_realization => simulation%realization
   geomech_realization => simulation%geomech%realization
   pmc_geomech => simulation%geomech%process_model_coupler
-  timestepper => TimestepperSteadyCast(pmc_geomech%timestepper)
+  timestepper => TimestepperKSPCast(pmc_geomech%timestepper)
 
   ! initialize geomech realization
   call InitSubsurfGeomechSetupRealization(subsurf_realization, &
@@ -118,11 +118,13 @@ subroutine FactoryGeomechanicsInitialize(simulation)
   ! flow since we are performing sequential coupling). Although
   ! SNESSetJacobian is called, nothing is done there and PETSc just
   ! re-uses the linear Jacobian at all iterations and times
-  call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+  call MatSetOption(geomech_realization%geomech_field%A, &
+                    MAT_NEW_NONZERO_ALLOCATION_ERR, &
                     PETSC_FALSE,ierr);CHKERRQ(ierr)
-  call GeomechForceJacobianLinearPart(timestepper%solver%M, &
+  call GeomechForceAssembleCoeffMatrix(geomech_realization%geomech_field%A, &
                                       geomech_realization)
-  call MatSetOption(timestepper%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+  call MatSetOption(geomech_realization%geomech_field%A, &
+                    MAT_NEW_NONZERO_ALLOCATION_ERR, &
                     PETSC_TRUE,ierr);CHKERRQ(ierr)
   nullify(simulation%process_model_coupler_list)
 

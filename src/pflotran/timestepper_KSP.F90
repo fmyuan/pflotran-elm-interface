@@ -53,6 +53,7 @@ module Timestepper_KSP_class
   end interface PetscBagGetData
 
   public :: TimestepperKSPCreate, &
+            TimeStepperKSPCast, &
             TimestepperKSPPrintInfo, &
             TimestepperKSPInit
 
@@ -82,6 +83,32 @@ function TimestepperKSPCreate()
   TimestepperKSPCreate => stepper
 
 end function TimestepperKSPCreate
+
+! ************************************************************************** !
+
+function TimestepperKSPCast(this)
+  !
+  ! Casts a timestepper object to its appropriate class
+  !
+  ! Author: Satish Karra
+  ! Date: 06/04/25
+  !
+  use Timestepper_Base_class
+
+  implicit none
+
+  class(timestepper_base_type), pointer :: this
+
+  class(timestepper_ksp_type), pointer :: TimestepperKSPCast
+
+  nullify(TimestepperKSPCast)
+  if (.not.associated(this)) return
+  select type(this)
+    class is(timestepper_ksp_type)
+      TimestepperKSPCast => this
+  end select
+
+end function TimestepperKSPCast
 
 ! ************************************************************************** !
 

@@ -236,7 +236,7 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
 
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%disp_xx, &
-                                            geomech_field%disp_r)
+                                            geomech_field%rhs)
 
   ! 1 degree of freedom, global
   call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &

@@ -215,14 +215,14 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
   ! Date: 01/01/14
   ! Modified by Satish Karra, 06/22/16
 
-  use Timestepper_Steady_class
+  use Timestepper_KSP_class
   use Timestepper_Base_class
 
   implicit none
 
   class(simulation_geomechanics_type) :: this
 
-  class(timestepper_steady_type), pointer :: geomech_timestepper
+  class(timestepper_ksp_type), pointer :: geomech_timestepper
 
 #ifdef GEOMECH_DEBUG
   call PrintMsg(this%option,'GeomechanicsSimulationFinalizeRun')
@@ -232,7 +232,7 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
   nullify(geomech_timestepper)
   if (associated(this%geomech%process_model_coupler)) then
     select type(ts => this%geomech%process_model_coupler%timestepper)
-      class is(timestepper_steady_type)
+      class is(timestepper_ksp_type)
         geomech_timestepper => ts
     end select
   endif
