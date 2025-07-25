@@ -1651,465 +1651,465 @@ subroutine PMWellSetupGrid(well_grid,res_grid,option)
     if (allocated(collect_rank)) deallocate(collect_rank)
 
   else
-  top_of_reservoir = res_grid%z_max_global
-  top_of_hole = well_grid%tophole(3)
-  bottom_of_reservoir = res_grid%z_min_global
-  bottom_of_hole = well_grid%bottomhole(3)
-  if (top_of_reservoir < top_of_hole) then
+    top_of_reservoir = res_grid%z_max_global
+    top_of_hole = well_grid%tophole(3)
+    bottom_of_reservoir = res_grid%z_min_global
+    bottom_of_hole = well_grid%bottomhole(3)
+    if (top_of_reservoir < top_of_hole) then
+      ! MAN: this might be hard to get right, not sure it is necessary.
+      ! option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
+      !                    &beyond the top of the reservoir domain. &
+      !                    &You must fix the TOP_OF_HOLE coordinates to align &
+      !                    &with the top face of the reservoir grid cell that &
+      !                    &it occupies.'
+      ! call PrintErrMsg(option)
+      well_grid%tophole(3) = top_of_reservoir
+    endif
+    if (top_of_reservoir > top_of_hole) then
+      option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates do not &
+                        &reach the top of the reservoir domain. &
+                        &You must fix the TOP_OF_HOLE coordinates to align &
+                        &with the top face of the reservoir grid cell that &
+                        &it occupies.'
+      call PrintErrMsg(option)
+    endif
+    if (bottom_of_reservoir > bottom_of_hole) then
     ! MAN: this might be hard to get right, not sure it is necessary.
-    ! option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
-    !                    &beyond the top of the reservoir domain. &
-    !                    &You must fix the TOP_OF_HOLE coordinates to align &
-    !                    &with the top face of the reservoir grid cell that &
-    !                    &it occupies.'
+    ! option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
+    !                    &beyond the bottom of the reservoir domain. &
+    !                    &You must fix the BOTTOM_OF_HOLE coordinates so that &
+    !                    &the bottom of the well is aligned with the bottom &
+    !                    &face of the reservoir, or is above the bottom &
+    !                    &face of the reservoir in the vertical column that the &
+    !                    &well occupies.'
     ! call PrintErrMsg(option)
-    well_grid%tophole(3) = top_of_reservoir
-  endif
-  if (top_of_reservoir > top_of_hole) then
-    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates do not &
-                       &reach the top of the reservoir domain. &
-                       &You must fix the TOP_OF_HOLE coordinates to align &
-                       &with the top face of the reservoir grid cell that &
-                       &it occupies.'
-    call PrintErrMsg(option)
-  endif
-  if (bottom_of_reservoir > bottom_of_hole) then
-  ! MAN: this might be hard to get right, not sure it is necessary.
-  ! option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
-  !                    &beyond the bottom of the reservoir domain. &
-  !                    &You must fix the BOTTOM_OF_HOLE coordinates so that &
-  !                    &the bottom of the well is aligned with the bottom &
-  !                    &face of the reservoir, or is above the bottom &
-  !                    &face of the reservoir in the vertical column that the &
-  !                    &well occupies.'
-  ! call PrintErrMsg(option)
-    well_grid%bottomhole(3) = bottom_of_reservoir
-  endif
+      well_grid%bottomhole(3) = bottom_of_reservoir
+    endif
 
-  diff_x = well_grid%tophole(1)-well_grid%bottomhole(1)
-  diff_y = well_grid%tophole(2)-well_grid%bottomhole(2)
-  diff_z = well_grid%tophole(3)-well_grid%bottomhole(3)
+    diff_x = well_grid%tophole(1)-well_grid%bottomhole(1)
+    diff_y = well_grid%tophole(2)-well_grid%bottomhole(2)
+    diff_z = well_grid%tophole(3)-well_grid%bottomhole(3)
 
-  if ((diff_y >= 1.d-10) .or. (diff_x >= 1.d-10)) then
-    option%io_buffer = 'WELLBORE_MODEL does not support a tilted &
-                        &well geometry. Please ensure that the well is &
-                        &perfectly vertical, and the vertical direction is &
-                        &set to the z-axis. Tilted well geometry is &
-                        &still in development.'
-    call PrintErrMsg(option)
-  endif
-
-  if (well_grid%match_reservoir) then
-  !---------------------------------------------------------------------------
-    if (option%driver%comm%size > 1) then
-      option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
-        &is not supported yet for parallel simulations. Use &
-        &WELL_GRID,NUMBER_OF_SEGMENTS option or WELL_GRID,&
-        &SEGMENT_CENTER_Z_VALUES with SEGMENT_LENGTH_VALUES option to define &
-        &the wellbore model grid.'
+    if ((diff_y >= 1.d-10) .or. (diff_x >= 1.d-10)) then
+      option%io_buffer = 'WELLBORE_MODEL does not support a tilted &
+                          &well geometry. Please ensure that the well is &
+                          &perfectly vertical, and the vertical direction is &
+                          &set to the z-axis. Tilted well geometry is &
+                          &still in development.'
       call PrintErrMsg(option)
     endif
 
-    allocate(temp_id_list(10000))
-    allocate(temp_repeated_list(10000))
-    temp_id_list = UNINITIALIZED_INTEGER
-    temp_repeated_list = UNINITIALIZED_INTEGER
-    dummy_h%x = well_grid%bottomhole(1)
-    dummy_h%y = well_grid%bottomhole(2)
-
-    k = 0
-    j = 0
-    cur_id = UNINITIALIZED_INTEGER
-    repeated = 0
-    cum_z = 0
-    cur_cum_z_int = 0
-    ! search and peck procedure for finding reservoir z list within well
-    do
-      j = j + 1
-      cum_z = (j)*well_grid%dz_peck
-      cum_z_int = int(cum_z)
-      dummy_h%z = well_grid%bottomhole(3) + cum_z
-      if (dummy_h%z > well_grid%tophole(3)) exit
-
-      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-      if (cum_z_int > cur_cum_z_int) then
-        call PrintProgressBarInt(diff_z,5,cum_z_int)
-        cur_cum_z_int = cum_z_int
+    if (well_grid%match_reservoir) then
+    !---------------------------------------------------------------------------
+      if (option%driver%comm%size > 1) then
+        option%io_buffer = 'WELLBORE_MODEL WELL_GRID,MATCH_RESERVOIR option &
+          &is not supported yet for parallel simulations. Use &
+          &WELL_GRID,NUMBER_OF_SEGMENTS option or WELL_GRID,&
+          &SEGMENT_CENTER_Z_VALUES with SEGMENT_LENGTH_VALUES option to define &
+          &the wellbore model grid.'
+        call PrintErrMsg(option)
       endif
 
-      if (j == 1) then
-        cur_id = local_id
-        k = 1
-        temp_id_list(k) = local_id
-      endif
+      allocate(temp_id_list(10000))
+      allocate(temp_repeated_list(10000))
+      temp_id_list = UNINITIALIZED_INTEGER
+      temp_repeated_list = UNINITIALIZED_INTEGER
+      dummy_h%x = well_grid%bottomhole(1)
+      dummy_h%y = well_grid%bottomhole(2)
 
-      if (local_id /= cur_id) then
-        k = k + 1
-        if (k > 10000) then
-          option%io_buffer = 'More than 10,000 reservoir cells have been &
-                             &counted in the z-direction within the wellbore.'
-          call PrintErrMsgToDev(option, &
-                           'if reducing to less than 10,000 is not an option.')
+      k = 0
+      j = 0
+      cur_id = UNINITIALIZED_INTEGER
+      repeated = 0
+      cum_z = 0
+      cur_cum_z_int = 0
+      ! search and peck procedure for finding reservoir z list within well
+      do
+        j = j + 1
+        cum_z = (j)*well_grid%dz_peck
+        cum_z_int = int(cum_z)
+        dummy_h%z = well_grid%bottomhole(3) + cum_z
+        if (dummy_h%z > well_grid%tophole(3)) exit
+
+        call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+        if (cum_z_int > cur_cum_z_int) then
+          call PrintProgressBarInt(diff_z,5,cum_z_int)
+          cur_cum_z_int = cum_z_int
         endif
-        temp_id_list(k) = local_id
-        temp_repeated_list(k-1) = repeated
-        repeated = 0
-        cur_id = local_id
+
+        if (j == 1) then
+          cur_id = local_id
+          k = 1
+          temp_id_list(k) = local_id
+        endif
+
+        if (local_id /= cur_id) then
+          k = k + 1
+          if (k > 10000) then
+            option%io_buffer = 'More than 10,000 reservoir cells have been &
+                              &counted in the z-direction within the wellbore.'
+            call PrintErrMsgToDev(option, &
+                            'if reducing to less than 10,000 is not an option.')
+          endif
+          temp_id_list(k) = local_id
+          temp_repeated_list(k-1) = repeated
+          repeated = 0
+          cur_id = local_id
+        endif
+        repeated = repeated + 1
+      enddo
+      temp_repeated_list(k) = repeated
+
+      well_grid%nsegments = k
+      nsegments = well_grid%nsegments
+
+      allocate(well_grid%dh(nsegments))
+      allocate(well_grid%res_dz(nsegments))
+      allocate(well_grid%h(nsegments))
+      allocate(well_grid%h_local_id(nsegments))
+      allocate(well_grid%h_ghosted_id(nsegments))
+      allocate(well_grid%h_global_id(nsegments))
+      allocate(well_grid%h_rank_id(nsegments))
+      allocate(well_grid%strata_id(nsegments))
+      allocate(well_grid%res_z(nsegments))
+
+      well_grid%dh(:) = UNINITIALIZED_DOUBLE
+      well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+      well_grid%h(:)%x = -MAX_DOUBLE
+      well_grid%h(:)%y = -MAX_DOUBLE
+      well_grid%h(:)%z = -MAX_DOUBLE
+      well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+      well_grid%res_z(:) = -MAX_DOUBLE
+
+      dh_x = diff_x/nsegments
+      dh_y = diff_y/nsegments
+
+      do k = 1,well_grid%nsegments
+        well_grid%h(k)%id = k
+        well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
+        well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
+
+        well_grid%dh(k) = temp_repeated_list(k)*well_grid%dz_peck
+        if (k == 1) then
+          well_grid%h(k)%z = well_grid%bottomhole(3)+(well_grid%dh(k)*(0.5d0))
+        else
+          well_grid%h(k)%z = well_grid%h(k-1)%z + (well_grid%dh(k-1)*(0.5d0)) + &
+                            (well_grid%dh(k)*(0.5d0))
+        endif
+
+        well_grid%h_local_id(k) = temp_id_list(k)
+        well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
+        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+        well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
+      enddo
+
+      well_grid%res_dz(:) = well_grid%dh(:)
+
+      diff_x = diff_x*diff_x
+      diff_y = diff_y*diff_y
+      diff_z = diff_z*diff_z
+
+      total_length = sqrt(diff_x+diff_y+diff_z)
+
+      deallocate(temp_repeated_list)
+      deallocate(temp_id_list)
+
+    elseif (associated(well_grid%z_list) .or. associated(well_grid%l_list)) then
+    !---------------------------------------------------------------------------
+    ! Use the provided z list to build the grid
+
+      if (.not.associated(well_grid%l_list)) then
+        option%io_buffer = 'When providing SEGMENT_CENTER_Z_VALUES, you must &
+                          &also provide a list of SEGMENT_LENGTH_VALUES that &
+                          &contains the same number of values (i.e. one length &
+                          &value for every z-center value).'
+        call PrintErrMsg(option)
       endif
-      repeated = repeated + 1
-    enddo
-    temp_repeated_list(k) = repeated
-
-    well_grid%nsegments = k
-    nsegments = well_grid%nsegments
-
-    allocate(well_grid%dh(nsegments))
-    allocate(well_grid%res_dz(nsegments))
-    allocate(well_grid%h(nsegments))
-    allocate(well_grid%h_local_id(nsegments))
-    allocate(well_grid%h_ghosted_id(nsegments))
-    allocate(well_grid%h_global_id(nsegments))
-    allocate(well_grid%h_rank_id(nsegments))
-    allocate(well_grid%strata_id(nsegments))
-    allocate(well_grid%res_z(nsegments))
-
-    well_grid%dh(:) = UNINITIALIZED_DOUBLE
-    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -MAX_DOUBLE
-    well_grid%h(:)%y = -MAX_DOUBLE
-    well_grid%h(:)%z = -MAX_DOUBLE
-    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
-    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -MAX_DOUBLE
-
-    dh_x = diff_x/nsegments
-    dh_y = diff_y/nsegments
-
-    do k = 1,well_grid%nsegments
-      well_grid%h(k)%id = k
-      well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
-      well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
-
-      well_grid%dh(k) = temp_repeated_list(k)*well_grid%dz_peck
-      if (k == 1) then
-        well_grid%h(k)%z = well_grid%bottomhole(3)+(well_grid%dh(k)*(0.5d0))
-      else
-        well_grid%h(k)%z = well_grid%h(k-1)%z + (well_grid%dh(k-1)*(0.5d0)) + &
-                           (well_grid%dh(k)*(0.5d0))
+      if (.not.associated(well_grid%z_list)) then
+        option%io_buffer = 'When providing SEGMENT_LENGTH_VALUES, you must &
+                          &also provide a list of SEGMENT_CENTER_Z_VALUES that &
+                          &contains the same number of values (i.e. one &
+                          &z-center value for every length value).'
+        call PrintErrMsg(option)
+      endif
+      if (size(well_grid%l_list) /= size(well_grid%z_list)) then
+        option%io_buffer = 'The length of SEGMENT_LENGTH_VALUES must match the &
+                          &length of SEGMENT_CENTER_Z_VALUES (i.e. one z-center&
+                          & value for every length value) provided in the &
+                          &WELLBORE_MODEL,WELL_GRID block.'
+        call PrintErrMsg(option)
       endif
 
-      well_grid%h_local_id(k) = temp_id_list(k)
-      well_grid%h_ghosted_id(k) = res_grid%nL2G(well_grid%h_local_id(k))
-      well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-      well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
-    enddo
+      nsegments = well_grid%nsegments
 
-    well_grid%res_dz(:) = well_grid%dh(:)
+      allocate(well_grid%dh(nsegments))
+      allocate(well_grid%res_dz(nsegments))
+      allocate(well_grid%h(nsegments))
+      allocate(well_grid%h_local_id(nsegments))
+      allocate(well_grid%h_ghosted_id(nsegments))
+      allocate(well_grid%h_global_id(nsegments))
+      allocate(well_grid%h_rank_id(nsegments))
+      allocate(well_grid%strata_id(nsegments))
+      allocate(well_grid%res_z(nsegments))
 
-    diff_x = diff_x*diff_x
-    diff_y = diff_y*diff_y
-    diff_z = diff_z*diff_z
+      well_grid%dh(:) = UNINITIALIZED_DOUBLE
+      well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+      well_grid%h(:)%x = -MAX_DOUBLE
+      well_grid%h(:)%y = -MAX_DOUBLE
+      well_grid%h(:)%z = -MAX_DOUBLE
+      well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+      well_grid%res_z(:) = -MAX_DOUBLE
 
-    total_length = sqrt(diff_x+diff_y+diff_z)
-
-    deallocate(temp_repeated_list)
-    deallocate(temp_id_list)
-
-  elseif (associated(well_grid%z_list) .or. associated(well_grid%l_list)) then
-  !---------------------------------------------------------------------------
-  ! Use the provided z list to build the grid
-
-    if (.not.associated(well_grid%l_list)) then
-      option%io_buffer = 'When providing SEGMENT_CENTER_Z_VALUES, you must &
-                         &also provide a list of SEGMENT_LENGTH_VALUES that &
-                         &contains the same number of values (i.e. one length &
-                         &value for every z-center value).'
-      call PrintErrMsg(option)
-    endif
-    if (.not.associated(well_grid%z_list)) then
-      option%io_buffer = 'When providing SEGMENT_LENGTH_VALUES, you must &
-                         &also provide a list of SEGMENT_CENTER_Z_VALUES that &
-                         &contains the same number of values (i.e. one &
-                         &z-center value for every length value).'
-      call PrintErrMsg(option)
-    endif
-    if (size(well_grid%l_list) /= size(well_grid%z_list)) then
-      option%io_buffer = 'The length of SEGMENT_LENGTH_VALUES must match the &
-                         &length of SEGMENT_CENTER_Z_VALUES (i.e. one z-center&
-                         & value for every length value) provided in the &
-                         &WELLBORE_MODEL,WELL_GRID block.'
-      call PrintErrMsg(option)
-    endif
-
-    nsegments = well_grid%nsegments
-
-    allocate(well_grid%dh(nsegments))
-    allocate(well_grid%res_dz(nsegments))
-    allocate(well_grid%h(nsegments))
-    allocate(well_grid%h_local_id(nsegments))
-    allocate(well_grid%h_ghosted_id(nsegments))
-    allocate(well_grid%h_global_id(nsegments))
-    allocate(well_grid%h_rank_id(nsegments))
-    allocate(well_grid%strata_id(nsegments))
-    allocate(well_grid%res_z(nsegments))
-
-    well_grid%dh(:) = UNINITIALIZED_DOUBLE
-    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -MAX_DOUBLE
-    well_grid%h(:)%y = -MAX_DOUBLE
-    well_grid%h(:)%z = -MAX_DOUBLE
-    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
-    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -MAX_DOUBLE
-
-    ! sort the z-list in ascending order, in case it was not provided that way
-    allocate(temp_z_list(nsegments))
-    temp_z_list = well_grid%z_list
-    do i = 1, nsegments
-      do j = i+1, nsegments
-        if (well_grid%z_list(i) > well_grid%z_list(j)) then
-          z_dum = well_grid%z_list(j)
-          well_grid%z_list(j) = well_grid%z_list(i)
-          well_grid%z_list(i) = z_dum
+      ! sort the z-list in ascending order, in case it was not provided that way
+      allocate(temp_z_list(nsegments))
+      temp_z_list = well_grid%z_list
+      do i = 1, nsegments
+        do j = i+1, nsegments
+          if (well_grid%z_list(i) > well_grid%z_list(j)) then
+            z_dum = well_grid%z_list(j)
+            well_grid%z_list(j) = well_grid%z_list(i)
+            well_grid%z_list(i) = z_dum
+          endif
+        enddo
+      enddo
+      ! if re-sorted doesn't match the given list, throw error
+      do i = 1, nsegments
+        if (well_grid%z_list(i) /= temp_z_list(i)) then
+          option%io_buffer = 'The list of SEGMENT_CENTER_Z_VALUES must be &
+            &provided in ascending order. Ensure that the list of corresponding &
+            &SEGMENT_LENGTH_VALUES is also modified accordingly.'
+          call PrintErrMsg(option)
         endif
       enddo
-    enddo
-    ! if re-sorted doesn't match the given list, throw error
-    do i = 1, nsegments
-      if (well_grid%z_list(i) /= temp_z_list(i)) then
-        option%io_buffer = 'The list of SEGMENT_CENTER_Z_VALUES must be &
-          &provided in ascending order. Ensure that the list of corresponding &
-          &SEGMENT_LENGTH_VALUES is also modified accordingly.'
-        call PrintErrMsg(option)
+      deallocate(temp_z_list)
+
+      dh_x = diff_x/nsegments
+      dh_y = diff_y/nsegments
+
+      do k = 1,well_grid%nsegments
+        well_grid%h(k)%id = k
+        well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
+        well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
+        well_grid%h(k)%z = well_grid%z_list(k)
+
+        call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
+                                          option,local_id)
+        if (Initialized(local_id)) then
+          well_grid%h_local_id(k) = local_id
+          well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+          well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+          well_grid%h_rank_id(k) = option%myrank
+          well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
+        endif
+      enddo
+
+      well_grid%dh = well_grid%l_list
+
+      temp_real = SUM(well_grid%dh)
+      total_length = sqrt((diff_x*diff_x)+(diff_y*diff_y)+(diff_z*diff_z))
+      if (temp_real /= total_length) then
+        temp_real2 = abs(temp_real - total_length)
+        !write(*,*) temp_real2
+        if (temp_real2 > 1.d-2) then
+          option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES &
+            &(' // StringWrite(temp_real) // ' m) does not match the total &
+            &length of the well according to the coordinates provided by &
+            &WELLBORE_MODEL, TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE &
+            &(' // StringWrite(total_length) // ' m).'
+          call PrintErrMsg(option)
+        endif
       endif
-    enddo
-    deallocate(temp_z_list)
 
-    dh_x = diff_x/nsegments
-    dh_y = diff_y/nsegments
+      !This could be way off if # of well cells per reservoir cell >> 1
+      !This could also lead to inconsisent well indices between the
+      !generated vs. read-in well.
+      well_grid%res_dz(:) = well_grid%dh(:)
 
-    do k = 1,well_grid%nsegments
-      well_grid%h(k)%id = k
-      well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
-      well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
-      well_grid%h(k)%z = well_grid%z_list(k)
+    elseif (Initialized(well_grid%nsegments)) then
+    !---------------------------------------------------------------------------
+    ! Build an equally-spaced grid based on nsegments:
 
-      call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
-                                        option,local_id)
-      if (Initialized(local_id)) then
+      nsegments = well_grid%nsegments
+
+      allocate(well_grid%dh(nsegments))
+      allocate(well_grid%res_dz(nsegments))
+      allocate(well_grid%h(nsegments))
+      allocate(well_grid%h_local_id(nsegments))
+      allocate(well_grid%h_ghosted_id(nsegments))
+      allocate(well_grid%h_global_id(nsegments))
+      allocate(well_grid%h_rank_id(nsegments))
+      allocate(well_grid%strata_id(nsegments))
+      allocate(well_grid%res_z(nsegments))
+
+      well_grid%dh(:) = UNINITIALIZED_DOUBLE
+      well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+      well_grid%h(:)%x = -MAX_DOUBLE
+      well_grid%h(:)%y = -MAX_DOUBLE
+      well_grid%h(:)%z = -MAX_DOUBLE
+      well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+      well_grid%res_z(:) = -MAX_DOUBLE
+
+
+
+      dh_x = diff_x/nsegments
+      dh_y = diff_y/nsegments
+      dh_z = diff_z/nsegments
+
+      diff_x = diff_x*diff_x
+      diff_y = diff_y*diff_y
+      diff_z = diff_z*diff_z
+
+      total_length = sqrt(diff_x+diff_y+diff_z)
+
+      do k = 1,well_grid%nsegments
+        well_grid%h(k)%id = k
+        well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
+        well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
+        well_grid%h(k)%z = well_grid%bottomhole(3)+(dh_z*(k-0.5))
+      enddo
+
+      well_grid%dh(:) = total_length/nsegments
+      well_grid%res_dz(:) = well_grid%dh(:)
+
+      do k = 1,well_grid%nsegments
+        call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
+                                          option,local_id)
+        if (Initialized(local_id)) then
+          well_grid%h_local_id(k) = local_id
+          well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+          well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
+          well_grid%h_rank_id(k) = option%myrank
+          well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
+        endif
+      enddo
+    !---------------------------------------------------------------------------
+    else
+    ! Use reservoir grid info
+      allocate(dz_list(num_entries))
+      allocate(res_dz_list(num_entries))
+      allocate(cell_id_list(num_entries))
+      dz_list = UNINITIALIZED_DOUBLE
+      res_dz_list = UNINITIALIZED_DOUBLE
+
+      if (Initialized(well_grid%min_dz)) then
+        min_dz = well_grid%min_dz
+      else
+        min_dz = 1.d-5
+      endif
+
+      dz = min_dz
+      z = well_grid%bottomhole(3)
+      dummy_h%x = well_grid%bottomhole(1)
+      dummy_h%y = well_grid%bottomhole(2)
+      dummy_h%z = z
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+      cell_id_list(1) = local_id
+      cur_id = local_id
+      z = z + min_dz
+      dummy_h%z = z
+      nsegments = 1
+      nsegments_save = 0
+      res_cell_count = 1
+      do
+        if (z > well_grid%tophole(3)) exit
+        call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+
+        res_cell_count = res_cell_count + 1
+        if (res_cell_count <= well_grid%well_res_ratio .and. &
+            cur_id == local_id) then
+          nsegments = nsegments + 1
+          cell_id_list(nsegments) = local_id
+          dz = dz + min_dz
+        elseif (cur_id /= local_id) then
+          res_dz_list(nsegments_save+1:nsegments) = dz
+          dz = dz / (nsegments-nsegments_save)
+          dz_list(nsegments_save+1:nsegments) = dz
+          res_cell_count = 1
+          cur_id = local_id
+          nsegments_save = nsegments
+          nsegments = nsegments+1
+          cell_id_list(nsegments) = local_id
+          dz = min_dz
+        else
+          dz = dz + min_dz
+        endif
+
+        z = z + min_dz
+        dummy_h%z = z
+      enddo
+      res_dz_list(nsegments_save+1:nsegments) = dz
+      dz = dz / (nsegments-nsegments_save)
+      dz_list(nsegments_save+1:nsegments) = dz
+
+      allocate(well_grid%dh(nsegments))
+      allocate(well_grid%res_dz(nsegments))
+      allocate(well_grid%h(nsegments))
+      allocate(well_grid%h_local_id(nsegments))
+      allocate(well_grid%h_ghosted_id(nsegments))
+      allocate(well_grid%h_global_id(nsegments))
+      allocate(well_grid%h_rank_id(nsegments))
+      allocate(well_grid%strata_id(nsegments))
+      allocate(well_grid%res_z(nsegments))
+
+      well_grid%dh(:) = UNINITIALIZED_DOUBLE
+      well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+      well_grid%h(:)%x = -MAX_DOUBLE
+      well_grid%h(:)%y = -MAX_DOUBLE
+      well_grid%h(:)%z = -MAX_DOUBLE
+      well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
+      well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
+      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+      well_grid%res_z(:) = -MAX_DOUBLE
+
+      well_grid%h_rank_id(:) = 0
+      well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
+
+      well_grid%strata_id(:) = UNINITIALIZED_INTEGER
+      well_grid%nsegments = nsegments
+      well_grid%nconnections = well_grid%nsegments - 1
+
+      well_grid%h(1)%id = 1
+      well_grid%h(1)%x = well_grid%bottomhole(1)
+      well_grid%h(1)%y = well_grid%bottomhole(2)
+      well_grid%h(1)%z = well_grid%bottomhole(3) + dz_list(1)/2.d0
+      well_grid%dh(1) = dz_list(1)
+
+      local_id = cell_id_list(1)
+      well_grid%h_local_id(1) = local_id
+      well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
+      well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
+      well_grid%res_z(1) = res_grid%z(well_grid%h_global_id(1))
+
+      do k = 2,nsegments
+        well_grid%h(k)%id = k
+        well_grid%h(k)%x = well_grid%bottomhole(1)
+        well_grid%h(k)%y = well_grid%bottomhole(2)
+        well_grid%h(k)%z = well_grid%bottomhole(3) + &
+                            sum(dz_list(1:k-1)) + dz_list(k)/2.d0
+        well_grid%dh(k) = dz_list(k)
+
+        local_id = cell_id_list(k)
         well_grid%h_local_id(k) = local_id
         well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
         well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-        well_grid%h_rank_id(k) = option%myrank
         well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
-      endif
-    enddo
-
-    well_grid%dh = well_grid%l_list
-
-    temp_real = SUM(well_grid%dh)
-    total_length = sqrt((diff_x*diff_x)+(diff_y*diff_y)+(diff_z*diff_z))
-    if (temp_real /= total_length) then
-      temp_real2 = abs(temp_real - total_length)
-      !write(*,*) temp_real2
-      if (temp_real2 > 1.d-2) then
-        option%io_buffer = 'The sum of the list of SEGMENT_LENGTH_VALUES &
-          &(' // StringWrite(temp_real) // ' m) does not match the total &
-          &length of the well according to the coordinates provided by &
-          &WELLBORE_MODEL, TOP_OF_HOLE and WELLBORE_MODEL,TOP_OF_HOLE &
-          &(' // StringWrite(total_length) // ' m).'
-        call PrintErrMsg(option)
-      endif
+      enddo
+    !---------------------------------------------------------------------------
     endif
-
-    !This could be way off if # of well cells per reservoir cell >> 1
-    !This could also lead to inconsisent well indices between the
-    !generated vs. read-in well.
-    well_grid%res_dz(:) = well_grid%dh(:)
-
-  elseif (Initialized(well_grid%nsegments)) then
-  !---------------------------------------------------------------------------
-  ! Build an equally-spaced grid based on nsegments:
-
-    nsegments = well_grid%nsegments
-
-    allocate(well_grid%dh(nsegments))
-    allocate(well_grid%res_dz(nsegments))
-    allocate(well_grid%h(nsegments))
-    allocate(well_grid%h_local_id(nsegments))
-    allocate(well_grid%h_ghosted_id(nsegments))
-    allocate(well_grid%h_global_id(nsegments))
-    allocate(well_grid%h_rank_id(nsegments))
-    allocate(well_grid%strata_id(nsegments))
-    allocate(well_grid%res_z(nsegments))
-
-    well_grid%dh(:) = UNINITIALIZED_DOUBLE
-    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -MAX_DOUBLE
-    well_grid%h(:)%y = -MAX_DOUBLE
-    well_grid%h(:)%z = -MAX_DOUBLE
-    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
-    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -MAX_DOUBLE
-
-
-
-    dh_x = diff_x/nsegments
-    dh_y = diff_y/nsegments
-    dh_z = diff_z/nsegments
-
-    diff_x = diff_x*diff_x
-    diff_y = diff_y*diff_y
-    diff_z = diff_z*diff_z
-
-    total_length = sqrt(diff_x+diff_y+diff_z)
-
-    do k = 1,well_grid%nsegments
-      well_grid%h(k)%id = k
-      well_grid%h(k)%x = well_grid%bottomhole(1)+(dh_x*(k-0.5))
-      well_grid%h(k)%y = well_grid%bottomhole(2)+(dh_y*(k-0.5))
-      well_grid%h(k)%z = well_grid%bottomhole(3)+(dh_z*(k-0.5))
-    enddo
-
-    well_grid%dh(:) = total_length/nsegments
-    well_grid%res_dz(:) = well_grid%dh(:)
-
-    do k = 1,well_grid%nsegments
-      call GridGetLocalIDFromCoordinate(res_grid,well_grid%h(k), &
-                                        option,local_id)
-      if (Initialized(local_id)) then
-        well_grid%h_local_id(k) = local_id
-        well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-        well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-        well_grid%h_rank_id(k) = option%myrank
-        well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
-      endif
-    enddo
-  !---------------------------------------------------------------------------
-  else
-   ! Use reservoir grid info
-    allocate(dz_list(num_entries))
-    allocate(res_dz_list(num_entries))
-    allocate(cell_id_list(num_entries))
-     dz_list = UNINITIALIZED_DOUBLE
-     res_dz_list = UNINITIALIZED_DOUBLE
-
-     if (Initialized(well_grid%min_dz)) then
-       min_dz = well_grid%min_dz
-     else
-       min_dz = 1.d-5
-     endif
-
-     dz = min_dz
-     z = well_grid%bottomhole(3)
-     dummy_h%x = well_grid%bottomhole(1)
-     dummy_h%y = well_grid%bottomhole(2)
-     dummy_h%z = z
-     call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-     cell_id_list(1) = local_id
-     cur_id = local_id
-     z = z + min_dz
-     dummy_h%z = z
-     nsegments = 1
-     nsegments_save = 0
-     res_cell_count = 1
-     do
-       if (z > well_grid%tophole(3)) exit
-       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-
-       res_cell_count = res_cell_count + 1
-       if (res_cell_count <= well_grid%well_res_ratio .and. &
-           cur_id == local_id) then
-         nsegments = nsegments + 1
-         cell_id_list(nsegments) = local_id
-         dz = dz + min_dz
-       elseif (cur_id /= local_id) then
-         res_dz_list(nsegments_save+1:nsegments) = dz
-         dz = dz / (nsegments-nsegments_save)
-         dz_list(nsegments_save+1:nsegments) = dz
-         res_cell_count = 1
-         cur_id = local_id
-         nsegments_save = nsegments
-         nsegments = nsegments+1
-         cell_id_list(nsegments) = local_id
-         dz = min_dz
-       else
-         dz = dz + min_dz
-       endif
-
-       z = z + min_dz
-       dummy_h%z = z
-     enddo
-     res_dz_list(nsegments_save+1:nsegments) = dz
-     dz = dz / (nsegments-nsegments_save)
-     dz_list(nsegments_save+1:nsegments) = dz
-
-     allocate(well_grid%dh(nsegments))
-     allocate(well_grid%res_dz(nsegments))
-     allocate(well_grid%h(nsegments))
-     allocate(well_grid%h_local_id(nsegments))
-     allocate(well_grid%h_ghosted_id(nsegments))
-     allocate(well_grid%h_global_id(nsegments))
-     allocate(well_grid%h_rank_id(nsegments))
-     allocate(well_grid%strata_id(nsegments))
-     allocate(well_grid%res_z(nsegments))
-
-    well_grid%dh(:) = UNINITIALIZED_DOUBLE
-    well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
-    well_grid%h(:)%x = -MAX_DOUBLE
-    well_grid%h(:)%y = -MAX_DOUBLE
-    well_grid%h(:)%z = -MAX_DOUBLE
-    well_grid%h_local_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_ghosted_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_global_id(:) = UNINITIALIZED_INTEGER
-    well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
-    well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-    well_grid%res_z(:) = -MAX_DOUBLE
-
-     well_grid%h_rank_id(:) = 0
-     well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
-
-     well_grid%strata_id(:) = UNINITIALIZED_INTEGER
-     well_grid%nsegments = nsegments
-     well_grid%nconnections = well_grid%nsegments - 1
-
-     well_grid%h(1)%id = 1
-     well_grid%h(1)%x = well_grid%bottomhole(1)
-     well_grid%h(1)%y = well_grid%bottomhole(2)
-     well_grid%h(1)%z = well_grid%bottomhole(3) + dz_list(1)/2.d0
-     well_grid%dh(1) = dz_list(1)
-
-     local_id = cell_id_list(1)
-     well_grid%h_local_id(1) = local_id
-     well_grid%h_ghosted_id(1) = res_grid%nL2G(local_id)
-     well_grid%h_global_id(1) = res_grid%nG2A(well_grid%h_ghosted_id(1))
-     well_grid%res_z(1) = res_grid%z(well_grid%h_global_id(1))
-
-     do k = 2,nsegments
-       well_grid%h(k)%id = k
-       well_grid%h(k)%x = well_grid%bottomhole(1)
-       well_grid%h(k)%y = well_grid%bottomhole(2)
-       well_grid%h(k)%z = well_grid%bottomhole(3) + &
-                          sum(dz_list(1:k-1)) + dz_list(k)/2.d0
-       well_grid%dh(k) = dz_list(k)
-
-       local_id = cell_id_list(k)
-       well_grid%h_local_id(k) = local_id
-       well_grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
-       well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
-       well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
-     enddo
-  !---------------------------------------------------------------------------
-  endif
   endif
 
   allocate(well_grid%strata_id(nsegments))
