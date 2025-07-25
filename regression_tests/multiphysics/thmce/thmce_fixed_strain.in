@@ -1,0 +1,152 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+    SUBSURFACE_GEOPHYSICS geophysics
+      MODE ERT
+      OPTIONS
+        NO_ANALYTICAL_POTENTIAL
+        CALC_MAX_TRACER_CONCENTRATION
+        SURVEY_TIMES s 0.5d0 1.d0 2.d0
+        OUTPUT_ALL_SURVEYS
+        ARCHIE_CEMENTATION_EXPONENT 1.9d0
+        ARCHIE_SATURATION_EXPONENT 2.d0
+        ARCHIE_TORTUOSITY_CONSTANT 1.d0
+        SURFACE_ELECTRICAL_CONDUCTIVITY 0.002d0
+      /
+    /
+    SUBSURFACE_GEOMECHANICS geomech
+      OPTIONS
+        FLOW_COUPLING TWO_WAY_COUPLED
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE ../subsurface_common.txt
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS GEOPHYSICS
+  LINEAR_SOLVER
+    SOLVER BCGS
+    PC_TYPE BLOCK_JACOBI
+    ATOL 1.d-12
+  /
+END
+
+#=========================== Geophysics survey  ================================
+SURVEY
+  FILE_NAME ert.srv
+  FORMAT E4D_SRV
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+  CELL_IDS
+    7
+    13
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  ! 100 [psi] * 6893 [Pa/psi] = ~7.d5
+  LIQUID_PRESSURE 7.d5
+  TEMPERATURE 27.d0 ! based on Fig 6 in Kneafsey et al, 2023
+END
+
+FLOW_CONDITION injection_well
+  TYPE
+    RATE SCALED_VOLUMETRIC_RATE neighbor_perm
+    TEMPERATURE DIRICHLET
+  /
+  RATE 100.0 cm^3/s
+  TEMPERATURE 20.d0
+/
+
+FLOW_CONDITION out_flow_east
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 7.d5
+  TEMPERATURE 27.d0
+/
+
+#=========================== geophyscs conditions =============================
+GEOPHYSICS_CONDITION boundary_potential
+  TYPE DIRICHLET
+END
+
+GEOPHYSICS_CONDITION zero_flux
+  TYPE ZERO_GRADIENT
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background
+  REGION all
+END
+
+SOURCE_SINK injection_well
+  FLOW_CONDITION injection_well
+  TRANSPORT_CONDITION source
+  GEOPHYSICS_CONDITION zero_flux
+  REGION injection_borehole
+END
+
+BOUNDARY_CONDITION out_flow_east
+  FLOW_CONDITION out_flow_east
+  TRANSPORT_CONDITION background
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION east
+END
+
+BOUNDARY_CONDITION west_bc
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION west
+END
+
+BOUNDARY_CONDITION north_bc
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION north
+END
+
+BOUNDARY_CONDITION south_bc
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION south
+END
+
+BOUNDARY_CONDITION bottom_bc
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION background
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION bottom
+END
+
+END_SUBSURFACE
+
+GEOMECHANICS
+
+EXTERNAL_FILE ../geomech_common.txt
+
+END_GEOMECHANICS

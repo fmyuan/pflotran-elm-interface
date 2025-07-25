@@ -1,0 +1,21 @@
+-- DISPLACEMENT: displacement_x --
+      Max:   0.0000000000000E+00
+      Min:  -3.1711684972725E-06
+     Mean:  -1.9072032318597E-06
+      121:  -6.2751692648522E-07
+-- STRAIN: strain_xx --
+      Max:   5.0635623697294E-07
+      Min:  -1.3151150795745E-06
+     Mean:  -5.2944028785540E-07
+      121:  -1.1583772267630E-06
+-- STRESS: stress_xx --
+      Max:   5.7250206083681E+03
+      Min:  -1.6170987372801E+04
+     Mean:  -6.2942514873012E+03
+      121:  -1.0361667618280E+04
+-- SOLUTION: Geomechanics --
+   Time (seconds):   7.4330309996640E-03
+   Time Steps:            6
+   Solver Iterations:           30
+   Time Step Cuts:            0
+   Solution 2-Norm:   3.0469562804911E-05
