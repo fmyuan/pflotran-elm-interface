@@ -1207,14 +1207,14 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
       ! (a more careful assigning of the volume of the tetrahedron amongst the gauss points).
       ! This approach only works for tetrahedrons with 4 gauss points,
       ! as each guass point sits near a unique vertex.
-      force = force + w(igpt)*4*gauss_tet_vol_weight(igpt)*density* &
+      force = force + w(igpt)*4.d0*gauss_tet_vol_weight(igpt)*density* &
                       matmul(kron_N_eye,bf)*detJ_map
     else
       force = force + w(igpt)*density*matmul(kron_N_eye,bf)*detJ_map
     endif
     force = force + w(igpt)*beta*dot_product(N(:,1),local_press)* &
       vecB_transpose(:,1)*detJ_map
-    force = force + w(igpt)*alpha*(3*lambda+2*mu)* &
+    force = force + w(igpt)*alpha*(3.d0*lambda+2.d0*mu)* &
       dot_product(N(:,1),local_temp)*vecB_transpose(:,1)*detJ_map
     call ShapeFunctionDestroy(shapefunction)
     deallocate(N)
@@ -2502,16 +2502,16 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
     call Kron(B,identity,kron_B_eye)
     call Kron(transpose(B),identity,kron_B_transpose_eye)
     call Kron(identity,transpose(B),kron_eye_B_transpose)
-    strain_local =  0.5*matmul((kron_B_transpose_eye + &
+    strain_local =  0.5d0*matmul((kron_B_transpose_eye + &
       matmul(kron_eye_B_transpose,Trans)),vec_local_disp)
     stress_local = lambda*(strain_local(1,1)+ &
                    strain_local(5,1)+strain_local(9,1))*eye_vec + &
-                   2*mu*strain_local
+                   2.d0*mu*strain_local
     if (compute_stress_total) then
       dT = local_temp(ivertex)
       dP = local_press(ivertex)
       ! Add the thermal stress
-      stress_local = stress_local - alpha * dT * eye_vec * (3*lambda +2*mu)
+      stress_local = stress_local - alpha * dT * eye_vec * (3.d0*lambda +2.d0*mu)
       ! Add Biot's contribution
       stress_local = stress_local - beta * dP * eye_vec
     endif
