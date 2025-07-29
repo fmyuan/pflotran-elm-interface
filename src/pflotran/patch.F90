@@ -7675,7 +7675,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
-         AGE,TOTAL_BULK,IMMOBILE_SPECIES, &
+         AGE,TOTAL_BULK,IMMOBILE_SPECIES,WATER_ACTIVITY_COEFFICIENT, &
          GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE,REACTION_AUXILIARY)
 
       select case(ivar)
@@ -7895,6 +7895,12 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = patch%aux%RT%auxvars(grid%nL2G(local_id))% &
               kinsrfcplx_free_site_conc(isubvar)
+          enddo
+        case(WATER_ACTIVITY_COEFFICIENT)
+          do local_id=1,grid%nlmax
+            ghosted_id = grid%nL2G(local_id)
+            vec_ptr(local_id) = &
+              exp(patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o)
           enddo
         case(PRIMARY_ACTIVITY_COEF)
           do local_id=1,grid%nlmax
@@ -9208,6 +9214,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
          TOTAL_SORBED_MOBILE,AGE,TOTAL_BULK, &
+         WATER_ACTIVITY_COEFFICIENT, &
          IMMOBILE_SPECIES,GAS_CONCENTRATION,GAS_PARTIAL_PRESSURE, &
          REACTION_AUXILIARY)
 
@@ -9328,6 +9335,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(KIN_SURFACE_CMPLX_FREE)
           value = &
             patch%aux%RT%auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isubvar)
+        case(WATER_ACTIVITY_COEFFICIENT)
+          value = exp(patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o)
         case(PRIMARY_ACTIVITY_COEF)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)
         case(SECONDARY_ACTIVITY_COEF)
@@ -10337,7 +10346,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
 
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
-         GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA)
+         GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA, &
+         WATER_ACTIVITY_COEFFICIENT)
       select case(ivar)
         case(PRIMARY_MOLALITY)
           if (vec_format == GLOBAL) then
@@ -10401,6 +10411,18 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             do ghosted_id=1,grid%ngmax
               patch%aux%RT%auxvars(ghosted_id)% &
                 immobile(isubvar) = vec_ptr(ghosted_id)
+            enddo
+          endif
+        case(WATER_ACTIVITY_COEFFICIENT)
+          if (vec_format == GLOBAL) then
+            do local_id=1,grid%nlmax
+              patch%aux%RT%auxvars(grid%nL2G(local_id))% &
+                ln_act_h2o = log(vec_ptr(local_id))
+            enddo
+          else if (vec_format == LOCAL) then
+            do ghosted_id=1,grid%ngmax
+              patch%aux%RT%auxvars(ghosted_id)% &
+                ln_act_h2o = log(vec_ptr(ghosted_id))
             enddo
           endif
         case(PRIMARY_ACTIVITY_COEF)
