@@ -4,9 +4,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE TH
     END
-    SUBSURFACE_TRANSPORT transport
-      MODE GIRT
-    END
     SUBSURFACE_GEOMECHANICS geomech
       OPTIONS
         FLOW_COUPLING TWO_WAY_COUPLED
@@ -51,19 +48,16 @@ FLOW_CONDITION out_flow_east
 #=========================== condition couplers ===============================
 INITIAL_CONDITION
   FLOW_CONDITION initial
-  TRANSPORT_CONDITION background
   REGION all
 END
 
 SOURCE_SINK injection_well
   FLOW_CONDITION injection_well
-  TRANSPORT_CONDITION source
   REGION injection_borehole
 END
 
 BOUNDARY_CONDITION out_flow_east
   FLOW_CONDITION out_flow_east
-  TRANSPORT_CONDITION background
   REGION east
 END
 

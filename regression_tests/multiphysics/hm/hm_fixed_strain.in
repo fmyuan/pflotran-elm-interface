@@ -4,9 +4,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     END
-    SUBSURFACE_TRANSPORT transport
-      MODE GIRT
-    END
     SUBSURFACE_GEOMECHANICS geomech
       OPTIONS
         FLOW_COUPLING TWO_WAY_COUPLED
@@ -14,7 +11,6 @@ SIMULATION
     /
   /
 END
-
 SUBSURFACE
 
 EXTERNAL_FILE ../subsurface_common.txt

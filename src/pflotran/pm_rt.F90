@@ -566,6 +566,7 @@ recursive subroutine PMRTInitializeRun(this)
   use Variables_module, only : POROSITY
   use Material_Aux_module, only : POROSITY_BASE
   use Material_module, only : MaterialGetAuxVarVecLoc
+  use Global_module, only : GlobalWeightAuxVars
   use String_module, only : StringWrite
   use Utility_module, only : Equal
 
@@ -599,6 +600,11 @@ recursive subroutine PMRTInitializeRun(this)
 !    call CondControlAssignTranInitCond(this%realization)
 !  endif
 
+  if (this%option%iflowmode /= NULL_MODE) then
+    ! at this point, global_auxvars%xxx_store(:,1) holds the correct values
+    ! and weighting by 0. obtains that value
+    call GlobalWeightAuxVars(this%realization,0.d0)
+  endif
   ! update boundary concentrations so that activity coefficients can be
   ! calculated at first time step
   !geh: need to update cells also, as the flow solution may have changed

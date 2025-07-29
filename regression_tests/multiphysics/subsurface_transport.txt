@@ -1,0 +1,30 @@
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  END
+  OUTPUT
+    ALL
+    FREE_ION
+  /
+END
+
+#========================== transport conditions ==============================
+TRANSPORT_CONDITION background
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT background
+    CONCENTRATIONS
+      Tracer 1.d-6 F
+    /
+  /
+END
+
+TRANSPORT_CONDITION source
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT source
+    CONCENTRATIONS
+      Tracer 1.d0 F
+    /
+  /
+END
+

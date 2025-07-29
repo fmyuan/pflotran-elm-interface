@@ -470,7 +470,15 @@ subroutine PMMaterialTransformInitializeTS(this)
   class(pm_material_transform_type) :: this
   ! --------------------------------
 
-  if (.not.this%option%ntrandof > 0) call GlobalWeightAuxVars(this%realization,1.d0)
+
+  select case(this%option%iflowmode)
+    case(TH_MODE)
+      call GlobalWeightAuxVars(this%realization,1.d0)
+    case default
+      if (.not.this%option%ntrandof > 0) then
+        call GlobalWeightAuxVars(this%realization,1.d0)
+      endif
+  end select
 
 end subroutine PMMaterialTransformInitializeTS
 
