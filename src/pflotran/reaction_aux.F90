@@ -132,6 +132,7 @@ module Reaction_Aux_module
     PetscBool :: print_kd
     PetscBool :: print_total_sorb
     PetscBool :: print_total_sorb_mobile
+    PetscBool :: print_h2o_act_coef
     PetscBool :: print_act_coefs
     PetscBool :: print_total_component
     PetscBool :: print_free_ion
@@ -383,6 +384,7 @@ function ReactionAuxCreateAux()
   reaction%print_kd = PETSC_FALSE
   reaction%print_total_sorb = PETSC_FALSE
   reaction%print_total_sorb_mobile = PETSC_FALSE
+  reaction%print_h2o_act_coef = PETSC_FALSE
   reaction%print_act_coefs = PETSC_FALSE
   reaction%truncated_concentration = UNINITIALIZED_DOUBLE
   reaction%check_update = PETSC_TRUE

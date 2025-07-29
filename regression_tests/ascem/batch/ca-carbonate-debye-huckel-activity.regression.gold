@@ -1,17 +1,19 @@
 -- GENERIC: pH --
-        1:   6.6152913180022E+00
+        1:   6.6153207325216E+00
 -- CONCENTRATION: Total HCO3- --
-        1:   3.0000000099371E-03
+        1:   3.0000000093530E-03
 -- CONCENTRATION: Total Ca++ --
-        1:   1.0000000003492E-03
+        1:   1.0000000003493E-03
 -- CONCENTRATION: Total H+ --
-        1:   1.0000000095942E-03
+        1:   1.0000000090100E-03
+-- GENERIC: Gamma H2O --
+        1:   9.9993210586843E-01
 -- GENERIC: Gamma HCO3- --
-        1:   9.4211510208292E-01
+        1:   9.4211510299658E-01
 -- GENERIC: Gamma Ca++ --
-        1:   7.9326684016185E-01
+        1:   7.9326684306448E-01
 -- GENERIC: Gamma H+ --
-        1:   9.4648152157013E-01
+        1:   9.4648152235041E-01
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
@@ -20,5 +22,5 @@
    Newton Iterations:            0
    Linear Solver Iterations:            0
    Time Step Cuts:            0
-   Solution 2-Norm:   2.2172846917510E-03
+   Solution 2-Norm:   2.2172845324339E-03
    Residual 2-Norm:   0.0000000000000E+00

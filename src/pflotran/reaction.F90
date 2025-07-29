@@ -3238,6 +3238,7 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_kd = PETSC_FALSE
         reaction%print_total_sorb = PETSC_FALSE
         reaction%print_total_sorb_mobile = PETSC_FALSE
+        reaction%print_h2o_act_coef = PETSC_FALSE
         reaction%print_act_coefs = PETSC_FALSE
         reaction%print_total_component = PETSC_FALSE
         reaction%print_free_ion = PETSC_FALSE
@@ -3333,6 +3334,9 @@ subroutine ReactionReadOutput(reaction,input,option)
               reaction%print_secondary_conc_type = conc_type
             endif
         end select
+      case('WATER_ACTIVITY_COEFFICIENT')
+        print_something = PETSC_TRUE
+        reaction%print_h2o_act_coef = PETSC_TRUE
       case('ACTIVITY_COEFFICIENTS')
         print_something = PETSC_TRUE
         reaction%print_act_coefs = PETSC_TRUE
@@ -6219,6 +6223,13 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
                                      TOTAL_BULK,i)
       endif
     enddo
+  endif
+
+  if (reaction%print_h2o_act_coef) then
+    name = 'Gamma H2O'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                 WATER_ACTIVITY_COEFFICIENT)
   endif
 
   if (reaction%print_act_coefs) then
