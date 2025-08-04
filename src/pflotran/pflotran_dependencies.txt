@@ -229,6 +229,7 @@ condition_control.o : \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
+  reaction_mineral.o \
   reaction_mineral_aux.o \
   reactive_transport.o \
   reactive_transport_aux.o \
@@ -496,7 +497,7 @@ factory_geomechanics.o : \
   simulation_base.o \
   simulation_geomechanics.o \
   simulation_subsurface.o \
-  timestepper_steady.o \
+  timestepper_KSP.o \
   waypoint.o
 factory_pflotran.o : \
   communicator_aux.o \
@@ -982,7 +983,7 @@ geomechanics_regression.o : \
   output_geomechanics.o \
   pflotran_constants.o \
   string.o \
-  timestepper_steady.o \
+  timestepper_KSP.o \
   utility.o
 geomechanics_strata.o : \
   geomechanics_material.o \
@@ -1310,7 +1311,7 @@ init_subsurface_geomechanics.o : \
   simulation_subsurface.o \
   solver.o \
   string.o \
-  timestepper_steady.o \
+  timestepper_KSP.o \
   units.o \
   utility.o \
   waypoint.o
@@ -2073,7 +2074,6 @@ pm_geomechanics_force.o : \
   communicator_base.o \
   communicator_structured.o \
   communicator_unstructured.o \
-  convergence.o \
   geomechanics_condition.o \
   geomechanics_discretization.o \
   geomechanics_force.o \
@@ -2688,7 +2688,6 @@ pmc_general.o : \
   pmc_base.o \
   timestepper_base.o
 pmc_geomechanics.o : \
-  convergence.o \
   discretization.o \
   geomechanics_discretization.o \
   geomechanics_force.o \
@@ -2704,8 +2703,8 @@ pmc_geomechanics.o : \
   pmc_base.o \
   realization_subsurface.o \
   solver.o \
-  timestepper_base.o \
-  timestepper_steady.o
+  timestepper_KSP.o \
+  timestepper_base.o
 pmc_geophysics.o : \
   hdf5_aux.o \
   option.o \
@@ -3615,8 +3614,8 @@ simulation_geomechanics.o : \
   realization_subsurface.o \
   simulation_aux.o \
   simulation_subsurface.o \
+  timestepper_KSP.o \
   timestepper_base.o \
-  timestepper_steady.o \
   utility.o \
   waypoint.o
 simulation_inverse.o : \
@@ -3686,8 +3685,9 @@ simulation_subsurface.o : \
   srcsink_sandbox.o \
   strata.o \
   string.o \
+  timestepper_KSP.o \
   timestepper_base.o \
-  timestepper_steady.o \
+  utility.o \
   waypoint.o \
   wipp.o
 slatec_pchip.o :

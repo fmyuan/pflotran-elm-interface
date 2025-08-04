@@ -1,7 +1,9 @@
 module Geomechanics_Field_module
 
 #include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscmat.h"
   use petscvec
+  use petscmat
   use PFLOTRAN_Constants_module
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
@@ -13,7 +15,7 @@ module Geomechanics_Field_module
     Vec :: work
     Vec :: work_loc
     ! residual vectors
-    Vec :: disp_r
+    Vec :: rhs
     Vec :: press          ! store pressure from subsurf
     Vec :: press_loc
     Vec :: press_init_loc ! store initial pressure
@@ -44,6 +46,9 @@ module Geomechanics_Field_module
     ! Solution vectors (xx = current iterate)
     Vec :: disp_xx, disp_xx_loc
     Vec :: disp_xx_init_loc
+
+    Mat :: A ! stores the matrix of the linear system
+
   end type geomech_field_type
 
   public :: GeomechFieldCreate, &
@@ -73,7 +78,7 @@ function GeomechFieldCreate()
   geomech_field%work = PETSC_NULL_VEC
   geomech_field%work_loc = PETSC_NULL_VEC
 
-  geomech_field%disp_r = PETSC_NULL_VEC
+  geomech_field%rhs = PETSC_NULL_VEC
   geomech_field%disp_xx = PETSC_NULL_VEC
   geomech_field%disp_xx_loc = PETSC_NULL_VEC
   geomech_field%disp_xx_init_loc = PETSC_NULL_VEC
@@ -107,6 +112,8 @@ function GeomechFieldCreate()
   geomech_field%fluid_density_loc = PETSC_NULL_VEC
   geomech_field%fluid_density_init_loc = PETSC_NULL_VEC
 
+  geomech_field%A = PETSC_NULL_MAT
+
   GeomechFieldCreate => geomech_field
 
 end function GeomechFieldCreate
@@ -136,8 +143,8 @@ subroutine GeomechFieldDestroy(geomech_field)
     call VecDestroy(geomech_field%work_loc,ierr);CHKERRQ(ierr)
   endif
 
-  if (geomech_field%disp_r /= PETSC_NULL_VEC) then
-    call VecDestroy(geomech_field%disp_r,ierr);CHKERRQ(ierr)
+  if (geomech_field%rhs /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%rhs,ierr);CHKERRQ(ierr)
   endif
   if (geomech_field%disp_xx /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%disp_xx,ierr);CHKERRQ(ierr)

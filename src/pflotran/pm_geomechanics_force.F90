@@ -25,11 +25,10 @@ module PM_Geomechanics_Force_class
     procedure, public :: InitializeRun => PMGeomechForceInitializeRun
     procedure, public :: FinalizeRun => PMGeomechForceFinalizeRun
     procedure, public :: InitializeTimestep => PMGeomechForceInitializeTimestep
-    procedure, public :: CheckConvergence => PMGeomechCheckConvergence
     procedure, public :: AcceptSolution => PMGeomechAcceptSolution
-    procedure, public :: Residual => PMGeomechForceResidual
-    procedure, public :: Jacobian => PMGeomechForceJacobian
+    procedure, public :: SetupLinearSystem => PMGeomechForceSetupLinearSystem
     procedure, public :: PreSolve => PMGeomechForcePreSolve
+    procedure, public :: PostSolve => PMGeomechForcePostSolve
     procedure, public :: UpdateSolution => PMGeomechForceUpdateSolution
     procedure, public :: CheckpointBinary => PMGeomechForceCheckpointBinary
     procedure, public :: RestartBinary => PMGeomechForceRestartBinary
@@ -66,6 +65,7 @@ function PMGeomechForceCreate()
   nullify(geomech_force_pm%comm1)
 
   call PMBaseInit(geomech_force_pm)
+
   geomech_force_pm%header = 'GEOMECHANICS'
 
   PMGeomechForceCreate => geomech_force_pm
@@ -242,7 +242,6 @@ subroutine PMGeomechForceSetRealization(this, geomech_realization, &
   this%realization_base => subsurf_realization
 
   this%solution_vec = geomech_realization%geomech_field%disp_xx
-  this%residual_vec = geomech_realization%geomech_field%disp_r
 
 end subroutine PMGeomechForceSetRealization
 
@@ -267,65 +266,39 @@ subroutine PMGeomechForceInitializeTimestep(this)
   call PrintMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
-  call GeomechanicsForceInitialGuess(this%geomech_realization)
+  ! call GeomechanicsForceInitialGuess(this%geomech_realization)
 
 end subroutine PMGeomechForceInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMGeomechForceResidual(this,snes,xx,r,ierr)
+subroutine PMGeomechForceSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   !
-  ! This routine
+  ! This routine calculates the linear system
   !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 12/31/13
+  ! Author: Satish Karra, PNNL
+  ! Date: 06/04/2025
   !
 
-  use Geomechanics_Force_module, only : GeomechForceResidual
+  use Geomechanics_Force_module, only : GeomechForceSetupLinearSystem
 
   implicit none
 
   class(pm_geomech_force_type) :: this
-  SNES :: snes
-  Vec :: xx
-  Vec :: r
+  Vec :: right_hand_side
+  Vec :: solution
+  Mat :: A
   PetscErrorCode :: ierr
 
 #ifdef PM_GEOMECH_FORCE_DEBUG
-  call PrintMsg(this%option,'PMGeomechForce%Residual()')
+  call PrintMsg(this%option,'PMGeomechForce%SetupLinearSystem()')
 #endif
 
-  call GeomechForceResidual(snes,xx,r,this%geomech_realization,ierr)
+  call GeomechForceSetupLinearSystem(A,solution,right_hand_side, &
+                                     this%geomech_realization,ierr)
 
-end subroutine PMGeomechForceResidual
+end subroutine PMGeomechForceSetupLinearSystem
 
-! ************************************************************************** !
-
-subroutine PMGeomechForceJacobian(this,snes,xx,A,B,ierr)
-  !
-  ! This routine
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 12/31/13
-  !
-
-  use Geomechanics_Force_module, only : GeomechForceJacobian
-
-  implicit none
-
-  class(pm_geomech_force_type) :: this
-  SNES :: snes
-  Vec :: xx
-  Mat :: A, B
-  PetscErrorCode :: ierr
-
-#ifdef PM_GEOMECH_FORCE_DEBUG
-  call PrintMsg(this%option,'PMGeomechForce%Jacobian()')
-#endif
-
-  call GeomechForceJacobian(snes,xx,A,B,this%geomech_realization,ierr)
-
-end subroutine PMGeomechForceJacobian
 
 ! ************************************************************************** !
 
@@ -337,11 +310,34 @@ subroutine PMGeomechForcePreSolve(this)
   ! Date: 12/31/13
   !
 
+  use Geomechanics_Force_module, only : GeomechUpdateSolution, &
+                                        GeomechStoreInitialDisp, &
+                                        GeomechForceUpdateAuxVars
+
   implicit none
 
   class(pm_geomech_force_type) :: this
 
+  PetscBool :: force_update_flag = PETSC_TRUE
+
+  call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &
+                                            force_update_flag)
+
 end subroutine PMGeomechForcePreSolve
+
+! ************************************************************************** !
+
+subroutine PMGeomechForcePostSolve(this)
+  !
+  ! Author: Satish Karra, PNNL
+  ! Date: 06/04/2025
+  !
+
+  implicit none
+
+  class(pm_geomech_force_type) :: this
+
+end subroutine PMGeomechForcePostSolve
 
 ! ************************************************************************** !
 
@@ -382,7 +378,6 @@ subroutine PMGeomechForceUpdateSolution(this)
     call GeomechStoreInitialDisp(this%geomech_realization)
     this%option%geomechanics%initial_flag = PETSC_FALSE
   endif
-  call GeomechForceUpdateAuxVars(this%geomech_realization)
 
 end subroutine PMGeomechForceUpdateSolution
 
@@ -403,37 +398,6 @@ function PMGeomechAcceptSolution(this)
   PMGeomechAcceptSolution = PETSC_TRUE
 
 end function PMGeomechAcceptSolution
-
-! ************************************************************************** !
-
-subroutine PMGeomechCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
-                                     reason,ierr)
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/15/17
-  !
-  use Convergence_module
-  use Grid_module
-
-  implicit none
-
-  class(pm_geomech_force_type) :: this
-  SNES :: snes
-  PetscInt :: it
-  PetscReal :: xnorm
-  PetscReal :: unorm
-  PetscReal :: fnorm
-  SNESConvergedReason :: reason
-  PetscErrorCode :: ierr
-
-  type(grid_type), pointer :: grid
-
-  nullify(grid)
-
-  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
-                       grid,this%option,this%solver,ierr)
-
-end subroutine PMGeomechCheckConvergence
 
 ! ************************************************************************** !
 

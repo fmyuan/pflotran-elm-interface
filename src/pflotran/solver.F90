@@ -583,6 +583,8 @@ subroutine SolverReadLinear(solver,input,option)
       prefix = '-tran_'
     case(GEOPHYSICS_CLASS)
       prefix = '-geop_'
+    case(GEOMECHANICS_CLASS)
+      prefix = '-geomech_'
   end select
 
   input%ierr = INPUT_ERROR_NONE

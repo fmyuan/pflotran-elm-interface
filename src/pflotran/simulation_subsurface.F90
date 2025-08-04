@@ -866,7 +866,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   use Logging_module
   use Timestepper_Base_class
-  use Timestepper_Steady_class
+  use Timestepper_KSP_class
   use String_module, only : StringWrite
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use Carbon_Sandbox_module, only : CarbonSandboxDestroy
@@ -883,7 +883,7 @@ subroutine SimSubsurfFinalizeRun(this)
   character(MAXSTRINGLENGTH) :: string
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
-  class(timestepper_steady_type), pointer :: geomech_timestepper
+  class(timestepper_ksp_type), pointer :: geomech_timestepper
   PetscErrorCode :: ierr
 
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
@@ -933,13 +933,15 @@ subroutine SimSubsurfFinalizeRun(this)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
       call RegressionOutput(this%regression,this%realization, &
                             flow_timestepper,tran_timestepper)
-      if (this%option%geomechanics%split_scheme == &
-                                 GEOMECH_FIXED_STRAIN_SPLIT) then
-        geomech_timestepper => TimestepperSteadyCast( &
-            this%geomech%process_model_coupler%timestepper)
-        call GeomechanicsRegressionOutput(this%geomech%regression, &
-                                          this%geomech%realization, &
-                                          geomech_timestepper)
+      if (associated(this%geomech)) then
+        geomech_timestepper => TimestepperKSPCast(this%geomech% &
+                      process_model_coupler%timestepper)
+        if (this%option%geomechanics%split_scheme == &
+                                   GEOMECH_FIXED_STRAIN_SPLIT) then
+          call GeomechanicsRegressionOutput(this%geomech%regression, &
+                                            this%geomech%realization, &
+                                            geomech_timestepper)
+        endif
       endif
   end select
 
