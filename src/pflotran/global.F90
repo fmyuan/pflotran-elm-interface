@@ -16,7 +16,7 @@ module Global_module
          GlobalGetAuxVarVecLoc, &
          GlobalWeightAuxVars, &
          GlobalUpdateState, &
-         GlobalUpdateAuxVars
+         GlobalSetAuxVarsAtTimeLevel
 
 contains
 
@@ -754,10 +754,9 @@ end subroutine GlobalUpdateState
 
 ! ************************************************************************** !
 
-subroutine GlobalUpdateAuxVars(realization,time_level,time)
+subroutine GlobalSetAuxVarsAtTimeLevel(realization,time_level,time)
   !
-  ! Updates global aux var variables for use in
-  ! reactive transport
+  ! Updates global aux var variables for use in reactive transport
   !
   ! Author: Glenn Hammond
   ! Date: 01/14/09
@@ -804,6 +803,10 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       realization%patch%aux%Global%time_t = time
     case(TIME_TpDT)
       realization%patch%aux%Global%time_tpdt = time
+    case(TIME_NULL)
+    case default
+      option%io_buffer = 'Unknown time level in GlobalSetAuxVarsAtTimeLevel'
+      call PrintErrMsg(option)
   end select
 
   ! liquid density
@@ -935,7 +938,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   end if
   ! darcy velocity (end)
 
-end subroutine GlobalUpdateAuxVars
+end subroutine GlobalSetAuxVarsAtTimeLevel
 
 ! ************************************************************************** !
 

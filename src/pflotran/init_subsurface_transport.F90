@@ -52,7 +52,7 @@ subroutine InitFlowGlobalAuxVar(realization,option)
                                  GAS_DENSITY)
     endif
   else
-    call GlobalUpdateAuxVars(realization,TIME_T,0.d0)
+    call GlobalSetAuxVarsAtTimeLevel(realization,TIME_T,0.d0)
     call GlobalWeightAuxVars(realization,0.d0)
   endif
 
