@@ -719,7 +719,8 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
 
   if (this%option%flow%store_state_variables_in_global) then
     ! store initial saturations for transport
-    call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
+    call GlobalSetAuxVarsAtTimeLevel(this%realization,TIME_T, &
+                                     this%option%time)
     if (this%store_porosity_for_transport) then
       ! store time t properties for transport
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
@@ -989,7 +990,8 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
 
   if (this%option%flow%store_state_variables_in_global) then
     ! store final saturations, etc. for transport
-    call GlobalUpdateAuxVars(this%realization,TIME_TpDT,this%option%time)
+    call GlobalSetAuxVarsAtTimeLevel(this%realization,TIME_TpDT, &
+                                     this%option%time)
     if (this%store_porosity_for_transport) then
       ! store time t properties for transport
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
@@ -1171,7 +1173,8 @@ subroutine PMSubsurfaceFlowRestartUpdate(this)
   endif
   call this%UpdateAuxVars()
   ! push pressures, saturations, etc. to global object
-  call GlobalUpdateAuxVars(this%realization,TIME_NULL,UNINITIALIZED_DOUBLE)
+  call GlobalSetAuxVarsAtTimeLevel(this%realization,TIME_NULL, &
+                                   UNINITIALIZED_DOUBLE)
   call this%UpdateSolution()
 
 end subroutine PMSubsurfaceFlowRestartUpdate
