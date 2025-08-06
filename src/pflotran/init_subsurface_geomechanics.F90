@@ -170,6 +170,9 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
                                 geomech_realization%geomech_material_properties)
         nullify(geomech_material_property)
 
+      case ('GEOMECHANICS_SET_REF_P_T_TO_IC')
+        option%geomechanics%set_ref_pres_and_temp_to_IC = PETSC_TRUE
+
       !.........................................................................
       case ('GEOMECHANICS_REGION')
         region => GeomechRegionCreate()

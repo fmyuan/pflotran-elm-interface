@@ -192,7 +192,9 @@ recursive subroutine PMGeomechForceInitializeRun(this)
 
   class(pm_geomech_force_type) :: this
 
-  call GeomechStoreInitialPressTemp(this%geomech_realization)
+  if (this%option%geomechanics%set_ref_pres_and_temp_to_IC) then
+    call GeomechStoreInitialPressTemp(this%geomech_realization)
+  endif
 
 end subroutine PMGeomechForceInitializeRun
 
