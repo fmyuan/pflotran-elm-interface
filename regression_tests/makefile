@@ -110,6 +110,7 @@ STANDARD_CFG = \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
 	geomech/terzaghi/terzaghi.cfg \
+	geomech/simple_tet_cube/simple_tet_cube.cfg \
 	geophys/ert/ert.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	inversion/inversion.cfg \
