@@ -171,11 +171,44 @@ subroutine WellGridDestroy(well_grid)
     implicit none
 
     type(well_grid_type), pointer :: well_grid
-
+    type(deviated_well_type), pointer :: cur_deviated_well
+    type(deviated_well_type), pointer :: prev_deviated_well
 
     call DeallocateArray(well_grid%h_local_id)
     call DeallocateArray(well_grid%h_ghosted_id)
+    call DeallocateArray(well_grid%h_global_id)
+    call DeallocateArray(well_grid%h_rank_id)
+    call DeallocateArray(well_grid%strata_id)
     call DeallocateArray(well_grid%dh)
+    call DeallocateArray(well_grid%dx)
+    call DeallocateArray(well_grid%dy)
+    call DeallocateArray(well_grid%dz)
+    call DeallocateArray(well_grid%res_dz)
+    call DeallocateArray(well_grid%res_z)
+    call DeallocateArray(well_grid%z_list)
+    call DeallocateArray(well_grid%l_list)
+    call DeallocateArray(well_grid%casing)
+    deallocate(well_grid%h)
+
+    if (associated(well_grid%deviated_well_segment_list)) then
+      cur_deviated_well => well_grid%deviated_well_segment_list
+      do
+        if (.not.associated(cur_deviated_well)) exit
+        prev_deviated_well => cur_deviated_well
+        cur_deviated_well => cur_deviated_well%next
+
+        if (allocated(prev_deviated_well%segment_coordinates)) &
+          deallocate(prev_deviated_well%segment_coordinates)
+        if (allocated(prev_deviated_well%segment_dxyz)) &
+          deallocate(prev_deviated_well%segment_dxyz)
+        if (allocated(prev_deviated_well%casing)) &
+          deallocate(prev_deviated_well%casing)
+        deallocate(prev_deviated_well)
+      enddo
+    endif
+    nullify(well_grid%deviated_well_segment_list)
+
+    deallocate(well_grid)
     nullify(well_grid)
 
 end subroutine WellGridDestroy

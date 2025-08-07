@@ -1,0 +1,20 @@
+-- PRESSURE: Liquid Pressure --
+        1:   7.7557499322152E+06
+-- SATURATION: Liquid Saturation --
+        1:   1.0000000000000E+00
+-- DISCRETE: Material ID --
+        1:        99
+-- PRESSURE: Well Liq. Pressure --
+        1:   8.5057499322152E+06
+-- RATE: Well Liq. Q --
+        1:  -1.0000000000000E+00
+-- PRESSURE: Well BHP --
+        1:   8.5155599322152E+06
+-- SOLUTION: Flow --
+   Time (seconds):   3.4118550004223E-03
+   Time Steps:           10
+   Newton Iterations:           18
+   Linear Solver Iterations:           36
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.1518090899546E+07
+   Residual 2-Norm:   1.5700924586838E-15

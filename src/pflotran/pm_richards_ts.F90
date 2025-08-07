@@ -112,7 +112,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   material_auxvars => patch%aux%Material%auxvars
 
   ! 1. Update auxvars based on new values of pressure
-  call RichardsUpdateAuxVars(realization)
+  call RichardsUpdateAuxVars(realization,null())
 
   ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
@@ -183,7 +183,7 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
 
   call RichardsResidualInternalConn(F,realization,skip_conn_type,ierr)
   call RichardsResidualBoundaryConn(F,realization,ierr)
-  call RichardsResidualSourceSink(F,realization,ierr)
+  call RichardsResidualSourceSink(F,realization,null(),ierr)
   call IFunctionAccumulation(F,realization,ierr)
 
 end subroutine PMRichardsTSIFunction
@@ -306,7 +306,7 @@ subroutine PMRichardsTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
 
   call RichardsJacobianInternalConn(J,realization,ierr)
   call RichardsJacobianBoundaryConn(J,realization,ierr)
-  call RichardsJacobianSourceSink(J,realization,ierr)
+  call RichardsJacobianSourceSink(J,realization,null(),ierr)
   call IJacobianAccumulation(J,shift,realization,ierr)
 
   if (A /= B) then

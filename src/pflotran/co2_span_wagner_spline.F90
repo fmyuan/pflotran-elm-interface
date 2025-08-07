@@ -142,10 +142,11 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
       PetscReal :: tx,px,rho, h,u,fg
       PetscInt :: ipx,jpx,n
       PetscReal :: tkx,pcx,ptx,tcx,ttx
-      PetscReal :: rtab(nptab+1) !,rtab2(nptab+1)
-      PetscReal :: htab(nptab+1) !,htab2(nptab+1)
-      PetscReal :: utab(nptab+1) !,utab2(nptab+1)
-      PetscReal :: fgtab(nptab+1) !,fgtab2(nptab+1)
+      PetscReal, allocatable :: rtab(:), htab(:), utab(:), fgtab(:)
+      allocate(rtab(nptab+1))
+      allocate(htab(nptab+1))
+      allocate(utab(nptab+1))
+      allocate(fgtab(nptab+1))
 
       tkx = tx + T273K
       pcx = 7.3773d0
@@ -201,6 +202,12 @@ subroutine sw_prop(tx,px,rho,h,u,fg)
 
 !         print *,'density: ',tx,px,ipx,jpx,p_tab(ipx+1),p_tab(ipx),rtab(ipx+1),rtab(ipx),rho
 !************************************************************************************
+
+  deallocate(rtab)
+  deallocate(htab)
+  deallocate(utab)
+  deallocate(fgtab)
+
     return
 end subroutine sw_prop
 

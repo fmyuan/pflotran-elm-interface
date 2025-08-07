@@ -485,7 +485,7 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
+        call RichardsUpdateAuxVars(realization,null())
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
@@ -2016,7 +2016,7 @@ end subroutine pflotranModelSetICs
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
+        call RichardsUpdateAuxVars(realization,null())
         call pflotranModelGetSaturation(pflotran_model)
       case (TH_MODE)
         call THUpdateAuxVars(realization)

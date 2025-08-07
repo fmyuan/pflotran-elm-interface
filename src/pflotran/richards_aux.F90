@@ -23,15 +23,30 @@ module Richards_Aux_module
 
   PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
+  PetscInt, public :: RICHARDS_WELL_DOF = UNINITIALIZED_INTEGER
 
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_FIXED_ACCUM = 0
   PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_ACCUM = 1
+
+  ! Well
+  PetscInt, public :: richards_well_coupling = UNINITIALIZED_INTEGER
+  PetscInt, parameter, public :: RICHARDS_FULLY_IMPLICIT_WELL = ONE_INTEGER
+
+  type, public :: richards_well_aux_type
+    PetscReal :: pl   ! liquid pressure
+    PetscReal :: sl   ! liquid saturation
+    PetscReal :: dpl  ! reservoir-well liquid pressure differential
+    PetscReal :: Ql   ! liquid exchange flux
+    PetscReal :: bh_p ! bottom hole pressure
+    PetscReal :: pressure_bump ! pressure change for initialization  ! TODO: JOE: Can I remove this as I am not creating a numerical jacobian?
+  end type richards_well_aux_type
 
   type, public :: richards_auxvar_type
 
     PetscReal :: pc
     PetscReal :: kvr
     PetscReal :: kr
+    PetscReal :: visc
     PetscReal :: dkvr_dp
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
@@ -46,6 +61,7 @@ module Richards_Aux_module
     PetscReal :: dpres_dtime
     PetscReal :: dmass_dtime
 
+    type(richards_well_aux_type), pointer :: well
   end type richards_auxvar_type
 
   type, public :: richards_type
@@ -126,6 +142,7 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%pc = 0.d0
 
   auxvar%kvr = 0.d0
+  auxvar%visc = 0.d0
   auxvar%kr = 0.d0
   auxvar%dkvr_dp = 0.d0
 
@@ -142,6 +159,19 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%bc_alpha  = 0.0d0
   auxvar%bc_lambda  = 0.0d0
 #endif
+
+
+  if (richards_well_coupling > ZERO_INTEGER) then
+    allocate(auxvar%well)
+    auxvar%well%pl = UNINITIALIZED_DOUBLE
+    auxvar%well%sl = UNINITIALIZED_DOUBLE
+    auxvar%well%dpl = UNINITIALIZED_DOUBLE
+    auxvar%well%Ql = UNINITIALIZED_DOUBLE
+    auxvar%well%bh_p = UNINITIALIZED_DOUBLE
+    auxvar%well%pressure_bump = 0.d0
+  else
+    nullify(auxvar%well)
+  endif
 
 end subroutine RichardsAuxVarInit
 
@@ -165,6 +195,7 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pc = auxvar%pc
 
   auxvar2%kvr = auxvar%kvr
+  auxvar2%visc = auxvar%visc
   auxvar2%kr = auxvar%kr
   auxvar2%dkvr_dp = auxvar%dkvr_dp
 
@@ -181,6 +212,8 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
 #endif
+
+  if (richards_well_coupling > ZERO_INTEGER) auxvar2%well = auxvar%well
 
 end subroutine RichardsAuxVarCopy
 
@@ -231,6 +264,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den_kg = 0.d0
 
   auxvar%kvr = 0.d0
+  auxvar%visc = 0.d0
   auxvar%kr = 0.d0
 
   kr = 0.d0
@@ -240,6 +274,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (update_porosity) then
     call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
+  endif
+
+  if (richards_well_coupling == RICHARDS_FULLY_IMPLICIT_WELL) then
+    ! This is an initialization hack:
+    if(x(RICHARDS_PRESSURE_DOF) /= x(RICHARDS_WELL_DOF))then
+      auxvar%well%bh_p = x(RICHARDS_WELL_DOF)
+    endif
   endif
 
   ! For a very large negative liquid pressure (e.g. -1.d18), the capillary
@@ -362,8 +403,9 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   endif
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
-  auxvar%kr = kr  ! stored solely for output purposes
+  auxvar%kr = kr  ! stored solely for output purposes and use in the wellbore
   auxvar%kvr = kr/visl
+  auxvar%visc = visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
 
   if (size(global_auxvar%sat) > 1) then
@@ -451,6 +493,11 @@ subroutine AuxVarDestroy(auxvar)
   implicit none
 
   type(richards_auxvar_type) :: auxvar
+
+  if (associated(auxvar%well)) then
+    deallocate(auxvar%well)
+    nullify(auxvar%well)
+  endif
 
 end subroutine AuxVarDestroy
 

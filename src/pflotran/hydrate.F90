@@ -1048,6 +1048,7 @@ subroutine HydrateUpdateAuxVars(realization,pm_well,update_state)
                                dataset%rarray(1)
         endif
         if (associated(well_flow_condition%hydrate%rate)) then
+          cur_well%well%well_constraint_type = WELL_CONSTANT_RATE
           if (any(well_flow_condition%hydrate%rate%dataset%rarray(:) < 0.d0)) then
             cur_well%well%total_rate = sum(well_flow_condition%hydrate%rate%dataset% &
                                       rarray(:))

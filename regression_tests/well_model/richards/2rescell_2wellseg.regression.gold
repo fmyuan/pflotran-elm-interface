@@ -1,0 +1,44 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   7.8734873209215E+06
+      Min:   7.8662996643198E+06
+     Mean:   7.8698934926206E+06
+        1:   7.8662996643198E+06
+        2:   7.8734873209215E+06
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        1:   1.0000000000000E+00
+        2:   1.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:        99
+      Min:        99
+     Mean:   9.9000000000000E+01
+        1:        99
+        2:        99
+-- PRESSURE: Well Liq. Pressure --
+      Max:   8.6247984926206E+06
+      Min:   8.6149884926206E+06
+     Mean:   8.6198934926206E+06
+        1:   8.6247984926206E+06
+        2:   8.6149884926206E+06
+-- RATE: Well Liq. Q --
+      Max:  -4.9433411446609E-01
+      Min:  -5.0566588553391E-01
+     Mean:  -5.0000000000000E-01
+        1:  -5.0566588553391E-01
+        2:  -4.9433411446609E-01
+-- PRESSURE: Well BHP --
+      Max:   8.6297034926206E+06
+      Min:   8.6297034926206E+06
+     Mean:   8.6297034926206E+06
+        1:   8.6297034926206E+06
+        2:   8.6297034926206E+06
+-- SOLUTION: Flow --
+   Time (seconds):   3.9799549995223E-03
+   Time Steps:           10
+   Newton Iterations:           20
+   Linear Solver Iterations:           45
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.4224705809687E+07
+   Residual 2-Norm:   8.9219390110815E-15

@@ -540,7 +540,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   coupler => patch%well_coupler_list%first
   ! catch flow modes that do not support the well model
   select case(option%iflowmode)
-    case(SCO2_MODE,H_MODE)
+    case(SCO2_MODE,H_MODE,RICHARDS_MODE)
     case(WF_MODE)
       if (associated(coupler)) then
         option%io_buffer = 'WIPP_FLOW has not been tested using a &
@@ -4393,6 +4393,11 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
             flow_condition%pressure%aux_real(1)
         endif
     end select
+    ! TODO: JOE: I am not sure if I need this or not, I need to check!
+    ! if (richards_well_coupling == RICHARDS_FULLY_IMPLICIT_WELL) then
+    !   coupler%flow_aux_real_var(RICHARDS_WELL_DOF, 1:num_connections) = &
+    !               coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF,1:num_connections)
+    ! endif
   endif
   if (associated(flow_condition%saturation)) then
     call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
@@ -8371,6 +8376,29 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                             grid%nL2G(local_id))%well%bh_p
               enddo
           end select
+        case(RICHARDS_MODE)
+          select case(ivar)
+            case(WELL_LIQ_PRESSURE)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%richards%auxvars(grid%nL2G(local_id))%well%pl
+              enddo
+            case(WELL_LIQ_SATURATION)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%richards%auxvars(grid%nL2G(local_id))%well%sl
+              enddo
+            case(WELL_LIQ_Q)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%richards%auxvars(grid%nL2G(local_id))%well%Ql
+              enddo
+            case(WELL_BHP)
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = &
+                  patch%aux%richards%auxvars(grid%nL2G(local_id))%well%bh_p
+              enddo
+          end select
       end select
     case(NAMED_PARAMETER)
       do local_id=1,grid%nlmax
@@ -9665,6 +9693,21 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(WELL_BHP)
             value = &
               patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)%well%bh_p
+        end select
+      case (RICHARDS_MODE)
+        select case(ivar)
+          case(WELL_LIQ_PRESSURE)
+            value = &
+                patch%aux%richards%auxvars(ghosted_id)%well%pl
+          case(WELL_LIQ_SATURATION)
+            value = &
+                patch%aux%richards%auxvars(ghosted_id)%well%sl
+          case(WELL_LIQ_Q)
+            value = &
+              patch%aux%richards%auxvars(ghosted_id)%well%Ql
+          case(WELL_BHP)
+            value = &
+              patch%aux%richards%auxvars(ghosted_id)%well%bh_p
         end select
       end select
     case(NAMED_PARAMETER)

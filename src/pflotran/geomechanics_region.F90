@@ -266,7 +266,7 @@ subroutine GeomechRegionReadList(region, input, option)
   !
   ! Reads a list of regions from the input file
   !
-  ! Author: Joe Eyles
+  ! Author: Joe Eyles, WSP
   ! Date: 23/01/25
   !
 
