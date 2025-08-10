@@ -180,7 +180,8 @@ module Grid_Unstructured_Aux_module
             UGridCreateOldVec, &
             UGridCalculateDist, &
             UGridExplicitDestroy, &
-            UGridAddWellCells
+            UGridAddWellCells, &
+            UCellPrintCellInfo
 
 contains
 
@@ -2462,5 +2463,64 @@ subroutine UGridAddWellCells(ugrid,well_cells,option)
   ugrid%ngmax = ugrid%nlmax + ugrid%num_ghost_cells
 
 end subroutine UGridAddWellCells
+
+! ************************************************************************** !
+
+subroutine UCellPrintCellInfo(ugrid,ghosted_id,natural_id,option)
+  !
+  ! Prints cell ids, vertex ids, and vertex coordinates
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/08/25
+  !
+  use Option_module
+  use String_module
+
+  type(grid_unstructured_type) :: ugrid
+  PetscInt :: ghosted_id
+  PetscInt :: natural_id
+  type(option_type) :: option
+
+  PetscInt :: num_vertices
+  PetscInt :: vertex_id
+  PetscInt :: i
+  PetscInt :: iface
+  PetscInt :: cell_type
+  PetscInt :: cell_vertex_ids(4)
+  PetscInt :: natural_vertex_ids(4)
+  PetscInt, allocatable :: int_array(:)
+
+  num_vertices = ugrid%cell_vertices(0,ghosted_id)
+  allocate(int_array(num_vertices))
+  do i = 1, num_vertices
+    int_array(i) = ugrid%vertex_ids_natural(ugrid%cell_vertices(i,ghosted_id))
+  enddo
+  print *, 'natural id = ' // StringWrite(natural_id) // &
+    ' ghosted_id = ' // StringWrite(ghosted_id) // &
+    ' vertices = ' // &
+    StringWrite(int_array)
+  deallocate(int_array)
+
+  do i = 1, num_vertices
+    vertex_id = ugrid%cell_vertices(i,ghosted_id)
+    print *, StringWrite(vertex_id) // &
+      ' : ' // StringWrite(GeomGetCoordinatesFromPoint3D( &
+                ugrid%vertices(vertex_id)))
+  enddo
+
+  cell_type = ugrid%cell_type(ghosted_id)
+  do iface = 1, UCellGetNFaces(cell_type,option)
+    call UCellGetNFaceVertsandVerts(option,cell_type,iface,num_vertices, &
+                                    cell_vertex_ids)
+    do i = 1, num_vertices
+      natural_vertex_ids(i) = &
+        ugrid%vertex_ids_natural(ugrid%cell_vertices(cell_vertex_ids(i), &
+                                                     ghosted_id))
+    enddo
+    print *, 'Face ' // StringWrite(iface) // ' : ' // &
+              StringWrite(natural_vertex_ids(1:num_vertices))
+  enddo
+
+end subroutine UCellPrintCellInfo
 
 end module Grid_Unstructured_Aux_module
