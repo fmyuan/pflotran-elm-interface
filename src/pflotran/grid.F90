@@ -213,7 +213,7 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
     case(IMPLICIT_UNSTRUCTURED_GRID)
       connection_set => &
         UGridComputeInternConnect(grid%unstructured_grid,grid%x,grid%y, &
-                                  grid%z,option)
+                                  grid%z,grid%nL2G,grid%nG2A,option)
     case(EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       connection_set => &
         UGridExplicitSetInternConnect(grid%unstructured_grid%explicit_grid, &

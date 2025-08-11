@@ -1206,11 +1206,11 @@ end subroutine UGridDecompose
 
 ! ************************************************************************** !
 
-function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
-                                   option)
+function UGridComputeInternConnect(unstructured_grid, &
+                                   grid_x,grid_y,grid_z, &
+                                   nL2G,nG2A,option)
   !
-  ! computes internal connectivity of an
-  ! unstructured grid
+  ! computes internal connectivity of an unstructured grid
   !
   ! Author: Glenn Hammond
   ! Date: 10/21/09
@@ -1220,12 +1220,14 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
   use Option_module
   use Utility_module, only : DotProduct, CrossProduct
   use Geometry_module
+  use String_module
 
   implicit none
 
   type(connection_set_type), pointer :: UGridComputeInternConnect
   type(option_type) :: option
   PetscReal :: grid_x(*), grid_y(*), grid_z(*)
+  PetscInt :: nL2G(:), nG2A(:)
   type(grid_unstructured_type) :: unstructured_grid
 
   type(connection_set_type), pointer :: connections
@@ -1440,22 +1442,9 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
 
       ! Check that one shared face was found between the Cell and Neighboring-Cell
       if (.not.face_found) then
-        write(string,*) option%myrank
-        string = '(' // trim(adjustl(string)) // ')'
-        write(*,'(a,'' local_id = '',i6,'' natural_id = '',i6,&
-                  &''  vertices: '',8i6)') &
-                   trim(string), &
-                   cell_id,unstructured_grid%cell_ids_natural(cell_id), &
-                   (unstructured_grid%vertex_ids_natural( &
-                     unstructured_grid%cell_vertices(ivertex,cell_id)), &
-                     ivertex=1,unstructured_grid%cell_vertices(0,cell_id))
-        write(*,'(a,'' local_id2 = '',i6,'' natural_id2 = '',i6,&
-                  &''  vertices2: '',8i6)') &
-                   trim(string), &
-                   cell_id2,unstructured_grid%cell_ids_natural(cell_id2), &
-                   (unstructured_grid%vertex_ids_natural( &
-                     unstructured_grid%cell_vertices(ivertex2,cell_id2)), &
-                     ivertex2=1,unstructured_grid%cell_vertices(0,cell_id2))
+        ! cell_id is both local and ghosted as they are same for unstructured
+        call UCellPrintCellInfo(unstructured_grid,cell_id,nG2A(cell_id),option)
+        call UCellPrintCellInfo(unstructured_grid,cell_id2,nG2A(cell_id2),option)
         option%io_buffer='No shared face found.'
         call PrintErrMsgByRank(option)
       endif

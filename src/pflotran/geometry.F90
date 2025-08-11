@@ -68,7 +68,8 @@ module Geometry_module
             GeometryGetPlaneIntercept, &
             GeometryGetPlaneZIntercept, &
             GeomGetPlaneGradientinXandY, &
-            GeomComputeDistanceFromPlane
+            GeomComputeDistanceFromPlane, &
+            GeomGetCoordinatesFromPoint3D
 !           12345678901234567890123456789012
 contains
 
@@ -764,5 +765,25 @@ function GeomComputeDistanceFromPlane2(plane,x,y,z)
     sqrt(plane%A*plane%A+plane%B*plane%B+plane%C*plane%C)
 
 end function GeomComputeDistanceFromPlane2
+
+! ************************************************************************** !
+
+function GeomGetCoordinatesFromPoint3D(point)
+  !
+  ! Returns xyz coordinates associatedw with a point3d object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/08/25
+  !
+  implicit none
+
+  type(point3d_type) :: point
+  PetscReal :: GeomGetCoordinatesFromPoint3D(3)
+
+  GeomGetCoordinatesFromPoint3D(1) = point%x
+  GeomGetCoordinatesFromPoint3D(2) = point%y
+  GeomGetCoordinatesFromPoint3D(3) = point%z
+
+end function GeomGetCoordinatesFromPoint3D
 
 end module Geometry_module

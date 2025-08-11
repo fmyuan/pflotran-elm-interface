@@ -1288,13 +1288,13 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
       local_id_dn = grid%nG2L(ghosted_id_dn)
 
       do iface_up = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_up,local_id_up)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_up,ghosted_id_up)) exit
       enddo
 
       iface_dn=-1
       if (local_id_dn>0) then
         do iface_dn = 1,MAX_FACE_PER_CELL
-          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
         enddo
       endif
 
@@ -1336,7 +1336,7 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
       local_id_dn = cur_connection_set%id_dn(iconn)
       ghosted_id_dn = grid%nL2G(local_id_dn)
       do iface_dn = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
       enddo
 
       do dof=1,option%nflowdof
