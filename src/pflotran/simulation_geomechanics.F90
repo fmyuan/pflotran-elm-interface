@@ -164,8 +164,10 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   PetscReal :: time
   PetscReal :: final_time
   PetscReal :: dt
+  PetscReal, parameter :: tolerance = 1.d-3
 
   time = this%option%time
+  dt = this%geomech%realization%dt_coupling
 
   final_time = SimSubsurfGetFinalWaypointTime(this)
 
@@ -185,13 +187,11 @@ subroutine GeomechanicsSimulationExecuteRun(this)
       call PrintErrMsg(this%option)
     else
       do
-        if (time + this%geomech%realization%dt_coupling > final_time) then
-          dt = final_time-time
-        else
-          dt = this%geomech%realization%dt_coupling
-        endif
-
         time = time + dt
+        if (time + dt*tolerance >= final_time) then
+          dt = final_time-time
+          time = final_time
+        endif
         this%geomech%process_model_coupler%timestepper%dt = dt
         call this%RunToTime(time)
 
