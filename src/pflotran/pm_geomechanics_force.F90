@@ -186,11 +186,15 @@ recursive subroutine PMGeomechForceInitializeRun(this)
   ! Date: 12/31/13
   !
 
-  use Geomechanics_Force_module, only : GeomechUpdateSolution
+  use Geomechanics_Force_module
 
   implicit none
 
   class(pm_geomech_force_type) :: this
+
+  if (this%option%geomechanics%set_ref_pres_and_temp_to_IC) then
+    call GeomechStoreInitialPressTemp(this%geomech_realization)
+  endif
 
 end subroutine PMGeomechForceInitializeRun
 
