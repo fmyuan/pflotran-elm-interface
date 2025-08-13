@@ -1469,7 +1469,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
   Vec :: global_vertex_vec
   PetscInt :: local_size
   PetscErrorCode :: ierr
-  PetscInt :: num_cells, icell
+  PetscInt :: num_verts, ivert
   PetscInt :: count
 
   patch => realization_base%patch
@@ -1513,11 +1513,11 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
     case (EXPLICIT_UNSTRUCTURED_GRID,ECLIPSE_UNSTRUCTURED_GRID)
       if (OptionIsIORank(option)) then
         if (output_option%print_explicit_primal_grid) then
-        num_cells = grid%unstructured_grid%explicit_grid%num_cells_global
+        num_verts = grid%unstructured_grid%explicit_grid%num_vertices
         count = 0
-        do icell = 1, num_cells
+        do ivert = 1, num_verts
           write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
-                                       vertex_coordinates(icell)%x
+                                       vertex_coordinates(ivert)%x
           count = count + 1
           if (mod(count,10) == 0) then
             write(fid,'(a)') ""
@@ -1526,9 +1526,9 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
         enddo
         if (count /= 0) write(fid,'(a)') ""
         count = 0
-        do icell = 1, num_cells
+        do ivert = 1, num_verts
           write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
-                                       vertex_coordinates(icell)%y
+                                       vertex_coordinates(ivert)%y
           count = count + 1
           if (mod(count,10) == 0) then
             write(fid,'(a)') ""
@@ -1537,9 +1537,9 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
         enddo
         if (count /= 0) write(fid,'(a)') ""
         count = 0
-        do icell = 1, num_cells
+        do ivert = 1, num_verts
           write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
-                                       vertex_coordinates(icell)%z
+                                       vertex_coordinates(ivert)%z
           count = count + 1
           if (mod(count,10) == 0) then
             write(fid,'(a)') ""
