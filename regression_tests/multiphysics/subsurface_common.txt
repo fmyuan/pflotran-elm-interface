@@ -1,0 +1,209 @@
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 3 3
+  BOUNDS
+    0.d0 0.d0 300.
+    5. 3. 303.
+  /
+  GRAVITY 0.0 0.0 0.0
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  TIMESTEPPER
+    PRESSURE_CHANGE_GOVERNOR 5.d6
+  /
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0
+    MAXIMUM_NUMBER_OF_ITERATIONS 15
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY rock
+  ID 1
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES cc1
+  ROCK_DENSITY 2650.d0
+  HEAT_CAPACITY 1.d3
+  THERMAL_CONDUCTIVITY_WET 100. W/m-C
+  THERMAL_CONDUCTIVITY_DRY 100. W/m-C
+  PERMEABILITY
+    PERM_ISO 1.d-18
+  /
+  GEOMECHANICS_SUBSURFACE_PROPS
+    COMPRESSIBILITY_FUNCTION LINEAR_MODEL
+  /
+END
+
+MATERIAL_PROPERTY fracture
+  ID 2
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES cc1
+  ROCK_DENSITY 2650.d0
+  HEAT_CAPACITY 1.d3
+  THERMAL_CONDUCTIVITY_WET 3.8 W/m-C
+  THERMAL_CONDUCTIVITY_DRY 3.8 W/m-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  GEOMECHANICS_SUBSURFACE_PROPS
+    COMPRESSIBILITY_FUNCTION LINEAR_MODEL
+  /
+END
+MATERIAL_PROPERTY borehole
+  ID 3
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES cc1
+  ROCK_DENSITY 2650.d0
+  HEAT_CAPACITY 1.d3
+  THERMAL_CONDUCTIVITY_WET 100. W/m-C
+  THERMAL_CONDUCTIVITY_DRY 100. W/m-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  GEOMECHANICS_SUBSURFACE_PROPS
+    COMPRESSIBILITY_FUNCTION LINEAR_MODEL
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  END
+  OUTPUT
+    ALL
+    FREE_ION
+  /
+END
+
+#=========================== output options ===================================
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 2.d0 s
+  INITIAL_TIMESTEP_SIZE 1.d-1 s
+  MAXIMUM_TIMESTEP_SIZE 0.5d0 s
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0. -1.d20 -1.d20
+    0.  1.d20  1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5. -1.d20 -1.d20
+    5.  1.d20  1.d20
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    -1.d20 0. -1.d20
+     1.d20 0.  1.d20
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    -1.d20 3. -1.d20
+     1.d20 3.  1.d20
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    -1.d20 -1.d20 300.
+     1.d20  1.d20 300.
+  /
+END
+REGION top
+  FACE TOP
+  COORDINATES
+    -1.d20 -1.d20 303.
+     1.d20  1.d20 303.
+  /
+END
+
+REGION injection_borehole
+  COORDINATES
+    2.  1. 301.
+    3. 2. 302.
+  /
+END
+
+REGION fracture
+  COORDINATES
+     0  1. 300.
+     5. 2. 303.
+  /
+END
+
+#========================== transport conditions ==============================
+TRANSPORT_CONDITION background
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT background
+    CONCENTRATIONS
+      Tracer 1.d-6 F
+    /
+  /
+END
+
+TRANSPORT_CONDITION source
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT source
+    CONCENTRATIONS
+      Tracer 1.d0 F
+    /
+  /
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL rock
+END
+
+STRATA
+  REGION fracture
+  MATERIAL fracture
+END
+
+STRATA
+  REGION injection_borehole
+  MATERIAL borehole
+END
