@@ -896,8 +896,10 @@ subroutine PMERTPreSolve(this)
   PetscInt :: ghosted_id,local_id
   PetscInt :: species_id
   PetscInt :: empirical_law
+  PetscInt :: temp_dependence
   PetscInt :: parameter_index
   PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
+  PetscReal :: temp, temp_ref, temp_coeff ! variables for temperature dependence
   PetscReal :: por,sat
   PetscReal :: dcond_dsat,dcond_dconc,dcond_dpor
   PetscReal :: cond_sp
@@ -945,6 +947,7 @@ subroutine PMERTPreSolve(this)
   endif
 
   empirical_law = this%conductivity_mapping_law
+  temp_dependence = this%temperature_dependence
   a = this%tortuosity_constant
   m = this%cementation_exponent
   n = this%saturation_exponent
@@ -955,6 +958,8 @@ subroutine PMERTPreSolve(this)
   cond_c = this%clay_conductivity
   cond_baseline = 0.d0
   cond = 0.d0
+  temp_ref = this%reference_temperature
+  temp_coeff = this%temperature_coefficient
 
   if (Initialized(this%tracer_water_conductivity)) then
     diff_water_cond = this%tracer_water_conductivity - cond_w_no_tracer
