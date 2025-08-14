@@ -1572,13 +1572,12 @@ class RegressionTest(object):
             delta = abs(previous - current)
         elif (tolerance_type == self._RELATIVE or
               tolerance_type == self._PERCENT):
-            if previous != 0:
-                delta = abs((previous - current) / previous)
-            elif current != 0:
-                delta = abs((previous - current) / current)
+            # if either is zero, perform absolute as the relative error will be 1 if the
+            # other value is nonzero and in the denominator...kind of meaningless
+            if previous == 0 or current == 0:
+                delta = abs(previous - current)
             else:
-                # both are zero
-                delta = 0.0
+                delta = abs((previous - current) / previous)
             if tolerance_type == self._PERCENT:
                 delta *= 100.0
         else:

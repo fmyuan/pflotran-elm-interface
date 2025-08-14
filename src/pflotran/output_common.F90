@@ -1660,7 +1660,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
   type(material_parameter_type), pointer :: material_parameter
-  type(TH_auxvar_type), pointer :: th_auxvars(:)
+  type(th_auxvar_type), pointer :: th_auxvars(:)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
@@ -1707,8 +1707,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
         select case (option%iflowmode)
           case(TH_MODE,TH_TS_MODE)
             th_auxvars => patch%aux%TH%auxvars
-            if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
-                th_auxvars(ghosted_id_dn)%kvr > eps ) then
+            if (th_auxvars(ghosted_id_up)%mobility > eps .or. &
+                th_auxvars(ghosted_id_dn)%mobility > eps ) then
               is_flowing = PETSC_TRUE
             endif
           case(RICHARDS_MODE, RICHARDS_TS_MODE)

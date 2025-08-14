@@ -120,7 +120,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(th_auxvar_type), pointer :: th_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
   PetscInt :: ghosted_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
@@ -133,7 +133,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   field => realization%field
   patch => realization%patch
   grid => patch%grid
-  TH_auxvars => patch%aux%TH%auxvars
+  th_auxvars => patch%aux%TH%auxvars
   th_parameter => patch%aux%TH%th_parameter
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
@@ -161,7 +161,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
       xxdot_loc_p((ghosted_id-1)*option%nflowdof+1)
     th_auxvars(ghosted_id)%dtemp_dtime = &
       xxdot_loc_p((ghosted_id-1)*option%nflowdof+2)
-    call THAuxVarCompute2ndOrderDeriv(TH_auxvars(ghosted_id), &
+    call THAuxVarCompute2ndOrderDeriv(th_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
                                   th_parameter,icct, &
@@ -250,7 +250,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   PetscErrorCode :: ierr
 
   type(option_type), pointer :: option
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(th_auxvar_type), pointer :: th_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -274,7 +274,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   grid => realization%patch%grid
   patch => realization%patch
   field => realization%field
-  TH_auxvars => patch%aux%TH%auxvars
+  th_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
@@ -289,21 +289,21 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     istart = iend-option%nflowdof+1
 
     call MaterialAuxVarCompute(material_auxvars(ghosted_id), &
-                               global_auxvars(ghosted_id)%pres(1))
+                               th_auxvars(ghosted_id)%pres)
     por = material_auxvars(ghosted_id)%porosity
     dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
 
-    den = global_auxvars(ghosted_id)%den(1)
-    sat = global_auxvars(ghosted_id)%sat(1)
-    temp = global_auxvars(ghosted_id)%temp
-    u = TH_auxvars(ghosted_id)%u
-    dden_dP = TH_auxvars(ghosted_id)%dden_dp
-    dsat_dP = TH_auxvars(ghosted_id)%dsat_dp
+    den = th_auxvars(ghosted_id)%den
+    sat = th_auxvars(ghosted_id)%sat
+    temp = th_auxvars(ghosted_id)%temp
+    u = th_auxvars(ghosted_id)%u
+    dden_dP = th_auxvars(ghosted_id)%dden_dp
+    dsat_dP = th_auxvars(ghosted_id)%dsat_dp
     dpor_dt = 0.d0
-    dden_dt = TH_auxvars(ghosted_id)%dden_dt
-    dsat_dt = TH_auxvars(ghosted_id)%dsat_dt
-    du_dP = TH_auxvars(ghosted_id)%du_dp
-    du_dt = TH_auxvars(ghosted_id)%du_dt
+    dden_dt = th_auxvars(ghosted_id)%dden_dt
+    dsat_dt = th_auxvars(ghosted_id)%dsat_dt
+    du_dP = th_auxvars(ghosted_id)%du_dp
+    du_dt = th_auxvars(ghosted_id)%du_dt
     rock_dencpr = th_parameter%dencpr(patch%cct_id(ghosted_id))
 
     ! A_M = d(rho*phi*s)/dP * dP_dtime *Vol + d(rho*phi*s)/dT * dT_dtime *Vol
@@ -316,9 +316,9 @@ subroutine IFunctionAccumulation(F,realization,ierr)
                den     * por     * dsat_dt
 
     f_p(istart) = f_p(istart) + &
-                    dmass_dP*TH_auxvars(ghosted_id)%dpres_dtime * &
+                    dmass_dP*th_auxvars(ghosted_id)%dpres_dtime * &
                     material_auxvars(ghosted_id)%volume + &
-                    dmass_dt*TH_auxvars(ghosted_id)%dtemp_dtime * &
+                    dmass_dt*th_auxvars(ghosted_id)%dtemp_dtime * &
                     material_auxvars(ghosted_id)%volume
 
 
@@ -339,9 +339,9 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
 
     f_p(iend) = f_p(iend) + &
-                  denergy_dP*TH_auxvars(ghosted_id)%dpres_dtime * &
+                  denergy_dP*th_auxvars(ghosted_id)%dpres_dtime * &
                   material_auxvars(ghosted_id)%volume + &
-                  denergy_dt*TH_auxvars(ghosted_id)%dtemp_dtime * &
+                  denergy_dt*th_auxvars(ghosted_id)%dtemp_dtime * &
                   material_auxvars(ghosted_id)%volume
 
 
@@ -438,7 +438,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   PetscErrorCode :: ierr
 
   type(option_type), pointer :: option
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(th_auxvar_type), pointer :: th_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -467,7 +467,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   grid => realization%patch%grid
   patch => realization%patch
   field => realization%field
-  TH_auxvars => patch%aux%TH%auxvars
+  th_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
@@ -480,31 +480,31 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     istart = iend-option%nflowdof+1
 
     call MaterialAuxVarCompute(material_auxvars(ghosted_id), &
-                               global_auxvars(ghosted_id)%pres(1))
+                               th_auxvars(ghosted_id)%pres)
     por = material_auxvars(ghosted_id)%porosity
     dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
 
-    den = global_auxvars(ghosted_id)%den(1)
-    sat = global_auxvars(ghosted_id)%sat(1)
-    temp = global_auxvars(ghosted_id)%temp
-    u = TH_auxvars(ghosted_id)%u
+    den = th_auxvars(ghosted_id)%den
+    sat = th_auxvars(ghosted_id)%sat
+    temp = th_auxvars(ghosted_id)%temp
+    u = th_auxvars(ghosted_id)%u
     rock_dencpr = th_parameter%dencpr(patch%cct_id(ghosted_id))
-    dden_dP = TH_auxvars(ghosted_id)%dden_dp
-    dsat_dP = TH_auxvars(ghosted_id)%dsat_dp
+    dden_dP = th_auxvars(ghosted_id)%dden_dp
+    dsat_dP = th_auxvars(ghosted_id)%dsat_dp
     dpor_dt = 0.d0
-    dden_dt = TH_auxvars(ghosted_id)%dden_dt
-    dsat_dt = TH_auxvars(ghosted_id)%dsat_dt
-    du_dP = TH_auxvars(ghosted_id)%du_dp
-    du_dt = TH_auxvars(ghosted_id)%du_dt
-    d2den_dP2 = TH_auxvars(ghosted_id)%d2den_dp2
-    d2den_dtdP = TH_auxvars(ghosted_id)%d2den_dtdp
-    d2den_dt2 = TH_auxvars(ghosted_id)%d2den_dt2
-    d2sat_dP2 = TH_auxvars(ghosted_id)%d2sat_dp2
-    d2sat_dtdP = TH_auxvars(ghosted_id)%d2sat_dtdp
-    d2sat_dt2 = TH_auxvars(ghosted_id)%d2sat_dt2
-    d2u_dP2 = TH_auxvars(ghosted_id)%d2u_dp2
-    d2u_dtdP = TH_auxvars(ghosted_id)%d2u_dtdp
-    d2u_dt2 = TH_auxvars(ghosted_id)%d2u_dt2
+    dden_dt = th_auxvars(ghosted_id)%dden_dt
+    dsat_dt = th_auxvars(ghosted_id)%dsat_dt
+    du_dP = th_auxvars(ghosted_id)%du_dp
+    du_dt = th_auxvars(ghosted_id)%du_dt
+    d2den_dP2 = th_auxvars(ghosted_id)%d2den_dp2
+    d2den_dtdP = th_auxvars(ghosted_id)%d2den_dtdp
+    d2den_dt2 = th_auxvars(ghosted_id)%d2den_dt2
+    d2sat_dP2 = th_auxvars(ghosted_id)%d2sat_dp2
+    d2sat_dtdP = th_auxvars(ghosted_id)%d2sat_dtdp
+    d2sat_dt2 = th_auxvars(ghosted_id)%d2sat_dt2
+    d2u_dP2 = th_auxvars(ghosted_id)%d2u_dp2
+    d2u_dtdP = th_auxvars(ghosted_id)%d2u_dtdp
+    d2u_dt2 = th_auxvars(ghosted_id)%d2u_dt2
     d2por_dP2 = 0.d0
     d2por_dtdP = 0.d0
     d2por_dt2 = 0.d0
@@ -552,8 +552,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     d2mass_dtdP = d2mass_dPdt
 
     Jlocal(1,1) = (shift*dmass_dP + &
-                   d2mass_dP2*TH_auxvars(ghosted_id)%dpres_dtime + &
-                   d2mass_dtdP*TH_auxvars(ghosted_id)%dtemp_dtime)* &
+                   d2mass_dP2*th_auxvars(ghosted_id)%dpres_dtime + &
+                   d2mass_dtdP*th_auxvars(ghosted_id)%dtemp_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
 
@@ -580,8 +580,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       )
 
     Jlocal(1,2) = (shift*dmass_dt + &
-                   d2mass_dt2*TH_auxvars(ghosted_id)%dtemp_dtime + &
-                   d2mass_dPdt*TH_auxvars(ghosted_id)%dpres_dtime)* &
+                   d2mass_dt2*th_auxvars(ghosted_id)%dtemp_dtime + &
+                   d2mass_dPdt*th_auxvars(ghosted_id)%dpres_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
 
@@ -641,8 +641,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
 
     Jlocal(2,1) = (shift*denergy_dP + &
-                   d2energy_dP2*TH_auxvars(ghosted_id)%dpres_dtime + &
-                   d2energy_dtdP*TH_auxvars(ghosted_id)%dtemp_dtime)* &
+                   d2energy_dP2*th_auxvars(ghosted_id)%dpres_dtime + &
+                   d2energy_dtdP*th_auxvars(ghosted_id)%dtemp_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
 
@@ -680,8 +680,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
 
     Jlocal(2,2) = (shift*denergy_dt + &
-                   d2energy_dt2*TH_auxvars(ghosted_id)%dtemp_dtime + &
-                   d2energy_dPdt*TH_auxvars(ghosted_id)%dpres_dtime)* &
+                   d2energy_dt2*th_auxvars(ghosted_id)%dtemp_dtime + &
+                   d2energy_dPdt*th_auxvars(ghosted_id)%dpres_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
     call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jlocal, &

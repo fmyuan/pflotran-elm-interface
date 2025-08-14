@@ -708,7 +708,7 @@ subroutine PMFracInitializeRun(this)
   ! Date: 12/13/2023
   !
   use Material_Aux_module
-  use Global_Aux_module
+  use TH_Aux_module
   use General_Aux_module
   use Field_module
   use Grid_module
@@ -718,7 +718,7 @@ subroutine PMFracInitializeRun(this)
   class(pm_fracture_type) :: this
 
   type(material_auxvar_type), pointer :: material_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
+  type(th_auxvar_type), pointer :: th_auxvar
   type(general_auxvar_type), pointer :: general_auxvar
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -778,9 +778,9 @@ subroutine PMFracInitializeRun(this)
           this%realization%patch%aux%General%auxvars(1,grid%nL2G(icell))
         cur_fracture%prev_temperature(k) = general_auxvar%temp
       elseif (option%iflowmode == TH_MODE) then
-        global_auxvar => &
-          this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
-        cur_fracture%prev_temperature(k) = global_auxvar%temp
+        th_auxvar => &
+          this%realization%patch%aux%TH%auxvars(grid%nL2G(icell))
+        cur_fracture%prev_temperature(k) = th_auxvar%temp
       endif
     enddo
 
@@ -1815,7 +1815,7 @@ subroutine PMFracSolve(this,time,ierr)
   ! Date: 12/13/2023
   !
   use Material_Aux_module
-  use Global_Aux_module
+  use TH_Aux_module
   use General_Aux_module
   use Field_module
   use Grid_module
@@ -1827,7 +1827,7 @@ subroutine PMFracSolve(this,time,ierr)
   PetscErrorCode :: ierr
 
   type(material_auxvar_type), pointer :: material_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
+  type(th_auxvar_type), pointer :: th_auxvar
   type(general_auxvar_type), pointer :: general_auxvar
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
@@ -1861,9 +1861,9 @@ subroutine PMFracSolve(this,time,ierr)
           this%realization%patch%aux%General%auxvars(1,grid%nL2G(icell))
         cur_temperature = general_auxvar%temp
       elseif (option%iflowmode == TH_MODE) then
-        global_auxvar => &
-          this%realization%patch%aux%Global%auxvars(grid%nL2G(icell))
-        cur_temperature = global_auxvar%temp
+        th_auxvar => &
+          this%realization%patch%aux%TH%auxvars(grid%nL2G(icell))
+        cur_temperature = th_auxvar%temp
       endif
 
       if (cur_fracture%prev_temperature(k) == 0.d0) then

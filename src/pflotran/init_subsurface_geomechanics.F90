@@ -760,6 +760,7 @@ subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
   class(realization_subsurface_type), pointer :: subsurf_realization
   class(realization_geomech_type), pointer :: geomech_realization
   class(pmc_base_type), pointer :: cur_process_model_coupler
+  class(pmc_base_type), pointer :: pmc_dummy
   type(gmdm_ptr_type), pointer :: dm_ptr
   class(pmc_geomechanics_type), pointer :: pmc_geomech
   class(timestepper_ksp_type), pointer :: timestepper
@@ -767,6 +768,8 @@ subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
   PetscErrorCode :: ierr
 
   if (.not. associated(pm_geomech)) return
+
+  nullify(pmc_dummy)
 
   option => simulation%option
   geomech_realization => simulation%geomech%realization
@@ -841,24 +844,25 @@ subroutine InitSubsurfGeomechInitSimulation(simulation, pm_geomech)
     simulation%flow_process_model_coupler
   ! link subsurface flow as peer
   ! jaa: set geomech as a child
-  simulation%process_model_coupler_list%child => &
-    pmc_geomech
+!  simulation%process_model_coupler_list%child => &
+!    pmc_geomech
+  call PMCBaseSetChildPeerPtr(pmc_geomech%CastToBase(),PM_CHILD, &
+                    simulation%flow_process_model_coupler%CastToBase(), &
+                    pmc_dummy,PM_APPEND)
 
   call InitSubsurfGeomechChkInactiveCells(geomech_realization, &
                                           subsurf_realization)
 
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
-  call cur_process_model_coupler%SetAuxData()
-  if (associated(cur_process_model_coupler%child)) then
-    cur_process_model_coupler => cur_process_model_coupler%child
-    call cur_process_model_coupler%GetAuxData()
-    call cur_process_model_coupler%SetAuxData()
-    select type(pmc => cur_process_model_coupler)
-      class is(pmc_geomechanics_type)
-        call GeomechStoreInitialPressTemp(pmc%geomech_realization)
-    end select
-  endif
+  call simulation%flow_process_model_coupler%SetAuxData()
+  call simulation%geomech%process_model_coupler%GetAuxData()
+  call simulation%geomech%process_model_coupler%SetAuxData()
+  ! this is solely for casting to pmc geomech
+  select type(pmc => simulation%geomech%process_model_coupler)
+    class is(pmc_geomechanics_type)
+      call GeomechStoreInitialPressTemp(pmc%geomech_realization)
+  end select
 
   call InitSubsurfGeomechJumpStart(simulation%geomech)
 
