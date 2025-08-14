@@ -524,6 +524,7 @@ end subroutine ERTCalculateMatrix
 
 subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                            cond_c,empirical_law,cond, &
+                                           temp_dependence, scaled_temp_diff, &
                                            drho_geomech, cond_baseline, &
                                            tracer_scale,dcond_dsat, &
                                            dcond_dconc,dcond_dpor,option)
@@ -544,6 +545,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: por, sat  ! porosity and saturation
 
   PetscInt :: empirical_law
+  PetscInt :: temp_dependence
 
   ! Archie's law parameters
   PetscReal :: a        ! Tortuosity factor constant
@@ -551,6 +553,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   PetscReal :: n        ! Saturation exponent
   PetscReal :: cond_w   ! Water conductivity
   PetscReal :: cond_s   ! surface conductivity
+  PetscReal :: scaled_temp_diff ! for temp dependent fluid cond
 
   ! Waxman-Smits additional paramters
   PetscReal :: cond_c   ! Clay conductivity
@@ -583,6 +586,19 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
   cond_max = 1.d2
 
   if (use_flow .or. use_trans) then
+
+    if (use_flow .and. .not. option%flow%isothermal) then
+      if (temp_dependence == LINEAR) then
+        cond_w = cond_w * (1 + scaled_temp_diff)
+      elseif (temp_dependence == EXPONENTIAL) then
+        cond_w = cond_w * exp(scaled_temp_diff)
+      else
+        option%io_buffer = 'ERTConductivityFromEmpiricalEqs: ' // &
+          'Unknown temperature dependence for conductivity.'
+        call PrintErrMsg(option)
+      endif
+    endif
+
     ! Archie's law
     cond = cond_w * (por**m) * (sat**n) / a
 

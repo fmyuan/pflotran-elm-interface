@@ -900,6 +900,7 @@ subroutine PMERTPreSolve(this)
   PetscInt :: parameter_index
   PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: temp, temp_ref, temp_coeff ! variables for temperature dependence
+  PetscReal :: scaled_temp_diff
   PetscReal :: por,sat
   PetscReal :: dcond_dsat,dcond_dconc,dcond_dpor
   PetscReal :: cond_sp
@@ -1060,8 +1061,14 @@ subroutine PMERTPreSolve(this)
       drho_geomech = this%brace_stress_resistivity_slope * dstress * 1.0d-8
     endif
 
+    if (.not.option%flow%isothermal) then
+      temp = patch%aux%Global%auxvars(ghosted_id)%temp
+      scaled_temp_diff = temp_coeff * (temp - temp_ref)
+    endif
+
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
                                          cond_c,empirical_law,cond, &
+                                         temp_dependence, scaled_temp_diff, &
                                          drho_geomech, cond_baseline, &
                                          tracer_scale,dcond_dsat,dcond_dconc, &
                                          dcond_dpor, option)
