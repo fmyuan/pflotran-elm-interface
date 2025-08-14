@@ -30,6 +30,7 @@ module PM_ERT_class
     Vec :: dconductivity_dporosity
     ! EMPIRICAL Archie and Waxman-Smits options
     PetscInt :: conductivity_mapping_law
+    PetscInt :: temperature_dependence
     PetscReal :: tortuosity_constant   ! a
     PetscReal :: cementation_exponent  ! m
     PetscReal :: saturation_exponent   ! n
@@ -39,6 +40,8 @@ module PM_ERT_class
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
     PetscReal :: max_tracer_concentration
+    PetscReal :: reference_temperature
+    PetscReal :: temperature_coefficient
     ! For Brace's empirical model drho = slope * dstress
     PetscReal :: brace_stress_resistivity_slope
     PetscReal, pointer :: species_conductivity_coef(:)
@@ -124,6 +127,7 @@ subroutine PMERTInit(pm_ert)
 
   ! Archie and Waxman-Smits default values
   pm_ert%conductivity_mapping_law = ARCHIE
+  pm_ert%temperature_dependence = LINEAR
   pm_ert%tortuosity_constant = 1.d0
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
@@ -133,6 +137,9 @@ subroutine PMERTInit(pm_ert)
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_concentration = UNINITIALIZED_DOUBLE
+  pm_ert%reference_temperature = 25.d0 ! C
+  pm_ert%temperature_coefficient = 0.02d0
+
   ! Brace's regression equation rho = 21054*pressure (kbar) + 3457.9
   pm_ert%brace_stress_resistivity_slope = 21054.d0
 
@@ -235,6 +242,26 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('SURFACE_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%surface_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ARCHIE_TEMPERATURE_DEPENDENCE')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('LINEAR')
+            this%temperature_dependence = LINEAR
+          case('EXPONENTIAL')
+            this%temperature_dependence = EXPONENTIAL
+          case default
+            option%io_buffer  = 'ARCHIE_TEMPERATURE_DEPENDENCE: ' &
+                                      // trim(word) // ' unknown.'
+            call PrintErrMsg(option)
+        end select
+      case('ARCHIE_REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,this%reference_temperature)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ARCHIE_TEMPERATURE_COEFFICIENT')
+        call InputReadDouble(input,option,this%temperature_coefficient)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
         call InputKeywordDeprecated(keyword,'TRACER_WATER_CONDUCTIVITY', &
