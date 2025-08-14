@@ -4,12 +4,24 @@ module Well_Grid_module
   use petscsnes
   use Geometry_module
   use PFLOTRAN_Constants_module
+  use Region_module
 
 implicit none
 
 private
 
 type, public :: well_grid_type
+    ! name of region containing list of connections to reservoir grid
+    character(len=MAXWORDLENGTH) :: connections_region_name
+    ! region containing list of connections to reservoir grid
+    type(region_type), pointer :: connections_region
+    ! bool controlling if we make the connections to the reservoir via a region
+    PetscBool :: connect_via_region
+    ! saves if the segment is connected
+    PetscBool, pointer :: segment_connected(:)
+    ! the index of the bottom connected segment (the bottom segment has index 1)
+    PetscInt :: bottom_seg_index
+
     ! number of well segments
     PetscInt :: nsegments
     ! number of well connections
@@ -100,7 +112,10 @@ function WellGridCreate()
 
     ! create the well grid object:
     allocate(well_grid)
+    nullify(well_grid%connections_region)
+    well_grid%connect_via_region = PETSC_FALSE
     well_grid%nsegments = UNINITIALIZED_INTEGER
+    well_grid%bottom_seg_index = 1
     well_grid%nconnections = UNINITIALIZED_INTEGER
     nullify(well_grid%casing)
     nullify(well_grid%dh)
@@ -174,6 +189,7 @@ subroutine WellGridDestroy(well_grid)
     type(deviated_well_type), pointer :: cur_deviated_well
     type(deviated_well_type), pointer :: prev_deviated_well
 
+    call DeallocateArray(well_grid%segment_connected)
     call DeallocateArray(well_grid%h_local_id)
     call DeallocateArray(well_grid%h_ghosted_id)
     call DeallocateArray(well_grid%h_global_id)
@@ -256,9 +272,11 @@ subroutine WellGridAddConnectionsExplicit(cell_centroids,connections,&
   well_connections(:,:) = PETSC_FALSE
   dual_segment = 1
   do isegment = 1,well_grid%nsegments
+    if (.not. well_grid%segment_connected(isegment)) cycle
     if (well_grid%h_rank_id(isegment) /= option%myrank) cycle
     if (well_grid%casing(isegment) <= 0.d0) cycle
-      local_id = well_grid%h_ghosted_id(isegment)
+
+    local_id = well_grid%h_ghosted_id(isegment)
     ! For each local cell, check if a connection to a well cell exists. If
     ! not, add it, and keep track of connections that are only well-related.
     dual_id = well_grid%h_ghosted_id(dual_segment)
