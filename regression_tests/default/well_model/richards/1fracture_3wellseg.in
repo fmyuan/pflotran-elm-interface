@@ -1,0 +1,228 @@
+!=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  
+  PROCESS_MODELS
+ 
+        SUBSURFACE_FLOW flow
+          MODE RICHARDS
+        END
+
+        WELL_MODEL well01
+          TYPE HYDROSTATIC
+          OPTIONS
+            FLOW_COUPLING FULLY_IMPLICIT
+          END
+        END
+    
+  END
+END
+
+!==============================================================================
+
+SUBSURFACE
+
+    #=========================== Numerical methods ================================
+    NUMERICAL_METHODS FLOW
+        LINEAR_SOLVER
+            SOLVER BCGS
+            PC_TYPE NONE
+        /
+    END
+
+    !=========================== discretization ===================================
+
+    GRID
+        TYPE unstructured_explicit single_fracture.uge
+        GRAVITY 0.0d0  0.0d0  -9.81d0
+        UPWIND_FRACTION_METHOD CELL_VOLUME
+    END
+
+
+    !=========================== fluid properties =================================
+
+    FLUID_PROPERTY
+      DIFFUSION_COEFFICIENT 0.0 # 1.d-9
+    END
+
+    EOS WATER
+      DENSITY CONSTANT 1.0000000000E+03
+      VISCOSITY CONSTANT 1.50000E-03
+    END
+
+    !=========================== material properties ==============================
+
+    MATERIAL_PROPERTY soil
+      ID 99
+      CHARACTERISTIC_CURVES default
+      POROSITY 1.D-04
+      SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+      POROSITY_COMPRESSIBILITY 1.0D-09
+      SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+      PERMEABILITY
+        PERM_ISO 1.0D-12
+      /
+    END
+
+    !=========================== saturation functions =============================
+
+    CHARACTERISTIC_CURVES default 
+      SATURATION_FUNCTION VAN_GENUCHTEN
+	    M 0.286
+	    ALPHA  1.9401d-4
+	    LIQUID_RESIDUAL_SATURATION 0.115
+      /
+
+      PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+	    M 0.286
+	    LIQUID_RESIDUAL_SATURATION 0.115
+      /
+
+
+    END
+
+    #=========================== regression test ========================================
+    REGRESSION
+      CELL_IDS
+        1
+      /
+    END
+
+    !=========================== output options ===================================
+
+!    OUTPUT
+!      VELOCITY_AT_CENTER
+!      !MASS_FLOWRATE
+!      SNAPSHOT_FILE
+!        ! PERIODIC TIME 0.05 d
+!        PERIODIC TIMESTEP 1
+!        FORMAT HDF5
+!      /
+!      VARIABLES
+!	    COORDINATES
+!        LIQUID_PRESSURE
+!        !LIQUID_SATURATION
+!        !LIQUID_DENSITY
+!        !LIQUID_RELATIVE_PERMEABILITY
+!        !LIQUID_MOBILITY
+!        !PERMEABILITY
+!        !POROSITY
+!        !LIQUID_VISCOSITY
+!        !NATURAL_ID
+!      /
+!      MASS_BALANCE_FILE
+!        PERIODIC TIMESTEP 1
+!      /
+!    END
+
+!    DEBUG
+!        PRINT_SOLUTION
+!        PRINT_RESIDUAL
+!        PRINT_JACOBIAN
+!        !PRINT_JACOBIAN_DETAILED
+!        FORMAT ASCII
+!        APPEND_COUNTS_TO_FILENAMES
+!    END
+    !=========================== times ============================================
+
+    TIME
+      FINAL_TIME 1.d-2 s
+      INITIAL_TIMESTEP_SIZE 1.d-3 s
+      MAXIMUM_TIMESTEP_SIZE 1.d-3 s
+      MINIMUM_TIMESTEP_SIZE 1.d-3 s
+    END
+
+    !=========================== regions ==========================================
+
+    REGION all
+      COORDINATES
+      -100.d0 -100.d0 -100.d0
+      100.d0 100.d0 100.d0
+      /
+    END
+
+    REGION west
+        FILE single_fracture_bc.ex
+    END
+
+    REGION well_reservoir_connection_reg
+        FILE single_fracture_well_bc.ex
+    END
+
+    !=========================== flow conditions ==================================
+
+    FLOW_CONDITION initial
+      TYPE
+        LIQUID_PRESSURE DIRICHLET
+      /
+      LIQUID_PRESSURE 2.0d6 Pa
+    END
+
+    
+    FLOW_CONDITION boundary
+      TYPE
+        LIQUID_PRESSURE DIRICHLET
+      /
+      LIQUID_PRESSURE 1.0d6 Pa
+    END
+
+    FLOW_CONDITION injection
+      TYPE
+        RATE MASS_RATE
+      /
+      RATE 1 kg/s
+    END
+
+
+    !=========================== condition couplers ===============================
+
+    INITIAL_CONDITION ic
+      FLOW_CONDITION initial
+      REGION all
+    END
+
+    BOUNDARY_CONDITION bc
+      FLOW_CONDITION boundary
+      REGION west
+    END
+
+    WELL_COUPLER well
+      FLOW_CONDITION injection
+      WELL well01
+    END
+
+    !=========================== stratigraphy couplers ============================
+
+    STRATA
+      MATERIAL soil
+      REGION all
+    END
+
+    !=========================== wellbore model ===================================
+
+    WELLBORE_MODEL well01
+      WELL_GRID
+        NUMBER_OF_SEGMENTS 3
+        TOP_OF_HOLE    0.d0 0.d0  1.0d0   # [x,y,z] in meters
+        BOTTOM_OF_HOLE 0.d0 0.d0 -1.0d0   # [x,y,z] in meters
+        CASING 0
+        RESERVOIR_CONNECTION_REGION well_reservoir_connection_reg
+      /
+      WELL
+        DIAMETER 0.02d0
+        FRICTION_COEFFICIENT -1.0d0
+        SKIN_FACTOR 0
+        WELL_INDEX_MODEL SCALE_BY_PERM
+      /
+      USE_WELL_COUPLER
+    END
+
+    WELL_MODEL_OUTPUT
+      WELL_LIQ_PRESSURE
+      WELL_GAS_PRESSURE
+      WELL_LIQ_Q
+      WELL_GAS_Q
+    /
+
+END_SUBSURFACE
