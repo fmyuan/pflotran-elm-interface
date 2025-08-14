@@ -62,6 +62,7 @@ module Simulation_Subsurface_class
             SimSubsurfInit, &
             SimSubsurfCast, &
             SimSubsurfInitializeRun, &
+            SimSubsurfWriteRegression, &
             SimSubsurfFinalizeRun, &
             SimSubsurfStrip, &
             SimSubsurfDestroy
@@ -858,6 +859,80 @@ end subroutine SimSubsurfForbiddenCombinations
 
 ! ************************************************************************** !
 
+subroutine SimSubsurfWriteRegression(this)
+  !
+  ! Finalizes simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/18/13
+  !
+  use Regression_module
+  use Geomechanics_Regression_module
+  use Option_module
+  use Timestepper_Base_class
+  use Timestepper_KSP_class
+
+  implicit none
+
+  class(simulation_subsurface_type) :: this
+
+  class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper
+  PetscBool :: regression_flag
+  character(len=MAXSTRINGLENGTH) :: filename
+
+  regression_flag = associated(this%regression)
+  if (associated(this%geomech)) then
+    regression_flag = regression_flag .or. associated(this%geomech%regression)
+  endif
+
+  if (regression_flag) then
+    if (OptionIsIORank(this%option)) then
+      call PrintMsg(this%option,'')
+      filename = trim(this%option%global_prefix) // &
+              trim(this%option%group_prefix) // &
+              '.regression'
+      this%option%io_buffer = ' --> write regression output file: ' // &
+                              trim(filename)
+      call PrintMsg(this%option)
+      open(unit=OUTPUT_UNIT,file=filename,action="write")
+    endif
+    call RegressionOutputData(OUTPUT_UNIT,this%regression, &
+                          this%realization)
+    if (associated(this%geomech)) then
+      call GeomechRegressionOutputData(OUTPUT_UNIT, &
+                            this%geomech%regression, &
+                            this%geomech%realization)
+    endif
+
+    nullify(flow_timestepper)
+    nullify(tran_timestepper)
+    if (associated(this%flow_process_model_coupler)) then
+      flow_timestepper => this%flow_process_model_coupler%timestepper
+    endif
+    if (associated(this%tran_process_model_coupler)) then
+      tran_timestepper => this%tran_process_model_coupler%timestepper
+    endif
+    call RegressionOutputSolution(OUTPUT_UNIT,this%regression, &
+                                  this%realization, &
+                                  flow_timestepper,tran_timestepper)
+
+    if (associated(this%geomech)) then
+      call GeomechRegressionOutputSolution(OUTPUT_UNIT, &
+                            this%geomech%regression, &
+                            this%geomech%realization, &
+                            TimestepperKSPCast(this%geomech% &
+                                    process_model_coupler%timestepper))
+    endif
+    if (OptionIsIORank(this%option)) then
+      close(OUTPUT_UNIT)
+    endif
+  endif
+
+end subroutine SimSubsurfWriteRegression
+
+! ************************************************************************** !
+
 subroutine SimSubsurfFinalizeRun(this)
   !
   ! Finalizes simulation
@@ -867,8 +942,6 @@ subroutine SimSubsurfFinalizeRun(this)
   !
 
   use Logging_module
-  use Timestepper_Base_class
-  use Timestepper_KSP_class
   use String_module, only : StringWrite
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use Carbon_Sandbox_module, only : CarbonSandboxDestroy
@@ -877,15 +950,13 @@ subroutine SimSubsurfFinalizeRun(this)
   use Klinkenberg_module, only : KlinkenbergDestroy
   use CLM_Rxn_module, only : ReactionCLMRxnDestroy
   use Output_EKG_module
+  use Timestepper_Base_class
 
   implicit none
 
   class(simulation_subsurface_type) :: this
 
   character(MAXSTRINGLENGTH) :: string
-  class(timestepper_base_type), pointer :: flow_timestepper
-  class(timestepper_base_type), pointer :: tran_timestepper
-  class(timestepper_ksp_type), pointer :: geomech_timestepper
   PetscErrorCode :: ierr
 
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
@@ -913,17 +984,12 @@ subroutine SimSubsurfFinalizeRun(this)
     call this%process_model_coupler_list%FinalizeRun()
   endif
 
-  nullify(flow_timestepper)
-  nullify(tran_timestepper)
-  nullify(geomech_timestepper)
   if (associated(this%flow_process_model_coupler)) then
-    flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
     call WIPPDestroy()
     call KlinkenbergDestroy()
   endif
   if (associated(this%tran_process_model_coupler)) then
-    tran_timestepper => this%tran_process_model_coupler%timestepper
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
       call ReactionCLMRxnDestroy()
@@ -933,18 +999,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   select case(this%stop_flag)
     case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
-      call RegressionOutput(this%regression,this%realization, &
-                            flow_timestepper,tran_timestepper)
-      if (associated(this%geomech)) then
-        geomech_timestepper => TimestepperKSPCast(this%geomech% &
-                      process_model_coupler%timestepper)
-        if (this%option%geomechanics%split_scheme == &
-                                   GEOMECH_FIXED_STRAIN_SPLIT) then
-          call GeomechanicsRegressionOutput(this%geomech%regression, &
-                                            this%geomech%realization, &
-                                            geomech_timestepper)
-        endif
-      endif
+      call SimSubsurfWriteRegression(this)
   end select
 
   call SimulationBaseFinalizeRun(this)

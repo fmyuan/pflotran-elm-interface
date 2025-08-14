@@ -24,7 +24,8 @@ module Regression_module
 
   public :: RegressionRead, &
             RegressionSetup, &
-            RegressionOutput, &
+            RegressionOutputData, &
+            RegressionOutputSolution, &
             RegressionDestroy
 
 contains
@@ -455,8 +456,7 @@ end subroutine RegressionCreateMapping
 
 ! ************************************************************************** !
 
-subroutine RegressionOutput(regression,realization,flow_timestepper, &
-                            tran_timestepper)
+subroutine RegressionOutputData(fid_out,regression,realization)
   !
   ! Prints regression output through the io_rank
   !
@@ -465,10 +465,6 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   !
 
   use Realization_Subsurface_class
-  use Timestepper_Base_class
-  use Timestepper_TS_class
-  use Timestepper_SNES_class
-  use Timestepper_KSP_class
   use Option_module
   use Discretization_module
   use Output_module
@@ -477,11 +473,9 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 
   implicit none
 
+  PetscInt :: fid_out
   type(regression_type), pointer :: regression
   class(realization_subsurface_type) :: realization
-  ! these must be pointers as they can be null
-  class(timestepper_base_type), pointer :: flow_timestepper
-  class(timestepper_base_type), pointer :: tran_timestepper
 
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
@@ -493,23 +487,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   PetscReal, pointer :: vec_ptr(:), y_ptr(:), z_ptr(:)
   PetscInt :: i
   PetscInt :: iphase
-  PetscReal :: r_norm, x_norm
   PetscReal :: max, min, mean
   PetscErrorCode :: ierr
 
   if (.not.associated(regression)) return
 
   option => realization%option
-
-  if (OptionIsIORank(option)) then
-    call PrintMsg(option,'')
-    string = trim(option%global_prefix) // &
-             trim(option%group_prefix) // &
-             '.regression'
-    option%io_buffer = ' --> write regression output file: ' // trim(string)
-    call PrintMsg(option)
-    open(unit=OUTPUT_UNIT,file=string,action="write")
-  endif
 
   call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                   global_vec,GLOBAL,option)
@@ -560,19 +543,19 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 
     if (OptionIsIORank(option)) then
       string = OutputVariableToCategoryString(cur_variable%icategory)
-      write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
+      write(fid_out,'(''-- '',a,'': '',a,'' --'')') &
         trim(string), OutputVariableGetName(cur_variable)
 
       if (realization%patch%grid%nmax > 1) then
         ! max, min, mean
         if (cur_variable%iformat == 0) then
-          write(OUTPUT_UNIT,'(6x,''Max: '',es21.13)') max
-          write(OUTPUT_UNIT,'(6x,''Min: '',es21.13)') min
+          write(fid_out,'(6x,''Max: '',es21.13)') max
+          write(fid_out,'(6x,''Min: '',es21.13)') min
         else
-          write(OUTPUT_UNIT,'(6x,''Max: '',i9)') int(max)
-          write(OUTPUT_UNIT,'(6x,''Min: '',i9)') int(min)
+          write(fid_out,'(6x,''Max: '',i9)') int(max)
+          write(fid_out,'(6x,''Min: '',i9)') int(min)
         endif
-        write(OUTPUT_UNIT,'(5x,''Mean: '',es21.13)') mean
+        write(fid_out,'(5x,''Mean: '',es21.13)') mean
       endif
 
       ! natural cell ids
@@ -582,12 +565,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                               ierr);CHKERRQ(ierr)
           if (cur_variable%iformat == 0) then
             do i = 1, size(regression%natural_cell_ids)
-              write(OUTPUT_UNIT,100) &
+              write(fid_out,100) &
                 regression%natural_cell_ids(i),vec_ptr(i)
             enddo
           else
             do i = 1, size(regression%natural_cell_ids)
-              write(OUTPUT_UNIT,101) &
+              write(fid_out,101) &
                 regression%natural_cell_ids(i),nint(vec_ptr(i))
             enddo
           endif
@@ -602,12 +585,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
                             ierr);CHKERRQ(ierr)
         if (cur_variable%iformat == 0) then
           do i = 1, regression%num_cells_per_process*option%comm%size
-            write(OUTPUT_UNIT,100) &
+            write(fid_out,100) &
               regression%cells_per_process_natural_ids(i),vec_ptr(i)
           enddo
         else
           do i = 1, regression%num_cells_per_process*option%comm%size
-            write(OUTPUT_UNIT,101) &
+            write(fid_out,101) &
               regression%cells_per_process_natural_ids(i),nint(vec_ptr(i))
           enddo
         endif
@@ -656,7 +639,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           string = 'GAS'
         endif
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- GENERIC: '',a,'' VELOCITY ['',a, &
+          write(fid_out,'(''-- GENERIC: '',a,'' VELOCITY ['',a, &
                               &''] --'')') &
             trim(string), 'm/' // trim(realization%output_option%tunit)
         endif
@@ -726,7 +709,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
               call VecGetArrayF90(y_vel_natural,y_ptr,ierr);CHKERRQ(ierr)
               call VecGetArrayF90(z_vel_natural,z_ptr,ierr);CHKERRQ(ierr)
               do i = 1, size(regression%natural_cell_ids)
-                write(OUTPUT_UNIT,104) &
+                write(fid_out,104) &
                   regression%natural_cell_ids(i),vec_ptr(i),y_ptr(i),z_ptr(i)
               enddo
               call VecRestoreArrayF90(x_vel_natural,vec_ptr, &
@@ -742,7 +725,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
             call VecGetArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
             do i = 1, regression%num_cells_per_process*option%comm%size
-              write(OUTPUT_UNIT,104) &
+              write(fid_out,104) &
                 regression%cells_per_process_natural_ids(i),vec_ptr(i), &
                   y_ptr(i),z_ptr(i)
             enddo
@@ -771,6 +754,42 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
+end subroutine RegressionOutputData
+
+! ************************************************************************** !
+
+subroutine RegressionOutputSolution(fid_out,regression,realization, &
+                                    flow_timestepper,tran_timestepper)
+  !
+  ! Prints regression output for numerical methods
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/14/25
+  !
+  use Realization_Subsurface_class
+  use Timestepper_Base_class
+  use Timestepper_TS_class
+  use Timestepper_SNES_class
+  use Timestepper_KSP_class
+  use Option_module
+
+  implicit none
+
+  PetscInt :: fid_out
+  type(regression_type), pointer :: regression
+  class(realization_subsurface_type) :: realization
+  ! these must be pointers as they can be null
+  class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper
+
+  type(option_type), pointer :: option
+  PetscReal :: r_norm, x_norm
+  PetscErrorCode :: ierr
+
+  if (.not.associated(regression)) return
+
+  option => realization%option
+
   ! timestep, newton iteration, solver iteration output
   if (associated(flow_timestepper)) then
     select type(flow_stepper => flow_timestepper)
@@ -780,18 +799,18 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecNorm(realization%field%flow_r,NORM_2,r_norm, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          write(fid_out,'(''-- SOLUTION: Flow --'')')
+          write(fid_out,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
-          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          write(fid_out,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(fid_out,'(''   Newton Iterations: '',i12)') &
           flow_stepper%cumulative_newton_iterations
-          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          write(fid_out,'(''   Linear Solver Iterations: '',i12)') &
           flow_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          write(fid_out,'(''   Time Step Cuts: '',i12)') &
           flow_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+          write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(fid_out,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_TS_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm, &
@@ -799,32 +818,32 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecNorm(realization%field%flow_r,NORM_2,r_norm, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          write(fid_out,'(''-- SOLUTION: Flow --'')')
+          write(fid_out,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
-          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          write(fid_out,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(fid_out,'(''   Newton Iterations: '',i12)') &
           flow_stepper%cumulative_newton_iterations
-          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          write(fid_out,'(''   Linear Solver Iterations: '',i12)') &
           flow_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          write(fid_out,'(''   Time Step Cuts: '',i12)') &
           flow_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+          write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(fid_out,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_KSP_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          write(fid_out,'(''-- SOLUTION: Flow --'')')
+          write(fid_out,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
-          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          write(fid_out,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(fid_out,'(''   Linear Solver Iterations: '',i12)') &
           flow_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          write(fid_out,'(''   Time Step Cuts: '',i12)') &
           flow_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
         endif
       class default
         option%io_buffer = 'Unsupported Flow Timestepper class in &
@@ -841,32 +860,32 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecNorm(realization%field%tran_r,NORM_2,r_norm, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          write(fid_out,'(''-- SOLUTION: Transport --'')')
+          write(fid_out,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_stepper%steps
-          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          write(fid_out,'(''   Time Steps: '',i12)') tran_stepper%steps
+          write(fid_out,'(''   Newton Iterations: '',i12)') &
             tran_stepper%cumulative_newton_iterations
-          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          write(fid_out,'(''   Linear Solver Iterations: '',i12)') &
             tran_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          write(fid_out,'(''   Time Step Cuts: '',i12)') &
             tran_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+          write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(fid_out,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
       class is(timestepper_KSP_type)
         call VecNorm(realization%field%tran_xx,NORM_2,x_norm, &
                      ierr);CHKERRQ(ierr)
         if (OptionIsIORank(option)) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          write(fid_out,'(''-- SOLUTION: Transport --'')')
+          write(fid_out,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_stepper%steps
-          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          write(fid_out,'(''   Time Steps: '',i12)') tran_stepper%steps
+          write(fid_out,'(''   Linear Solver Iterations: '',i12)') &
             tran_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          write(fid_out,'(''   Time Step Cuts: '',i12)') &
             tran_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
         endif
       class default
         option%io_buffer = 'Unsupported Transport Timestepper class in &
@@ -875,9 +894,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
     end select
   endif
 
-  close(OUTPUT_UNIT)
-
-end subroutine RegressionOutput
+end subroutine RegressionOutputSolution
 
 ! ************************************************************************** !
 
