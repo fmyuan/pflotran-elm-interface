@@ -29,7 +29,8 @@ module Geomechanics_Regression_module
 
   public :: GeomechanicsRegressionRead, &
             GeomechanicsRegressionCreateMapping, &
-            GeomechanicsRegressionOutput, &
+            GeomechRegressionOutputData, &
+            GeomechRegressionOutputSolution, &
             GeomechanicsRegressionDestroy
 
 contains
@@ -487,9 +488,8 @@ end subroutine GeomechanicsRegressionCreateMapping
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
-                                        geomechanics_realization, &
-                                        geomechanics_timestepper)
+subroutine GeomechRegressionOutputData(fid_out,geomechanics_regression, &
+                                       geomechanics_realization)
   !
   ! Prints geomechanics regression output through the io_rank
   !
@@ -499,16 +499,15 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
 
   use String_module
   use Geomechanics_Realization_class
-  use Timestepper_KSP_class
   use Option_module
   use Geomechanics_Discretization_module
   use Output_Geomechanics_module, only : OutputGeomechGetVarFromArray
 
   implicit none
 
+  PetscInt :: fid_out
   type(geomechanics_regression_type), pointer :: geomechanics_regression
   class(realization_geomech_type) :: geomechanics_realization
-  class(timestepper_ksp_type), pointer :: geomechanics_timestepper
   ! these must be pointers as they can be null
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
@@ -518,7 +517,6 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   type(geomechanics_regression_variable_type), pointer :: cur_variable1
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
-  PetscReal :: x_norm
   PetscReal :: max, min, mean
   PetscErrorCode :: ierr
   PetscBool :: found
@@ -526,16 +524,6 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   if (.not.associated(geomechanics_regression)) return
 
   option => geomechanics_realization%option
-
-  if (OptionIsIORank(option)) then
-    string = trim(option%global_prefix) // &
-             trim(option%group_prefix) // &
-             '.regression'
-    option%io_buffer = ' --> write geomechanics_regression output file: ' // &
-      trim(string)
-    call PrintMsg(option)
-    open(unit=OUTPUT_UNIT,file=string,action="write")
-  endif
 
   call GeomechDiscretizationCreateVector(geomechanics_realization% &
                                          geomech_discretization,ONEDOF, &
@@ -604,18 +592,18 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
 
       if (OptionIsIORank(option)) then
         string = OutputVariableToCategoryString(cur_variable%icategory)
-        write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
+        write(fid_out,'(''-- '',a,'': '',a,'' --'')') &
           trim(string), trim(cur_variable%name)
 
         ! max, min, mean
         if (cur_variable%iformat == 0) then
-          write(OUTPUT_UNIT,'(6x,''Max: '',es21.13)') max
-          write(OUTPUT_UNIT,'(6x,''Min: '',es21.13)') min
+          write(fid_out,'(6x,''Max: '',es21.13)') max
+          write(fid_out,'(6x,''Min: '',es21.13)') min
         else
-          write(OUTPUT_UNIT,'(6x,''Max: '',i9)') int(max)
-          write(OUTPUT_UNIT,'(6x,''Min: '',i9)') int(min)
+          write(fid_out,'(6x,''Max: '',i9)') int(max)
+          write(fid_out,'(6x,''Min: '',i9)') int(min)
         endif
-        write(OUTPUT_UNIT,'(5x,''Mean: '',es21.13)') mean
+        write(fid_out,'(5x,''Mean: '',es21.13)') mean
 
         ! natural vertex ids
         if (associated(geomechanics_regression%natural_vertex_ids)) then
@@ -625,12 +613,12 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                                 vec_ptr,ierr);CHKERRQ(ierr)
             if (cur_variable%iformat == 0) then
               do i = 1, size(geomechanics_regression%natural_vertex_ids)
-                write(OUTPUT_UNIT,100) &
+                write(fid_out,100) &
                   geomechanics_regression%natural_vertex_ids(i),vec_ptr(i)
               enddo
             else
               do i = 1, size(geomechanics_regression%natural_vertex_ids)
-                write(OUTPUT_UNIT,101) &
+                write(fid_out,101) &
                   geomechanics_regression%natural_vertex_ids(i),nint(vec_ptr(i))
               enddo
             endif
@@ -647,12 +635,12 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           if (cur_variable%iformat == 0) then
             do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%size
-              write(OUTPUT_UNIT,100) &
+              write(fid_out,100) &
                 geomechanics_regression%vertices_per_process_natural_ids(i),vec_ptr(i)
             enddo
           else
             do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%size
-              write(OUTPUT_UNIT,101) &
+              write(fid_out,101) &
                 geomechanics_regression%vertices_per_process_natural_ids(i),nint(vec_ptr(i))
             enddo
           endif
@@ -666,26 +654,56 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
     cur_variable => cur_variable%next
   enddo
 
+end subroutine GeomechRegressionOutputData
+
+! ************************************************************************** !
+
+subroutine GeomechRegressionOutputSolution(fid_out,geomechanics_regression, &
+                                           geomechanics_realization, &
+                                           geomechanics_timestepper)
+  !
+  ! Prints geomechanics regression output through the io_rank
+  !
+  ! Author: Satish Karra
+  ! Date: 06/22/2016
+  !
+  use Geomechanics_Realization_class
+  use Timestepper_KSP_class
+  use Option_module
+
+  implicit none
+
+  PetscInt :: fid_out
+  type(geomechanics_regression_type), pointer :: geomechanics_regression
+  class(realization_geomech_type) :: geomechanics_realization
+  class(timestepper_ksp_type), pointer :: geomechanics_timestepper
+
+  type(option_type), pointer :: option
+  PetscReal :: x_norm
+  PetscErrorCode :: ierr
+
+  if (.not.associated(geomechanics_regression)) return
+
+  option => geomechanics_realization%option
+
   ! timestep, newton iteration, solver iteration output
   if (associated(geomechanics_timestepper)) then
     call VecNorm(geomechanics_realization%geomech_field%disp_xx,NORM_2,x_norm, &
                  ierr);CHKERRQ(ierr)
     if (OptionIsIORank(option)) then
-      write(OUTPUT_UNIT,'(''-- SOLUTION: Geomechanics --'')')
-      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+      write(fid_out,'(''-- SOLUTION: Geomechanics --'')')
+      write(fid_out,'(''   Time (seconds): '',es21.13)') &
         geomechanics_timestepper%cumulative_solver_time
-      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') geomechanics_timestepper%steps
-      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+      write(fid_out,'(''   Time Steps: '',i12)') geomechanics_timestepper%steps
+      write(fid_out,'(''   Solver Iterations: '',i12)') &
         geomechanics_timestepper%cumulative_linear_iterations
-      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+      write(fid_out,'(''   Time Step Cuts: '',i12)') &
         geomechanics_timestepper%cumulative_time_step_cuts
-      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+      write(fid_out,'(''   Solution 2-Norm: '',es21.13)') x_norm
     endif
   endif
 
-  close(OUTPUT_UNIT)
-
-end subroutine GeomechanicsRegressionOutput
+end subroutine GeomechRegressionOutputSolution
 
 ! ************************************************************************** !
 

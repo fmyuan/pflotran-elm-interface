@@ -1,3 +1,10 @@
+REGRESSION
+  CELLS_PER_PROCESS 5
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
