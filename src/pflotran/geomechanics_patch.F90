@@ -590,7 +590,6 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
         vec_ptr(local_id) = &
           geom_gl_auxvars(grid%nL2G(local_id))%disp_vector(1)
       enddo
-print *, vec_ptr
     case(GEOMECH_DISP_Y)
       do local_id=1,grid%nlmax_node
         vec_ptr(local_id) = &
