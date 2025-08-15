@@ -224,7 +224,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=khdf5) #does this matter that it is also called data?
   h5file2.close()
   
@@ -242,7 +242,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=phdf5) 
   h5file2.close()
   
@@ -260,7 +260,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=tortuosity_factor/phdf5) 
   h5file2.close()
   
@@ -278,7 +278,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=kx) #does this matter that it is also called data?
   
   # 3d uniform grid
@@ -292,7 +292,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=ky) #does this matter that it is also called data?
   
   # 3d uniform grid
@@ -306,7 +306,7 @@ def main(args):
   # leave this line out if not cell centered.  If set to False, it will still
   # be true (issue with HDF5 and Fortran)
   h5grp.attrs['Cell Centered'] = [True]
-  h5grp.attrs['Interpolation Method'] = np.string_('Step')
+  h5grp.attrs['Space Interpolation Method'] = np.string_('Step')
   h5grp.create_dataset('Data', data=kz) #does this matter that it is also called data?
   h5file3.close()
   
