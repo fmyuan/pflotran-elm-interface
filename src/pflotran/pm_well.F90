@@ -1120,7 +1120,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
   PetscInt :: iconn
   PetscInt :: num_connections
   PetscInt :: closest_k
-  PetscReal :: dist
   type(point3d_type) :: temp_p_3d
 
   find_segments = PETSC_TRUE
