@@ -117,14 +117,14 @@ SUBSURFACE
 !      /
 !    END
 
-    DEBUG
-        PRINT_SOLUTION
+!    DEBUG
+!        PRINT_SOLUTION
 !        PRINT_RESIDUAL
 !        PRINT_JACOBIAN
 !        !PRINT_JACOBIAN_DETAILED
-        FORMAT ASCII
-        APPEND_COUNTS_TO_FILENAMES
-    END
+!        FORMAT ASCII
+!        APPEND_COUNTS_TO_FILENAMES
+!    END
     !=========================== times ============================================
 
     TIME
