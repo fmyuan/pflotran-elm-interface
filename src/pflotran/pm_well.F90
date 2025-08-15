@@ -2180,6 +2180,10 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       closest_k = -1
       temp_p_3d = well_grid%connections_region%explicit_faceset%face_centroids(iconn)
       do k = 1, well_grid%nsegments
+        ! Note that this will only work if our wellbore is approximately
+        ! vertical (small bends or curves will work).
+        ! TODO: improve the below for wellbores with highly curved or
+        ! flat regions.
         if (temp_p_3d%z <  well_grid%h(k)%z + 0.5*well_grid%dh(k) .and. &
           temp_p_3d%z >=  well_grid%h(k)%z - 0.5*well_grid%dh(k) &
         ) then
@@ -2205,6 +2209,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
         well_grid%h_ghosted_id(closest_k) = res_grid%nL2G(local_id)
         well_grid%h_global_id(closest_k) = res_grid%nG2A(well_grid%h_ghosted_id(closest_k))
         well_grid%segment_connected(closest_k) = PETSC_TRUE
+        well_grid%res_z(closest_k) = res_grid%z(well_grid%h_ghosted_id(closest_k))
         well_grid%bottom_seg_index = min(well_grid%bottom_seg_index, closest_k)
       endif
     enddo
@@ -5465,14 +5470,13 @@ subroutine PMWellInitializeWellFlow(pm_well)
   type(well_grid_type), pointer :: well_grid
   type(well_type), pointer :: well_pointer
   PetscInt :: k, ghosted_id
-  !PetscReal :: depth_from_seg_above
 
   option => pm_well%option
   reservoir => pm_well%well%reservoir
   well_grid => pm_well%well_grid
 
   ! set initial flow parameters to the reservoir flow parameters
-  call PMWellSetPropertiesToClosestReservoirValue(pm_well, pm_well%well, option)
+  call PMWellSetPropertiesToClosestReservoirValue(pm_well, pm_well%well, option, PETSC_TRUE)
 
   ! BHP can be a flow primary variable if fully coupled to flow.
   select case (option%iflowmode)
@@ -5503,8 +5507,8 @@ subroutine PMWellInitializeWellFlow(pm_well)
   end select
   ! update the Darcy fluxes within the well
   do k = 1,option%nflowdof
-    well_pointer = pm_well%well_pert(k)
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well_pointer, option)
+    well_pointer => pm_well%well_pert(k)
+    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well_pointer, option, PETSC_TRUE)
   enddo
 
   ! Link well material properties
@@ -5545,7 +5549,7 @@ end subroutine PMWellInitializeWellFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
+subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initialise)
   !
   ! Set the well pressure, saturation, density, and viscosity to the
   ! value of the nearest reservoir element.
@@ -5563,6 +5567,7 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
   class(pm_well_type) :: this
   type(well_type), pointer :: well
   type(option_type), pointer :: option
+  PetscBool :: initialise
 
   type(well_grid_type), pointer :: well_grid
   type(well_reservoir_type), pointer :: reservoir
@@ -5578,9 +5583,11 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
   do k = 1, well_grid%nsegments
     if (.not. well_grid%segment_connected(k)) cycle
 
-    well%pl = reservoir%p_l
+    if (initialise) then
+      well%pl = reservoir%p_l
+      well%liq%s(k) = reservoir%s_l(k)
+    endif
     if (Uninitialized(this%well%temp(1))) this%well%temp = reservoir%temp
-    well%liq%s(k) = reservoir%s_l(k)
     well%liq%den(k) = reservoir%den_l(k)
     well%liq%visc(k) = reservoir%visc_l(k)
     well%liq%xmass(k,:) = reservoir%xmass_liq(k,:)
@@ -5591,11 +5598,15 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
     well%gas%H(k) = reservoir%H_g(k)
     select case(option%iflowmode)
       case(WF_MODE,SCO2_MODE,H_MODE)
-        this%well%pg(k) = reservoir%p_g(k)
-        this%well%gas%s(k) = reservoir%s_g(k)
+        if (initialise) then
+          this%well%pg(k) = reservoir%p_g(k)
+          this%well%gas%s(k) = reservoir%s_g(k)
+        endif
       case(RICHARDS_MODE)
-        this%well%pg(k) = 0.0
-        this%well%gas%s(k) = 0.0
+        if (initialise) then
+          this%well%pg(k) = 0.0
+          this%well%gas%s(k) = 0.0
+        endif
         this%well%liq%xmass(k,ONE_INTEGER) = 1.0
         this%well%gas%xmass(k,ONE_INTEGER) = 0.0
     end select
@@ -5661,9 +5672,11 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
       call PrintErrMsg(this%option)
     endif
 
-    well%pl(k) = reservoir%p_l(closest_connected_segment)
+    if (initialise) then
+      well%pl(k) = reservoir%p_l(closest_connected_segment)
+      well%liq%s(k) = reservoir%s_l(closest_connected_segment)
+    endif
     if (Uninitialized(this%well%temp(1))) this%well%temp = reservoir%temp
-    well%liq%s(k) = reservoir%s_l(closest_connected_segment)
     well%liq%den(k) = reservoir%den_l(closest_connected_segment)
     well%liq%visc(k) = reservoir%visc_l(closest_connected_segment)
     well%liq%xmass(k,:) = reservoir%xmass_liq(closest_connected_segment,:)
@@ -5674,11 +5687,15 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option)
     well%gas%H(k) = reservoir%H_g(closest_connected_segment)
     select case(option%iflowmode)
       case(WF_MODE,SCO2_MODE,H_MODE)
-        this%well%pg(k) = reservoir%p_g(closest_connected_segment)
-        this%well%gas%s(k) = reservoir%s_g(closest_connected_segment)
+        if (initialise) then
+          this%well%pg(k) = reservoir%p_g(closest_connected_segment)
+          this%well%gas%s(k) = reservoir%s_g(closest_connected_segment)
+        endif
       case(RICHARDS_MODE)
-        this%well%pg(closest_connected_segment) = 0.0
-        this%well%gas%s(closest_connected_segment) = 0.0
+        if (initialise) then
+          this%well%pg(closest_connected_segment) = 0.0
+          this%well%gas%s(closest_connected_segment) = 0.0
+        endif
         this%well%liq%xmass(closest_connected_segment,ONE_INTEGER) = 1.0
         this%well%gas%xmass(closest_connected_segment,ONE_INTEGER) = 0.0
     end select
@@ -6246,7 +6263,8 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
         pm_well%realization%patch%aux%sco2%auxvars(ZERO_INTEGER,ghosted_id)
     endif
 
-    if (k == 1 .and. indx == 0 .and. Initialized(sco2_auxvar%well%bh_p)) &
+    if (k == pm_well%well_grid%bottom_seg_index &
+          .and. indx == 0 .and. Initialized(sco2_auxvar%well%bh_p)) &
       pm_well%well%bh_p = sco2_auxvar%well%bh_p
 
     material_auxvar => &
@@ -6369,7 +6387,8 @@ subroutine PMWellUpdateReservoirHydrate(pm_well,update_index,segment_index)
         pm_well%realization%patch%aux%hydrate%auxvars(ZERO_INTEGER,ghosted_id)
     endif
 
-    if (k == 1 .and. indx == 0 .and. Initialized(hyd_auxvar%well%bh_p)) &
+    if (k == pm_well%well_grid%bottom_seg_index &
+          .and. indx == 0 .and. Initialized(hyd_auxvar%well%bh_p)) &
         pm_well%well%bh_p = hyd_auxvar%well%bh_p
 
     material_auxvar => &
@@ -6484,7 +6503,8 @@ subroutine PMWellUpdateReservoirRichards(pm_well,update_index,segment_index)
     richards_auxvar => &
       pm_well%realization%patch%aux%richards%auxvars(ghosted_id)
 
-    if (k == 1 .and. indx == 0 .and. Initialized(richards_auxvar%well%bh_p)) then
+    if (k == pm_well%well_grid%bottom_seg_index .and. &
+          indx == 0 .and. Initialized(richards_auxvar%well%bh_p)) then
       pm_well%well%bh_p = richards_auxvar%well%bh_p
     endif
 
@@ -8822,7 +8842,7 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
 
   if (well%total_rate < 0.d0) then
     ! Extraction well: use reservoir fluid properties
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option)
+    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, PETSC_FALSE)
   else
     if (well%th_qg > 0.d0) then
       ! CO2 Injection well. Need to update to flexibly accommodate humidity.
@@ -9146,7 +9166,7 @@ subroutine PMWellUpdatePropertiesRichardsFlow(pm_well,well,option)
 
   if (well%total_rate < 0.d0) then
     ! Extraction well: use reservoir fluid properties
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option)
+    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, PETSC_FALSE)
   else
     ! Injection well: use internal well properties
 
