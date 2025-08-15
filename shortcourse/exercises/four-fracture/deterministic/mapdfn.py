@@ -61,7 +61,7 @@ def readEllipse(radiifile='radii_Final.dat',
   print(len(normals))
   print(len(translations))
   for i in range(len(radii)):
-    ellipses.append( {'normal':np.zeros((3),dtype=np.float),'translation':np.zeros((3),dtype=np.float),'xrad':0.0,'yrad':0.0} )
+    ellipses.append( {'normal':np.zeros((3),dtype=float),'translation':np.zeros((3),dtype=float),'xrad':0.0,'yrad':0.0} )
     ellipses[i]['normal'][0] = float(normals[i].split()[0])
     ellipses[i]['normal'][1] = float(normals[i].split()[1])
     ellipses[i]['normal'][2] = float(normals[i].split()[2])
@@ -109,7 +109,7 @@ def map_dfn(ellipses, origin, nx, ny, nz, d):
   '''
   ncell = nx*ny*nz
   nfrac = len(ellipses)
-  fracture = np.zeros((ncell,20), dtype=np.int)
+  fracture = np.zeros((ncell,20), dtype=int)
 
   t0 = time.time()
  # mod = nfrac/10
@@ -269,7 +269,7 @@ def permAniso(fracture,ellipses,T,d,k_background,LUMP=0,out_dir='./',correction_
 
   ellipseT = np.zeros((nfrac,3),'=f8')
   fullTensor = []
-  T_local = np.zeros((3,3),dtype=np.float)
+  T_local = np.zeros((3,3),dtype=float)
   t0 = time.time()
   #calculate transmissivity tensor in domain coordinates for each ellipse
   for f in range(nfrac):
