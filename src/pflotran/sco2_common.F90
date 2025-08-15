@@ -840,6 +840,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
                                      co2_mole_flux * fmw_comp(TWO_INTEGER)
     Res(SCO2_SALT_EQUATION_INDEX) = Res(SCO2_SALT_EQUATION_INDEX) + &
                                      salt_mass_flux
+    endif
 
     iphase = GAS_PHASE
     sat_up = sco2_auxvar_up%sat(iphase)
@@ -917,8 +918,7 @@ subroutine SCO2Flux(sco2_auxvar_up,global_auxvar_up, &
       Res(SCO2_CO2_EQUATION_INDEX) = Res(SCO2_CO2_EQUATION_INDEX) + &
                                        tot_mole_flux * fmw_comp(TWO_INTEGER)
     endif
-  ! DIFFUSION
-    endif ! if (.not.sco2_immiscible)
+
     if (sco2_thermal) then
       ! add heat conduction flux
       sat_up = sco2_auxvar_up%sat(option%liquid_phase)
