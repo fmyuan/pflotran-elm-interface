@@ -33,6 +33,10 @@ module ERT_Aux_module
   PetscInt, parameter, public :: ARCHIE = 1
   PetscInt, parameter, public :: WAXMAN_SMITS = 2
 
+  ! conductivity temperature dependence types
+  PetscInt, parameter, public :: LINEAR = 1
+  PetscInt, parameter, public :: EXPONENTIAL = 2
+
 contains
 
 ! ************************************************************************** !
