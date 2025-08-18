@@ -1885,8 +1885,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
-      allocate(well_grid%segment_connected(nsegments))
-      well_grid%segment_connected(:) = PETSC_FALSE
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -1982,8 +1980,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
-      allocate(well_grid%segment_connected(nsegments))
-      well_grid%segment_connected(:) = PETSC_FALSE
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -2160,8 +2156,11 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
 
   well_grid%nconnections = well_grid%nsegments - 1
 
+  allocate(well_grid%segment_connected(nsegments))
+  well_grid%segment_connected(:) = PETSC_TRUE
   if (well_grid%connect_via_region) then
     ! Connect well segments to the reservoir grid via a region file
+    well_grid%segment_connected(:) = PETSC_FALSE
     well_grid%connections_region => RegionGetPtrFromList( &
         well_grid%connections_region_name, realization%patch%region_list)
 
@@ -8705,11 +8704,6 @@ subroutine PMWellComputeWellIndex(pm_well)
       dy_tot = 0.d0
       dz_tot = 0.d0
       do k = 1,pm_well%well_grid%nsegments
-        if (pm_well%well_grid%casing(k) <= 0.d0 .or. &
-            .not. pm_well%well_grid%segment_connected(k)) then
-          pm_well%well%WI(k) = 0.d0
-          cycle
-        endif
 
         if (associated(pm_well%well_grid%dx)) then
           dh_x = pm_well%well_grid%dx(k)
@@ -8737,6 +8731,12 @@ subroutine PMWellComputeWellIndex(pm_well)
           dz_tot = dz_tot + dh_z
         endif
 
+        if (pm_well%well_grid%casing(k) <= 0.d0 .or. &
+            .not. pm_well%well_grid%segment_connected(k)) then
+          pm_well%well%WI(k) = 0.d0
+          cycle
+        endif
+
         kyz = sqrt(reservoir%ky(k)/reservoir%kz(k))
         kzy = sqrt(reservoir%kz(k)/reservoir%ky(k))
         kzx = sqrt(reservoir%kz(k)/reservoir%kx(k))
@@ -8752,9 +8752,6 @@ subroutine PMWellComputeWellIndex(pm_well)
               (sqrt(kzx)+sqrt(kxz))
         r0z = 2.8d-1*sqrt(kyx*(dx**2) + kxy*(dy**2)) / &
               (sqrt(kyx)+sqrt(kxy))
-
-
-
 
         wix = 2.d0 * PI * sqrt(reservoir%ky(k) * &
               reservoir%kz(k)) * dh_x / &
