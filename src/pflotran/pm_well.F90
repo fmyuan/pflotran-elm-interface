@@ -5474,7 +5474,8 @@ subroutine PMWellInitializeWellFlow(pm_well)
   well_grid => pm_well%well_grid
 
   ! set initial flow parameters to the reservoir flow parameters
-  call PMWellSetPropertiesToClosestReservoirValue(pm_well, pm_well%well, option, PETSC_TRUE)
+  call PMWellSetPropertiesToClosestReservoirValue( &
+    pm_well, pm_well%well, pm_well%well%reservoir, option, PETSC_TRUE)
 
   ! BHP can be a flow primary variable if fully coupled to flow.
   select case (option%iflowmode)
@@ -5507,7 +5508,8 @@ subroutine PMWellInitializeWellFlow(pm_well)
   do k = 1,option%nflowdof
     pm_well%well_pert(k)%bh_p = pm_well%well%bh_p
     well_pointer => pm_well%well_pert(k)
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well_pointer, option, PETSC_TRUE)
+    call PMWellSetPropertiesToClosestReservoirValue( &
+      pm_well, well_pointer, pm_well%well%reservoir, option, PETSC_TRUE)
   enddo
 
   ! Link well material properties
@@ -5548,7 +5550,7 @@ end subroutine PMWellInitializeWellFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, initialise)
+subroutine PMWellSetPropertiesToClosestReservoirValue(pm_well, well, reservoir, option, initialise)
   !
   ! Set the well pressure, saturation, density, and viscosity to the
   ! value of the nearest reservoir element.
@@ -5565,18 +5567,17 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, ini
 
   class(pm_well_type) :: pm_well
   type(well_type), pointer :: well
+  type(well_reservoir_type), pointer :: reservoir
   type(option_type), pointer :: option
   PetscBool :: initialise
 
   type(well_grid_type), pointer :: well_grid
-  type(well_reservoir_type), pointer :: reservoir
 
   PetscInt :: k, i, index, up_connected_index, dn_connected_index
   PetscInt :: closest_connected_segment
   PetscReal :: up_dist, dn_dist
 
   well_grid => pm_well%well_grid
-  reservoir => pm_well%well%reservoir
 
   ! Set the connected segments to their reservoir values
   do k = 1, well_grid%nsegments
@@ -8848,7 +8849,8 @@ subroutine PMWellUpdatePropertiesSCO2Flow(pm_well,well,option)
 
   if (well%total_rate < 0.d0) then
     ! Extraction well: use reservoir fluid properties
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, PETSC_FALSE)
+    call PMWellSetPropertiesToClosestReservoirValue( &
+      pm_well, well, well%reservoir, option, PETSC_FALSE)
   else
     if (well%th_qg > 0.d0) then
       ! CO2 Injection well. Need to update to flexibly accommodate humidity.
@@ -9172,7 +9174,8 @@ subroutine PMWellUpdatePropertiesRichardsFlow(pm_well,well,option)
 
   if (well%total_rate < 0.d0) then
     ! Extraction well: use reservoir fluid properties
-    call PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, PETSC_FALSE)
+    call PMWellSetPropertiesToClosestReservoirValue( &
+      pm_well, well, well%reservoir, option, PETSC_FALSE)
   else
     ! Injection well: use internal well properties
 
