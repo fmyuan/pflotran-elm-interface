@@ -6312,14 +6312,15 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
       if (option%myrank == pm_well%well_grid%h_rank_id( &
-          well_grid%bottom_seg_index)) then
+          pm_well%well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),tag,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      pm_well%well_grid%h_rank_id( &
+                        pm_well%well_grid%bottom_seg_index), &
                       tag,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
@@ -6438,14 +6439,15 @@ subroutine PMWellUpdateReservoirHydrate(pm_well,update_index,segment_index)
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
       if (option%myrank == pm_well%well_grid%h_rank_id( &
-          well_grid%bottom_seg_index)) then
+          pm_well%well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),TAG,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      pm_well%well_grid%h_rank_id( &
+                        pm_well%well_grid%bottom_seg_index), &
                       TAG,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
@@ -6551,14 +6553,15 @@ subroutine PMWellUpdateReservoirRichards(pm_well,update_index,segment_index)
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
       if (option%myrank == pm_well%well_grid%h_rank_id( &
-          well_grid%bottom_seg_index)) then
+          pm_well%well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),tag,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      pm_well%well_grid%h_rank_id( &
+                        pm_well%well_grid%bottom_seg_index), &
                       tag,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
@@ -9502,7 +9505,7 @@ subroutine PMWellOutputHeaderSequential(pm_well)
   PetscInt :: k, j, i
 
   if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
-    well_grid%bottom_seg_index)) return
+    pm_well%well_grid%bottom_seg_index)) return
 
   output_option => pm_well%realization%output_option
 
@@ -9755,7 +9758,7 @@ subroutine PMWellOutputHeaderHydrostatic(pm_well)
   PetscInt :: k, j
 
   if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
-    well_grid%bottom_seg_index)) return
+    pm_well%well_grid%bottom_seg_index)) return
 
   output_option => pm_well%realization%output_option
 
@@ -9974,7 +9977,7 @@ subroutine PMWellOutputSequential(pm_well)
 101 format(1I6.1)
 
   if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
-    well_grid%bottom_seg_index)) return
+    pm_well%well_grid%bottom_seg_index)) return
 
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option
@@ -10079,7 +10082,7 @@ subroutine PMWellOutputHydrostatic(pm_well)
 101 format(1I6.1)
 
   if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
-    well_grid%bottom_seg_index)) return
+    pm_well%well_grid%bottom_seg_index)) return
 
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option

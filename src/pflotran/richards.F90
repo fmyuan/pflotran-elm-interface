@@ -3211,7 +3211,7 @@ subroutine RichardsJacobianSourceSink(A,realization,pm_well,ierr)
                             option%nflowdof
           deactivate_row = deactivate_row - 1
           if (cur_well%well_grid%h_rank_id( &
-              well_grid%bottom_seg_index) == option%myrank) then
+              cur_well%well_grid%bottom_seg_index) == option%myrank) then
             call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
                         qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
