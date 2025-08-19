@@ -5548,7 +5548,7 @@ end subroutine PMWellInitializeWellFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initialise)
+subroutine PMWellSetPropertiesToClosestReservoirValue(pm_well, well, option, initialise)
   !
   ! Set the well pressure, saturation, density, and viscosity to the
   ! value of the nearest reservoir element.
@@ -5563,7 +5563,7 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
   ! Date: 08/2025
   !
 
-  class(pm_well_type) :: this
+  class(pm_well_type) :: pm_well
   type(well_type), pointer :: well
   type(option_type), pointer :: option
   PetscBool :: initialise
@@ -5575,8 +5575,8 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
   PetscInt :: closest_connected_segment
   PetscReal :: up_dist, dn_dist
 
-  well_grid => this%well_grid
-  reservoir => this%well%reservoir
+  well_grid => pm_well%well_grid
+  reservoir => pm_well%well%reservoir
 
   ! Set the connected segments to their reservoir values
   do k = 1, well_grid%nsegments
@@ -5598,16 +5598,16 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
     select case(option%iflowmode)
       case(WF_MODE,SCO2_MODE,H_MODE)
         if (initialise) then
-          this%well%pg(k) = reservoir%p_g(k)
-          this%well%gas%s(k) = reservoir%s_g(k)
+          well%pg(k) = reservoir%p_g(k)
+          well%gas%s(k) = reservoir%s_g(k)
         endif
       case(RICHARDS_MODE)
         if (initialise) then
-          this%well%pg(k) = 0.0
-          this%well%gas%s(k) = 0.0
+          well%pg(k) = 0.0
+          well%gas%s(k) = 0.0
         endif
-        this%well%liq%xmass(k,ONE_INTEGER) = 1.0
-        this%well%gas%xmass(k,ONE_INTEGER) = 0.0
+        well%liq%xmass(k,ONE_INTEGER) = 1.0
+        well%gas%xmass(k,ONE_INTEGER) = 0.0
     end select
   enddo
 
@@ -5656,19 +5656,19 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
     enddo
 
     if (up_connected_index == -1 .and. dn_connected_index == -1) then
-      this%option%io_buffer =  'Cannot find a connected segment, &
+      option%io_buffer =  'Cannot find a connected segment, &
         &ensure that the well is connected to at least one reservoir &
         &element.'
-      call PrintErrMsg(this%option)
+      call PrintErrMsg(option)
     elseif(dn_dist < up_dist) then
       closest_connected_segment = dn_connected_index
     elseif(up_dist < dn_dist) then
       closest_connected_segment = up_connected_index
     else
-      this%option%io_buffer =  'Cannot find a connected segment, &
+      option%io_buffer =  'Cannot find a connected segment, &
         &ensure that the well is connected to at least one reservoir &
         &element.'
-      call PrintErrMsg(this%option)
+      call PrintErrMsg(option)
     endif
 
     if (initialise) then
@@ -5687,16 +5687,16 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
     select case(option%iflowmode)
       case(WF_MODE,SCO2_MODE,H_MODE)
         if (initialise) then
-          this%well%pg(k) = reservoir%p_g(closest_connected_segment)
-          this%well%gas%s(k) = reservoir%s_g(closest_connected_segment)
+          well%pg(k) = reservoir%p_g(closest_connected_segment)
+          well%gas%s(k) = reservoir%s_g(closest_connected_segment)
         endif
       case(RICHARDS_MODE)
         if (initialise) then
-          this%well%pg(closest_connected_segment) = 0.0
-          this%well%gas%s(closest_connected_segment) = 0.0
+          well%pg(closest_connected_segment) = 0.0
+          well%gas%s(closest_connected_segment) = 0.0
         endif
-        this%well%liq%xmass(closest_connected_segment,ONE_INTEGER) = 1.0
-        this%well%gas%xmass(closest_connected_segment,ONE_INTEGER) = 0.0
+        well%liq%xmass(closest_connected_segment,ONE_INTEGER) = 1.0
+        well%gas%xmass(closest_connected_segment,ONE_INTEGER) = 0.0
     end select
   enddo
 
