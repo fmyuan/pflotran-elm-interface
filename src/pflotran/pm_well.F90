@@ -6311,14 +6311,16 @@ subroutine PMWellUpdateReservoirSCO2(pm_well,update_index,segment_index)
   if (update_index < 0 .or. initialize_well_flow) then
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
-      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+      if (option%myrank == pm_well%well_grid%h_rank_id( &
+          well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),tag,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(1),tag,option%mycomm, &
+                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      tag,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
     enddo
@@ -6435,14 +6437,16 @@ subroutine PMWellUpdateReservoirHydrate(pm_well,update_index,segment_index)
   if (update_index < 0 .or. initialize_well_flow) then
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
-      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+      if (option%myrank == pm_well%well_grid%h_rank_id( &
+          well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),TAG,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(1),TAG,option%mycomm, &
+                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      TAG,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
     enddo
@@ -6546,14 +6550,16 @@ subroutine PMWellUpdateReservoirRichards(pm_well,update_index,segment_index)
   if (update_index < 0 .or. initialize_well_flow) then
     tag = 0
     do k = 2,pm_well%well_grid%nsegments
-      if (option%myrank == pm_well%well_grid%h_rank_id(1)) then
+      if (option%myrank == pm_well%well_grid%h_rank_id( &
+          well_grid%bottom_seg_index)) then
         if (option%myrank == pm_well%well_grid%h_rank_id(k)) cycle
         call MPI_Send(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       pm_well%well_grid%h_rank_id(k),tag,option%mycomm,ierr)
                       CHKERRQ(ierr)
       elseif (option%myrank == pm_well%well_grid%h_rank_id(k)) then
         call MPI_Recv(pm_well%well%bh_p,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                      pm_well%well_grid%h_rank_id(1),tag,option%mycomm, &
+                      pm_well%well_grid%h_rank_id(well_grid%bottom_seg_index), &
+                      tag,option%mycomm, &
                       MPI_STATUS_IGNORE,ierr); CHKERRQ(ierr)
       endif
     enddo
@@ -8262,7 +8268,7 @@ subroutine PMWellSolveFlowHydrostatic(this,perturbation_index,ierr)
       call PrintErrMsg(option)
     endif
 
-    temperature = well%temp(1)
+    temperature = well%temp(this%well_grid%nsegments)
     ! Start from top hole pressure
     pl = well%th_p
 
@@ -9495,7 +9501,8 @@ subroutine PMWellOutputHeaderSequential(pm_well)
   PetscInt :: icolumn
   PetscInt :: k, j, i
 
-  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
+    well_grid%bottom_seg_index)) return
 
   output_option => pm_well%realization%output_option
 
@@ -9747,7 +9754,8 @@ subroutine PMWellOutputHeaderHydrostatic(pm_well)
   PetscInt :: icolumn
   PetscInt :: k, j
 
-  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
+    well_grid%bottom_seg_index)) return
 
   output_option => pm_well%realization%output_option
 
@@ -9965,7 +9973,8 @@ subroutine PMWellOutputSequential(pm_well)
 100 format(100es18.8)
 101 format(1I6.1)
 
-  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
+    well_grid%bottom_seg_index)) return
 
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option
@@ -10069,7 +10078,8 @@ subroutine PMWellOutputHydrostatic(pm_well)
 100 format(100es18.8)
 101 format(1I6.1)
 
-  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id(1)) return
+  if (pm_well%option%myrank /= pm_well%well_grid%h_rank_id( &
+    well_grid%bottom_seg_index)) return
 
   option => pm_well%realization%option
   output_option => pm_well%realization%output_option

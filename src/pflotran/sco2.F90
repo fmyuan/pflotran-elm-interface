@@ -2352,7 +2352,8 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                               cur_well%well_grid%bottom_seg_index) * &
                               option%nflowdof
             deactivate_row = deactivate_row - 1
-            if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+            if (cur_well%well_grid%h_rank_id( &
+                cur_well%well_grid%bottom_seg_index) == option%myrank) then
               call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
