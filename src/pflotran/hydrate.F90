@@ -1381,7 +1381,8 @@ subroutine HydrateResidual(snes,xx,r,realization,pm_well,ierr)
       cur_well => pm_well
       do
         if (.not. associated(cur_well)) exit
-        if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+        if (cur_well%well_grid%h_rank_id( &
+            cur_well%well_grid%bottom_seg_index) == option%myrank) then
           ghosted_id = cur_well%well_grid%h_ghosted_id( &
                         cur_well%well_grid%bottom_seg_index)
           ghosted_end = ghosted_id * option%nflowdof
