@@ -5505,6 +5505,7 @@ subroutine PMWellInitializeWellFlow(pm_well)
   end select
   ! update the Darcy fluxes within the well
   do k = 1,option%nflowdof
+    pm_well%well_pert(k)%bh_p = pm_well%well%bh_p
     well_pointer => pm_well%well_pert(k)
     call PMWellSetPropertiesToClosestReservoirValue(pm_well, well_pointer, option, PETSC_TRUE)
   enddo
@@ -5585,7 +5586,7 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
       well%pl = reservoir%p_l
       well%liq%s(k) = reservoir%s_l(k)
     endif
-    if (Uninitialized(this%well%temp(1))) this%well%temp = reservoir%temp
+    if (Uninitialized(well%temp(1))) well%temp = reservoir%temp
     well%liq%den(k) = reservoir%den_l(k)
     well%liq%visc(k) = reservoir%visc_l(k)
     well%liq%xmass(k,:) = reservoir%xmass_liq(k,:)
@@ -5674,7 +5675,7 @@ subroutine PMWellSetPropertiesToClosestReservoirValue(this, well, option, initia
       well%pl(k) = reservoir%p_l(closest_connected_segment)
       well%liq%s(k) = reservoir%s_l(closest_connected_segment)
     endif
-    if (Uninitialized(this%well%temp(1))) this%well%temp = reservoir%temp
+    if (Uninitialized(well%temp(1))) well%temp = reservoir%temp
     well%liq%den(k) = reservoir%den_l(closest_connected_segment)
     well%liq%visc(k) = reservoir%visc_l(closest_connected_segment)
     well%liq%xmass(k,:) = reservoir%xmass_liq(closest_connected_segment,:)
