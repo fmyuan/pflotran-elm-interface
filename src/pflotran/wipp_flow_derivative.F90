@@ -213,6 +213,7 @@ subroutine WIPPFloDerivativeSetup(wippflo_parameter, &
                                   characteristic_curves, &
                                   material_parameter,option)
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_module
   use Option_module
   
@@ -470,7 +471,6 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
   call WIPPFloAccumulation(wippflo_auxvar(ZERO_INTEGER), &
                            global_auxvar(ZERO_INTEGER), &
                            material_auxvar(ZERO_INTEGER), &
-                           material_parameter%soil_heat_capacity(1), &
                            option, &
                            res,PETSC_FALSE)
 
@@ -478,7 +478,6 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
     call WIPPFloAccumulation(wippflo_auxvar(i), &
                              global_auxvar(i), &
                              material_auxvar(i), &
-                             material_parameter%soil_heat_capacity(1), &
                              option, &
                              res_pert(:,i),PETSC_FALSE)
                            
@@ -558,7 +557,6 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                    area, dist, upwind_direction, wippflo_parameter, &
                    option,v_darcy,res, &
                    PETSC_FALSE, & ! derivative call
-                   wippflo_fix_upwind_direction, &
                    PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
 
   do i = 1, 3
@@ -571,7 +569,6 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                      area, dist, upwind_direction, wippflo_parameter, &
                      option,v_darcy,res_pert(:,i), &
                      PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
                      PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
@@ -587,7 +584,6 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
                      area, dist, upwind_direction, wippflo_parameter, &
                      option,v_darcy,res_pert2(:,i), &
                      PETSC_TRUE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
                      PETSC_FALSE,PETSC_FALSE,PETSC_FALSE)
     do irow = 1, option%nflowdof
       jac_num2(irow,i) = (res_pert2(irow,i)-res(irow))/pert2(i)
@@ -660,7 +656,6 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
                      area,dist,upwind_direction,wippflo_parameter, &
                      option,v_darcy,res, &
                      PETSC_FALSE, & ! derivative call
-                     wippflo_fix_upwind_direction, &
                      PETSC_TRUE, & ! update the upwind direction
                      PETSC_FALSE, & ! count upwind direction flip                     
                      PETSC_FALSE)
@@ -673,7 +668,6 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
                        area,dist,upwind_direction,wippflo_parameter, &
                        option,v_darcy,res_pert(:,i), &
                        PETSC_TRUE, & ! derivative call
-                       wippflo_fix_upwind_direction, &
                        PETSC_FALSE, & ! update the upwind direction
                        PETSC_FALSE, & ! count upwind direction flip                       
                        PETSC_FALSE)
@@ -725,12 +719,14 @@ subroutine WIPPFloDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
 
   call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                       wippflo_auxvar(ZERO_INTEGER),global_auxvar(ZERO_INTEGER), &
+                      material_auxvar(ZERO_INTEGER), &
                       ss_flow_vol_flux, &
                       scale,res,PETSC_FALSE)
                            
   do i = 1, 3
     call WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
                         wippflo_auxvar(i),global_auxvar(i), &
+                        material_auxvar(i), &
                         ss_flow_vol_flux, &
                         scale,res_pert(:,i),PETSC_FALSE)
     do irow = 1, option%nflowdof
@@ -770,7 +766,6 @@ subroutine WIPPFloDerivativeSetFlowMode(option)
 
   option%nflowdof = 3
   option%nflowspec = 2
-  option%use_isothermal = PETSC_FALSE
       
 end subroutine WIPPFloDerivativeSetFlowMode
 
