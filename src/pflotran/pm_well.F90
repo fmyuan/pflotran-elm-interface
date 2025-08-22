@@ -2240,7 +2240,6 @@ subroutine PMWellSetupGrid(this,realization,option)
         well_grid%h_ghosted_id(closest_k) = res_grid%nL2G(local_id)
         well_grid%h_global_id(closest_k) = res_grid%nG2A(well_grid%h_ghosted_id(closest_k))
         well_grid%segment_connected(closest_k) = PETSC_TRUE
-        well_grid%res_z(closest_k) = res_grid%z(well_grid%h_ghosted_id(closest_k))
         well_grid%bottom_seg_index = min(well_grid%bottom_seg_index, closest_k)
 
         ! If the intersection between the reservoir and the well segment has area
@@ -2252,6 +2251,12 @@ subroutine PMWellSetupGrid(this,realization,option)
         well_grid%connection_length(closest_k) = &
           well_grid%connections_region%explicit_faceset%face_areas(iconn) / &
           (PI * this%well%diameter(closest_k))
+
+        ! Since this option is probably used with a DFN mesh, we will assume that
+        ! the connection length is the height of the reservoir grid cell.
+        ! I.e. that the well segment is longer than the area intersected by the
+        ! fracture.
+        well_grid%res_z(closest_k) = well_grid%connection_length(closest_k)
       endif
     enddo
 
