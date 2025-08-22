@@ -1043,7 +1043,7 @@ end subroutine PMWellVarCreate
 
 ! ************************************************************************** !
 
-subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
+subroutine PMWellSetupGrid(this,realization,option)
   !
   ! Sets up a well grid based off of well grid info and reservoir info.
   !
@@ -1067,11 +1067,12 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
 
   implicit none
 
-  type(well_grid_type), pointer :: well_grid
-  type(grid_type), pointer :: res_grid
+  class(pm_well_type) :: this
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
 
+  type(well_grid_type), pointer :: well_grid
+  type(grid_type), pointer :: res_grid
   type(point3d_type) :: dummy_h
   type(point3d_type), allocatable :: well_nodes(:), face_centroids(:)
   character(len=MAXSTRINGLENGTH) :: dim
@@ -1125,10 +1126,20 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
   find_segments = PETSC_TRUE
   num_entries = 10000
 
+  res_grid => realization%patch%grid
+  well_grid => this%well_grid
+
   if (associated(well_grid%deviated_well_segment_list)) then
     well_segment => well_grid%deviated_well_segment_list
     ! Collect points on a line along the well trajectory.
     ! This has been tested for downward trajectory wells.
+
+      if (well_grid%connect_via_region) then
+              option%io_buffer = 'Cannot use RESERVOIR_CONNECTION_REGION &
+          &and a well defined WELL_TRAJECTORY. Either use &
+          &NUMBER_OF_SEGMENTS or SEGMENT_CENTER_Z_VALUES.'
+        call PrintErrMsg(option)
+      endif
 
     ! Line increment default
     ! MAN: make this a knob in the future.
@@ -1380,14 +1391,6 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
     ! on-process to off-process and then back on-process.
 
     if (find_segments) then
-
-      if (well_grid%connect_via_region) then
-              option%io_buffer = 'Cannot use RESERVOIR_CONNECTION_REGION &
-          &and a well defined WELL_TRAJECTORY. Either use &
-          &NUMBER_OF_SEGMENTS or SEGMENT_CENTER_Z_VALUES.'
-        call PrintErrMsg(option)
-      endif
-
       option%io_buffer = 'Well Length: ' // StringWrite(well_length) // 'm'
       call PrintMsg(option)
       option%io_buffer = 'WELL_TRAJECTORY can take a long time on large &
@@ -1565,6 +1568,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
     allocate(well_grid%dz(nsegments))
     allocate(well_grid%res_z(nsegments))
     allocate(well_grid%res_dz(nsegments))
+    allocate(well_grid%connection_length(nsegments))
 
     well_grid%casing(:) = UNINITIALIZED_DOUBLE
     well_grid%dh(:) = UNINITIALIZED_DOUBLE
@@ -1581,6 +1585,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
     well_grid%dz(:) = UNINITIALIZED_DOUBLE
     well_grid%res_z(:) = -MAX_DOUBLE
     well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
+    well_grid%connection_length(:) = UNINITIALIZED_INTEGER
 
     do k = 1,well_grid%nsegments
       if (well_nodes(k)%id == option%myrank) then
@@ -1652,6 +1657,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
         enddo
       endif
     enddo
+
+    ! Assume that the connection length exactly matches the segment length
+    well_grid%connection_length(:) = well_grid%dh(:)
 
     if (allocated(well_trajectory)) deallocate(well_trajectory)
     if (allocated(well_casing)) deallocate(well_casing)
@@ -1739,6 +1747,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
           &the wellbore model grid.'
         call PrintErrMsg(option)
       endif
+      ! Assume that the connection length exactly matches the segment length
+      well_grid%connection_length(:) = well_grid%dh(:)
 
       allocate(temp_id_list(10000))
       allocate(temp_repeated_list(10000))
@@ -1802,6 +1812,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
+      allocate(well_grid%connection_length(nsegments))
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -1814,6 +1825,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
       well_grid%strata_id(:) = UNINITIALIZED_INTEGER
       well_grid%res_z(:) = -MAX_DOUBLE
+      well_grid%connection_length(:) = UNINITIALIZED_INTEGER
 
       dh_x = diff_x/nsegments
       dh_y = diff_y/nsegments
@@ -1838,6 +1850,8 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       enddo
 
       well_grid%res_dz(:) = well_grid%dh(:)
+      ! Assume that the connection length exactly matches the segment length
+      well_grid%connection_length(:) = well_grid%dh(:)
 
       diff_x = diff_x*diff_x
       diff_y = diff_y*diff_y
@@ -1885,6 +1899,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
+      allocate(well_grid%connection_length(nsegments))
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -1897,6 +1912,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
       well_grid%strata_id(:) = UNINITIALIZED_INTEGER
       well_grid%res_z(:) = -MAX_DOUBLE
+      well_grid%connection_length(:) = UNINITIALIZED_INTEGER
 
       ! sort the z-list in ascending order, in case it was not provided that way
       allocate(temp_z_list(nsegments))
@@ -1965,6 +1981,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       !generated vs. read-in well.
       well_grid%res_dz(:) = well_grid%dh(:)
 
+      ! Assume that the connection length exactly matches the segment length
+      well_grid%connection_length(:) = well_grid%dh(:)
+
     elseif (Initialized(well_grid%nsegments)) then
     !---------------------------------------------------------------------------
     ! Build an equally-spaced grid based on nsegments:
@@ -1980,6 +1999,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
+      allocate(well_grid%connection_length(nsegments))
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -1992,6 +2012,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
       well_grid%strata_id(:) = UNINITIALIZED_INTEGER
       well_grid%res_z(:) = -MAX_DOUBLE
+      well_grid%connection_length(:) = UNINITIALIZED_INTEGER
 
 
 
@@ -2014,6 +2035,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
 
       well_grid%dh(:) = total_length/nsegments
       well_grid%res_dz(:) = well_grid%dh(:)
+
+      ! Assume that the connection length exactly matches the segment length
+      well_grid%connection_length(:) = well_grid%dh(:)
 
       if (.not. well_grid%connect_via_region) then
         do k = 1,well_grid%nsegments
@@ -2104,6 +2128,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       allocate(well_grid%h_rank_id(nsegments))
       allocate(well_grid%strata_id(nsegments))
       allocate(well_grid%res_z(nsegments))
+      allocate(well_grid%connection_length(nsegments))
 
       well_grid%dh(:) = UNINITIALIZED_DOUBLE
       well_grid%res_dz(:) = UNINITIALIZED_DOUBLE
@@ -2116,6 +2141,7 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
       well_grid%h_rank_id(:) = UNINITIALIZED_INTEGER
       well_grid%strata_id(:) = UNINITIALIZED_INTEGER
       well_grid%res_z(:) = -MAX_DOUBLE
+      well_grid%connection_length(:) = UNINITIALIZED_INTEGER
 
       well_grid%h_rank_id(:) = 0
       well_grid%res_dz(1:nsegments) = res_dz_list(1:nsegments)
@@ -2150,6 +2176,9 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
         well_grid%h_global_id(k) = res_grid%nG2A(well_grid%h_ghosted_id(k))
         well_grid%res_z(k) = res_grid%z(well_grid%h_ghosted_id(k))
       enddo
+
+      ! Assume that the connection length exactly matches the segment length
+      well_grid%connection_length(:) = well_grid%dh(:)
     !---------------------------------------------------------------------------
     endif
   endif
@@ -2160,6 +2189,10 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
   well_grid%segment_connected(:) = PETSC_TRUE
   if (well_grid%connect_via_region) then
     ! Connect well segments to the reservoir grid via a region file
+    if (.not. associated(well_grid%connection_length)) then
+      allocate(well_grid%connection_length(nsegments))
+    endif
+    well_grid%connection_length(:) = 0.0
     well_grid%segment_connected(:) = PETSC_FALSE
     well_grid%connections_region => RegionGetPtrFromList( &
         well_grid%connections_region_name, realization%patch%region_list)
@@ -2209,6 +2242,16 @@ subroutine PMWellSetupGrid(well_grid,res_grid,realization,option)
         well_grid%segment_connected(closest_k) = PETSC_TRUE
         well_grid%res_z(closest_k) = res_grid%z(well_grid%h_ghosted_id(closest_k))
         well_grid%bottom_seg_index = min(well_grid%bottom_seg_index, closest_k)
+
+        ! If the intersection between the reservoir and the well segment has area
+        ! A = well_grid%connections_region%explicit_faceset%face_areas(iconn)
+        ! and circumference = pi * D = pi * this%well%diameter(closest_k)
+        ! then if we assume that the connection is a cylinder we can write
+        ! A = L * pi * D, for connection length L.
+        ! Thus L = A / (pi * D)
+        well_grid%connection_length(closest_k) = &
+          well_grid%connections_region%explicit_faceset%face_areas(iconn) / &
+          (PI * this%well%diameter(closest_k))
       endif
     enddo
 
@@ -2291,7 +2334,7 @@ subroutine PMWellSetupBase(this)
   option%io_buffer = 'WELLBORE_MODEL: Creating well grid discretization.... '
   call PrintMsg(option)
 
-  call PMWellSetupGrid(well_grid,res_grid,realization,option)
+  call PMWellSetupGrid(this,realization,option)
 
   option%io_buffer = 'WELLBORE_MODEL: Grid created with ' // &
                       StringWrite(well_grid%nsegments)// &
@@ -8796,7 +8839,7 @@ subroutine PMWellComputeWellIndex(pm_well)
         ! Assume connection between segment and reservoir has height
         ! this%well_grid%dh(k)
         pm_well%well%WI(k) = sqrt(reservoir%kx(k)*reservoir%ky(k)) * &
-                             pm_well%well_grid%dh(k)
+                             pm_well%well_grid%connection_length(k)
       enddo
   end select
 

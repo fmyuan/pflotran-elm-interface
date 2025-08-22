@@ -19,6 +19,8 @@ type, public :: well_grid_type
     PetscBool :: connect_via_region
     ! saves if the segment is connected
     PetscBool, pointer :: segment_connected(:)
+    ! the length of the connection between the segment and the reservoir
+    PetscReal, pointer :: connection_length(:)
     ! the index of the bottom connected segment (the bottom segment has index 1)
     PetscInt :: bottom_seg_index
 
@@ -190,6 +192,7 @@ subroutine WellGridDestroy(well_grid)
     type(deviated_well_type), pointer :: prev_deviated_well
 
     call DeallocateArray(well_grid%segment_connected)
+    call DeallocateArray(well_grid%connection_length)
     call DeallocateArray(well_grid%h_local_id)
     call DeallocateArray(well_grid%h_ghosted_id)
     call DeallocateArray(well_grid%h_global_id)
