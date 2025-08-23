@@ -795,7 +795,7 @@ subroutine PMRTFinalizeTimestep(this)
   ! Date: 04/03/13
   !
 
-  use Reactive_Transport_module, only : RTMaxChange
+  use Reactive_Transport_module
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
   use Material_Aux_module, only : POROSITY_BASE
@@ -819,6 +819,8 @@ subroutine PMRTFinalizeTimestep(this)
     call RealizationUpdatePropertiesTS(this%realization)
   endif
 
+  ! this update of rates is only for the max_volfrac_change below.
+  call RTUpdateMineralKineticRates(this%realization)
   call RTMaxChange(this%realization,this%max_concentration_change, &
                    this%max_volfrac_change)
   write(this%option%io_buffer,'("  --> max change:  dcmx= ",1pe12.4,&

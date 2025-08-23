@@ -23,6 +23,7 @@ module Reactive_Transport_module
             RTMaxChange, &
             RTUpdateEquilibriumState, &
             RTUpdateKineticState, &
+            RTUpdateMineralKineticRates, &
             RTUpdateMassBalance, &
             RTResidual, &
             RTJacobian, &
@@ -969,6 +970,64 @@ subroutine RTUpdateEquilibriumState(realization)
   endif
 
 end subroutine RTUpdateEquilibriumState
+
+! ************************************************************************** !
+
+subroutine RTUpdateMineralKineticRates(realization)
+  !
+  ! Updates mineral kinetic rates at each grid cell
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/25/25
+  !
+
+  use Realization_Subsurface_class
+  use Discretization_module
+  use Patch_module
+  use Option_module
+  use Grid_module
+  use Reaction_module
+  use Reaction_Mineral_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  class(reaction_rt_type), pointer :: reaction
+  type(grid_type), pointer :: grid
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal :: res(realization%option%ntrandof)
+  PetscReal :: jac(1,1)
+  PetscInt :: ghosted_id, local_id
+
+  option => realization%option
+  patch => realization%patch
+  reaction => realization%reaction
+  grid => patch%grid
+
+  rt_auxvars => patch%aux%RT%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    if (.not.option%transport%isothermal_reaction) then
+      call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
+                                    PETSC_FALSE,option)
+    endif
+    call ReactionMnrlKinetics(res,jac,PETSC_FALSE,PETSC_TRUE, &
+                              rt_auxvars(ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              reaction,option)
+  enddo
+
+end subroutine RTUpdateMineralKineticRates
 
 ! ************************************************************************** !
 

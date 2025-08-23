@@ -1156,6 +1156,8 @@ subroutine ReactionMnrlKinetics(Res,Jac, &
   PetscReal :: ln_sec_act(reaction%neqcplx)
   PetscInt :: imnrl
 
+  if (reaction%mineral%nkinmnrl == 0) return
+
   ! zero rates
   rt_auxvar%mnrl_rate(:) = 0.d0
 
@@ -1945,7 +1947,7 @@ end function ReactionMnrlSaturationIndex
 
 subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
                                           use_geothermal_hpt, &
-                                          update_mnrl,option)
+                                          update_eqmnrl,option)
   !
   ! Updates temperature dependent coefficients for
   ! anisothermal simulations
@@ -1962,7 +1964,7 @@ subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
   PetscReal :: pres
   type(mineral_type) :: mineral
   PetscBool :: use_geothermal_hpt
-  PetscBool :: update_mnrl
+  PetscBool :: update_eqmnrl
   type(option_type) :: option
 
   if (.not.use_geothermal_hpt) then
@@ -1972,7 +1974,7 @@ subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
                                       temp, &
                                       mineral%nkinmnrl)
     endif
-    if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
+    if (update_eqmnrl .and. associated(mineral%mnrl_logKcoef)) then
       call ReactionAuxInterpolateLogK(mineral%mnrl_logKcoef, &
                                       mineral%mnrl_logK, &
                                       temp, &
@@ -1984,7 +1986,7 @@ subroutine ReactionMnrlUpdateTempDepCoefs(temp,pres,mineral, &
                                           mineral%kinmnrl_logK, &
                                           temp,pres,mineral%nkinmnrl)
     endif
-    if (update_mnrl .and. associated(mineral%mnrl_logKcoef)) then
+    if (update_eqmnrl .and. associated(mineral%mnrl_logKcoef)) then
       call ReactionAuxInterpolateLogK_hpt(mineral%mnrl_logKcoef, &
                                           mineral%mnrl_logK, &
                                           temp,pres,mineral%nmnrl)

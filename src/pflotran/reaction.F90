@@ -5875,7 +5875,7 @@ end subroutine RUpdateKineticState
 ! ************************************************************************** !
 
 subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
-                                     update_mnrl,option)
+                                     update_eqmnrl,option)
   !
   ! Updates temperature dependent coefficients for
   ! anisothermal simulations
@@ -5890,7 +5890,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
 
   type(global_auxvar_type) :: global_auxvar
   class(reaction_rt_type) :: reaction
-  PetscBool :: update_mnrl
+  PetscBool :: update_eqmnrl
   type(option_type) :: option
 
   PetscReal :: temp
@@ -5921,7 +5921,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     endif
     call ReactionMnrlUpdateTempDepCoefs(temp,pres,reaction%mineral, &
                                         reaction%use_geothermal_hpt, &
-                                        update_mnrl, &
+                                        update_eqmnrl, &
                                         option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       call ReactionAuxInterpolateLogK(reaction%surface_complexation% &
@@ -5950,7 +5950,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     endif
     call ReactionMnrlUpdateTempDepCoefs(temp,pres,reaction%mineral, &
                                         reaction%use_geothermal_hpt, &
-                                        update_mnrl,option)
+                                        update_eqmnrl,option)
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       option%io_buffer = 'Temperature dependent surface complexation &
         &coefficients not yet function for high pressure/temperature.'
