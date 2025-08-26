@@ -1,4 +1,5 @@
 module Hydrate_Common_module
+#include "petsc/finclude/petscsys.h"
 
   use Hydrate_Aux_module
   use Global_Aux_module
@@ -10,7 +11,6 @@ module Hydrate_Common_module
 
   private
 
-#include "petsc/finclude/petscsys.h"
 
 #define CONVECTION
 #define LIQUID_DARCY_FLUX
