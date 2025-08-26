@@ -44,7 +44,6 @@ module Coupler_module
     type(geop_condition_type), pointer :: geop_condition     ! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(connection_set_type), pointer :: connection_set ! pointer to an array/list of connections
-    PetscInt :: numfaces_set
     type(coupler_type), pointer :: next                 ! pointer to next coupler
   end type coupler_type
 
