@@ -14,6 +14,10 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
 
+  TIMESTEPPER
+    VOLUME_FRACTION_CHANGE_GOVERNOR 5.d-6
+  /
+
   LINEAR_SOLVER
     SOLVER DIRECT
   /
