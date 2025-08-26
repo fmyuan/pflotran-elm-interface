@@ -2477,22 +2477,22 @@ subroutine PMWellSetupBase(this)
   ! If we are connecting via a region, then setup the the connection length
   ! and reserviour height now that we have the well diameter.
   if (well_grid%connect_via_region) then
-	  if (.not. associated(well_grid%connection_length)) then
+    if (.not. associated(well_grid%connection_length)) then
       allocate(well_grid%connection_length(nsegments))
     endif
     well_grid%connection_length(:) = 0.0
     num_connections = well_grid%connections_region%num_cells
     do iconn = 1, num_connections
       do k = 1, well_grid%nsegments
-		    if (.not. well_grid%segment_connected(k)) then
-		      cycle
-		    endif
-		    if (well_grid%h_local_id(k) /= well_grid%connections_region%cell_ids(iconn)) then
-          ! This segment is not using this connection
-		      cycle
-		    endif
+        if (.not. well_grid%segment_connected(k)) then
+          cycle
+        endif
+        if (well_grid%h_local_id(k) /= well_grid%connections_region%cell_ids(iconn)) then
+      ! This segment is not using this connection
+          cycle
+        endif
 
-	      ! If the intersection between the reservoir and the well segment has area
+        ! If the intersection between the reservoir and the well segment has area
         ! A = well_grid%connections_region%explicit_faceset%face_areas(iconn)
         ! and circumference = pi * D = pi * this%well%diameter(k)
         ! then if we assume that the connection is a cylinder we can write
@@ -2508,7 +2508,7 @@ subroutine PMWellSetupBase(this)
         ! fracture.
         well_grid%res_dz(k) = well_grid%connection_length(k)
       enddo
-	  enddo
+    enddo
   endif
 
   if (size(this%well_grid%casing) /= nsegments) then
