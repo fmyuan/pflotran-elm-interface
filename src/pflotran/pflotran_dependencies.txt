@@ -1085,6 +1085,7 @@ grid_unstructured_aux.o : \
   grid_unstructured_cell.o \
   option.o \
   pflotran_constants.o \
+  string.o \
   utility.o \
   well_grid.o
 grid_unstructured_cell.o : \
@@ -2569,6 +2570,7 @@ pm_well.o : \
   pm_base.o \
   reactive_transport_aux.o \
   realization_subsurface.o \
+  region.o \
   richards_aux.o \
   sco2_aux.o \
   strata.o \
@@ -4014,6 +4016,7 @@ well_grid.o : \
   geometry.o \
   option.o \
   pflotran_constants.o \
+  region.o \
   utility.o
 wipp.o : \
   characteristic_curves_base.o \

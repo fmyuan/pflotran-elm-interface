@@ -848,7 +848,7 @@ subroutine FactorySubsurfaceInsertWellCells(simulation)
     nullify(well_cells)
     do
       if (.not. associated(pm_well)) exit
-      call PMWellSetupGrid(pm_well%well_grid,realization%patch%grid,option)
+      call PMWellSetupGrid(pm_well,realization,option)
       pm_well%well_comm%petsc_rank = option%myrank
       allocate(h_all_global_id(pm_well%well_grid%nsegments))
       call MPI_Allreduce(pm_well%well_grid%h_global_id,h_all_global_id, &

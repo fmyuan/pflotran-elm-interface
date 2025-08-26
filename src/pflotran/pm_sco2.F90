@@ -2324,7 +2324,8 @@ subroutine PMSCO2CheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       do
         if (.not. associated(cur_well)) exit
         call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
-                        cur_well%well_grid%h_rank_id(1), &
+                        cur_well%well_grid%h_rank_id( &
+                          cur_well%well_grid%bottom_seg_index), &
                         cur_well%option%mycomm, &
                         ierr); CHKERRQ(ierr)
         if (cur_well%pressure_controlled) &

@@ -2197,8 +2197,10 @@ subroutine RichardsResidualAccumulation(r,realization,pm_well,ierr)
           cur_well => pm_well
           do
             if (.not. associated(cur_well)) exit
-            if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
-              ghosted_id = cur_well%well_grid%h_ghosted_id(1)
+            if (cur_well%well_grid%h_rank_id( &
+                cur_well%well_grid%bottom_seg_index) == option%myrank) then
+              ghosted_id = cur_well%well_grid%h_ghosted_id( &
+                                  cur_well%well_grid%bottom_seg_index)
               ghosted_end = ghosted_id * option%nflowdof
               if (dabs(cur_well%well%th_ql) > 0.d0) then
                 accum2_p(ghosted_end) = cur_well%well%th_ql
@@ -3204,10 +3206,12 @@ subroutine RichardsJacobianSourceSink(A,realization,pm_well,ierr)
               cur_well%pressure_controlled) then
           ! Don't solve for BHP if there is no flow in the well, or
           ! if the well is pressure-controlled.
-          deactivate_row = cur_well%well_grid%h_ghosted_id(1) * &
+          deactivate_row = cur_well%well_grid%h_ghosted_id( &
+                            cur_well%well_grid%bottom_seg_index) * &
                             option%nflowdof
           deactivate_row = deactivate_row - 1
-          if (cur_well%well_grid%h_rank_id(1) == option%myrank) then
+          if (cur_well%well_grid%h_rank_id( &
+              cur_well%well_grid%bottom_seg_index) == option%myrank) then
             call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
                         qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
