@@ -2189,10 +2189,6 @@ subroutine PMWellSetupGrid(this,realization,option)
   well_grid%segment_connected(:) = PETSC_TRUE
   if (well_grid%connect_via_region) then
     ! Connect well segments to the reservoir grid via a region file
-    if (.not. associated(well_grid%connection_length)) then
-      allocate(well_grid%connection_length(nsegments))
-    endif
-    well_grid%connection_length(:) = 0.0
     well_grid%segment_connected(:) = PETSC_FALSE
     well_grid%connections_region => RegionGetPtrFromList( &
         well_grid%connections_region_name, realization%patch%region_list)
@@ -2241,22 +2237,7 @@ subroutine PMWellSetupGrid(this,realization,option)
         well_grid%h_global_id(closest_k) = res_grid%nG2A(well_grid%h_ghosted_id(closest_k))
         well_grid%segment_connected(closest_k) = PETSC_TRUE
         well_grid%bottom_seg_index = min(well_grid%bottom_seg_index, closest_k)
-
-        ! If the intersection between the reservoir and the well segment has area
-        ! A = well_grid%connections_region%explicit_faceset%face_areas(iconn)
-        ! and circumference = pi * D = pi * this%well%diameter(closest_k)
-        ! then if we assume that the connection is a cylinder we can write
-        ! A = L * pi * D, for connection length L.
-        ! Thus L = A / (pi * D)
-        well_grid%connection_length(closest_k) = &
-          well_grid%connections_region%explicit_faceset%face_areas(iconn) / &
-          (PI * this%well%diameter(closest_k))
-
-        ! Since this option is probably used with a DFN mesh, we will assume that
-        ! the connection length is the height of the reservoir grid cell.
-        ! I.e. that the well segment is longer than the area intersected by the
-        ! fracture.
-        well_grid%res_z(closest_k) = well_grid%connection_length(closest_k)
+        well_grid%res_z(closest_k) = res_grid%z(well_grid%h_ghosted_id(closest_k))
       endif
     enddo
 
@@ -2314,7 +2295,7 @@ subroutine PMWellSetupBase(this)
   PetscInt :: local_id_well, local_id_res
   PetscInt :: nsegments
   PetscInt :: max_val, min_val
-  PetscInt :: k, j, i, index
+  PetscInt :: k, j, i, index, iconn, num_connections
   PetscInt :: count1, count2_local, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
   PetscBool :: res_grid_cell_within_well_z
@@ -2492,6 +2473,43 @@ subroutine PMWellSetupBase(this)
   endif
   max_diameter = maxval(this%well%diameter)
   xy_span = well_grid%xy_span_multiplier*max_diameter
+
+  ! If we are connecting via a region, then setup the the connection length
+  ! and reserviour height now that we have the well diameter.
+  if (well_grid%connect_via_region) then
+	  if (.not. associated(well_grid%connection_length)) then
+      allocate(well_grid%connection_length(nsegments))
+    endif
+    well_grid%connection_length(:) = 0.0
+    num_connections = well_grid%connections_region%num_cells
+    do iconn = 1, num_connections
+      do k = 1, well_grid%nsegments
+		    if (.not. well_grid%segment_connected(k)) then
+		      cycle
+		    endif
+		    if (well_grid%h_local_id(k) /= well_grid%connections_region%cell_ids(iconn)) then
+          ! This segment is not using this connection
+		      cycle
+		    endif
+
+	      ! If the intersection between the reservoir and the well segment has area
+        ! A = well_grid%connections_region%explicit_faceset%face_areas(iconn)
+        ! and circumference = pi * D = pi * this%well%diameter(k)
+        ! then if we assume that the connection is a cylinder we can write
+        ! A = L * pi * D, for connection length L.
+        ! Thus L = A / (pi * D)
+        well_grid%connection_length(k) = &
+          well_grid%connections_region%explicit_faceset%face_areas(iconn) / &
+          (PI * this%well%diameter(k))
+
+        ! Since this option is probably used with a DFN mesh, we will assume that
+        ! the connection length is the height of the reservoir grid cell.
+        ! I.e. that the well segment is longer than the area intersected by the
+        ! fracture.
+        well_grid%res_dz(k) = well_grid%connection_length(k)
+      enddo
+	  enddo
+  endif
 
   if (size(this%well_grid%casing) /= nsegments) then
     if (size(this%well_grid%casing) == 1) then
@@ -8589,16 +8607,20 @@ subroutine PMWellSolveFlowHydrostatic(this,perturbation_index,ierr)
           well%liq%Q(i) = den_ave*mobility*well%WI(i) * &
                           (res_pl_temp-well%pl(i)) * &
                           reservoir%xmass_liq(i,ONE_INTEGER)
-          well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                          (res_pl_temp-well%pl(i)) * &
-                          reservoir%xmass_liq(i,TWO_INTEGER)
+          if (option%iflowmode /= RICHARDS_MODE) then
+            well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                            (res_pl_temp-well%pl(i)) * &
+                            reservoir%xmass_liq(i,TWO_INTEGER)
+          endif
         else if (res_pl_temp > well%pl(i)) then
           well%liq%Q(i) = den_ave*mobility*well%WI(i) * &
                           (res_pl_temp-well%pl(i)) * &
                           reservoir%xmass_liq(i,ONE_INTEGER)
-          well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
-                          (res_pl_temp-well%pl(i)) * &
-                          reservoir%xmass_liq(i,TWO_INTEGER)
+          if (option%iflowmode /= RICHARDS_MODE) then
+            well%gas%Q(i) = den_ave*mobility*well%WI(i)* &
+                            (res_pl_temp-well%pl(i)) * &
+                            reservoir%xmass_liq(i,TWO_INTEGER)
+          endif
         endif
 
         if (option%iflowmode == RICHARDS_MODE) then
