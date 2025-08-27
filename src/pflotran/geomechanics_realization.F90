@@ -93,6 +93,7 @@ function GeomechRealizCreate(option)
   nullify(geomech_realization%geomech_material_property_array)
 
   nullify(geomech_realization%geomech_patch)
+  nullify(geomech_realization%geomech_datasets)
   geomech_realization%dt_coupling = 0.d0
 
   GeomechRealizCreate => geomech_realization
@@ -172,12 +173,17 @@ subroutine GeomechRealizProcessMatProp(geomech_realization)
   !
 
   use String_module
+  use Dataset_Common_HDF5_class
+  use Dataset_module
 
   implicit none
 
   class(realization_geomech_type) :: geomech_realization
   type(geomech_patch_type), pointer :: patch
   type(option_type), pointer :: option
+  type(geomech_material_property_type), pointer :: cur_material_property
+  class(dataset_base_type), pointer :: dataset
+  character(len=MAXSTRINGLENGTH) :: string
 
 
   option => geomech_realization%option
@@ -196,6 +202,105 @@ subroutine GeomechRealizProcessMatProp(geomech_realization)
                                     patch%geomech_material_properties, &
                                     patch%geomech_material_property_array, &
                                     option)
+
+  ! link dataset-based properties to named datasets
+  cur_material_property => geomech_realization%geomech_material_properties
+  do
+    if (.not.associated(cur_material_property)) exit
+    ! if named, link datasets to property
+
+    ! Young's modulus
+    if (associated(cur_material_property%youngs_modulus_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),YOUNGS_MODULUS'
+      dataset => &
+        DatasetBaseGetPointer(geomech_realization%geomech_datasets, &
+                              cur_material_property%youngs_modulus_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%youngs_modulus_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%youngs_modulus_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for YOUNGS_MODULUS.'
+          call PrintErrMsg(option)
+      end select
+    endif
+
+    ! Poisson's ratio
+    if (associated(cur_material_property%poissons_ratio_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),POISSONS_RATIO'
+      dataset => &
+        DatasetBaseGetPointer(geomech_realization%geomech_datasets, &
+                              cur_material_property%poissons_ratio_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%poissons_ratio_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%poissons_ratio_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for POISSONS_RATIO.'
+          call PrintErrMsg(option)
+      end select
+    endif
+
+    ! Density
+    if (associated(cur_material_property%density_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),DENSITY'
+      dataset => &
+        DatasetBaseGetPointer(geomech_realization%geomech_datasets, &
+                              cur_material_property%density_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%density_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%density_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for ROCK_DENSITY.'
+          call PrintErrMsg(option)
+      end select
+    endif
+
+    ! Biot's coefficient
+    if (associated(cur_material_property%biot_coeff_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),BIOT_COEFF'
+      dataset => &
+        DatasetBaseGetPointer(geomech_realization%geomech_datasets, &
+                              cur_material_property%biot_coeff_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%biot_coeff_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%biot_coeff_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for BIOT_COEFFICIENT.'
+          call PrintErrMsg(option)
+      end select
+    endif
+
+    ! Thermal expansion coefficient
+    if (associated(cur_material_property%thermal_exp_coeff_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),THERMAL_EXP_COEFF'
+      dataset => &
+        DatasetBaseGetPointer(geomech_realization%geomech_datasets, &
+                              cur_material_property%thermal_exp_coeff_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%thermal_exp_coeff_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%thermal_exp_coeff_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for THERMAL_EXPANSION_COEFFICIENT.'
+          call PrintErrMsg(option)
+      end select
+    endif
+
+    cur_material_property => cur_material_property%next
+  enddo
 
 end subroutine GeomechRealizProcessMatProp
 
@@ -308,6 +413,26 @@ subroutine GeomechRealizCreateDiscretization(geomech_realization)
   call GeomechDiscretizationDuplicateVector(geomech_discretization, &
                                             geomech_field%press_loc, &
                                             geomech_field%porosity_loc)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%youngs_modulus)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%poissons_ratio)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%density)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%biot_coeff)
+
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            geomech_field%press_loc, &
+                                            geomech_field%thermal_exp_coeff)
 
   ! 6 dof for strain and stress
   call GeomechDiscretizationCreateVector(geomech_discretization,SIX_INTEGER, &

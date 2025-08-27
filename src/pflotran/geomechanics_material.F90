@@ -2,6 +2,7 @@ module Geomechanics_Material_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use Dataset_Base_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -16,6 +17,12 @@ module Geomechanics_Material_module
     PetscReal :: density
     PetscReal :: biot_coeff
     PetscReal :: thermal_exp_coeff
+
+    class(dataset_base_type), pointer :: youngs_modulus_dataset
+    class(dataset_base_type), pointer :: poissons_ratio_dataset
+    class(dataset_base_type), pointer :: density_dataset
+    class(dataset_base_type), pointer :: biot_coeff_dataset
+    class(dataset_base_type), pointer :: thermal_exp_coeff_dataset
 
     type(geomech_material_property_type), pointer :: next
   end type geomech_material_property_type
@@ -59,6 +66,12 @@ function GeomechanicsMaterialPropertyCreate()
   geomech_material_property%biot_coeff = 0.d0
   geomech_material_property%thermal_exp_coeff = 0.d0
 
+  nullify(geomech_material_property%youngs_modulus_dataset)
+  nullify(geomech_material_property%poissons_ratio_dataset)
+  nullify(geomech_material_property%density_dataset)
+  nullify(geomech_material_property%biot_coeff_dataset)
+  nullify(geomech_material_property%thermal_exp_coeff_dataset)
+
   nullify(geomech_material_property%next)
 
   GeomechanicsMaterialPropertyCreate => geomech_material_property
@@ -80,6 +93,7 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   use Option_module
   use Input_Aux_module
   use String_module
+  use Dataset_module
 
   implicit none
 
@@ -104,28 +118,34 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
         call InputReadInt(input,option,geomech_material_property%id)
         call InputErrorMsg(input,option,'id','GEOMECHANICS_MATERIAL_PROPERTY')
       case('YOUNGS_MODULUS')
-        call InputReadDouble(input,option,geomech_material_property% &
-                             youngs_modulus)
+        call DatasetReadDoubleorDataset(input,geomech_material_property%youngs_modulus, &
+                                geomech_material_property%youngs_modulus_dataset, &
+                                'YOUNGS_MODULUS', 'GEOMECHANICS_MATERIAL_PROPERTY', option)
         call InputErrorMsg(input,option,'YOUNGS_MODULUS', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case('POISSONS_RATIO')
-        call InputReadDouble(input,option,geomech_material_property% &
-                             poissons_ratio)
+        call DatasetReadDoubleorDataset(input,geomech_material_property%poissons_ratio, &
+                        geomech_material_property%poissons_ratio_dataset, &
+                        'POISSONS_RATIO', 'GEOMECHANICS_MATERIAL_PROPERTY', option)
         call InputErrorMsg(input,option,'POISSONS_RATIO', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case('ROCK_DENSITY')
-        call InputReadDouble(input,option,geomech_material_property% &
-                             density)
+        call DatasetReadDoubleorDataset(input,geomech_material_property%density, &
+                        geomech_material_property%density_dataset, &
+                        'ROCK_DENSITY', 'GEOMECHANICS_MATERIAL_PROPERTY', option)
         call InputErrorMsg(input,option,'ROCK_DENSITY', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case('BIOT_COEFFICIENT')
-        call InputReadDouble(input,option,geomech_material_property% &
-                             biot_coeff)
+        call DatasetReadDoubleorDataset(input,geomech_material_property%biot_coeff, &
+                        geomech_material_property%biot_coeff_dataset, &
+                        'BIOT_COEFFICIENT', 'GEOMECHANICS_MATERIAL_PROPERTY', option)
         call InputErrorMsg(input,option,'BIOT_COEFFICIENT', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case('THERMAL_EXPANSION_COEFFICIENT')
-        call InputReadDouble(input,option,geomech_material_property% &
-                             thermal_exp_coeff)
+        call DatasetReadDoubleorDataset(input,geomech_material_property%thermal_exp_coeff, &
+                        geomech_material_property%thermal_exp_coeff_dataset, &
+                        'THERMAL_EXPANSION_COEFFICIENT', &
+                        'GEOMECHANICS_MATERIAL_PROPERTY', option)
         call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case default
@@ -332,6 +352,12 @@ recursive subroutine GeomechanicsMaterialPropertyDestroy(&
   if (.not.associated(geomech_material_property)) return
 
   call GeomechanicsMaterialPropertyDestroy(geomech_material_property%next)
+
+  nullify(geomech_material_property%youngs_modulus_dataset)
+  nullify(geomech_material_property%poissons_ratio_dataset)
+  nullify(geomech_material_property%density_dataset)
+  nullify(geomech_material_property%biot_coeff_dataset)
+  nullify(geomech_material_property%thermal_exp_coeff_dataset)
 
   deallocate(geomech_material_property)
   nullify(geomech_material_property)

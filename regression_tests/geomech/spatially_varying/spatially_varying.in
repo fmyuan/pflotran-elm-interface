@@ -1,0 +1,213 @@
+#============================================
+SIMULATION
+    SIMULATION_TYPE GEOMECHANICS_SUBSURFACE
+    PROCESS_MODELS
+        SUBSURFACE_FLOW flow
+            MODE RICHARDS
+            OPTIONS
+            END
+        END
+        GEOMECHANICS_SUBSURFACE
+            OPTIONS
+                FLOW_COUPLING ONE_WAY_COUPLED
+            END
+        END
+    END
+END
+SUBSURFACE
+    #=================== Discretization =========================
+    GRID
+        TYPE unstructured_explicit ../meshes/tet_cube/simple_tet_cube_grid.uge
+        GRAVITY 0.d0 0.d0 0.d0
+        UPWIND_FRACTION_METHOD CELL_VOLUME
+        PERM_TENSOR_TO_SCALAR_MODEL FLOW
+    END
+    #=================== Fluid properties =========================
+    EOS WATER
+        DENSITY DEFAULT
+        VISCOSITY CONSTANT 1.e-003
+    END
+    
+    #=================== Material properties =========================
+    MATERIAL_PROPERTY RockMatrix3D
+        ID 1
+        POROSITY 4.e-002
+        TORTUOSITY 1
+        CHARACTERISTIC_CURVES default
+        SOIL_COMPRESSIBILITY_FUNCTION LINEAR
+        SOIL_REFERENCE_PRESSURE 0 Pa
+        PERMEABILITY
+            PERM_ISO 1.e-020
+        END
+        SOIL_COMPRESSIBILITY 0
+    END
+    #=================== Characteristic curves =========================
+    CHARACTERISTIC_CURVES default
+        SATURATION_FUNCTION VAN_GENUCHTEN
+            M 0.5
+            ALPHA 0
+            LIQUID_RESIDUAL_SATURATION 0.1
+            MAX_CAPILLARY_PRESSURE 100000000
+        END
+        PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+            M 0.5
+            LIQUID_RESIDUAL_SATURATION 0.1
+        END
+    END
+    #=================== Times =========================
+    TIME
+        INITIAL_TIMESTEP_SIZE 360 s
+        MAXIMUM_TIMESTEP_SIZE 360 s
+        FINAL_TIME 3600 s
+    END
+    #=================== Regions =========================
+    REGION All
+        COORDINATES
+            -20.1000003 -20.1000003 -20.1000003
+            20.1000003 20.1000003 20.1000003
+        END
+    END
+    REGION BC1_BC_zeroXdisplace_reg
+        FILE ../meshes/tet_cube/simple_tet_cube_BC1_BC_zeroXdisplace.ex
+    END
+    REGION BC2_BC_zeroYdisplace_reg
+        FILE ../meshes/tet_cube/simple_tet_cube_BC2_BC_zeroYdisplace.ex
+    END
+    REGION BC3_BC_zeroZdisplace_reg
+        FILE ../meshes/tet_cube/simple_tet_cube_BC3_BC_zeroZdisplace.ex
+    END
+    REGION BC4_BC_ZPres_reg
+        FILE ../meshes/tet_cube/simple_tet_cube_BC4_BC_ZPres.ex
+    END
+    #=================== Flow conditions =========================
+    FLOW_CONDITION initial
+        UNITS Pa
+        TYPE
+            LIQUID_PRESSURE dirichlet
+        END
+        LIQUID_PRESSURE 0
+    END
+    FLOW_CONDITION BC4_BC_ZPres_flow
+        TYPE
+            LIQUID_PRESSURE dirichlet
+        END
+        LIQUID_PRESSURE 5000
+    END
+    #=================== Condition couplers =========================
+    INITIAL_CONDITION initial
+        FLOW_CONDITION initial
+        REGION All
+    END
+    BOUNDARY_CONDITION BC4_BC_ZPres_bnd
+        FLOW_CONDITION BC4_BC_ZPres_flow
+        REGION BC4_BC_ZPres_reg
+    END
+    #=================== Stratigraphy couplers =========================
+    STRATA
+        REGION All
+        MATERIAL RockMatrix3D
+    END
+END_SUBSURFACE
+#=================== Geomechanics =========================
+GEOMECHANICS
+    GEOMECHANICS_REGRESSION
+      VERTICES_PER_PROCESS 5
+      VARIABLES
+        STRESS_XX
+        STRESS_YY
+        STRESS_ZZ
+      /
+    END
+    GEOMECHANICS_GRID
+        TYPE UNSTRUCTURED ../meshes/tet_cube/simple_tet_cube_grid_geo.ugi
+        GRAVITY 0 0 -9.81
+    END
+    GEOMECHANICS_MAPPING_FILE ../meshes/tet_cube/simple_tet_cube_mappping_geo.dat
+    GEOMECHANICS_TIME
+        COUPLING_TIMESTEP_SIZE 3600 s
+    END
+    GEOMECHANICS_OUTPUT
+        FORMAT HDF5
+    END
+    GEOMECHANICS_IMPROVE_TET_WEIGHT
+    #=================== Geomechanics Boundary Conditions =========================
+    EXTERNAL_FILE ../meshes/tet_cube/simple_tet_cube_geomech.txt
+    #=================== Geomechanics Material Regions =========================
+    GEOMECHANICS_REGION reg_1
+        FILE mat_1.vset
+    END
+    GEOMECHANICS_REGION reg_2
+        FILE mat_2.vset
+    END
+    GEOMECHANICS_REGION reg_3
+        FILE mat_3.vset
+    END
+    #=================== Geomechanics Strata =========================
+    GEOMECHANICS_STRATA
+        GEOMECHANICS_REGION reg_1
+        GEOMECHANICS_MATERIAL mat_1
+    END
+    GEOMECHANICS_STRATA
+        GEOMECHANICS_REGION reg_2
+        GEOMECHANICS_MATERIAL mat_2
+    END
+    GEOMECHANICS_STRATA
+        GEOMECHANICS_REGION reg_3
+        GEOMECHANICS_MATERIAL mat_3
+    END
+    #=================== Geomechanics Material Properties =========================
+    GEOMECHANICS_DATASET Rock_density_1
+          FILENAME geomech_prop_1.h5
+      END
+    GEOMECHANICS_DATASET Youngs_modulus_1
+          FILENAME geomech_prop_1.h5
+      END
+    GEOMECHANICS_DATASET Poissons_ratio_1
+          FILENAME geomech_prop_1.h5
+      END
+    GEOMECHANICS_DATASET Biot_coeff_1
+          FILENAME geomech_prop_1.h5
+      END
+    GEOMECHANICS_DATASET Thermal_exp_coeff_1
+          FILENAME geomech_prop_1.h5
+      END
+    GEOMECHANICS_DATASET Rock_density_2
+          FILENAME geomech_prop_2.h5
+      END
+    GEOMECHANICS_DATASET Youngs_modulus_2
+          FILENAME geomech_prop_2.h5
+      END
+    GEOMECHANICS_DATASET Poissons_ratio_2
+          FILENAME geomech_prop_2.h5
+      END
+    GEOMECHANICS_DATASET Biot_coeff_2
+          FILENAME geomech_prop_2.h5
+      END
+    GEOMECHANICS_DATASET Thermal_exp_coeff_2
+          FILENAME geomech_prop_2.h5
+    END
+    GEOMECHANICS_MATERIAL_PROPERTY mat_1
+        ID 1
+        ROCK_DENSITY DATASET Rock_density_1
+        YOUNGS_MODULUS DATASET Youngs_modulus_1
+        POISSONS_RATIO DATASET Poissons_ratio_1
+        BIOT_COEFFICIENT DATASET Biot_coeff_1
+        THERMAL_EXPANSION_COEFFICIENT DATASET Thermal_exp_coeff_1
+    END
+    GEOMECHANICS_MATERIAL_PROPERTY mat_2
+        ID 2
+        ROCK_DENSITY DATASET Rock_density_2
+        YOUNGS_MODULUS DATASET Youngs_modulus_2
+        POISSONS_RATIO DATASET Poissons_ratio_2
+        BIOT_COEFFICIENT DATASET Biot_coeff_2
+        THERMAL_EXPANSION_COEFFICIENT DATASET Thermal_exp_coeff_2
+    END
+    GEOMECHANICS_MATERIAL_PROPERTY mat_3
+        ID 3
+        ROCK_DENSITY 1000 kg/m^3
+        YOUNGS_MODULUS 1000000000
+        POISSONS_RATIO 0.45
+        BIOT_COEFFICIENT 0
+        THERMAL_EXPANSION_COEFFICIENT 0
+    END
+END_GEOMECHANICS
