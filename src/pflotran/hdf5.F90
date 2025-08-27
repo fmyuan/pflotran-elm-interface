@@ -36,7 +36,8 @@ module HDF5_module
             HDF5ReadCellIndexedIntegerArray, &
             HDF5ReadCellIndexedRealArray, &
             HDF5QueryRegionDefinition, &
-            HDF5ReadRegionDefinedByVertex
+            HDF5ReadRegionDefinedByVertex, &
+            HDF5ReadCellIndexedRealArrayGM
 
 contains
 
@@ -313,8 +314,8 @@ end subroutine HDF5WriteStructuredDataSet
 
 ! ************************************************************************** !
 
-subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
-                           indices)
+subroutine HDF5ReadIndices(option,file_id,dataset_name,dataset_size, &
+                           indices,nlmax)
   !
   ! Reads cell indices from an hdf5 dataset
   !
@@ -325,17 +326,16 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   use hdf5
 
   use Option_module
-  use Grid_module
   use String_module
   use Utility_module, only : DeallocateArray
 
   implicit none
 
-  type(grid_type) :: grid
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: dataset_size
+  PetscInt :: nlmax
   integer(HID_T) :: file_id
   PetscInt, pointer :: indices(:)
 
@@ -361,9 +361,9 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   iend = 0
 
   ! first determine upper and lower bound on PETSc global array
-  call MPI_Scan(grid%nlmax,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+  call MPI_Scan(nlmax,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                 option%mycomm,ierr);CHKERRQ(ierr)
-  istart = iend - grid%nlmax
+  istart = iend - nlmax
 
   call h5dopen_f(file_id,dataset_name,data_set_id,hdf5_err)
   if (hdf5_err /= 0) then
@@ -440,10 +440,10 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call MPI_Allreduce(MPI_IN_PLACE,cell_id_bounds,TWO_INTEGER_MPI,MPI_INTEGER, &
                      MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
   cell_id_bounds(1) = -cell_id_bounds(1)
-  if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
+  if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > dataset_size) then
     option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
       &are outside the range of valid cell IDs: 1-' // &
-      trim(adjustl(StringWrite(grid%nmax)))
+      trim(adjustl(StringWrite(dataset_size)))
     call PrintErrMsg(option)
   endif
 
@@ -1012,7 +1012,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
   call PrintMsg(option)
-  call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
+  call HDF5ReadIndices(option,grp_id,string,grid%nmax,indices,grid%nlmax)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call PrintMsg(option)
@@ -1139,7 +1139,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
   call PrintMsg(option)
-  call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
+  call HDF5ReadIndices(option,grp_id,string,grid%nmax,indices,grid%nlmax)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call PrintMsg(option)
@@ -1526,6 +1526,287 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5ReadDataSetInVec
+
+! ************************************************************************** !
+
+subroutine HDF5ReadCellIndexedRealArrayGM(geomech_realization,global_vec,filename, &
+                                          group_name, &
+                                          dataset_name,append_realization_id)
+  !
+  ! Reads an array of real values from an hdf5 file (for geomechanics PM)
+  ! (Based on HDF5ReadCellIndexedRealArray)
+  !
+  ! Author: Kyle Mosley, WSP
+  ! Date: 07/2025
+  !
+
+  use hdf5
+
+  use Geomechanics_Realization_class
+  use Geomechanics_Discretization_module
+  use Option_module
+  use Geomechanics_Grid_Aux_module
+  use Geomechanics_Field_module
+  use Geomechanics_Patch_module
+  use HDF5_Aux_module
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  class(realization_geomech_type) :: geomech_realization
+  Vec :: global_vec
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscBool :: append_realization_id
+
+  type(option_type), pointer :: option
+  type(geomech_grid_type), pointer :: grid
+  type(geomech_discretization_type), pointer :: discretization
+  type(geomech_field_type), pointer :: field
+  type(geomech_patch_type), pointer :: patch
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+
+  PetscLogDouble :: tstart, tend
+
+  PetscInt, pointer :: indices(:)
+
+  nullify(indices)
+
+  option => geomech_realization%option
+  discretization => geomech_realization%geomech_discretization
+  patch => geomech_realization%geomech_patch
+  grid => patch%geomech_grid
+  field => geomech_realization%geomech_field
+
+  call PetscLogEventBegin(logging%event_cell_indx_real_read_hdf5, &
+                          ierr);CHKERRQ(ierr)
+
+  option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
+  call PrintMsg(option)
+  call HDF5FileOpenReadOnly(filename,file_id,PETSC_TRUE,'',option)
+
+  option%io_buffer = 'Setting up grid cell indices'
+  call PrintMsg(option)
+
+  ! Open group if necessary
+  if (len_trim(group_name) > 1) then
+    option%io_buffer = 'Opening group: ' // trim(group_name)
+    call PrintMsg(option)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option)
+  else
+    grp_id = file_id
+  endif
+
+  ! Read Cell Ids
+  call PetscTime(tstart,ierr);CHKERRQ(ierr)
+  string = "Cell Ids"
+  if (grp_id /= file_id) then
+    option%io_buffer = 'Reading dataset: ' // trim(group_name) // '/' &
+                       // trim(string)
+  else
+    option%io_buffer = 'Reading dataset: ' // trim(string)
+  endif
+  call PrintMsg(option)
+  call HDF5ReadIndices(option,grp_id,string,grid%nmax_node,indices,grid%nlmax_node)
+  call PetscTime(tend,ierr);CHKERRQ(ierr)
+  write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
+  call PrintMsg(option)
+
+  call PetscTime(tstart,ierr);CHKERRQ(ierr)
+  string = ''
+  if (append_realization_id) then
+    write(string,'(i6)') option%id
+  endif
+  string = trim(dataset_name) // adjustl(trim(string))
+  if (grp_id /= file_id) then
+    option%io_buffer = 'Reading dataset: ' // trim(group_name) // '/' &
+                       // trim(string)
+  else
+    option%io_buffer = 'Reading dataset: ' // trim(string)
+  endif
+  call PrintMsg(option)
+  call HDF5ReadArrayGM(discretization,grid,option,file_id,string,grid%nmax_node, &
+                     indices,global_vec,H5T_NATIVE_DOUBLE)
+  call PetscTime(tend,ierr);CHKERRQ(ierr)
+  write(option%io_buffer,'(f6.2," Seconds to read real array")') &
+    tend-tstart
+  call PrintMsg(option)
+
+  call DeallocateArray(indices)
+
+  if (file_id /= grp_id) then
+    option%io_buffer = 'Closing group: ' // trim(group_name)
+    call PrintMsg(option)
+    call HDF5GroupClose(grp_id,option)
+  endif
+  option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
+  call PrintMsg(option)
+  call HDF5FileClose(file_id,option)
+
+  call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
+                        ierr);CHKERRQ(ierr)
+
+end subroutine HDF5ReadCellIndexedRealArrayGM
+
+! ************************************************************************** !
+
+subroutine HDF5ReadArrayGM(geomech_discretization,geomech_grid, &
+                           option,file_id,dataset_name, &
+                           dataset_size, &
+                           indices,global_vec,data_type)
+  !
+  ! Read an hdf5 array into a Petsc Vec for geomechanics PM
+  ! (based on HDF5ReadArray)
+  !
+  ! Author: Kyle Mosley, WSP
+  ! Date: 07/2025
+  !
+  use hdf5
+
+  use Option_module
+  use Geomechanics_Grid_Aux_module
+  use Geomechanics_Discretization_module
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(geomech_discretization_type) :: geomech_discretization
+  type(geomech_grid_type) :: geomech_grid
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: dataset_size
+  integer(HID_T) :: file_id
+  PetscInt, pointer :: indices(:)
+  Vec :: global_vec
+  integer(HID_T) :: data_type
+
+  integer(HID_T) :: file_space_id
+  integer(HID_T) :: memory_space_id
+  integer(HID_T) :: data_set_id
+  integer(HID_T) :: prop_id
+  integer(HSIZE_T) :: dims(3)
+  integer(HSIZE_T) :: offset(3), length(3), stride(3)
+  PetscMPIInt :: rank_mpi
+  integer(HSIZE_T) :: num_data_in_file
+  integer(SIZE_T) :: string_size
+  integer :: ndims_h5
+  Vec :: natural_vec
+  PetscInt :: i, istart, iend
+  PetscReal, allocatable :: real_buffer(:)
+  integer, allocatable :: integer_buffer_i4(:)
+  PetscInt, allocatable :: indices0(:)
+
+  call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
+
+  istart = 0
+  iend = 0
+
+  call h5dopen_f(file_id,dataset_name,data_set_id,hdf5_err)
+  if (hdf5_err /= 0) then
+    string_size = MAXSTRINGLENGTH
+    call h5fget_name_f(file_id,string,string_size,hdf5_err)
+    option%io_buffer = 'HDF5 dataset "' // trim(dataset_name) // '" not found &
+      &in file "' // trim(string) // '".'
+    call PrintErrMsg(option)
+  endif
+  call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
+  ! should be a rank=1 data space
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+  if (ndims_h5 /= 1) then
+    write(option%io_buffer, &
+          '(a," data space dimension (",i2,"D) must be 1D.")') &
+          trim(dataset_name), ndims_h5
+    call PrintErrMsg(option)
+  endif
+  call h5sget_simple_extent_npoints_f(file_space_id,num_data_in_file,hdf5_err)
+
+  if (dataset_size > 0 .and. num_data_in_file /= dataset_size) then
+    write(option%io_buffer, &
+          '(a," data space dimension (",i9,") does not match the dimensions",&
+           &" of the domain (",i9,").")') trim(dataset_name), &
+           num_data_in_file,geomech_grid%nmax_node
+    call PrintErrMsg(option)
+  endif
+
+  rank_mpi = 1
+  offset = 0
+  length = 0
+  stride = 1
+
+  call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
+#endif
+
+  call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
+                                         natural_vec,NATURAL,option)
+  call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+
+  ! must initialize here to avoid error below when closing memory space
+  memory_space_id = -1
+
+  if (associated(indices)) then
+
+    istart = indices(-1)
+    iend = indices(0)
+
+    dims = 0
+    dims(1) = iend-istart
+    call h5screate_simple_f(rank_mpi,dims,memory_space_id,hdf5_err,dims)
+
+    ! offset is zero-based
+    offset(1) = istart
+    length(1) = iend-istart
+    call h5sselect_hyperslab_f(file_space_id, H5S_SELECT_SET_F,offset, &
+                               length,hdf5_err,stride,stride)
+    allocate(real_buffer(iend-istart))
+    if (data_type == H5T_NATIVE_DOUBLE) then
+      call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+      call h5dread_f(data_set_id,H5T_NATIVE_DOUBLE,real_buffer,dims, &
+                     hdf5_err,memory_space_id,file_space_id,prop_id)
+      call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+    else if (data_type == HDF_NATIVE_INTEGER) then
+      allocate(integer_buffer_i4(iend-istart))
+      call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+      call h5dread_f(data_set_id,HDF_NATIVE_INTEGER,integer_buffer_i4,dims, &
+                     hdf5_err,memory_space_id,file_space_id,prop_id)
+      call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+      do i=1,iend-istart
+        real_buffer(i) = real(integer_buffer_i4(i))
+      enddo
+      deallocate(integer_buffer_i4)
+    endif
+    ! must convert indices to zero based for VecSetValues
+    allocate(indices0(iend-istart))
+    indices0 = indices(1:iend-istart)-1
+    call VecSetValues(natural_vec,iend-istart,indices0,real_buffer, &
+                      INSERT_VALUES,ierr);CHKERRQ(ierr)
+    deallocate(indices0)
+    deallocate(real_buffer)
+
+  endif
+
+  call h5pclose_f(prop_id,hdf5_err)
+  if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
+  call h5sclose_f(file_space_id,hdf5_err)
+  call HDF5DatasetClose(data_set_id,option)
+
+  call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+  call GeomechDiscretizationNaturalToGlobal(geomech_discretization, &
+                                            natural_vec,global_vec, &
+                                            ONEDOF)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
+  call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
+
+end subroutine HDF5ReadArrayGM
 
 end module HDF5_module
 

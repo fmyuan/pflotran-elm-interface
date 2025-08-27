@@ -97,6 +97,9 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
   use Solver_module
   use Units_module
   use Waypoint_module
+  use Dataset_Base_class
+  use Dataset_module
+  use Dataset_Common_HDF5_class
   use Utility_module, only : DeallocateArray, UtilityReadArray
   use Geomechanics_Attr_module
 
@@ -111,6 +114,8 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
   type(output_option_type), pointer :: output_option
 
   class(realization_geomech_type), pointer :: geomech_realization
+  class(dataset_base_type), pointer :: dataset
+
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_material_property_type),pointer :: geomech_material_property
   type(geomech_grid_type), pointer :: grid
@@ -172,6 +177,14 @@ subroutine InitSubsurfGeomechReadInput(geomech,geomech_solver, &
 
       case ('GEOMECHANICS_SET_REF_P_T_TO_IC')
         option%geomechanics%set_ref_pres_and_temp_to_IC = PETSC_TRUE
+
+      !.........................................................................
+      ! Read geomechanics datasets
+      case ('GEOMECHANICS_DATASET')
+          nullify(dataset)
+          call DatasetRead(input,dataset,option)
+          call DatasetBaseAddToList(dataset,geomech_realization%geomech_datasets)
+          nullify(dataset)
 
       !.........................................................................
       case ('GEOMECHANICS_REGION')
@@ -600,6 +613,9 @@ subroutine InitMatPropToGeomechRegions(geomech_realization)
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscErrorCode :: ierr
 
+  Vec :: temp_vec
+  PetscReal, pointer :: temp_vec_p(:)
+
   type(option_type), pointer :: option
   type(geomech_grid_type), pointer :: grid
   type(geomech_discretization_type), pointer :: geomech_discretization
@@ -710,6 +726,97 @@ subroutine InitMatPropToGeomechRegions(geomech_realization)
     imech_loc_p(ghosted_id) = geomech_material_property%id
   enddo ! local_id - loop
   call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+
+  ! read in any user-defined geomech property fields
+  call GeomechDiscretizationDuplicateVector(geomech_discretization, &
+                                            field%press_loc, &
+                                            temp_vec)
+  do geomech_material_id = 1, size(patch%geomech_material_property_array)
+    geomech_material_property => &
+            patch%geomech_material_property_array(geomech_material_id)%ptr
+    if (.not.associated(geomech_material_property)) cycle
+    ! Young's modulus
+    if (associated(geomech_material_property%youngs_modulus_dataset)) then
+      ! Set the value of field%youngs_modulus for this material to the dataset values
+      call GeomechReadDatasetToVecWithMask(geomech_realization, &
+            geomech_material_property%youngs_modulus_dataset, &
+            geomech_material_property%id,PETSC_FALSE,field%youngs_modulus,temp_vec)
+    else
+      ! Set the value of field%youngs_modulus for this material to the constant value
+      call VecGetArrayF90(field%youngs_modulus,temp_vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax_node
+        if (patch%imat(grid%nL2G(local_id)) == geomech_material_property%id) then
+          temp_vec_p(local_id) = geomech_material_property%youngs_modulus
+        endif
+      enddo
+      call VecRestoreArrayF90(field%youngs_modulus,temp_vec_p,ierr);CHKERRQ(ierr)
+    endif
+    ! Poisson's ratio
+    if (associated(geomech_material_property%poissons_ratio_dataset)) then
+      ! Set the value of field%poissons_ratio for this material to the dataset values
+      call GeomechReadDatasetToVecWithMask(geomech_realization, &
+            geomech_material_property%poissons_ratio_dataset, &
+            geomech_material_property%id,PETSC_FALSE,field%poissons_ratio,temp_vec)
+    else
+      ! Set the value of field%poissons_ratio for this material to the constant value
+      call VecGetArrayF90(field%poissons_ratio,temp_vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax_node
+        if (patch%imat(grid%nL2G(local_id)) == geomech_material_property%id) then
+          temp_vec_p(local_id) = geomech_material_property%poissons_ratio
+        endif
+      enddo
+      call VecRestoreArrayF90(field%poissons_ratio,temp_vec_p,ierr);CHKERRQ(ierr)
+    endif
+    ! Density
+    if (associated(geomech_material_property%density_dataset)) then
+      ! Set the value of field%density for this material to the dataset values
+      call GeomechReadDatasetToVecWithMask(geomech_realization, &
+            geomech_material_property%density_dataset, &
+            geomech_material_property%id,PETSC_FALSE,field%density,temp_vec)
+    else
+      ! Set the value of field%density for this material to the constant value
+      call VecGetArrayF90(field%density,temp_vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax_node
+        if (patch%imat(grid%nL2G(local_id)) == geomech_material_property%id) then
+          temp_vec_p(local_id) = geomech_material_property%density
+        endif
+      enddo
+      call VecRestoreArrayF90(field%density,temp_vec_p,ierr);CHKERRQ(ierr)
+    endif
+    ! Biot's coefficient
+    if (associated(geomech_material_property%biot_coeff_dataset)) then
+      ! Set the value of field%biot_coeff for this material to the dataset values
+      call GeomechReadDatasetToVecWithMask(geomech_realization, &
+            geomech_material_property%biot_coeff_dataset, &
+            geomech_material_property%id,PETSC_FALSE,field%biot_coeff,temp_vec)
+    else
+      ! Set the value of field%biot_coeff for this material to the constant value
+      call VecGetArrayF90(field%biot_coeff,temp_vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax_node
+        if (patch%imat(grid%nL2G(local_id)) == geomech_material_property%id) then
+          temp_vec_p(local_id) = geomech_material_property%biot_coeff
+        endif
+      enddo
+      call VecRestoreArrayF90(field%biot_coeff,temp_vec_p,ierr);CHKERRQ(ierr)
+    endif
+    ! Thermal expansion coefficient
+    if (associated(geomech_material_property%thermal_exp_coeff_dataset)) then
+      ! Set the value of field%thermal_exp_coeff for this material to the dataset values
+      call GeomechReadDatasetToVecWithMask(geomech_realization, &
+            geomech_material_property%thermal_exp_coeff_dataset, &
+            geomech_material_property%id,PETSC_FALSE,field%thermal_exp_coeff,temp_vec)
+    else
+      ! Set the value of field%thermal_exp_coeff for this material to the constant value
+      call VecGetArrayF90(field%thermal_exp_coeff,temp_vec_p,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax_node
+        if (patch%imat(grid%nL2G(local_id)) == geomech_material_property%id) then
+          temp_vec_p(local_id) = geomech_material_property%thermal_exp_coeff
+        endif
+      enddo
+      call VecRestoreArrayF90(field%thermal_exp_coeff,temp_vec_p,ierr);CHKERRQ(ierr)
+    endif
+  enddo
+  call VecDestroy(temp_vec,ierr);CHKERRQ(ierr)
 
   call GeomechanicsMaterialPropertyDestroy(null_geomech_material_property)
   nullify(null_geomech_material_property)
@@ -1135,6 +1242,90 @@ subroutine InitSubsurfGeomechReadSimBlock(input,pm)
   call InputPopBlock(input,option)
 
 end subroutine InitSubsurfGeomechReadSimBlock
+
+! ************************************************************************** !
+
+subroutine GeomechReadDatasetToVecWithMask(geomech_realization,dataset, &
+                                           geomech_material_id,read_all_values,vec,temp_vec)
+  !
+  ! Reads a geomechanics dataset into a PETSc Vec
+  ! (based on SubsurfReadDatasetToVecWithMask)
+  !
+  ! Author: Kyle Mosley, WSP
+  ! Date: 07/2025
+  !
+  use Geomechanics_Realization_class
+  use Geomechanics_Field_module
+  use Geomechanics_Grid_Aux_module
+  use Geomechanics_Patch_module
+  use Option_module
+  use Input_Aux_module
+  Use HDF5_module
+  Use Dataset_Base_class
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+
+  implicit none
+
+  ! input/output declarations
+  class(realization_geomech_type) :: geomech_realization
+  class(dataset_base_type) :: dataset
+  PetscInt :: geomech_material_id
+  PetscBool :: read_all_values
+  Vec :: vec
+  Vec :: temp_vec
+
+  type(geomech_field_type), pointer :: field
+  type(geomech_patch_type), pointer :: patch
+  type(geomech_grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+  PetscReal, pointer :: vec_p(:)
+  PetscReal, pointer :: work_p(:)
+
+  field => geomech_realization%geomech_field
+  patch => geomech_realization%geomech_patch
+  grid => patch%geomech_grid
+  option => geomech_realization%option
+
+  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  if (index(dataset%filename,'.h5') > 0) then
+    group_name = ''
+    dataset_name = dataset%name
+    select type(dataset)
+    class is(dataset_common_hdf5_type)
+
+
+      dataset_name = dataset%hdf5_dataset_name
+      call HDF5ReadCellIndexedRealArrayGM(geomech_realization,temp_vec, &
+                                        dataset%filename, &
+                                        group_name,dataset_name, &
+                                        dataset%realization_dependent)
+      call VecGetArrayF90(temp_vec,work_p,ierr);CHKERRQ(ierr)
+      if (read_all_values) then
+        do local_id = 1, grid%nlmax_node
+          vec_p(local_id) = work_p(local_id)
+        enddo
+      else
+        do local_id = 1, grid%nlmax_node
+          if (patch%imat(grid%nL2G(local_id)) == geomech_material_id) then
+            vec_p(local_id) = work_p(local_id)
+          endif
+        enddo
+      endif
+      call VecRestoreArrayF90(temp_vec,work_p,ierr);CHKERRQ(ierr)
+    class default
+        option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
+          &wrong type for GeomechReadDatasetToVecWithMask()'
+        call PrintErrMsg(option)
+    end select
+  endif
+  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+
+  end subroutine GeomechReadDatasetToVecWithMask
 
 ! ************************************************************************** !
 

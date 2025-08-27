@@ -922,6 +922,8 @@ geomechanics_global_aux.o : \
   pflotran_constants.o \
   utility.o
 geomechanics_material.o : \
+  dataset.o \
+  dataset_base.o \
   input_aux.o \
   option.o \
   pflotran_constants.o \
@@ -945,6 +947,7 @@ geomechanics_patch.o : \
 geomechanics_realization.o : \
   dataset.o \
   dataset_base.o \
+  dataset_common_hdf5.o \
   geomech_grid_aux.o \
   geomechanics_condition.o \
   geomechanics_coupler.o \
@@ -1118,6 +1121,11 @@ grid_unstructured_polyhedra.o : \
 hdf5.o : \
   discretization.o \
   field.o \
+  geomech_grid_aux.o \
+  geomechanics_discretization.o \
+  geomechanics_field.o \
+  geomechanics_patch.o \
+  geomechanics_realization.o \
   grid.o \
   grid_unstructured_cell.o \
   hdf5_aux.o \
@@ -1274,6 +1282,10 @@ init_subsurface_flow.o : \
   realization_subsurface.o
 init_subsurface_geomechanics.o : \
   condition_control.o \
+  dataset.o \
+  dataset_base.o \
+  dataset_common_hdf5.o \
+  dataset_gridded_hdf5.o \
   geomech_grid.o \
   geomech_grid_aux.o \
   geomechanics_attributes.o \
@@ -2038,7 +2050,6 @@ pm_fracture.o : \
   field.o \
   general_aux.o \
   geometry.o \
-  global_aux.o \
   grid.o \
   input_aux.o \
   material_aux.o \
@@ -2047,6 +2058,7 @@ pm_fracture.o : \
   pm_base.o \
   realization_subsurface.o \
   string.o \
+  th_aux.o \
   utility.o
 pm_general.o : \
   checkpoint.o \
@@ -3623,7 +3635,6 @@ simulation_geomechanics.o : \
   realization_subsurface.o \
   simulation_aux.o \
   simulation_subsurface.o \
-  timestepper_KSP.o \
   timestepper_base.o \
   utility.o \
   waypoint.o
@@ -3869,7 +3880,8 @@ th_aux.o : \
   matrix_zeroing.o \
   option.o \
   pflotran_constants.o \
-  saturation_function.o
+  saturation_function.o \
+  utility.o
 time_storage.o : \
   option.o \
   pflotran_constants.o

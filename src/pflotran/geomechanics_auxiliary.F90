@@ -1,7 +1,9 @@
 module Geomechanics_Auxiliary_module
 
 #include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
   use petscsys
+  use petscvec
 
   use Geomechanics_Global_Aux_module
   use PFLOTRAN_Constants_module
@@ -18,9 +20,21 @@ module Geomechanics_Auxiliary_module
   type, public :: geomech_parameter_type
     PetscReal, pointer :: youngs_modulus(:)
     PetscReal, pointer :: poissons_ratio(:)
-    PetscReal, pointer :: biot_coef(:)
-    PetscReal, pointer :: thermal_exp_coef(:)
+    PetscReal, pointer :: biot_coeff(:)
+    PetscReal, pointer :: thermal_exp_coeff(:)
     PetscReal, pointer :: density(:)
+
+    PetscBool :: youngs_modulus_spatially_varying
+    PetscBool :: poissons_ratio_spatially_varying
+    PetscBool :: density_spatially_varying
+    PetscBool :: biot_coeff_spatially_varying
+    PetscBool :: thermal_exp_coeff_spatially_varying
+
+    Vec :: youngs_modulus_vec
+    Vec :: poissons_ratio_vec
+    Vec :: density_vec
+    Vec :: biot_coeff_vec
+    Vec :: thermal_exp_coeff_vec
   end type geomech_parameter_type
 
   public :: GeomechAuxInit, &
@@ -46,8 +60,8 @@ subroutine GeomechAuxInit(geomech_aux)
   allocate(geomech_aux%GeomechParam)
   nullify(geomech_aux%GeomechParam%youngs_modulus)
   nullify(geomech_aux%GeomechParam%poissons_ratio)
-  nullify(geomech_aux%GeomechParam%biot_coef)
-  nullify(geomech_aux%GeomechParam%thermal_exp_coef)
+  nullify(geomech_aux%GeomechParam%biot_coeff)
+  nullify(geomech_aux%GeomechParam%thermal_exp_coeff)
   nullify(geomech_aux%GeomechParam%density)
 
 end subroutine GeomechAuxInit
@@ -77,12 +91,12 @@ subroutine GeomechAuxDestroy(geomech_aux)
     if (associated(geomech_aux%GeomechParam%poissons_ratio)) &
       deallocate(geomech_aux%GeomechParam%poissons_ratio)
     nullify(geomech_aux%GeomechParam%poissons_ratio)
-    if (associated(geomech_aux%GeomechParam%biot_coef)) &
-      deallocate(geomech_aux%GeomechParam%biot_coef)
-    nullify(geomech_aux%GeomechParam%biot_coef)
-    if (associated(geomech_aux%GeomechParam%thermal_exp_coef)) &
-      deallocate(geomech_aux%GeomechParam%thermal_exp_coef)
-    nullify(geomech_aux%GeomechParam%thermal_exp_coef)
+    if (associated(geomech_aux%GeomechParam%biot_coeff)) &
+      deallocate(geomech_aux%GeomechParam%biot_coeff)
+    nullify(geomech_aux%GeomechParam%biot_coeff)
+    if (associated(geomech_aux%GeomechParam%thermal_exp_coeff)) &
+      deallocate(geomech_aux%GeomechParam%thermal_exp_coeff)
+    nullify(geomech_aux%GeomechParam%thermal_exp_coeff)
     if (associated(geomech_aux%GeomechParam%density)) &
       deallocate(geomech_aux%GeomechParam%density)
     nullify(geomech_aux%GeomechParam%density)

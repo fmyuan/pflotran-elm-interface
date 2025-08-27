@@ -17,7 +17,7 @@ END
 SUBSURFACE
     #=================== Discretization =========================
     GRID
-        TYPE unstructured_explicit simple_tet_cube_grid.uge
+        TYPE unstructured_explicit ../meshes/tet_cube/simple_tet_cube_grid.uge
         GRAVITY 0.d0 0.d0 0.d0
         UPWIND_FRACTION_METHOD CELL_VOLUME
         PERM_TENSOR_TO_SCALAR_MODEL FLOW
@@ -68,16 +68,16 @@ SUBSURFACE
         END
     END
     REGION BC1_BC_zeroXdisplace_reg
-        FILE simple_tet_cube_BC1_BC_zeroXdisplace.ex
+        FILE ../meshes/tet_cube/simple_tet_cube_BC1_BC_zeroXdisplace.ex
     END
     REGION BC2_BC_zeroYdisplace_reg
-        FILE simple_tet_cube_BC2_BC_zeroYdisplace.ex
+        FILE ../meshes/tet_cube/simple_tet_cube_BC2_BC_zeroYdisplace.ex
     END
     REGION BC3_BC_zeroZdisplace_reg
-        FILE simple_tet_cube_BC3_BC_zeroZdisplace.ex
+        FILE ../meshes/tet_cube/simple_tet_cube_BC3_BC_zeroZdisplace.ex
     END
     REGION BC4_BC_ZPres_reg
-        FILE simple_tet_cube_BC4_BC_ZPres.ex
+        FILE ../meshes/tet_cube/simple_tet_cube_BC4_BC_ZPres.ex
     END
     #=================== Flow conditions =========================
     FLOW_CONDITION initial
@@ -170,10 +170,10 @@ GEOMECHANICS
       /
     END
     GEOMECHANICS_GRID
-        TYPE UNSTRUCTURED simple_tet_cube_grid_geo.ugi
+        TYPE UNSTRUCTURED ../meshes/tet_cube/simple_tet_cube_grid_geo.ugi
         GRAVITY 0 0 -9.81
     END
-    GEOMECHANICS_MAPPING_FILE simple_tet_cube_mappping_geo.dat
+    GEOMECHANICS_MAPPING_FILE ../meshes/tet_cube/simple_tet_cube_mappping_geo.dat
     GEOMECHANICS_TIME
         COUPLING_TIMESTEP_SIZE 3600 s
     END
@@ -182,10 +182,10 @@ GEOMECHANICS
     END
     GEOMECHANICS_IMPROVE_TET_WEIGHT
     #=================== Geomechanics Boundary Conditions =========================
-    EXTERNAL_FILE ./simple_tet_cube_geomech.txt
+    EXTERNAL_FILE ../meshes/tet_cube/simple_tet_cube_geomech.txt
     #=================== Geomechanics Material Regions =========================
     GEOMECHANICS_REGION RockMatrix3D_material_reg
-        FILE simple_tet_cube_RockMatrix3D_material_geo.vset
+        FILE ../meshes/tet_cube/simple_tet_cube_RockMatrix3D_material_geo.vset
     END
     #=================== Geomechanics Strata =========================
     GEOMECHANICS_STRATA

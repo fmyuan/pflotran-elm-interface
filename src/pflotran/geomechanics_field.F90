@@ -39,6 +39,13 @@ module Geomechanics_Field_module
     Vec :: porosity_loc
     Vec :: porosity_init_loc
 
+    ! spatially-varying material properties
+    Vec :: youngs_modulus
+    Vec :: poissons_ratio
+    Vec :: density
+    Vec :: biot_coeff
+    Vec :: thermal_exp_coeff
+
     Vec :: fluid_density ! store density from subsurf
     Vec :: fluid_density_loc
     Vec :: fluid_density_init_loc
@@ -107,6 +114,12 @@ function GeomechFieldCreate()
   geomech_field%porosity = PETSC_NULL_VEC
   geomech_field%porosity_loc = PETSC_NULL_VEC
   geomech_field%porosity_init_loc = PETSC_NULL_VEC
+
+  geomech_field%youngs_modulus = PETSC_NULL_VEC
+  geomech_field%poissons_ratio = PETSC_NULL_VEC
+  geomech_field%density = PETSC_NULL_VEC
+  geomech_field%biot_coeff = PETSC_NULL_VEC
+  geomech_field%thermal_exp_coeff = PETSC_NULL_VEC
 
   geomech_field%fluid_density = PETSC_NULL_VEC
   geomech_field%fluid_density_loc = PETSC_NULL_VEC
@@ -222,6 +235,22 @@ subroutine GeomechFieldDestroy(geomech_field)
   endif
   if (geomech_field%porosity_init_loc /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
+  endif
+
+  if (geomech_field%youngs_modulus /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%youngs_modulus,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%poissons_ratio /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%poissons_ratio,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%density /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%density,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%biot_coeff /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%biot_coeff,ierr);CHKERRQ(ierr)
+  endif
+  if (geomech_field%thermal_exp_coeff /= PETSC_NULL_VEC) then
+    call VecDestroy(geomech_field%thermal_exp_coeff,ierr);CHKERRQ(ierr)
   endif
 
   if (geomech_field%fluid_density /= PETSC_NULL_VEC) then

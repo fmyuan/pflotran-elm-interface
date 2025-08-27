@@ -107,6 +107,11 @@ module Variables_module
   PetscInt, parameter, public :: GEOMECH_REL_DISP_X      = 87
   PetscInt, parameter, public :: GEOMECH_REL_DISP_Y      = 88
   PetscInt, parameter, public :: GEOMECH_REL_DISP_Z      = 89
+  PetscInt, parameter, public :: YOUNGS_MODULUS          = 186
+  PetscInt, parameter, public :: POISSONS_RATIO          = 187
+  PetscInt, parameter, public :: ROCK_DENSITY            = 188
+  PetscInt, parameter, public :: BIOT_COEFF              = 189
+  PetscInt, parameter, public :: THERMAL_EXP_COEFF       = 190
 
   PetscInt, parameter, public :: VOLUME                  = 90
   PetscInt, parameter, public :: TORTUOSITY              = 91
