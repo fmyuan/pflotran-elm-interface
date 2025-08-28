@@ -1,7 +1,7 @@
 module Geomechanics_Global_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geomechanics_Global_Aux_module
   use PFLOTRAN_Constants_module
 
@@ -168,9 +168,6 @@ subroutine GeomechGlobalSetAuxVarVecLoc(geomech_realization,vec_loc,ivar, &
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
 
@@ -198,9 +195,6 @@ subroutine GeomechGlobalSetAuxVarVecLocPatch(geomech_realization,vec_loc,ivar,&
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
   use Geomechanics_Grid_Aux_module
@@ -229,7 +223,7 @@ subroutine GeomechGlobalSetAuxVarVecLocPatch(geomech_realization,vec_loc,ivar,&
   grid => patch%geomech_grid
   option => geomech_realization%option
 
-  call VecGetArrayF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(GEOMECH_DISP_X)
@@ -261,7 +255,7 @@ subroutine GeomechGlobalSetAuxVarVecLocPatch(geomech_realization,vec_loc,ivar,&
       end select
   end select
 
-  call VecRestoreArrayF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechGlobalSetAuxVarVecLocPatch
 

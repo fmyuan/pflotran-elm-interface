@@ -1,7 +1,8 @@
 module Solver_CPR_module
 
-#include "petsc/finclude/petscts.h"
-  use petscts
+#include "petsc/finclude/petscksp.h"
+  use petscksp
+
   use CPR_Preconditioner_module
   use Option_module
   use PFLOTRAN_Constants_module

@@ -71,6 +71,7 @@ module EOS_Gas_module
     subroutine EOSGasViscosityDummy(T, P_comp, P_gas, Rho_comp, V_mix, &
                                     calculate_derivative, dV_dT, dV_dPcomp, &
                                     dV_dPgas, dV_dRhocomp, ierr, table_idxs)
+      use petscsys
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P_comp   ! air pressure [Pa]
@@ -86,6 +87,7 @@ module EOS_Gas_module
       PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSGasViscosityDummy
     subroutine EOSGasDensityDummy(T,P,Rho_gas,dRho_dT,dRho_dP,ierr,table_idxs)
+      use petscsys
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -96,6 +98,7 @@ module EOS_Gas_module
       PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSGasDensityDummy
     subroutine EOSGasEnergyDummy(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+      use petscsys
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -110,6 +113,7 @@ module EOS_Gas_module
     subroutine EOSGasDensityEnergyDummy(T,P,Rho_gas,dRho_dT,dRho_dP, &
                                         H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr, &
                                         table_idxs)
+      use petscsys
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: P        ! pressure [Pa]
@@ -127,6 +131,7 @@ module EOS_Gas_module
     end subroutine EOSGasDensityEnergyDummy
     subroutine EOSGasHenryDummy(T,Psat,Hc,calculate_derivative, &
                                 Psat_p,Psat_T,Hc_P,Hc_T,ierr)
+      use petscsys
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: Psat     ! saturation pressure

@@ -1,8 +1,11 @@
 module Grid_Unstructured_Aux_module
 
 !  use Connection_module
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+#include "petsc/finclude/petscdmda.h"
+#include "petsc/finclude/petscmat.h"
+  use petscdmda
+  use petscmat
+
   use Grid_Unstructured_Cell_module
   use Geometry_module
   use Well_Grid_module
@@ -202,24 +205,24 @@ function UGDMCreate()
   type(ugdm_type), pointer :: ugdm
 
   allocate(ugdm)
-  ugdm%is_ghosted_local = PETSC_NULL_IS
-  ugdm%is_local_local = PETSC_NULL_IS
-  ugdm%is_ghosted_petsc = PETSC_NULL_IS
-  ugdm%is_local_petsc = PETSC_NULL_IS
-  ugdm%is_ghosts_local = PETSC_NULL_IS
-  ugdm%is_ghosts_petsc = PETSC_NULL_IS
-  ugdm%is_local_natural = PETSC_NULL_IS
-  ugdm%scatter_ltog = PETSC_NULL_VECSCATTER
-  ugdm%scatter_gtol = PETSC_NULL_VECSCATTER
-  ugdm%scatter_ltol  = PETSC_NULL_VECSCATTER
-  ugdm%scatter_gton = PETSC_NULL_VECSCATTER
-  ugdm%mapping_ltog = 0
-  ugdm%global_vec = PETSC_NULL_VEC
-  ugdm%local_vec = PETSC_NULL_VEC
-  ugdm%scatter_bet_grids = PETSC_NULL_VECSCATTER
-  ugdm%scatter_bet_grids_1dof = PETSC_NULL_VECSCATTER
-  ugdm%scatter_bet_grids_ndof = PETSC_NULL_VECSCATTER
-  ugdm%ao_natural_to_petsc = 0 ! this is solely a pointer, do not destroy
+  PetscObjectNullify(ugdm%is_ghosted_local)
+  PetscObjectNullify(ugdm%is_local_local)
+  PetscObjectNullify(ugdm%is_ghosted_petsc)
+  PetscObjectNullify(ugdm%is_local_petsc)
+  PetscObjectNullify(ugdm%is_ghosts_local)
+  PetscObjectNullify(ugdm%is_ghosts_petsc)
+  PetscObjectNullify(ugdm%is_local_natural)
+  PetscObjectNullify(ugdm%scatter_ltog)
+  PetscObjectNullify(ugdm%scatter_gtol)
+  PetscObjectNullify(ugdm%scatter_ltol)
+  PetscObjectNullify(ugdm%scatter_gton)
+  PetscObjectNullify(ugdm%mapping_ltog)
+  PetscObjectNullify(ugdm%global_vec)
+  PetscObjectNullify(ugdm%local_vec)
+  PetscObjectNullify(ugdm%scatter_bet_grids)
+  PetscObjectNullify(ugdm%scatter_bet_grids_1dof)
+  PetscObjectNullify(ugdm%scatter_bet_grids_ndof)
+  PetscObjectNullify(ugdm%ao_natural_to_petsc) ! this is solely a pointer, do not destroy
   UGDMCreate => ugdm
 
 end function UGDMCreate
@@ -251,7 +254,7 @@ function UGridCreate()
   nullify(unstructured_grid%cell_ids_natural)
   nullify(unstructured_grid%cell_ids_petsc)
   nullify(unstructured_grid%ghost_cell_ids_petsc)
-  unstructured_grid%ao_natural_to_petsc = 0
+  PetscObjectNullify(unstructured_grid%ao_natural_to_petsc)
   nullify(unstructured_grid%explicit_grid)
   nullify(unstructured_grid%polyhedra_grid)
 
@@ -392,8 +395,6 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ! Date: 09/30/09
   !
 
-#include "petsc/finclude/petscdm.h"
-  use petscdm
   use Option_module
   use Utility_module, only: ReallocateArray
 
@@ -644,10 +645,10 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ! Create local to local scatter.  Essentially remap the global to local as
   ! PETSc does in daltol.c
   call VecScatterCopy(ugdm%scatter_gtol,ugdm%scatter_ltol,ierr);CHKERRQ(ierr)
-  call ISGetIndicesF90(ugdm%is_local_local,int_ptr,ierr);CHKERRQ(ierr)
-  call VecScatterRemap(ugdm%scatter_ltol,int_ptr,PETSC_NULL_INTEGER, &
+  call ISGetIndices(ugdm%is_local_local,int_ptr,ierr);CHKERRQ(ierr)
+  call VecScatterRemap(ugdm%scatter_ltol,int_ptr,PETSC_NULL_INTEGER_ARRAY, &
                        ierr);CHKERRQ(ierr)
-  call ISRestoreIndicesF90(ugdm%is_local_local,int_ptr,ierr);CHKERRQ(ierr)
+  call ISRestoreIndices(ugdm%is_local_local,int_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   string = 'scatter_ltol' // trim(ndof_word) // '.out'
@@ -676,11 +677,11 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ! remap for ndof > 1  !geh: no longer need to accommodate ndof > 1, but leave
   ! alone for now.
   allocate(int_array(unstructured_grid%nlmax))
-  call ISGetIndicesF90(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
+  call ISGetIndices(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, unstructured_grid%nlmax
     int_array(local_id) = int_ptr(local_id)
   enddo
-  call ISRestoreIndicesF90(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
+  call ISRestoreIndices(is_tmp,int_ptr,ierr);CHKERRQ(ierr)
   call ISDestroy(is_tmp,ierr);CHKERRQ(ierr)
   call ISCreateBlock(option%mycomm,ndof,unstructured_grid%nlmax,int_array, &
                      PETSC_COPY_VALUES,ugdm%is_local_natural, &
@@ -731,8 +732,6 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 11/10/15
   !
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
   use Option_module
   use Utility_module, only: ReallocateArray
 
@@ -790,10 +789,8 @@ subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
   ! Author: Glenn Hammond
   ! Date: 11/05/09
   !
-#include "petsc/finclude/petscmat.h"
-  use petscmat
-
   use Option_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -854,8 +851,9 @@ subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
   call MatSetType(J,mat_type,ierr);CHKERRQ(ierr)
   call MatSetSizes(J,ndof_local,ndof_local,PETSC_DETERMINE,PETSC_DETERMINE, &
                    ierr);CHKERRQ(ierr)
-  call MatXAIJSetPreallocation(J,ugdm%ndof,d_nnz,o_nnz,PETSC_NULL_INTEGER, &
-                               PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call MatXAIJSetPreallocation(J,ugdm%ndof,d_nnz,o_nnz, &
+                               PETSC_NULL_INTEGER_ARRAY, &
+                               PETSC_NULL_INTEGER_ARRAY,ierr);CHKERRQ(ierr)
 
   call MatSetLocalToGlobalMapping(J,ugdm%mapping_ltog,ugdm%mapping_ltog, &
                                   ierr);CHKERRQ(ierr)
@@ -872,7 +870,7 @@ subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
 ! Go down the diagonal to ensure we have visited any unconnected cells
     do local_id = 1, unstructured_grid%nlmax
       ghosted_id = local_id
-      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
+      call PUMSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
 
@@ -880,15 +878,15 @@ subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
       id_up = unstructured_grid%explicit_grid%connections(1,iconn)
       id_dn = unstructured_grid%explicit_grid%connections(2,iconn)
       if (id_up <= unstructured_grid%nlmax) then ! local
-        call MatSetValuesBlockedLocal(J,1,id_up-1,1,id_up-1,values,ADD_VALUES, &
+        call PUMSetValuesBlockedLocal(J,1,id_up-1,1,id_up-1,values,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(J,1,id_up-1,1,id_dn-1,values,ADD_VALUES, &
+        call PUMSetValuesBlockedLocal(J,1,id_up-1,1,id_dn-1,values,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
       if (id_dn <= unstructured_grid%nlmax) then ! local
-        call MatSetValuesBlockedLocal(J,1,id_dn-1,1,id_dn-1,values,ADD_VALUES, &
+        call PUMSetValuesBlockedLocal(J,1,id_dn-1,1,id_dn-1,values,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(J,1,id_dn-1,1,id_up-1,values,ADD_VALUES, &
+        call PUMSetValuesBlockedLocal(J,1,id_dn-1,1,id_up-1,values,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
     enddo
@@ -897,13 +895,13 @@ subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
       ! for unstructured grids, the first nlmax cells have identical local
       ! and global ids
       ghosted_id = local_id
-      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
+      call PUMSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,values, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
       do ineighbor = 1, unstructured_grid% &
                           cell_neighbors_local_ghosted(0,local_id)
         neighbor_id = abs(unstructured_grid% &
                             cell_neighbors_local_ghosted(ineighbor,local_id))
-        call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,neighbor_id-1,values, &
+        call PUMSetValuesBlockedLocal(J,1,ghosted_id-1,1,neighbor_id-1,values, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
     enddo
@@ -1014,11 +1012,11 @@ subroutine UGridMapIndices(unstructured_grid,ugdm,nG2L,nL2G,nG2A,option)
     nG2L(local_id) = local_id
   enddo
 
-  call ISGetIndicesF90(ugdm%is_ghosted_petsc,int_ptr,ierr);CHKERRQ(ierr)
+  call ISGetIndices(ugdm%is_ghosted_petsc,int_ptr,ierr);CHKERRQ(ierr)
   do ghosted_id = 1, unstructured_grid%ngmax
     nG2A(ghosted_id) = int_ptr(ghosted_id)+1
   enddo
-  call ISRestoreIndicesF90(ugdm%is_ghosted_petsc,int_ptr,ierr);CHKERRQ(ierr)
+  call ISRestoreIndices(ugdm%is_ghosted_petsc,int_ptr,ierr);CHKERRQ(ierr)
   nG2A = nG2A - 1
   call AOPetscToApplication(unstructured_grid%ao_natural_to_petsc, &
                             unstructured_grid%ngmax,nG2A,ierr);CHKERRQ(ierr)
@@ -1040,8 +1038,6 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   ! Date: 10/05/12
   !
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Option_module
 
   implicit none
@@ -1117,8 +1113,6 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
   ! Author: Glenn Hammond
   ! Date: 11/01/09
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
 
   implicit none
@@ -1145,13 +1139,13 @@ subroutine UGridCreateOldVec(ugrid,option,elements_old, &
   ! based on the partitioning. - petsc
   call ISPartitioningToNumbering(is_new,is_num,ierr);CHKERRQ(ierr)
   call ISDestroy(is_new,ierr);CHKERRQ(ierr)
-  call ISGetIndicesF90(is_num,index_ptr,ierr);CHKERRQ(ierr)
+  call ISGetIndices(is_num,index_ptr,ierr);CHKERRQ(ierr)
 
   ! Create a mapping of local indices to global strided (use block ids, not
   ! indices)
   call ISCreateBlock(option%mycomm,stride,num_cells_local_old,index_ptr, &
                      PETSC_COPY_VALUES,is_scatter,ierr);CHKERRQ(ierr)
-  call ISRestoreIndicesF90(is_num,index_ptr,ierr);CHKERRQ(ierr)
+  call ISRestoreIndices(is_num,index_ptr,ierr);CHKERRQ(ierr)
   call ISDestroy(is_num,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
@@ -1188,8 +1182,6 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! Date: 11/01/09
   !
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Option_module
   use Utility_module, only: ReallocateArray, DeallocateArray
 
@@ -1301,7 +1293,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
   ! store the natural grid cell id for each local cell as read from the grid
   ! file
-  call VecGetArrayF90(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, num_cells_local_new
     ! Cell id read from explicit grid input file is second entry in block
     ! It may match the first entry (the calculated natural id based on the
@@ -1309,7 +1301,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     ugrid%cell_ids_natural(local_id) = &
       int(abs(vec_ptr((local_id-1)*stride+natural_id_offset)))
   enddo
-  call VecRestoreArrayF90(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   write(string,*) option%myrank
@@ -1354,7 +1346,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! to petsc ordering
 
   ! count the number of cells and their duals
-  call VecGetArrayF90(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
   count = 0
   do local_id=1, num_cells_local_new
     count = count + 1
@@ -1378,7 +1370,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       int_array(count) = dual_id
     enddo
   enddo
-  call VecRestoreArrayF90(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   call PrintMsg(option,'Application ordering')
@@ -1397,7 +1389,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! load mapped petsc-ordered dual ids back into duplicated vector
   ! exactly the opposite operation of when we loaded the temporary int_array
   ! vector
-  call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 !geh: do not believe that we need elements_natural here
 !  call VecGetArrayF90(elements_natural,vec_ptr2,ierr)
   allocate(ugrid%cell_ids_petsc(num_cells_local_new))
@@ -1417,7 +1409,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       vec_ptr(idual + dual_offset + (local_id-1)*stride) = int_array(count)
     enddo
   enddo
-  call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 !geh  call VecRestoreArrayF90(elements_natural,vec_ptr2,ierr)
   deallocate(int_array)
 
@@ -1438,7 +1430,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call PrintMsg(option,'Renumbering ghost ids to petsc numbering')
 #endif
 
-  call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
   ghost_cell_count = 0
   ! allocate a temporarily-sized array
   ! geh: this assumes that the number of ghost cells will not exceed the number
@@ -1473,7 +1465,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       endif
     enddo
   enddo
-  call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   if (ugrid%grid_type == THREE_DIM_GRID) then
@@ -1544,7 +1536,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 #endif
 
     ! remap of duals of ghost cells
-    call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id=1, num_cells_local_new
       do idual = 1, ugrid%max_ndual_per_cell
         ! dual_id is now the negative of the local unsorted ghost cell id
@@ -1558,7 +1550,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
         endif
       enddo
     enddo
-    call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
     deallocate(int_array2)
     deallocate(int_array3)
@@ -1597,8 +1589,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ugrid%cell_ids_natural(:) = UNINITIALIZED_INTEGER
   ugrid%cell_ids_natural(1:ugrid%nlmax) = int_array(:)
   deallocate(int_array)
-  call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(elements_natural,vec_ptr2,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_natural,vec_ptr2,ierr);CHKERRQ(ierr)
   do local_id=1, ugrid%nlmax
     do idual = 1, ugrid%max_ndual_per_cell
       dual_id = int(vec_ptr(idual + dual_offset + (local_id-1)*stride))
@@ -1614,8 +1606,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     option%io_buffer = 'Negative natural id: ' // trim(adjustl(string))
     call PrintErrMsgByRank(option)
   endif
-  call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(elements_natural,vec_ptr2,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_natural,vec_ptr2,ierr);CHKERRQ(ierr)
   call VecDestroy(elements_natural,ierr);CHKERRQ(ierr)
 
   ! NOW START ON GHOSTING CELLS
@@ -1629,7 +1621,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   allocate(ugrid%cell_neighbors_local_ghosted( &
            0:ugrid%max_ndual_per_cell,ugrid%nlmax))
   ugrid%cell_neighbors_local_ghosted = 0
-  call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id=1, ugrid%nlmax
     count = 0
     do idual = 1, ugrid%max_ndual_per_cell
@@ -1645,7 +1637,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     ! set the # of duals in for the cell
     ugrid%cell_neighbors_local_ghosted(0,local_id) = count
   enddo
-  call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! need to create a local ghosted vector in which we can collect element info
   ! including ghost cells
@@ -1764,7 +1756,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     !                   global_num_cells*stride, &
     !                   MPI_DOUBLE_PRECISION,option%mycomm,ierr)
 
-    call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
     !Garther elements_petsc strided arrays into
     send_size_mpi = ugrid%nlmax*stride
@@ -1776,7 +1768,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     deallocate(rcv_sizes_mpi)
     deallocate(disp_mpi)
 
-    call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !copy local portion of array first - no off-proc ghost here
     vec_ptr2(1:ugrid%nlmax*stride) = vec_ptr(1:ugrid%nlmax*stride)
     !copy ghost cell information from elements_global_petsc
@@ -1797,22 +1789,22 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     !end do
     !close(IUNIT_TEMP)
 
-    call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
     deallocate(elements_global_petsc)
-    call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !end of Method 2
 #endif
 #ifdef MPI_SCATTER_GHOST_ONLY
     !Method 3 - pass ghost cell info only
     !load non-ghosted cells
-    call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !copy local portion of array first - no off-proc ghost here
     do temp_int = 1,ugrid%nlmax*stride
       vec_ptr2(temp_int) = vec_ptr(temp_int)
     end do
-    call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !compute global number of ghosted cells
     global_num_g_cells = 0
     call MPI_Allreduce(ugrid%num_ghost_cells,global_num_g_cells, &
@@ -1888,7 +1880,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       allocate(ele_g_lc_petsc_to_rank(lc_g_count))
       ele_g_lc_petsc_to_rank = 0
 
-      call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
       lc_g_count = 0
       do ghosted_id = 1,global_num_g_cells
@@ -1905,7 +1897,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
         end if
       end do
 
-      call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
       deallocate(ele_g_glb_petsc_ids)
 
       !scattering = assembling of:
@@ -1972,7 +1964,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       deallocate(ele_g_glb_rank_to_petsc)
       deallocate(ele_g_glb_petsc_to_rank)
       !load ghosted cells
-      call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecGetArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
       do ghosted_id =1,ugrid%num_ghost_cells
         istart1 = ugrid%nlmax*stride + (ghosted_id-1)*stride + 1
         iend1 = ugrid%nlmax*stride + ghosted_id*stride
@@ -1990,7 +1982,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       !  write(IUNIT_TEMP,*) vec_ptr2(local_id)
       !end do
       !close(IUNIT_TEMP)
-      call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     end if
   !end of Method 3 - pass ghost cell info only
 #endif
@@ -2043,7 +2035,7 @@ subroutine UGridDestroy(unstructured_grid)
   call DeallocateArray(unstructured_grid%ghost_cell_ids_petsc)
   call UGridExplicitDestroy(unstructured_grid%explicit_grid)
   call UGridPolyhedraDestroy(unstructured_grid%polyhedra_grid)
-  if (unstructured_grid%ao_natural_to_petsc /= 0) then
+  if (.not.PetscObjectIsNull(unstructured_grid%ao_natural_to_petsc)) then
     call AODestroy(unstructured_grid%ao_natural_to_petsc,ierr);CHKERRQ(ierr)
   endif
 
@@ -2088,58 +2080,58 @@ subroutine UGridDMDestroy(ugdm)
 
   if (.not.associated(ugdm)) return
 
-  if (ugdm%is_ghosted_local /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_ghosted_local)) then
     call ISDestroy(ugdm%is_ghosted_local,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_local_local /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_local_local)) then
     call ISDestroy(ugdm%is_local_local,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_ghosted_petsc /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_ghosted_petsc)) then
     call ISDestroy(ugdm%is_ghosted_petsc,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_local_petsc /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_local_petsc)) then
     call ISDestroy(ugdm%is_local_petsc,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_ghosts_local /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_ghosts_local)) then
     call ISDestroy(ugdm%is_ghosts_local,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_ghosts_petsc /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_ghosts_petsc)) then
     call ISDestroy(ugdm%is_ghosts_petsc,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%is_local_natural /= PETSC_NULL_IS) then
+  if (.not.PetscObjectIsNull(ugdm%is_local_natural)) then
     call ISDestroy(ugdm%is_local_natural,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_ltog /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_ltog)) then
     call VecScatterDestroy(ugdm%scatter_ltog,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_gtol /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_gtol)) then
     call VecScatterDestroy(ugdm%scatter_gtol,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_ltol /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_ltol)) then
     call VecScatterDestroy(ugdm%scatter_ltol,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_gton /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_gton)) then
     call VecScatterDestroy(ugdm%scatter_gton,ierr);CHKERRQ(ierr)
   endif
   call ISLocalToGlobalMappingDestroy(ugdm%mapping_ltog,ierr);CHKERRQ(ierr)
-  if (ugdm%global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(ugdm%global_vec)) then
     call VecDestroy(ugdm%global_vec,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%local_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(ugdm%local_vec)) then
     call VecDestroy(ugdm%local_vec,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_bet_grids /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_bet_grids)) then
     call VecScatterDestroy(ugdm%scatter_bet_grids,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_bet_grids_1dof /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_bet_grids_1dof)) then
     call VecScatterDestroy(ugdm%scatter_bet_grids_1dof,ierr);CHKERRQ(ierr)
   endif
-  if (ugdm%scatter_bet_grids_ndof /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(ugdm%scatter_bet_grids_ndof)) then
     call VecScatterDestroy(ugdm%scatter_bet_grids_ndof,ierr);CHKERRQ(ierr)
   endif
   ! ugdm%ao_natural_to_petsc is a pointer to ugrid%ao_natural_to_petsc.  Do
   ! not destroy here.
-  ugdm%ao_natural_to_petsc = 0
+  PetscObjectNullify(ugdm%ao_natural_to_petsc)
   deallocate(ugdm)
   nullify(ugdm)
 
@@ -2373,6 +2365,7 @@ subroutine UGridAddWellCells(ugrid,well_cells,option)
   PetscInt :: num_non_local_well_cells
   PetscInt :: num_local_well_cells
   PetscInt :: petsc_id
+  PetscCount :: sortcount
 
   PetscInt, pointer :: new_ghost_cells(:)
 
@@ -2383,7 +2376,8 @@ subroutine UGridAddWellCells(ugrid,well_cells,option)
 
   ! convert well cell ids from natural to petsc
   int_array = well_cells
-  call PetscSortInt(num_well_cells,int_array,ierr);CHKERRQ(ierr)
+  sortcount = num_well_cells
+  call PetscSortInt(sortcount,int_array,ierr);CHKERRQ(ierr)
   int_array = int_array - 1
   call AOApplicationToPetsc(ugrid%ao_natural_to_petsc,num_well_cells, &
                             int_array,ierr);CHKERRQ(ierr)
@@ -2415,8 +2409,8 @@ subroutine UGridAddWellCells(ugrid,well_cells,option)
   new_ghost_cells => TruncateArray(int_array2,num_non_local_well_cells)
 
   ! remove cells that are already ghosted
-  call PetscSortInt(num_non_local_well_cells,new_ghost_cells, &
-                    ierr);CHKERRQ(ierr)
+  sortcount = num_non_local_well_cells
+  call PetscSortInt(sortcount,new_ghost_cells,ierr);CHKERRQ(ierr)
   ! remove potential duplicates
   ii = 1
   do i = 2, num_non_local_well_cells

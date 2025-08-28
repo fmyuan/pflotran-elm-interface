@@ -1,7 +1,8 @@
 module PM_Fracture_class
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Realization_Subsurface_class
   use PFLOTRAN_Constants_module
   use PM_Base_class
@@ -733,9 +734,9 @@ subroutine PMFracInitializeRun(this)
   field => this%realization%field
   grid => this%realization%patch%grid
 
-  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
   this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
   this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
@@ -817,9 +818,9 @@ subroutine PMFracInitializeRun(this)
     endif
   endif
 
-  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMFracInitializeRun
 
@@ -867,9 +868,9 @@ subroutine PMFracInitializeTimestep(this)
   field => this%realization%field
   grid => this%realization%patch%grid
 
-  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
   cur_fracture => this%fracture_list
   do
@@ -888,9 +889,9 @@ subroutine PMFracInitializeTimestep(this)
     cur_fracture => cur_fracture%next
   enddo
 
-  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMFracInitializeTimestep
 
@@ -1842,9 +1843,9 @@ subroutine PMFracSolve(this,time,ierr)
   field => this%realization%field
   grid => this%realization%patch%grid
 
-  call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
   this%max_frac_kx = 0.d0; this%max_frac_ky = 0.d0; this%max_frac_kz = 0.d0
   this%sum_frac_kx = 0.d0; this%sum_frac_ky = 0.d0; this%sum_frac_kz = 0.d0
 
@@ -1933,9 +1934,9 @@ subroutine PMFracSolve(this,time,ierr)
     endif
   endif
 
-  call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
 
   ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs
 

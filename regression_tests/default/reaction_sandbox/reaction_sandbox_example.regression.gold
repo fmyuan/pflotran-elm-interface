@@ -3,7 +3,7 @@
       Min:   1.0483463333007E-04
      Mean:   3.8332085646757E-04
         1:   8.2047312747239E-04
-        2:   6.7301417178774E-04
+        2:   6.7301417178773E-04
         3:   5.5178684659385E-04
         4:   4.5166481356221E-04
         5:   3.6822905878021E-04
@@ -27,9 +27,10 @@
         9:         1
        10:         1
 -- SOLUTION: Transport --
+   Time (seconds):   4.9273277998736E-02
    Time Steps:          122
    Newton Iterations:          434
    Linear Solver Iterations:          434
    Time Step Cuts:            0
    Solution 2-Norm:   1.4074903314287E-03
-   Residual 2-Norm:   1.5902900222530E-22
+   Residual 2-Norm:   2.0494422149233E-22

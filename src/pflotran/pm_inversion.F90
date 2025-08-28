@@ -1,6 +1,7 @@
 module PM_Inversion_class
 
 #include "petsc/finclude/petscvec.h"
+  use petscsys
   use petscvec
   use PM_Base_class
   use Realization_Subsurface_class
@@ -27,6 +28,7 @@ module PM_Inversion_class
   ! interface blocks
   interface
     subroutine PMInversionEvaluate(this,time,ierr)
+      use petscsys
       import :: pm_inversion_type
       implicit none
       class(pm_inversion_type) :: this

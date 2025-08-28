@@ -1,7 +1,7 @@
 module Richards_Common_module
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use Richards_Aux_module
   use Global_Aux_module
 

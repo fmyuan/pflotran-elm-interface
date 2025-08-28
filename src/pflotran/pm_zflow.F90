@@ -425,7 +425,7 @@ recursive subroutine PMZFlowInitializeRun(this)
 
   ! need to allocate vectors for max change
   i = size(this%max_change_ivar)
-  call VecDuplicateVecsF90(field%work,i,field%max_change_vecs, &
+  call VecDuplicateVecs(field%work,i,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
   do i = 1, size(field%max_change_vecs)
@@ -730,8 +730,8 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   unsat_to_sat_damping_flag = Initialized(this%unsat_to_sat_pres_damping_ni)
   sat_update_trunc_flag = Initialized(this%sat_update_trunc_ni)
 
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X,X_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
@@ -770,8 +770,8 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
       endif
     endif
   enddo
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMZFlowCheckUpdatePre
 
@@ -835,9 +835,9 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(X1,X1_p,ierr);CHKERRQ(ierr)
   converged_liquid_pressure = PETSC_TRUE
   converged_concentration = PETSC_FALSE
   max_abs_pressure_change_NI = 0.d0
@@ -882,9 +882,9 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI) = max_abs_pressure_change_NI
   this%convergence_reals(MAX_CHANGE_CONC_NI) = max_abs_conc_change_NI
 
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(X1,X1_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMZFlowCheckUpdatePost
 
@@ -953,9 +953,9 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
 
   residual_vec = field%flow_r
   ! check residual terms
-  call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
@@ -1047,9 +1047,9 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     option%convergence = CONVERGENCE_OFF
   endif
 
-  call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
@@ -1161,8 +1161,8 @@ subroutine PMZFlowMaxChange(this)
                                 this%max_change_ivar(i),ZERO_INTEGER)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
-    call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+    call VecGetArray(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%max_change_vecs(i),vec_old_ptr, &
                         ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
@@ -1170,8 +1170,8 @@ subroutine PMZFlowMaxChange(this)
       max_change = max(max_change,change)
     enddo
     max_change_global(i) = max_change
-    call VecRestoreArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+    call VecRestoreArray(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%max_change_vecs(i),vec_old_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
@@ -1257,7 +1257,6 @@ subroutine PMZFlowCheckpointBinary(this,viewer)
   use Global_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_zflow_type) :: this
   PetscViewer :: viewer
@@ -1279,7 +1278,6 @@ subroutine PMZFlowRestartBinary(this,viewer)
   use Global_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_zflow_type) :: this
   PetscViewer :: viewer

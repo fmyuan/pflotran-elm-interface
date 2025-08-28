@@ -15,8 +15,8 @@ module PM_UFD_Decay_class
 ! elemental Kd value.
 ! ===========================================================================
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use PM_Base_class
   use Realization_Subsurface_class
   use Option_module
@@ -649,7 +649,7 @@ function ElementCheckKdDataset(element, material)
 ! element: element object under examination
 ! material (optional): material to check
 ! --------------------------------------------
-  logical :: ElementCheckKdDataset
+  PetscBool :: ElementCheckKdDataset
   type(element_type), pointer :: element
   character(len=MAXWORDLENGTH), optional :: material
 ! --------------------------------------------
@@ -1535,8 +1535,6 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   ! Author: Glenn Hammond
   ! Date: 06/24/15
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Reaction_Aux_module
   use Patch_module
@@ -1683,7 +1681,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
 !  epsilon = 1.d0
-  call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -1735,7 +1733,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
                            local_id,imat,this%element_Kd,1)
   enddo
 
-  call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   if (associated(reaction)) then
     if (reaction%use_log_formulation) then
       call VecCopy(field%tran_xx,field%tran_log_xx,ierr);CHKERRQ(ierr)
@@ -2232,7 +2230,6 @@ subroutine PMUFDDecayCheckpoint(this,viewer)
   ! Date: 06/24/15
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
 ! INPUT ARGUMENTS:
 ! ================
@@ -2255,7 +2252,6 @@ subroutine PMUFDDecayRestart(this,viewer)
   ! Date: 06/24/15
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
 ! INPUT ARGUMENTS:
 ! ================

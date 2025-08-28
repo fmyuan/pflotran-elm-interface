@@ -109,8 +109,8 @@ subroutine InvForwardTSAuxInit(aux)
 
   aux%timestep = UNINITIALIZED_INTEGER
   aux%time = UNINITIALIZED_DOUBLE
-  aux%dResdu = PETSC_NULL_MAT
-  aux%dResdparam = PETSC_NULL_MAT
+  PetscObjectNullify(aux%dResdu)
+  PetscObjectNullify(aux%dResdparam)
 
   nullify(aux%dRes_du_k)
   nullify(aux%prev)
@@ -216,10 +216,10 @@ subroutine InvForwardTSAuxDestroyMatrices(aux)
   nullify(aux%prev)
   nullify(aux%next)
 
-  if (aux%dResdu /= PETSC_NULL_MAT) then
+  if (.not.PetscObjectIsNull(aux%dResdu)) then
     call MatDestroy(aux%dResdu,ierr);CHKERRQ(ierr)
   endif
-  if (aux%dResdparam /= PETSC_NULL_MAT) then
+  if (.not.PetscObjectIsNull(aux%dResdparam)) then
     call MatDestroy(aux%dResdparam,ierr);CHKERRQ(ierr)
   endif
   call DeallocateArray(aux%dRes_du_k)

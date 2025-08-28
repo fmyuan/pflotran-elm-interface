@@ -155,9 +155,9 @@ contains
     nullify(map%s2d_icsr)
     nullify(map%s2d_nonzero_rcount_csr)
 
-    map%wts_mat = PETSC_NULL_MAT
-    map%s2d_scat_s_gb2disloc = PETSC_NULL_VECSCATTER
-    map%s_disloc_vec = PETSC_NULL_VEC
+    PetscObjectNullify(map%wts_mat)
+    PetscObjectNullify(map%s2d_scat_s_gb2disloc)
+    PetscObjectNullify(map%s_disloc_vec)
 
     map%clm_nlevsoi = 0
     map%clm_nlevgrnd = 0
@@ -357,7 +357,7 @@ contains
             hint = 'num_weights'
             call InputReadInt(input,option,nwts)
             call InputErrorMsg(input,option,'Number of weights',hint)
-            write(*,*),'nwts = ',nwts
+            write(*,*) 'nwts = ',nwts
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
@@ -388,26 +388,26 @@ contains
 
           !Perform checks on the data read
           if(wts_row_tmp(ii) < 1) then
-            write(*,string),'Row entry for ii = ',ii,' less than 1'
+            write(*,string) 'Row entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call PrintErrMsg(option)
           endif
 
           if(wts_col_tmp(ii) < 1) then
-            write(*,string),'Col entry for ii = ',ii,' less than 1'
+            write(*,string) 'Col entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call PrintErrMsg(option)
           endif
 
           if((wts_tmp(ii) < 0.d0).or.(wts_tmp(ii) > 1.d0)) then
-            write(*,string),'Invalid wt value for ii = ',ii
+            write(*,string) 'Invalid wt value for ii = ',ii
             option%io_buffer = string
             call PrintErrMsg(option)
           endif
 
           ! ensure that row values in the data are stored in ascending order
           if(wts_row_tmp(ii) < prev_row) then
-            write(*,string),'Row value in the mapping data not store in ascending order: ii ',ii
+            write(*,string) 'Row value in the mapping data not store in ascending order: ii ',ii
             option%io_buffer = string
             call PrintErrMsg(option)
           endif
@@ -861,9 +861,9 @@ contains
     call VecCreateMPI(mycomm,map%s2d_nwts,PETSC_DECIDE,wts_vec, &
                       ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(row_vec,vloc1,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(col_vec,vloc2,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(wts_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecGetArray(row_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArray(col_vec,vloc2,ierr);CHKERRQ(ierr)
+    call VecGetArray(wts_vec,vloc3,ierr);CHKERRQ(ierr)
 
     do ii = 1,map%s2d_nwts
        vloc1(ii) = map%s2d_icsr(ii)
@@ -871,9 +871,9 @@ contains
        vloc3(ii) = map%s2d_wts(ii)
     enddo
 
-    call VecRestoreArrayF90(row_vec,vloc1,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(col_vec,vloc2,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(wts_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(row_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(col_vec,vloc2,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(wts_vec,vloc3,ierr);CHKERRQ(ierr)
 
     ! 1) For each cell of destination mesh, find the number of source mesh cells
     !    overlapped.
@@ -924,9 +924,8 @@ contains
     ! Create a MPI vector
     call VecCreateMPI(mycomm,map%d_ncells_loc,PETSC_DECIDE, &
                       cumsum_nonzero_row_count_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(cumsum_nonzero_row_count_vec,vloc2, &
-                        ierr);CHKERRQ(ierr)
+    call VecGetArray(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArray(cumsum_nonzero_row_count_vec,vloc2,ierr);CHKERRQ(ierr)
 
     ii = 1
     vloc2(ii) = vloc1(ii)
@@ -942,9 +941,8 @@ contains
       vloc2(ii) = vloc2(ii) + cumsum_start
     enddo
 
-    call VecRestoreArrayF90(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2, &
-                            ierr);CHKERRQ(ierr)
+    call VecRestoreArray(nonzero_row_count_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(cumsum_nonzero_row_count_vec,vloc2,ierr);CHKERRQ(ierr)
 
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(mycomm,'cumsum_nonzero_row_count_vec.out', &
@@ -1020,9 +1018,8 @@ contains
                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(nonzero_row_count_loc_vec,vloc1,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2, &
-                        ierr);CHKERRQ(ierr)
+    call VecGetArray(nonzero_row_count_loc_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecGetArray(cumsum_nonzero_row_count_loc_vec,vloc2,ierr);CHKERRQ(ierr)
 
     allocate(map%s2d_nonzero_rcount_csr(map%d_ncells_ghd))
 
@@ -1104,8 +1101,8 @@ contains
                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     ! Attach to the local copy of the scatterd data
-    call VecGetArrayF90(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
+    call VecGetArray(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecGetArray(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
 
     ! Save the scattered data
     do ii = 1,map%s2d_s_ncells
@@ -1114,8 +1111,8 @@ contains
     enddo
 
     ! Restore data
-    call VecRestoreArrayF90(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(col_loc_vec,vloc3,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(wts_loc_vec,vloc4,ierr);CHKERRQ(ierr)
 
     ! Free memory
     call VecDestroy(row_loc_vec,ierr);CHKERRQ(ierr)
@@ -1123,10 +1120,9 @@ contains
     call VecDestroy(wts_loc_vec,ierr);CHKERRQ(ierr)
 
     ! Restore data
-    call VecRestoreArrayF90(nonzero_row_count_loc_vec,vloc1, &
-                            ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2, &
-                            ierr);CHKERRQ(ierr)
+    call VecRestoreArray(nonzero_row_count_loc_vec,vloc1,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(cumsum_nonzero_row_count_loc_vec,vloc2, &
+                         ierr);CHKERRQ(ierr)
 
     ! Free memory
     call VecDestroy(nonzero_row_count_vec,ierr);CHKERRQ(ierr)
@@ -1254,6 +1250,7 @@ contains
   !
 
     use Option_module
+    use Petsc_Utility_module
 
     implicit none
 
@@ -1265,8 +1262,6 @@ contains
     PetscInt, pointer            :: index(:)
     PetscInt                     :: ii,jj,kk
     PetscErrorCode               :: ierr
-    character(len=MAXSTRINGLENGTH)     :: string
-    PetscViewer :: viewer
 
     allocate(index(map%s2d_s_ncells))
 
@@ -1287,8 +1282,8 @@ contains
                          ierr);CHKERRQ(ierr)
 
     do ii = 1,map%s2d_s_ncells
-       call MatSetValues(map%wts_mat,1,index(ii),1,map%s2d_jcsr(ii), &
-                         map%s2d_wts(ii),INSERT_VALUES,ierr);CHKERRQ(ierr)
+       call PUMSetValues(map%wts_mat,1,index(ii),1,map%s2d_jcsr(ii), &
+                         map%s2d_wts(ii),INSERT_VALUES,ierr)
     enddo
     call MatAssemblyBegin(map%wts_mat,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(map%wts_mat,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1334,7 +1329,7 @@ contains
     VecScatter :: vscat
     PetscViewer :: viewer
 
-    PetscInt                     :: ii,jj,kk
+    PetscInt                     :: ii
     PetscInt                     :: istart, iend
     PetscInt,pointer             :: tmp_int_array(:)
     PetscScalar,pointer          :: v_loc(:)
@@ -1393,11 +1388,11 @@ contains
     !
 
     ! Initialize 'nindex' vector
-    call VecGetArrayF90(nindex,v_loc,ierr);CHKERRQ(ierr)
+    call VecGetArray(nindex,v_loc,ierr);CHKERRQ(ierr)
     do ii=1,map%s_ncells_loc
        v_loc(ii) = map%s_ids_loc_nidx(ii)
     enddo
-    call VecRestoreArrayF90(nindex,v_loc,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(nindex,v_loc,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(mycomm,'nindex.out',viewer,ierr);CHKERRQ(ierr)
     call VecView(nindex,viewer,ierr);CHKERRQ(ierr)
@@ -1406,11 +1401,11 @@ contains
 
     ! Initialize 'pindex' vector
     call VecGetOwnershipRange(pindex,istart,iend,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(pindex,v_loc,ierr);CHKERRQ(ierr)
+    call VecGetArray(pindex,v_loc,ierr);CHKERRQ(ierr)
     do ii=1,map%s_ncells_loc
        v_loc(ii) = istart + ii - 1
     enddo
-    call VecRestoreArrayF90(pindex,v_loc,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(pindex,v_loc,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(mycomm,'pindex.out',viewer,ierr);CHKERRQ(ierr)
     call VecView(pindex,viewer,ierr);CHKERRQ(ierr)
@@ -1519,7 +1514,6 @@ contains
     call VecScatterCreate(N2P,is_to,pindex_req,is_from,vscat, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_to,ierr);CHKERRQ(ierr)
-    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(mycomm,'vscat.out',viewer,ierr);CHKERRQ(ierr)
     call VecScatterView(vscat,viewer,ierr);CHKERRQ(ierr)
@@ -1543,10 +1537,10 @@ contains
     ! Using 'pindex_req' create and save a vector-scatter from MPI source vector
     ! to sequential source vectors
 
-    call VecGetArrayF90(pindex_req,v_loc,ierr);CHKERRQ(ierr)
+    call VecGetArray(pindex_req,v_loc,ierr);CHKERRQ(ierr)
     call ISCreateBlock(mycomm,1,map%s2d_s_ncells_dis,INT(v_loc), &
                        PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(pindex_req,v_loc,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(pindex_req,v_loc,ierr);CHKERRQ(ierr)
 
     call VecScatterCreate(N2P,is_to,pindex_req,is_from, &
                           map%s2d_scat_s_gb2disloc,ierr);CHKERRQ(ierr)
@@ -1558,6 +1552,8 @@ contains
 #endif
 
     ! Free-memory
+    call ISDestroy(is_to,ierr);CHKERRQ(ierr)
+    call ISDestroy(is_from,ierr);CHKERRQ(ierr)
     call VecDestroy(pindex,ierr);CHKERRQ(ierr)
     call VecDestroy(nindex,ierr);CHKERRQ(ierr)
     call VecDestroy(N2P,ierr);CHKERRQ(ierr)

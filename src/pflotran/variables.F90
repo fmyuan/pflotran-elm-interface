@@ -1,6 +1,7 @@
 module Variables_module
 
 #include "petsc/finclude/petscsys.h"
+  use petscsys
 
   implicit none
 

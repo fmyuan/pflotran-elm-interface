@@ -174,7 +174,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   call SNESConvergedDefault(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
                             0,ierr);CHKERRQ(ierr)
 
-  if (option%convergence /= CONVERGENCE_CONVERGED .and. reason == -9) then
+  if (option%convergence /= CONVERGENCE_CONVERGED .and. reason%v == -9) then
     write(out_string,'(i3," 2r:",es9.2," 2x:",es9.2," 2u:",es9.2, &
           & " -diverged")') i_iteration, fnorm, xnorm, unorm
     call PrintMsg(option,out_string)
@@ -191,7 +191,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   ! for some reason (e.g. negative saturation/mole fraction in multiphase),
   ! we are forcing extra newton iterations
   if (option%force_newton_iteration) then
-   reason = 0
+   reason%v = 0
 !   reason = -1
    return
   endif
@@ -202,11 +202,11 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !        inorm_residual > solver%max_norm) then
 
   if (option%out_of_table) then
-    reason = -19
+    reason%v = -19
   endif
 
   if (option%converged) then
-    reason = 12
+    reason%v = 12
     ! set back to false
     option%converged = PETSC_FALSE
   endif
@@ -214,15 +214,15 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   if (option%convergence /= CONVERGENCE_OFF) then
     select case(option%convergence)
       case(CONVERGENCE_CUT_TIMESTEP)
-        reason = -88
+        reason%v = -88
       case(CONVERGENCE_KEEP_ITERATING)
-        reason = 0
+        reason%v = 0
       case(CONVERGENCE_FORCE_ITERATION)
-        reason = 0
+        reason%v = 0
       case(CONVERGENCE_CONVERGED)
-        reason = 999
+        reason%v = 999
       case(CONVERGENCE_BREAKOUT_INNER_ITER)
-        reason = 6
+        reason%v = 6
     end select
   endif
   ! must turn off after each convergence check as a subsequent process
@@ -246,39 +246,39 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
 
     if (inorm_residual < solver%newton_inf_res_tol) then
-      reason = 10
+      reason%v = 10
     else
 !      if (reason > 0 .and. inorm_residual > 100.d0*solver%newton_inf_res_tol) &
 !        reason = 0
     endif
 
     if (inorm_update < solver%newton_inf_upd_tol .and. i_iteration > 0) then
-      reason = 11
+      reason%v = 11
     endif
 
     if (inorm_residual > solver%max_norm) then
-      reason = -20
+      reason%v = -20
     endif
 
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
     !TODO(geh): move to PMRTCheckConvergence
     if (solver%itype == TRANSPORT_CLASS .and. option%use_sc .and. &
-       reason > 0 .and. i_iteration > 0) then
+       reason%v > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
         sec_reason = 1
       else
-        reason = 0
+        reason%v = 0
       endif
     endif
 
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
-        reason = 0
+    if (i_iteration < solver%newton_min_iterations .and. reason%v /= -88) then
+        reason%v = 0
     endif
 
     if (solver%print_convergence) then
-      i = int(reason)
+      i = int(reason%v)
       select case(i)
         case(-20)
           rsn_string = 'max_norm'
@@ -367,21 +367,21 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
     if (solver%itype == TRANSPORT_CLASS .and. option%use_sc .and. &
-       reason > 0 .and. i_iteration > 0) then
+       reason%v > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
-        reason = 13
+        reason%v = 13
       else
-        reason = 0
+        reason%v = 0
       endif
     endif
 
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
-      reason = 0
+    if (i_iteration < solver%newton_min_iterations .and. reason%v /= -88) then
+      reason%v = 0
     endif
 
     if (solver%print_convergence) then
-      i = int(reason)
+      i = int(reason%v)
       select case(i)
         case(-19)
           string = 'out_of_EOS_table'
@@ -513,38 +513,38 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     enddo
 
     if (OptionPrintToScreen(option)) then
-      select case(reason)
+      select case(reason%v)
         case (10)
           string = "CONVERGED_USER_NORM_INF_REL"
         case (11)
           string = "CONVERGED_USER_NORM_INF_UPD"
-        case(SNES_CONVERGED_FNORM_ABS)
+        PetscEnumCase(SNES_CONVERGED_FNORM_ABS)
           string = "SNES_CONVERGED_FNORM_ABS"
-        case(SNES_CONVERGED_FNORM_RELATIVE)
+        PetscEnumCase(SNES_CONVERGED_FNORM_RELATIVE)
           string = "SNES_CONVERGED_FNORM_RELATIVE"
-        case(SNES_CONVERGED_SNORM_RELATIVE)
+        PetscEnumCase(SNES_CONVERGED_SNORM_RELATIVE)
           string = "SNES_CONVERGED_SNORM_RELATIVE"
-        case(SNES_CONVERGED_ITS)
+        PetscEnumCase(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
         case(6)
           string = "SNES_BREAKOUT_INNER_ITER"
-        case(SNES_DIVERGED_TR_DELTA)
+        PetscEnumCase(SNES_DIVERGED_TR_DELTA)
           string = "SNES_DIVERGED_TR_DELTA"
   !      case(SNES_DIVERGED_FUNCTION_DOMAIN)
   !        string = "SNES_DIVERGED_FUNCTION_DOMAIN"
-        case(SNES_DIVERGED_FUNCTION_COUNT)
+        PetscEnumCase(SNES_DIVERGED_FUNCTION_COUNT)
           string = "SNES_DIVERGED_FUNCTION_COUNT"
-        case(SNES_DIVERGED_LINEAR_SOLVE)
+        PetscEnumCase(SNES_DIVERGED_LINEAR_SOLVE)
           string = "SNES_DIVERGED_LINEAR_SOLVE"
-        case(SNES_DIVERGED_FNORM_NAN)
+        PetscEnumCase(SNES_DIVERGED_FNORM_NAN)
           string = "SNES_DIVERGED_FNORM_NAN"
-        case(SNES_DIVERGED_MAX_IT)
+        PetscEnumCase(SNES_DIVERGED_MAX_IT)
           string = "SNES_DIVERGED_MAX_IT"
-        case(SNES_DIVERGED_LINE_SEARCH)
+        PetscEnumCase(SNES_DIVERGED_LINE_SEARCH)
           string = "SNES_DIVERGED_LINE_SEARCH"
-        case(SNES_DIVERGED_LOCAL_MIN)
+        PetscEnumCase(SNES_DIVERGED_LOCAL_MIN)
           string = "SNES_DIVERGED_LOCAL_MIN"
-        case(SNES_CONVERGED_ITERATING)
+        PetscEnumCase(SNES_CONVERGED_ITERATING)
           string = "SNES_CONVERGED_ITERATING"
         case default
           string = "UNKNOWN"

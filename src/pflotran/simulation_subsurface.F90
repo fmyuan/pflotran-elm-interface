@@ -620,7 +620,7 @@ subroutine SimSubsurfOverwriteInvParameters(this)
 
   if (associated(perturbation)) then
     ! on first pass, store and set thereafter
-    if (perturbation%base_parameter_vec == PETSC_NULL_VEC) then
+    if (PetscObjectIsNull(perturbation%base_parameter_vec)) then
       if (inversion_aux%qoi_is_full_vector) then
         call VecDuplicate(inversion_aux%dist_parameter_vec, &
                           perturbation%base_parameter_vec, &

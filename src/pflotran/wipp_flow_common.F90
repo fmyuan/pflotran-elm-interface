@@ -31,6 +31,7 @@ module WIPP_Flow_Common_module
                          update_upwind_direction_, &
                          count_upwind_direction_flip_, &
                          debug_connection)
+      use petscsys
       use WIPP_Flow_Aux_module
       use Global_Aux_module
       use Option_module
@@ -62,6 +63,7 @@ module WIPP_Flow_Common_module
                          update_upwind_direction_, &
                          count_upwind_direction_flip_, &
                          debug_connection)
+      use petscsys
       use WIPP_Flow_Aux_module
       use Global_Aux_module
       use Option_module

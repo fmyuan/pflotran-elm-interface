@@ -1,7 +1,8 @@
 module PM_Well_class
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   use PM_Base_class
   use Option_module
   use Geometry_module
@@ -7372,6 +7373,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
   use Hydrate_Aux_module, only : HYDRATE_WELL_DOF, HYDRATE_ENERGY_DOF, &
                                  hydrate_fmw_comp
   use Richards_Aux_module, only: RICHARDS_FULLY_IMPLICIT_WELL
+  use Petsc_Utility_module, only : PUMSetValuesLocal, PUMSetValuesBlockedLocal
 
   implicit none
 
@@ -7469,7 +7471,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
             local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
             P_well = -(res_pert)/pert
             if (dabs(P_well) > 0.d0) then
-              call MatSetValuesLocal(Jac,1,local_row_index,1, &
+              call PUMSetValuesLocal(Jac,1,local_row_index,1, &
                                       local_col_index,P_well, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
@@ -7495,7 +7497,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
           endif
         enddo
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
 
@@ -7547,7 +7549,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
             this%well_grid%bottom_seg_index)*option%nflowdof-1
           P_well = (res_pert - res)/pert
           if (dabs(P_well) > 0.d0) then
-            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                     P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         enddo
@@ -7567,13 +7569,13 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
                               option%nflowdof-1
           P_well = (res_pert - res)/pert
           if (dabs(P_well) > 0.d0) then
-            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                     P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         endif
 
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
       enddo
@@ -7655,7 +7657,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
             local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
             P_well = -(res_pert)/pert
             if (dabs(P_well) > 0.d0) then
-              call MatSetValuesLocal(Jac,1,local_row_index,1, &
+              call PUMSetValuesLocal(Jac,1,local_row_index,1, &
                                       local_col_index,P_well, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
@@ -7687,7 +7689,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
           endif
         enddo
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
 
@@ -7749,7 +7751,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
                               option%nflowdof-1
           P_well = (res_pert - res)/pert
           if (dabs(P_well) > 0.d0) then
-            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                     P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         enddo
@@ -7768,12 +7770,12 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
                             option%nflowdof-1
         P_well = (res_pert - res)/pert
         if (dabs(P_well) > 0.d0) then
-          call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                   P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
 
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
       enddo
@@ -7793,7 +7795,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
             local_row_index = (this%well_grid%h_ghosted_id( &
                                 this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
             local_col_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
-            call MatSetValuesLocal(Jac,1,local_row_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index, &
                                       1,local_col_index, &
                                       -deriv, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -7803,7 +7805,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
           if (this%well_grid%h_rank_id(k) == option%myrank) then
             local_row_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
             local_col_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
-            call MatSetValuesLocal(Jac,1,local_row_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index, &
                                       1,local_col_index, &
                                       deriv, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -7812,7 +7814,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
             local_row_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
             local_col_index = (this%well_grid%h_ghosted_id( &
                                 this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
-            call MatSetValuesLocal(Jac,1,local_row_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index, &
                                       1,local_col_index, &
                                       -deriv, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -7826,7 +7828,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
                               this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
           local_col_index = (this%well_grid%h_ghosted_id( &
                               this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
-          call MatSetValuesLocal(Jac,1,local_row_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index, &
                                       1,local_col_index, &
                                       deriv_const_sum, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -7840,7 +7842,7 @@ subroutine PMWellModifyFlowJacHydrostatic(this,Jac,ierr)
           if (this%well_grid%h_rank_id(k) == option%myrank) then
             local_row_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
             local_col_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
-            call MatSetValuesLocal(Jac,1,local_row_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index, &
                                       1,local_col_index, &
                                       deriv, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -7865,6 +7867,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
   !
 
   use Option_module
+  use Petsc_Utility_module, only : PUMSetValuesLocal, PUMSetValuesBlockedLocal
 
   implicit none
 
@@ -7905,7 +7908,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
             local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
             P_well = UNINITIALIZED_DOUBLE
             if (dabs(P_well) > 0.d0) then
-              call MatSetValuesLocal(Jac,1,local_row_index,1, &
+              call PUMSetValuesLocal(Jac,1,local_row_index,1, &
                                       local_col_index,P_well, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
@@ -7918,7 +7921,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           endif
         enddo
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
 
@@ -7943,7 +7946,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
                               this%well_grid%bottom_seg_index)*option%nflowdof-1
           P_well = UNINITIALIZED_DOUBLE
           if (dabs(P_well) > 0.d0) then
-            call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+            call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                     P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         enddo
@@ -7955,13 +7958,13 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
                               option%nflowdof-1
           P_well = UNINITIALIZED_DOUBLE
             if (dabs(P_well) > 0.d0) then
-              call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+              call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                       P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
         endif
 
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
       enddo
@@ -7982,7 +7985,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
                                 option%nflowdof-1
             local_col_index = (ghosted_id-1)*option%nflowdof + idof - 1
             P_well = UNINITIALIZED_DOUBLE
-            call MatSetValuesLocal(Jac,1,local_row_index,1, &
+            call PUMSetValuesLocal(Jac,1,local_row_index,1, &
                                     local_col_index,P_well, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
@@ -7992,7 +7995,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           enddo
         enddo
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1,&
                                       J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
         !Perturbed rates wrt well perturbation.
@@ -8010,11 +8013,11 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           local_col_index = this%well_grid%h_ghosted_id( &
                               this%well_grid%bottom_seg_index)*option%nflowdof-1
           P_well = UNINITIALIZED_DOUBLE
-          call MatSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index,1,local_col_index, &
                                   P_well,ADD_VALUES,ierr);CHKERRQ(ierr)
         enddo
         if (any(dabs(J_block) > 0.d0)) then
-          call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+          call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                         J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
         endif
       enddo
@@ -8032,7 +8035,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           local_row_index = (this%well_grid%h_ghosted_id( &
                               this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
           local_col_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
-          call MatSetValuesLocal(Jac,1,local_row_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index, &
                                     1,local_col_index, &
                                     -temp_real, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -8042,7 +8045,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           ! Set dRrk/dPrk
           local_row_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
           local_col_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
-          call MatSetValuesLocal(Jac,1,local_row_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index, &
                                     1,local_col_index, &
                                     temp_real, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -8051,7 +8054,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
           local_row_index = (this%well_grid%h_ghosted_id(k) - 1) * option%nflowdof
           local_col_index = (this%well_grid%h_ghosted_id( &
                               this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
-          call MatSetValuesLocal(Jac,1,local_row_index, &
+          call PUMSetValuesLocal(Jac,1,local_row_index, &
                                     1,local_col_index, &
                                     -temp_real, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -8065,7 +8068,7 @@ subroutine PMWellModifyDummyFlowJacobian(this,Jac,ierr)
                             this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
         local_col_index = (this%well_grid%h_ghosted_id( &
                             this%well_grid%bottom_seg_index) - 1) * option%nflowdof + 1
-        call MatSetValuesLocal(Jac,1,local_row_index, &
+        call PUMSetValuesLocal(Jac,1,local_row_index, &
                                     1,local_col_index, &
                                     temp_real, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)

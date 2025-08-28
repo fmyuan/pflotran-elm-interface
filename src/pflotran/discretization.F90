@@ -37,7 +37,7 @@ module Discretization_module
     VecScatter :: tvd_ghost_scatter
 
     PetscInt :: stencil_width
-    PetscEnum :: stencil_type
+    DMDAStencilType :: stencil_type
 
   end type discretization_type
 
@@ -96,10 +96,10 @@ function DiscretizationCreate()
   allocate(discretization%dm_nflowdof)
   allocate(discretization%dm_ntrandof)
   allocate(discretization%dm_n_stress_strain_dof)
-  discretization%dm_1dof%dm = PETSC_NULL_DM
-  discretization%dm_nflowdof%dm = PETSC_NULL_DM
-  discretization%dm_ntrandof%dm = PETSC_NULL_DM
-  discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
+  PetscObjectNullify(discretization%dm_1dof%dm)
+  PetscObjectNullify(discretization%dm_nflowdof%dm)
+  PetscObjectNullify(discretization%dm_ntrandof%dm)
+  PetscObjectNullify(discretization%dm_n_stress_strain_dof%dm)
   nullify(discretization%dm_1dof%ugdm)
   nullify(discretization%dm_nflowdof%ugdm)
   nullify(discretization%dm_ntrandof%ugdm)
@@ -110,7 +110,7 @@ function DiscretizationCreate()
   discretization%stencil_width = 1
   discretization%stencil_type = DMDA_STENCIL_STAR
 
-  discretization%tvd_ghost_scatter = PETSC_NULL_VECSCATTER
+  PetscObjectNullify(discretization%tvd_ghost_scatter)
 
   DiscretizationCreate => discretization
 
@@ -785,7 +785,7 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   type(dm_ptr_type), pointer :: dm_ptr
   PetscInt :: ndof
   PetscInt :: stencil_width
-  PetscEnum :: stencil_type
+  DMDAStencilType :: stencil_type
   type(option_type) :: option
 
   select case(discretization%itype)
@@ -999,14 +999,14 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
     case(NFLOWDOF)
       allocate(discretization%dmc_nflowdof(mg_levels))
       do i=1, mg_levels
-        discretization%dmc_nflowdof(i)%dm = PETSC_NULL_DM
+        PetscObjectNullify(discretization%dmc_nflowdof(i)%dm)
         nullify(discretization%dmc_nflowdof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_nflowdof
     case(NTRANDOF)
       allocate(discretization%dmc_ntrandof(mg_levels))
       do i=1, mg_levels
-        discretization%dmc_ntrandof(i)%dm = PETSC_NULL_DM
+        PetscObjectNullify(discretization%dmc_ntrandof(i)%dm)
         nullify(discretization%dmc_ntrandof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_ntrandof
@@ -1485,23 +1485,23 @@ subroutine DiscretizationDestroy(discretization)
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      if (discretization%dm_1dof%dm /= PETSC_NULL_DM) then
+      if (.not.PetscObjectIsNull(discretization%dm_1dof%dm)) then
         call DMDestroy(discretization%dm_1dof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_1dof%dm = PETSC_NULL_DM
-      if (discretization%dm_nflowdof%dm /= PETSC_NULL_DM) then
+      PetscObjectNullify(discretization%dm_1dof%dm)
+      if (.not.PetscObjectIsNull(discretization%dm_nflowdof%dm)) then
         call DMDestroy(discretization%dm_nflowdof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_nflowdof%dm = PETSC_NULL_DM
-      if (discretization%dm_ntrandof%dm /= PETSC_NULL_DM) then
+      PetscObjectNullify(discretization%dm_nflowdof%dm)
+      if (.not.PetscObjectIsNull(discretization%dm_ntrandof%dm)) then
         call DMDestroy(discretization%dm_ntrandof%dm,ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
-      if (discretization%dm_nflowdof%dm /= PETSC_NULL_DM) then
+      PetscObjectNullify(discretization%dm_n_stress_strain_dof%dm)
+      if (.not.PetscObjectIsNull(discretization%dm_nflowdof%dm)) then
         call DMDestroy(discretization%dm_n_stress_strain_dof%dm, &
                        ierr);CHKERRQ(ierr)
       endif
-      discretization%dm_n_stress_strain_dof%dm = PETSC_NULL_DM
+      PetscObjectNullify(discretization%dm_n_stress_strain_dof%dm)
       if (associated(discretization%dmc_nflowdof)) then
         do i=1,size(discretization%dmc_nflowdof)
           call DMDestroy(discretization%dmc_nflowdof(i)%dm, &
@@ -1543,7 +1543,7 @@ subroutine DiscretizationDestroy(discretization)
   nullify(discretization%dm_n_stress_strain_dof)
 
 
-  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(discretization%tvd_ghost_scatter)) then
     call VecScatterDestroy(discretization%tvd_ghost_scatter, &
                            ierr);CHKERRQ(ierr)
   endif

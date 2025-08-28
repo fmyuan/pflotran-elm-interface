@@ -1,7 +1,7 @@
 module PM_OSRT_class
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscmat.h"
+  use petscmat
 
   use PM_RT_class
 
@@ -76,8 +76,8 @@ subroutine PMOSRTInit(pm_osrt)
 
   call PMRTInit(pm_osrt)
 
-  pm_osrt%fixed_accum = PETSC_NULL_VEC
-  pm_osrt%rhs = PETSC_NULL_VEC
+  PetscObjectNullify(pm_osrt%fixed_accum)
+  PetscObjectNullify(pm_osrt%rhs)
 
   pm_osrt%operator_split = PETSC_TRUE
 
@@ -387,10 +387,10 @@ subroutine PMOSRTStrip(this)
 
   call PMRTStrip(this)
 
-  if (this%fixed_accum /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%fixed_accum)) then
     call VecDestroy(this%fixed_accum,ierr);CHKERRQ(ierr)
   endif
-  if (this%rhs /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%rhs)) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
   endif
 

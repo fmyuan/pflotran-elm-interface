@@ -1,7 +1,9 @@
 module Checkpoint_module
 
+#include <petsc/finclude/petscbag.h>
 #include "petsc/finclude/petscvec.h"
   use petscvec
+  use petscbag
 
   use PFLOTRAN_Constants_module
 
@@ -32,6 +34,8 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include <petsc/finclude/petscbag.h>
+      use petscbag
       import :: checkpoint_header_type
       implicit none
       PetscBag :: bag
@@ -355,7 +359,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -416,7 +420,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
 
   endif
 
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
@@ -460,7 +464,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -514,7 +518,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
                                   field%work_loc,PERMEABILITY_Z,ZERO_INTEGER)
   endif
 
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
@@ -1062,7 +1066,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
@@ -1202,7 +1206,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   discretization => realization%discretization
   grid => realization%patch%grid
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   if (option%nflowdof > 0) then
     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &

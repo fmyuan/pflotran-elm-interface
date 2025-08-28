@@ -1,5 +1,6 @@
 module slatec_pchip_module
 #include "petsc/finclude/petscsys.h"
+use petscsys
 implicit none
 
 ! **************************************************************************** !

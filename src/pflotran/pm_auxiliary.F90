@@ -1,7 +1,9 @@
 module PM_Auxiliary_class
 
 #include "petsc/finclude/petscvec.h"
+  use petscsys
   use petscvec
+
   use PM_Base_class
   use Realization_Subsurface_class
   use Communicator_Base_class
@@ -36,6 +38,7 @@ module PM_Auxiliary_class
   ! interface blocks
   interface
     subroutine PMAuxliaryEvaluate(this,time,ierr)
+      use petscsys
       import :: pm_auxiliary_type
       implicit none
       class(pm_auxiliary_type) :: this

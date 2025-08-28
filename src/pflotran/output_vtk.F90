@@ -424,10 +424,10 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
 
   PetscReal, pointer :: vec_ptr(:)
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteVTKDataSet(fid,realization_base,dataset_name,vec_ptr,datatype, &
                        ZERO_INTEGER) ! 0 implies grid%nlmax
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine WriteVTKDataSetFromVec
 

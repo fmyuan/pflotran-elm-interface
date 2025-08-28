@@ -1,7 +1,10 @@
 module Geomechanics_Grid_module
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscdm.h"
+  use petscmat
+  use petscdm
+
   use Geomechanics_Grid_Aux_module
   use Grid_Unstructured_Cell_module
   use PFLOTRAN_Constants_module
@@ -34,14 +37,17 @@ contains
 ! ************************************************************************** !
 subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
-#include "petsc/finclude/petscdm.h"
-  use petscdm
+#include "petsc/finclude/petscao.h"
+  use petscao
+
   use Grid_Unstructured_Aux_module
   use Geomechanics_Grid_Aux_module
   use Option_module
   use Gauss_module
   use Geometry_module
   use String_module
+  use Utility_module, only : DeallocateArray
+  use Petsc_Utility_module
 
   implicit none
 
@@ -71,9 +77,9 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   IS :: is_ghost_petsc
   PetscReal :: max_val
   PetscInt :: row
-  PetscScalar, allocatable :: val(:)
+  PetscScalar, pointer :: val(:)
   PetscInt :: ncols
-  PetscInt, allocatable :: cols(:)
+  PetscInt, pointer :: cols(:)
   AO :: ao_natural_to_petsc_nodes
   PetscInt :: nlmax_node
   PetscInt, pointer :: int_ptr(:)
@@ -254,15 +260,15 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! the ranks of the processes that possess the vertex are stored
   call MatCreateAIJ(option%mycomm,PETSC_DECIDE,ONE_INTEGER, &
                     geomech_grid%nmax_node,option%comm%size, &
-                    option%comm%size,PETSC_NULL_INTEGER, &
-                    option%comm%size,PETSC_NULL_INTEGER,Rank_Mat, &
+                    option%comm%size,PETSC_NULL_INTEGER_ARRAY, &
+                    option%comm%size,PETSC_NULL_INTEGER_ARRAY,Rank_Mat, &
                     ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(Rank_Mat,ierr);CHKERRQ(ierr)
 
   rank = option%myrank + 1
   do ivertex = 1, geomech_grid%ngmax_node
-    call MatSetValue(Rank_Mat, &
+    call PUMSetValue(Rank_Mat, &
                      geomech_grid%node_ids_ghosted_natural(ivertex)-1, &
                      option%myrank,rank,INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -292,8 +298,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     int_array(count) = int(max_val)
     call MatRestoreRow(Rank_Mat,row,ncols,cols,val,ierr);CHKERRQ(ierr)
   enddo
-  deallocate(val)
-  deallocate(cols)
+  call DeallocateArray(val)
+  call DeallocateArray(cols)
   call MatDestroy(Rank_Mat,ierr);CHKERRQ(ierr)
 
   ! Change rank to start from 0
@@ -336,7 +342,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     lflag = PETSC_TRUE
   endif
   call MPI_Allreduce(MPI_IN_PLACE,lflag,ONE_INTEGER_MPI, &
-                     MPI_LOGICAL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
+                     MPI_C_BOOL,MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (lflag) then
     option%io_buffer = 'See errors above.'
     call PrintErrMsg(option)
@@ -457,11 +463,11 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
   ! Get the local indices (natural) and store them
   allocate(geomech_grid%node_ids_local_natural(geomech_grid%nlmax_node))
-  call ISGetIndicesF90(is_natural,int_ptr,ierr);CHKERRQ(ierr)
+  call ISGetIndices(is_natural,int_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, geomech_grid%nlmax_node
     geomech_grid%node_ids_local_natural(local_id) = int_ptr(local_id)
   enddo
-  call ISRestoreIndicesF90(is_natural,int_ptr,ierr);CHKERRQ(ierr)
+  call ISRestoreIndices(is_natural,int_ptr,ierr);CHKERRQ(ierr)
   call ISDestroy(is_natural,ierr);CHKERRQ(ierr)
 
   ! Changing to 1-based
@@ -553,11 +559,11 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! Store the petsc indices for ghost nodes
   if (geomech_grid%num_ghost_nodes  > 0) then
     allocate(geomech_grid%ghosted_node_ids_petsc(geomech_grid%num_ghost_nodes))
-    call ISGetIndicesF90(is_ghost_petsc,int_ptr,ierr);CHKERRQ(ierr)
+    call ISGetIndices(is_ghost_petsc,int_ptr,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, geomech_grid%num_ghost_nodes
       geomech_grid%ghosted_node_ids_petsc(ghosted_id) = int_ptr(ghosted_id)
     enddo
-    call ISRestoreIndicesF90(is_ghost_petsc,int_ptr,ierr);CHKERRQ(ierr)
+    call ISRestoreIndices(is_ghost_petsc,int_ptr,ierr);CHKERRQ(ierr)
   endif
   call ISDestroy(is_ghost_petsc,ierr);CHKERRQ(ierr)
 
@@ -895,7 +901,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
                     num_faces_per_ele, &
                     PETSC_DETERMINE,PETSC_DETERMINE, &
                     geomech_grid%nmax_node,4, &
-                    PETSC_NULL_INTEGER,4,PETSC_NULL_INTEGER, &
+                    PETSC_NULL_INTEGER_ARRAY,4,PETSC_NULL_INTEGER_ARRAY, &
                     Mat_face_to_vert,ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(Mat_face_to_vert,ierr);CHKERRQ(ierr)
@@ -954,7 +960,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   call MatCreateAIJ(option%mycomm,nfaces,PETSC_DETERMINE, &
                     PETSC_DETERMINE, &
                     geomech_grid%nmax_node,4, &
-                    PETSC_NULL_INTEGER,4,PETSC_NULL_INTEGER, &
+                    PETSC_NULL_INTEGER_ARRAY,4,PETSC_NULL_INTEGER_ARRAY, &
                     Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
@@ -993,16 +999,16 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
     call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
                               ierr);CHKERRQ(ierr)
     ! Get i and j indices of the local-matrix
-    call MatGetRowIJF90(Mat_face_loc,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
-                        ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    call MatGetRowIJ(Mat_face_loc,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
+                     ia_p,ja_p,done,ierr);CHKERRQ(ierr)
     ! Get values stored in the local-matrix
-    call MatSeqAIJGetArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+    call MatSeqAIJGetArray(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
   else
     ! Get i and j indices of the local-matrix
-    call MatGetRowIJF90(Mat_face,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
-                        ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    call MatGetRowIJ(Mat_face,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
+                     ia_p,ja_p,done,ierr);CHKERRQ(ierr)
     ! Get values stored in the local-matrix
-    call MatSeqAIJGetArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+    call MatSeqAIJGetArray(Mat_face,aa_v,ierr);CHKERRQ(ierr)
   endif
 
   min_nverts = 3 ! 3 for tri, 4 for quad
@@ -1055,10 +1061,10 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   endif
 
   if (option%comm%size>1) then
-    call MatSeqAIJRestoreArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+    call MatSeqAIJRestoreArray(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
     call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
   else
-    call MatSeqAIJRestoreArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+    call MatSeqAIJRestoreArray(Mat_face,aa_v,ierr);CHKERRQ(ierr)
   endif
 
   call MatDestroy(Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
@@ -1085,8 +1091,6 @@ end subroutine GeomechGridLocalizeRegFromSideSet
 subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
                                              option)
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Option_module
   use Geomechanics_Region_module
 
@@ -1204,7 +1208,7 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  call VecGetArrayF90(vec_vertex_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec_vertex_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
   count = 0
   do ii = 1,geomech_grid%nlmax_node
     if (v_loc_p(ii) == 1) count = count + 1
@@ -1239,7 +1243,7 @@ subroutine GeomechGridLocalizeRegFromVertIDs(geomech_grid,geomech_region, &
   close(86)
 #endif
 
-  call VecRestoreArrayF90(vec_vertex_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec_vertex_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
 
   call VecDestroy(vec_vertex_ids,ierr);CHKERRQ(ierr)
   call VecDestroy(vec_vertex_ids_loc,ierr);CHKERRQ(ierr)

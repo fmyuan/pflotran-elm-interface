@@ -10,7 +10,7 @@ module Kdtree_module
 
 #include "petsc/finclude/petscsys.h"
 
-  use petscsnes
+  use petscsys
 
   implicit none
 

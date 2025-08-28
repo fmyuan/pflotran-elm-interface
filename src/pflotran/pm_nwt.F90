@@ -1,8 +1,8 @@
-
 module PM_NWT_class
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use PM_Base_class
   use Realization_Subsurface_class
   use Communicator_Base_class
@@ -841,7 +841,7 @@ subroutine PMNWTInitializeTimestep(this)
           ! flag zero_out_borehole to FALSE.
           ! NOTE: Will this work if there are two intrusions? No!
 
-          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecGetArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
           ! compute offset in solution vector for first dof in grid cell
           offset = (local_id-1)*this%params%nspecies
           do idof = 1, this%params%nspecies
@@ -852,7 +852,7 @@ subroutine PMNWTInitializeTimestep(this)
           istart = offset + 1
           iend = offset + this%params%nspecies
           nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
           write(this%option%io_buffer,*) local_id
           this%option%io_buffer = "All NWT mass zero'd at cell " // &
@@ -879,7 +879,7 @@ subroutine PMNWTInitializeTimestep(this)
       do i = 1, size(this%params%dirichlet_material_ids)
         if (patch%imat(ghosted_id) == this%params%dirichlet_material_ids(i)) then
           ! Means the current grid cell is one of the dirichlet materials
-          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecGetArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
           ! compute offset in solution vector for first dof in grid cell
           offset = (local_id-1)*this%params%nspecies
           do idof = 1, this%params%nspecies
@@ -890,7 +890,7 @@ subroutine PMNWTInitializeTimestep(this)
           istart = offset + 1
           iend = offset + this%params%nspecies
           nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
         endif
       enddo
     enddo
@@ -931,7 +931,7 @@ subroutine PMNWTInitializeTimestep(this)
           this%option%time < this%params%wm_end_time) then
         if (patch%imat(ghosted_id) == material_property%internal_id) then
           ! Means the current grid cell is in BH_OPEN_UPPER
-          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecGetArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
           ! compute offset in solution vector for first dof in grid cell
           offset = (local_id-1)*this%params%nspecies
           do idof = 1, this%params%nspecies
@@ -942,7 +942,7 @@ subroutine PMNWTInitializeTimestep(this)
           istart = offset + 1
           iend = offset + this%params%nspecies
           nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
         endif
       endif
     enddo
@@ -1027,7 +1027,7 @@ subroutine PMNWTFinalizeTimestep(this)
       do i = 1, size(this%params%dirichlet_material_ids)
         if (patch%imat(ghosted_id) == this%params%dirichlet_material_ids(i)) then
           ! Means the current grid cell is one of the dirichlet materials
-          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecGetArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
           ! compute offset in solution vector for first dof in grid cell
           offset = (local_id-1)*this%params%nspecies
           do idof = 1, this%params%nspecies
@@ -1038,7 +1038,7 @@ subroutine PMNWTFinalizeTimestep(this)
           istart = offset + 1
           iend = offset + this%params%nspecies
           nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArrayRead(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
         endif
       enddo
     enddo
@@ -1326,7 +1326,7 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ! check if scaling from PMNWTCheckUpdatePre() requires ts cut
   if (this%controls%scaling_cut_dt) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
-    reason = -88
+    reason%v = -88
     this%controls%scaling_cut_dt = PETSC_FALSE
     return
   endif
@@ -1334,14 +1334,14 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ! check if well model requires ts cut
   if (this%controls%well_cut_dt) then
     option%convergence = CONVERGENCE_CUT_TIMESTEP
-    reason = -80808
+    reason%v = -80808
     return
   endif
 
   if (it == 0) then
     option%converged = PETSC_FALSE
     option%convergence = CONVERGENCE_KEEP_ITERATING
-    reason = 0
+    reason%v = 0
     return
   endif
 
@@ -1371,11 +1371,11 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   ierr = 0
   call SNESGetSolutionUpdate(this%solver%snes,dX,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
   max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
   max_absolute_change = maxval(dabs(dX_p(:)))
@@ -1433,11 +1433,11 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     enddo
   enddo
 
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%tran_yy,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%tran_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
 
   do idof = 1, option%ntrandof
@@ -1488,9 +1488,9 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   mpi_int1 = option%ntrandof*5
   mpi_int2 = option%ntrandof*4
   call MPI_Allreduce(MPI_IN_PLACE,converged_flag,ONE_INTEGER, &
-                     MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+                     MPI_C_BOOL,MPI_LAND,option%mycomm,ierr)
   call MPI_Allreduce(MPI_IN_PLACE,idof_cnvgd,mpi_int1, &
-                     MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+                     MPI_C_BOOL,MPI_LAND,option%mycomm,ierr)
   call MPI_Allreduce(MPI_IN_PLACE,species_max,mpi_int2, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
@@ -1525,15 +1525,15 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   if (converged_flag .eqv. PETSC_TRUE) then
     option%converged = PETSC_TRUE
     option%convergence = CONVERGENCE_CONVERGED
-    reason = 999
+    reason%v = 999
   else  ! means ITOL_* tolerances were satisfied
     ! means ITOL_* tolerances were not satisfied:
     option%converged = PETSC_FALSE
     option%convergence = CONVERGENCE_KEEP_ITERATING
-    reason = 0
+    reason%v = 0
     if (it >= this%controls%max_newton_iterations) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
-      reason = -88
+      reason%v = -88
     endif
   endif
 
@@ -1616,8 +1616,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   changed = PETSC_FALSE
 
-  call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
 
   if (Initialized(reaction_nw%params%truncated_concentration)) then
     do k = 1,size(X_p)
@@ -1631,8 +1631,8 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     enddo
   endif
 
-  call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMNWTCheckUpdatePre
 
@@ -1860,6 +1860,8 @@ subroutine PMNWTCheckpointBinary(this,viewer)
   ! Author: Jenn Frederick
   ! Date: 05/27/2019
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Option_module
   use Realization_Subsurface_class
@@ -1872,6 +1874,7 @@ subroutine PMNWTCheckpointBinary(this,viewer)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+      use petscbag
       import :: pm_base_header_type
       implicit none
       PetscBag :: bag
@@ -1902,7 +1905,7 @@ subroutine PMNWTCheckpointBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -1916,7 +1919,7 @@ subroutine PMNWTCheckpointBinary(this,viewer)
   if (option%ntrandof > 0) then
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
 
-    if (global_vec == PETSC_NULL_VEC) then
+    if (PetscObjectIsNull(global_vec)) then
       call DiscretizationCreateVector(discretization,ONEDOF, &
                                       global_vec,GLOBAL,option)
     endif
@@ -1930,7 +1933,7 @@ subroutine PMNWTCheckpointBinary(this,viewer)
     endif
   endif
 
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
@@ -2044,6 +2047,8 @@ subroutine PMNWTRestartBinary(this,viewer)
   ! Author: Jenn Frederick
   ! Date: 05/27/2019
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Option_module
   use Realization_Subsurface_class
@@ -2058,6 +2063,7 @@ subroutine PMNWTRestartBinary(this,viewer)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+      use petscbag
       import :: pm_base_header_type
       implicit none
       PetscBag :: bag
@@ -2088,7 +2094,7 @@ subroutine PMNWTRestartBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -2103,7 +2109,7 @@ subroutine PMNWTRestartBinary(this,viewer)
                                    field%tran_xx_loc,NTRANDOF)
   call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
-  if (global_vec == PETSC_NULL_VEC) then
+  if (PetscObjectIsNull(global_vec)) then
     call DiscretizationCreateVector(discretization,ONEDOF, &
                                     global_vec,GLOBAL,option)
   endif
@@ -2117,7 +2123,7 @@ subroutine PMNWTRestartBinary(this,viewer)
     enddo
   endif
 
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 

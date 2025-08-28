@@ -1,7 +1,7 @@
 module Global_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -246,9 +246,6 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
   ! Author: Glenn Hammond
   ! Date: 11/19/08
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Patch_module
   use Grid_module
@@ -284,7 +281,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
 
   auxvars => patch%aux%Global%auxvars
 
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(LIQUID_PRESSURE)
@@ -465,7 +462,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,time_level)
       stop
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine GlobalSetAuxVarVecLoc
 
@@ -478,9 +475,6 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar)
   ! Author: Glenn Hammond
   ! Date: 11/19/08
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Patch_module
   use Grid_module
@@ -505,7 +499,7 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar)
   grid => patch%grid
   option => realization%option
 
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(STATE)
@@ -518,7 +512,7 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar)
       call PrintErrMsg(option)
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine GlobalGetAuxVarVecLoc
 
@@ -618,8 +612,6 @@ subroutine GlobalSetParameterVecLoc(realization,vec_loc,iparameter)
   ! Author: Glenn Hammond
   ! Date: 01/05/24
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
 
   implicit none
@@ -636,11 +628,11 @@ subroutine GlobalSetParameterVecLoc(realization,vec_loc,iparameter)
 
   auxvars => realization%patch%aux%Global%auxvars
 
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
   do ghosted_id = 1, realization%patch%grid%ngmax
     auxvars(ghosted_id)%parameters(iparameter) = vec_loc_p(ghosted_id)
   enddo
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine GlobalSetParameterVecLoc
 
@@ -775,8 +767,6 @@ subroutine GlobalSetAuxVarsAtTimeLevel(realization,time_level,time)
                                DARCY_VELOCITY
   use ZFlow_Aux_module, only : zflow_density_kg
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Discretization_module
   use Output_Common_module
 
@@ -878,10 +868,10 @@ subroutine GlobalSetAuxVarsAtTimeLevel(realization,time_level,time)
                                          LIQUID_PHASE)
 
     ! open the vectors
-    call VecGetArrayF90(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
 
     ! the local size of the velocity vector
     ! local size = the number of cells calculated on the processor
@@ -896,10 +886,10 @@ subroutine GlobalSetAuxVarsAtTimeLevel(realization,time_level,time)
     enddo
 
     ! close the vectors
-    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(vec_calc,vec_calc_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(vec_x,vec_x_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(vec_y,vec_y_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(vec_z,vec_z_ptr,ierr);CHKERRQ(ierr)
 
     ! Set the auxvar variable for the DARCY_VELOCITY
     call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)

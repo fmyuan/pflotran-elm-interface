@@ -255,7 +255,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   PetscInt :: num_spatial_dims, time_dim, num_times
   PetscInt :: num_dims_in_h5_file, num_times_in_h5_file
   PetscMPIInt :: array_rank_mpi, mpi_int
-  PetscBool :: attribute_exists
+  logical :: attribute_exists
   PetscBool :: first_time
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr

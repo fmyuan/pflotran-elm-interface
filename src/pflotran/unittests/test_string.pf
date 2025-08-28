@@ -81,7 +81,7 @@ contains
 
     character(len=MAXSTRINGLENGTH) :: str1, str2
     PetscInt :: temp_int
-    PetscBool :: compare
+    logical :: compare
 
     str1 = "This is a test. This is only a test."
     str2 = "This is a test. This is not a test."
@@ -109,7 +109,7 @@ contains
 
     character(len=MAXSTRINGLENGTH) :: str1, str2
     PetscInt :: temp_int
-    PetscBool :: compare
+    logical :: compare
 
     str1 = "This is a test. This is only a test."
     str2 = "This is a test. This is not a test."
@@ -136,7 +136,7 @@ contains
     class (Test_String), intent(inout) :: this
 
     character(len=MAXSTRINGLENGTH) :: str1, str2
-    PetscBool :: compare
+    logical :: compare
 
     str1 = "This is a test. This is only a test."
     str2 = "This is a test. This is only a test"
@@ -162,7 +162,7 @@ contains
     class (Test_String), intent(inout) :: this
 
     character(len=MAXSTRINGLENGTH) :: str1, str2
-    PetscBool :: compare
+    logical :: compare
 
     str1 = "This is a test. This is only a test."
     str2 = "This is a test. This is onl ya test."
@@ -188,7 +188,7 @@ contains
     class (Test_String), intent(inout) :: this
 
     character(len=MAXSTRINGLENGTH) :: str1, str2
-    PetscBool :: compare
+    logical :: compare
 
     str1 = "This is a test. This is only a test."
     str2 = "This is a test. This is only a test."

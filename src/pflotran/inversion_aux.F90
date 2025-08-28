@@ -109,7 +109,7 @@ function InversionAuxCreate(driver)
 
   allocate(aux)
 
-  aux%solution = PETSC_NULL_VEC
+  PetscObjectNullify(aux%solution)
 
   aux%driver => driver
   nullify(aux%material_property_array)
@@ -121,15 +121,15 @@ function InversionAuxCreate(driver)
   nullify(aux%coupled_aux)
   nullify(aux%measurements)
   nullify(aux%parameters)
-  aux%measurement_vec = PETSC_NULL_VEC
-  aux%dist_measurement_vec = PETSC_NULL_VEC
-  aux%parameter_vec = PETSC_NULL_VEC
-  aux%dist_parameter_vec = PETSC_NULL_VEC
-  aux%del_parameter_vec = PETSC_NULL_VEC
-  aux%scatter_measure_to_dist_measure = PETSC_NULL_VECSCATTER
-  aux%scatter_param_to_dist_param = PETSC_NULL_VECSCATTER
-  aux%scatter_global_to_dist_param = PETSC_NULL_VECSCATTER
-  aux%JsensitivityT = PETSC_NULL_MAT
+  PetscObjectNullify(aux%measurement_vec)
+  PetscObjectNullify(aux%dist_measurement_vec)
+  PetscObjectNullify(aux%parameter_vec)
+  PetscObjectNullify(aux%dist_parameter_vec)
+  PetscObjectNullify(aux%del_parameter_vec)
+  PetscObjectNullify(aux%scatter_measure_to_dist_measure)
+  PetscObjectNullify(aux%scatter_param_to_dist_param)
+  PetscObjectNullify(aux%scatter_global_to_dist_param)
+  PetscObjectNullify(aux%JsensitivityT)
   nullify(aux%local_measurement_values_ptr)
   nullify(aux%local_dobs_dunknown_values_ptr)
   nullify(aux%local_dobs_dparam_values_ptr)
@@ -154,7 +154,7 @@ subroutine InversionAuxInitAdjoint(aux)
   type(inversion_aux_type) :: aux
 
   aux%store_adjoint = PETSC_TRUE
-  aux%M_ptr = PETSC_NULL_MAT
+  PetscObjectNullify(aux%M_ptr)
   nullify(aux%first_forward_ts_aux)
   nullify(aux%last_forward_ts_aux)
 
@@ -172,8 +172,8 @@ function InversionAuxPerturbationCreate()
   type(inversion_perturbation_type), pointer :: InversionAuxPerturbationCreate
 
   allocate(InversionAuxPerturbationCreate)
-  InversionAuxPerturbationCreate%base_parameter_vec = PETSC_NULL_VEC
-  InversionAuxPerturbationCreate%base_measurement_vec = PETSC_NULL_VEC
+  PetscObjectNullify(InversionAuxPerturbationCreate%base_parameter_vec)
+  PetscObjectNullify(InversionAuxPerturbationCreate%base_measurement_vec)
 
   InversionAuxPerturbationCreate%ndof = 0
   InversionAuxPerturbationCreate%idof_pert = 0
@@ -453,7 +453,7 @@ subroutine InvAuxCopyParamToFromParamVec(aux,itype,idirection)
 
   select case(itype)
     case(INVAUX_PARAMETER_VALUE)
-      call VecGetArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
       select case(idirection)
         case(INVAUX_COPY_FROM_VEC)
           do i = 1, size(aux%parameters)
@@ -466,9 +466,9 @@ subroutine InvAuxCopyParamToFromParamVec(aux,itype,idirection)
         case default
           stop 'Error: idirection in InvAuxCopyParamToFromParamVec,Value'
       end select
-      call VecRestoreArrayF90(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(aux%parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
     case(INVAUX_PARAMETER_UPDATE)
-      call VecGetArrayF90(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
       select case(idirection)
         case(INVAUX_COPY_FROM_VEC)
           do i = 1, size(aux%parameters)
@@ -481,7 +481,7 @@ subroutine InvAuxCopyParamToFromParamVec(aux,itype,idirection)
         case default
           stop 'Error: idirection in InvAuxCopyParamToFromParamVec,Update'
       end select
-      call VecRestoreArrayF90(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(aux%del_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
     case default
       stop 'Error: itype in InvAuxCopyParamToFromParamVec'
   end select
@@ -749,7 +749,7 @@ subroutine InvAuxCopyMeasToFromMeasVec(aux,idirection)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   select case(idirection)
     case(INVAUX_COPY_FROM_VEC)
       do i = 1, size(aux%measurements)
@@ -762,7 +762,7 @@ subroutine InvAuxCopyMeasToFromMeasVec(aux,idirection)
     case default
       stop 'Error: idirection in InvAuxCopyMeasToFromMeasVec,Update'
   end select
-  call VecRestoreArrayF90(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(aux%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InvAuxCopyMeasToFromMeasVec
 
@@ -784,10 +784,10 @@ subroutine InvAuxBCastVecForCommI(comm,vec,driver)
   PetscErrorCode :: ierr
 
   call VecGetLocalSize(vec,vec_size,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call MPI_Bcast(vec_ptr,vec_size,MPI_DOUBLE_PRECISION,ZERO_INTEGER_MPI, &
                  comm%communicator,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InvAuxBCastVecForCommI
 
@@ -809,10 +809,10 @@ subroutine InversionAuxPerturbationStrip(perturbation)
   if (.not.associated(perturbation)) return
 
   call DeallocateArray(perturbation%select_cells)
-  if (perturbation%base_parameter_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(perturbation%base_parameter_vec)) then
     call VecDestroy(perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
   endif
-  if (perturbation%base_measurement_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(perturbation%base_measurement_vec)) then
     call VecDestroy(perturbation%base_measurement_vec,ierr);CHKERRQ(ierr)
   endif
   deallocate(perturbation)
@@ -858,34 +858,34 @@ subroutine InversionAuxDestroy(aux)
     deallocate(aux%parameters)
   endif
   nullify(aux%parameters)
-  if (aux%measurement_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%measurement_vec)) then
     call VecDestroy(aux%measurement_vec,ierr);CHKERRQ(ierr)
   endif
-  if (aux%dist_measurement_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%dist_measurement_vec)) then
     call VecDestroy(aux%dist_measurement_vec,ierr);CHKERRQ(ierr)
   endif
-  if (aux%parameter_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%parameter_vec)) then
     call VecDestroy(aux%parameter_vec,ierr);CHKERRQ(ierr)
   endif
-  if (aux%dist_parameter_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%dist_parameter_vec)) then
     call VecDestroy(aux%dist_parameter_vec,ierr);CHKERRQ(ierr)
   endif
-  if (aux%del_parameter_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%del_parameter_vec)) then
     call VecDestroy(aux%del_parameter_vec,ierr);CHKERRQ(ierr)
   endif
-  if (aux%scatter_measure_to_dist_measure /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(aux%scatter_measure_to_dist_measure)) then
     call VecScatterDestroy(aux%scatter_measure_to_dist_measure, &
                            ierr);CHKERRQ(ierr)
   endif
-  if (aux%scatter_param_to_dist_param /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(aux%scatter_param_to_dist_param)) then
     call VecScatterDestroy(aux%scatter_measure_to_dist_measure, &
                            ierr);CHKERRQ(ierr)
   endif
-  if (aux%scatter_global_to_dist_param /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(aux%scatter_global_to_dist_param)) then
     call VecScatterDestroy(aux%scatter_measure_to_dist_measure, &
                            ierr);CHKERRQ(ierr)
   endif
-  if (aux%JsensitivityT /= PETSC_NULL_MAT) then
+  if (.not.PetscObjectIsNull(aux%JsensitivityT)) then
     call MatDestroy(aux%JsensitivityT,ierr);CHKERRQ(ierr)
   endif
 
@@ -893,7 +893,7 @@ subroutine InversionAuxDestroy(aux)
   nullify(aux%driver)
   nullify(aux%material_property_array)
   nullify(aux%cc_array)
-  aux%solution = PETSC_NULL_VEC
+  PetscObjectNullify(aux%solution)
   nullify(aux%local_measurement_values_ptr)
   nullify(aux%local_dobs_dunknown_values_ptr)
   nullify(aux%local_dobs_dparam_values_ptr)

@@ -165,6 +165,9 @@ end module CLM_Rxn_Common_module
 
 module CLM_Rxn_Decomp_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use CLM_Rxn_Base_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -193,9 +196,6 @@ module CLM_Rxn_Decomp_class
 ! Author: Guoping Tang
 ! Date:   07/08/14
 ! -----------------------------------------------------------------------------
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
 
@@ -3001,6 +3001,9 @@ end module CLM_Rxn_Decomp_class
 
 module CLM_Rxn_PlantN_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use CLM_Rxn_Base_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -3020,9 +3023,6 @@ module CLM_Rxn_PlantN_class
 ! Author: Guoping Tang
 ! Date:   07/08/14
 ! -----------------------------------------------------------------------------
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
 
@@ -4764,11 +4764,11 @@ end module CLM_Rxn_Deni_class
 
 module CLM_Rxn_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   ! extended from reaction_sandbox to implement demand based down regulation
   ! in ReactionCLMRxn t6g 10/06/2014
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use CLM_Rxn_Base_class
   use CLM_Rxn_Decomp_class

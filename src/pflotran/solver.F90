@@ -1,9 +1,8 @@
 module Solver_module
 
-#include "petsc/finclude/petsc.h"
-  use petsc
 #include "petsc/finclude/petscts.h"
   use petscts
+
   use PFLOTRAN_Constants_module
   use CPR_Preconditioner_module
   use Solver_CPR_module
@@ -161,18 +160,18 @@ function SolverCreate()
   solver%convergence_ir = PETSC_TRUE
   solver%convergence_iu = PETSC_TRUE
 
-  solver%M = PETSC_NULL_MAT
-  solver%Mpre = PETSC_NULL_MAT
+  PetscObjectNullify(solver%M)
+  PetscObjectNullify(solver%Mpre)
   solver%M_mat_type = PETSC_NULL_CHARACTER
   solver%Mpre_mat_type = PETSC_NULL_CHARACTER
 
 !  solver%interpolation = 0
   nullify(solver%interpolation)
-  solver%matfdcoloring = PETSC_NULL_MATFDCOLORING
-  solver%snes = PETSC_NULL_SNES
-  solver%ksp = PETSC_NULL_KSP
-  solver%pc = PETSC_NULL_PC
-  solver%ts = PETSC_NULL_TS
+  PetscObjectNullify(solver%matfdcoloring)
+  PetscObjectNullify(solver%snes)
+  PetscObjectNullify(solver%ksp)
+  PetscObjectNullify(solver%pc)
+  PetscObjectNullify(solver%ts)
 
   solver%snes_type = SNESNEWTONLS
   solver%ksp_type = KSPBCGS
@@ -358,18 +357,7 @@ subroutine SolverSetupPCShiftAndPivoting(solver, option)
     if (solver%pc_type == PCBJACOBI .or. solver%pc_type == PCASM .or. &
         solver%pc_type == PCGASM) then
       call KSPSetup(solver%ksp,ierr);CHKERRQ(ierr)
-      select case(solver%pc_type)
-        case(PCBJACOBI)
-          call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                                  PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-        case(PCASM)
-          call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp,PETSC_NULL_KSP, &
-                              ierr);CHKERRQ(ierr)
-        case(PCGASM)
-          call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
-                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-      end select
-      allocate(sub_ksps(nsub_ksp))
+      nullify(sub_ksps)
       select case(solver%pc_type)
         case(PCBJACOBI)
           call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp,sub_ksps, &
@@ -385,7 +373,6 @@ subroutine SolverSetupPCShiftAndPivoting(solver, option)
         call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
         call PCFactorSetShiftType(pc,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
       enddo
-      deallocate(sub_ksps)
       nullify(sub_ksps)
     endif
   endif
@@ -395,9 +382,7 @@ subroutine SolverSetupPCShiftAndPivoting(solver, option)
                               ierr);CHKERRQ(ierr)
     if (solver%pc_type == PCBJACOBI) then
       call KSPSetup(solver%ksp,ierr);CHKERRQ(ierr)
-      call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp,PETSC_NULL_KSP, &
-                              ierr);CHKERRQ(ierr)
-      allocate(sub_ksps(nsub_ksp))
+      nullify(sub_ksps)
       call PCBJacobiGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp,sub_ksps, &
                               ierr);CHKERRQ(ierr)
       do i = 1, nsub_ksp
@@ -405,7 +390,6 @@ subroutine SolverSetupPCShiftAndPivoting(solver, option)
         call PCFactorSetZeroPivot(pc,solver%linear_zero_pivot_tol, &
                                   ierr);CHKERRQ(ierr)
       enddo
-      deallocate(sub_ksps)
       nullify(sub_ksps)
     elseif (.not.(solver%pc_type == PCLU .or. solver%pc_type == PCILU)) then
       option%io_buffer = 'PCFactorSetZeroPivot for PC ' // &
@@ -584,7 +568,7 @@ subroutine SolverReadLinear(solver,input,option)
     case(GEOPHYSICS_CLASS)
       prefix = '-geop_'
     case(GEOMECHANICS_CLASS)
-      prefix = '-geomech_'
+      prefix = '-geom_'
   end select
 
   input%ierr = INPUT_ERROR_NONE
@@ -1069,6 +1053,8 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
       prefix = '-tran_'
     case(GEOPHYSICS_CLASS)
       prefix = '-geop_'
+    case(GEOMECHANICS_CLASS)
+      prefix = '-geom_'
   end select
 
   found = PETSC_TRUE
@@ -1535,9 +1521,9 @@ subroutine SolverCheckCommandLine(solver)
   character(len=MAXSTRINGLENGTH) :: mat_type
   PetscBool :: is_present
 
-  if (solver%snes /= PETSC_NULL_SNES) then
+  if (.not.PetscObjectIsNull(solver%snes)) then
     call SNESGetOptionsPrefix(solver%snes,prefix,ierr);CHKERRQ(ierr)
-  else if (solver%ksp /= PETSC_NULL_KSP) then
+  else if (.not.PetscObjectIsNull(solver%ksp)) then
     call KSPGetOptionsPrefix(solver%ksp,prefix,ierr);CHKERRQ(ierr)
   else
     prefix = PETSC_NULL_CHARACTER
@@ -1618,15 +1604,15 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
   call SNESGetConvergedReason(solver%snes,snes_reason,ierr);CHKERRQ(ierr)
   call SNESGetTolerances(solver%snes,abstol,rtol,stol,maxit,maxf, &
                          ierr);CHKERRQ(ierr)
-  select case(snes_reason)
-    case(SNES_DIVERGED_FUNCTION_DOMAIN)
+  select case(snes_reason%v)
+    PetscEnumCase(SNES_DIVERGED_FUNCTION_DOMAIN)
       if (solver%verbose_logging) then
         error_string = 'The new solution location passed to the function &
           &is not in the domain of F.'
       else
         error_string = 'SNES_DIVERGED_FUNCTION_DOMAIN'
       endif
-    case(SNES_DIVERGED_FUNCTION_COUNT)
+    PetscEnumCase(SNES_DIVERGED_FUNCTION_COUNT)
       if (solver%verbose_logging) then
         write(word,*) maxf
         error_string = 'The user provided function has been called &
@@ -1635,13 +1621,13 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
       else
         error_string = 'SNES_DIVERGED_FUNCTION_COUNT'
       endif
-    case(SNES_DIVERGED_LINEAR_SOLVE)
+    PetscEnumCase(SNES_DIVERGED_LINEAR_SOLVE)
       if (solver%verbose_logging) then
         error_string = 'The linear solver failed.'
       else
         error_string = 'SNES_DIVERGED_LINEAR_SOLVE'
       endif
-    case(SNES_DIVERGED_FNORM_NAN)
+    PetscEnumCase(SNES_DIVERGED_FNORM_NAN)
       if (solver%verbose_logging) then
         error_string = 'The norm of the residual is &
           &not a number (NaN). It is likely that the residual has NaNs &
@@ -1651,7 +1637,7 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
       else
         error_string = 'SNES_DIVERGED_FNORM_NAN'
       endif
-    case(SNES_DIVERGED_MAX_IT)
+    PetscEnumCase(SNES_DIVERGED_MAX_IT)
       if (solver%verbose_logging) then
         write(word,*) maxit
         error_string = 'The maximum number of Newton iterations (' // &
@@ -1659,26 +1645,26 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
       else
         error_string = 'SNES_DIVERGED_MAX_IT'
       endif
-    case(SNES_DIVERGED_LINE_SEARCH)
+    PetscEnumCase(SNES_DIVERGED_LINE_SEARCH)
       if (solver%verbose_logging) then
         error_string = 'The line search failed.'
       else
         error_string = 'SNES_DIVERGED_LINE_SEARCH'
       endif
-    case(SNES_DIVERGED_INNER)
+    PetscEnumCase(SNES_DIVERGED_INNER)
       if (solver%verbose_logging) then
         error_string = 'The inner solver failed.'
       else
         error_string = 'SNES_DIVERGED_INNER'
       endif
-    case(SNES_DIVERGED_LOCAL_MIN)
+    PetscEnumCase(SNES_DIVERGED_LOCAL_MIN)
       if (solver%verbose_logging) then
         error_string = '|| J^T b || is small, implying convergence to a &
           &local minimum of F().'
       else
         error_string = 'SNES_DIVERGED_LOCAL_MIN'
       endif
-    case(SNES_DIVERGED_DTOL)
+    PetscEnumCase(SNES_DIVERGED_DTOL)
       if (solver%verbose_logging) then
         call SNESGetDivergenceTolerance(solver%snes,divtol, &
                                         ierr);CHKERRQ(ierr)
@@ -1700,8 +1686,8 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
   call PrintMsg(option)
 
   ! print out subsequent information specific to each case
-  select case(snes_reason)
-    case(SNES_DIVERGED_LINEAR_SOLVE)
+  select case(snes_reason%v)
+    PetscEnumCase(SNES_DIVERGED_LINEAR_SOLVE)
       call SolverLinearPrintFailedReason(solver,option)
   end select
 
@@ -1745,8 +1731,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
   call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr);CHKERRQ(ierr)
   call KSPGetTolerances(solver%ksp,rtol,abstol,dtol,maxits, &
                         ierr);CHKERRQ(ierr)
-  select case(ksp_reason)
-    case(KSP_DIVERGED_ITS)
+  select case(ksp_reason%v)
+    PetscEnumCase(KSP_DIVERGED_ITS)
       if (solver%verbose_logging) then
         write(word,*) maxits
         error_string = 'The linear solver took too many iterations, beyond &
@@ -1754,7 +1740,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_ITS'
       endif
-    case(KSP_DIVERGED_DTOL)
+    PetscEnumCase(KSP_DIVERGED_DTOL)
       if (solver%verbose_logging) then
         call KSPGetResidualNorm(solver%ksp,rnorm,ierr);CHKERRQ(ierr)
         write(word,'(es12.4)') rnorm
@@ -1765,7 +1751,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_DTOL'
       endif
-    case(KSP_DIVERGED_BREAKDOWN)
+    PetscEnumCase(KSP_DIVERGED_BREAKDOWN)
       if (solver%verbose_logging) then
         error_string = 'A breakdown in the Krylov method was detected &
           &so the method could not continue to enlarge the Krylov space. &
@@ -1773,14 +1759,14 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_BREAKDOWN'
       endif
-    case(KSP_DIVERGED_BREAKDOWN_BICG)
+    PetscEnumCase(KSP_DIVERGED_BREAKDOWN_BICG)
       if (solver%verbose_logging) then
         error_string = 'A breakdown in the KSPBICG method was detected &
           &so the method could not continue to enlarge the Krylov space.'
       else
         error_string = 'KSP_DIVERGED_BREAKDOWN_BICG'
       endif
-    case(KSP_DIVERGED_NONSYMMETRIC)
+    PetscEnumCase(KSP_DIVERGED_NONSYMMETRIC)
       if (solver%verbose_logging) then
         ! must use '"' instead of "'" due to parentheses
         error_string = "It appears the operator or preconditioner is not &
@@ -1789,7 +1775,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_NONSYMMETRIC'
       endif
-    case(KSP_DIVERGED_INDEFINITE_PC)
+    PetscEnumCase(KSP_DIVERGED_INDEFINITE_PC)
       if (solver%verbose_logging) then
         ! must use '"' instead of "'" due to parentheses
         error_string = "It appears the preconditioner is indefinite (has &
@@ -1801,35 +1787,33 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_INDEFINITE_PC'
       endif
-    case(KSP_DIVERGED_NANORINF)
+    PetscEnumCase(KSP_DIVERGED_NANORINF)
       if (solver%verbose_logging) then
         error_string = 'The linear solver produced a NaN (not a number) &
           &for Inf (infinite number) likely due to a divide by zero (0/0).'
       else
         error_string = 'KSP_DIVERGED_NANORINF'
       endif
-    case(KSP_DIVERGED_INDEFINITE_MAT)
+    PetscEnumCase(KSP_DIVERGED_INDEFINITE_MAT)
       if (solver%verbose_logging) then
         error_string = 'The linear solver failed due to an indefinite matrix.'
       else
         error_string = 'KSP_DIVERGED_INDEFINITE_MAT'
       endif
-    case(KSP_DIVERGED_PC_FAILED)
+    PetscEnumCase(KSP_DIVERGED_PC_FAILED)
       if (solver%verbose_logging) then
         error_string = 'Preconditioner setup failed.'
         pc = solver%pc
         call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
         call PCGetFailedReason(pc,pc_failed_reason,ierr);CHKERRQ(ierr)
         ! have to perform global reduction on pc_failed_reason
-        temp_int = pc_failed_reason
+        temp_int = pc_failed_reason%v
         call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
                            MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
-        global_pc_failed_reason = temp_int
+        global_pc_failed_reason%v = temp_int
         if (global_pc_failed_reason == PC_SUBPC_ERROR) then
           if (pc_type == PCBJACOBI) then
-            call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp,PETSC_NULL_KSP, &
-                                    ierr);CHKERRQ(ierr)
-            allocate(sub_ksps(nsub_ksp))
+            nullify(sub_ksps)
             call PCBJacobiGetSubKSP(pc,nsub_ksp,first_sub_ksp,sub_ksps, &
                                     ierr);CHKERRQ(ierr)
             if (nsub_ksp > 1) then
@@ -1840,7 +1824,6 @@ subroutine SolverLinearPrintFailedReason(solver,option)
               call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
               call PCGetFailedReason(pc,pc_failed_reason,ierr);CHKERRQ(ierr)
             enddo
-            deallocate(sub_ksps)
             nullify(sub_ksps)
           else
             option%io_buffer = 'Error in SUB PC of unknown type "' // &
@@ -1849,12 +1832,12 @@ subroutine SolverLinearPrintFailedReason(solver,option)
           endif
         endif
         ! have to perform global reduction (again) on pc_failed_reason
-        temp_int = pc_failed_reason
+        temp_int = pc_failed_reason%v
         call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
                            MPI_MAX,option%mycomm,ierr);CHKERRQ(ierr)
-        global_pc_failed_reason = temp_int
-        select case(global_pc_failed_reason)
-          case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
+        global_pc_failed_reason%v = temp_int
+        select case(global_pc_failed_reason%v)
+          case(PC_FACTOR_STRUCT_ZEROPIVOT%v,PC_FACTOR_NUMERIC_ZEROPIVOT%v)
             select case(solver%itype)
               case(FLOW_CLASS)
                 string = 'Flow'
@@ -1862,6 +1845,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
                 string = 'Transport'
               case(GEOPHYSICS_CLASS)
                 string = 'Geophysics'
+              case(GEOMECHANICS_CLASS)
+                string = 'Geomechanics'
             end select
             call PCFactorGetZeroPivot(pc,zero_pivot_tol,ierr);CHKERRQ(ierr)
             write(word,*) zero_pivot_tol
@@ -1869,8 +1854,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             ! will report zero as the error.  We must skip these processes.
             zero_pivot = MAX_DOUBLE
             ! note that this is not the global pc reason
-            select case(pc_failed_reason)
-              case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)
+            select case(pc_failed_reason%v)
+              case(PC_FACTOR_STRUCT_ZEROPIVOT%v,PC_FACTOR_NUMERIC_ZEROPIVOT%v)
               call PCFactorGetMatrix(pc,mat,ierr);CHKERRQ(ierr)
               call MatFactorGetErrorZeroPivot(mat,zero_pivot,irow, &
                                               ierr);CHKERRQ(ierr)
@@ -1922,11 +1907,11 @@ subroutine SolverDestroy(solver)
   if (.not.associated(solver)) return
 
   if (solver%Mpre == solver%M) then
-    solver%Mpre = PETSC_NULL_MAT
-  else if (solver%Mpre /= PETSC_NULL_MAT) then
+    PetscObjectNullify(solver%Mpre)
+  else if (.not.PetscObjectIsNull(solver%Mpre)) then
     call MatDestroy(solver%Mpre,ierr);CHKERRQ(ierr)
   endif
-  if (solver%M /= PETSC_NULL_MAT) then
+  if (.not.PetscObjectIsNull(solver%M)) then
     call MatDestroy(solver%M,ierr);CHKERRQ(ierr)
   endif
   if (associated(solver%interpolation)) then
@@ -1935,73 +1920,73 @@ subroutine SolverDestroy(solver)
     enddo
     deallocate(solver%interpolation)
   endif
-  if (solver%matfdcoloring /= PETSC_NULL_MATFDCOLORING) then
+  if (.not.PetscObjectIsNull(solver%matfdcoloring)) then
     call MatFDColoringDestroy(solver%matfdcoloring,ierr);CHKERRQ(ierr)
   endif
 
   ! the highest level object frees everything within
-  if (solver%ts /= PETSC_NULL_TS) then
+  if (.not.PetscObjectIsNull(solver%ts)) then
     call TSDestroy(solver%ts,ierr);CHKERRQ(ierr)
-  else if (solver%snes /= PETSC_NULL_SNES) then
+  else if (.not.PetscObjectIsNull(solver%snes)) then
     call SNESDestroy(solver%snes,ierr);CHKERRQ(ierr)
-  else if (solver%ksp /= PETSC_NULL_KSP) then
+  else if (.not.PetscObjectIsNull(solver%ksp)) then
     call KSPDestroy(solver%ksp,ierr);CHKERRQ(ierr)
   endif
 
-  solver%ts = PETSC_NULL_TS
-  solver%snes = PETSC_NULL_SNES
-  solver%ksp = PETSC_NULL_KSP
-  solver%pc = PETSC_NULL_PC
+  PetscObjectNullify(solver%ts)
+  PetscObjectNullify(solver%snes)
+  PetscObjectNullify(solver%ksp)
+  PetscObjectNullify(solver%pc)
 
   if (associated(solver%cprstash)) then
 
       call DeallocateWorkersInCPRStash(solver%cprstash)
 
-      if (solver%cprstash%T1_KSP /= PETSC_NULL_KSP) then
+      if (.not.PetscObjectIsNull(solver%cprstash%T1_KSP)) then
         call KSPDestroy(solver%cprstash%T1_KSP,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T3_KSP /= PETSC_NULL_KSP .and. &
+      if (.not.PetscObjectIsNull(solver%cprstash%T3_KSP) .and. &
           solver%cprstash%CPR_type == "ADDITIVE") then
         call KSPDestroy(solver%cprstash%T3_KSP,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T1_PC /= PETSC_NULL_PC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%T1_PC)) then
         call PCDestroy(solver%cprstash%T1_PC,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T2_PC /= PETSC_NULL_PC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%T2_PC)) then
         call PCDestroy(solver%cprstash%T2_PC,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T3_PC /= PETSC_NULL_PC .and. &
+      if (.not.PetscObjectIsNull(solver%cprstash%T3_PC) .and. &
           solver%cprstash%CPR_type == "ADDITIVE") then
         call PCDestroy(solver%cprstash%T3_PC,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%Ap /= PETSC_NULL_MAT) then
+      if (.not.PetscObjectIsNull(solver%cprstash%Ap)) then
         call MatDestroy(solver%cprstash%Ap,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%As /= PETSC_NULL_MAT) then
+      if (.not.PetscObjectIsNull(solver%cprstash%As)) then
         call MatDestroy(solver%cprstash%As,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T1r /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%T1r)) then
         call VecDestroy(solver%cprstash%T1r,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T3r /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%T3r)) then
         call VecDestroy(solver%cprstash%T3r,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%r2 /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%r2)) then
         call VecDestroy(solver%cprstash%r2,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%s /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%s)) then
         call VecDestroy(solver%cprstash%s,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%z /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%z)) then
         call VecDestroy(solver%cprstash%z,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%factors1vec /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%factors1vec)) then
         call VecDestroy(solver%cprstash%factors1vec,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%factors2vec)) then
         call VecDestroy(solver%cprstash%factors2vec,ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%factors3vec /= PETSC_NULL_VEC) then
+      if (.not.PetscObjectIsNull(solver%cprstash%factors3vec)) then
         call VecDestroy(solver%cprstash%factors3vec,ierr);CHKERRQ(ierr)
       endif
       deallocate(solver%cprstash)

@@ -267,12 +267,12 @@ subroutine WriteTecplotGeomechGridElements(fid,geomech_realization)
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization,vec_ptr, &
                                             TECPLOT_INTEGER, &
                                             grid%nlmax_elem*8, &
                                             EIGHT_INTEGER)
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call GMDMDestroy(gmdm_element)
@@ -305,7 +305,7 @@ subroutine OutputGetCellVerticesGeomech(grid,vec)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! initialize
   vec_ptr = UNINITIALIZED_DOUBLE
@@ -380,7 +380,7 @@ subroutine OutputGetCellVerticesGeomech(grid,vec)
     end select
   enddo
 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine OutputGetCellVerticesGeomech
 
@@ -544,22 +544,22 @@ subroutine WriteTecplotGeomechGridVertices(fid,geomech_realization)
                     global_vertex_vec,ierr);CHKERRQ(ierr)
   call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call OutputGetVertexCoordinatesGeomech(grid,global_vertex_vec,X_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call OutputGetVertexCoordinatesGeomech(grid,global_vertex_vec,Y_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call OutputGetVertexCoordinatesGeomech(grid,global_vertex_vec,Z_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecDestroy(global_vertex_vec,ierr);CHKERRQ(ierr)
 
@@ -595,7 +595,7 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
   PetscErrorCode :: ierr
 
   if (option%comm%size == 1) then
-    call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)
         do ivertex = 1,grid%nlmax_node
@@ -610,7 +610,7 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
           vec_ptr(ivertex) = grid%nodes(ivertex)%z
         enddo
     end select
-    call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   else
     ! initialize to UNINITIALIZED_DOUBLE to catch bugs
     call VecSet(vec,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
@@ -693,10 +693,10 @@ subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec, &
 
   PetscReal, pointer :: vec_ptr(:)
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   datatype,ZERO_INTEGER)
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotDataSetGeomechFromVec
 
@@ -1489,9 +1489,9 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call OutputGetVertexCoordinatesGeomech(grid,global_z_vertex_vec, &
                                    Z_COORDINATE,option)
 
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -1559,9 +1559,9 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! Vertex X/Y/Z
   ! X coord
@@ -1604,7 +1604,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%nlmax_elem
 
@@ -1698,7 +1698,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call GMDMDestroy(gmdm_element)

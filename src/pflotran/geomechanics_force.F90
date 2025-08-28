@@ -364,7 +364,7 @@ subroutine GeomechanicsForceInitialGuess(geomech_realization)
   patch => geomech_realization%geomech_patch
   grid => patch%geomech_grid
 
-  call VecGetArrayf90(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
 
   boundary_condition => patch%geomech_boundary_condition_list%first
   total_verts = 0
@@ -416,7 +416,7 @@ subroutine GeomechanicsForceInitialGuess(geomech_realization)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayf90(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%disp_xx,xx_p,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechanicsForceInitialGuess
 
@@ -471,8 +471,8 @@ subroutine GeomechForceUpdateAuxVars(geomech_realization)
                                           geomech_realization% &
                                           geomech_field%disp_xx_loc,NGEODOF)
 
-  call VecGetArrayF90(geomech_field%disp_xx_loc,xx_loc_p,ierr)
-  call VecGetArrayF90(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
+  call VecGetArray(geomech_field%disp_xx_loc,xx_loc_p,ierr)
+  call VecGetArray(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
 
   ! Internal aux vars
   do ghosted_id = 1, grid%ngmax_node
@@ -499,8 +499,8 @@ subroutine GeomechForceUpdateAuxVars(geomech_realization)
       xx_init_loc_p(GEOMECH_DISP_Z_DOF + (ghosted_id-1)*THREE_INTEGER)
  enddo
 
-  call VecRestoreArrayF90(geomech_field%disp_xx_loc,xx_loc_p,ierr)
-  call VecRestoreArrayF90(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
+  call VecRestoreArray(geomech_field%disp_xx_loc,xx_loc_p,ierr)
+  call VecRestoreArray(geomech_field%disp_xx_init_loc,xx_init_loc_p,ierr)
 
 
 end subroutine GeomechForceUpdateAuxVars
@@ -654,32 +654,32 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
 #endif
 
   ! Get pressure and temperature from subsurface
-  call VecGetArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%press_loc,press,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_loc,temp,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
 
   ! Get initial pressure and temperature
-  call VecGetArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+  call VecGetArray(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%fluid_density_init_loc,fluid_density_init, &
                       ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecGetArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecGetArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%density_spatially_varying) then
-    call VecGetArrayF90(field%density,temp_density_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%density,temp_density_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecGetArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecGetArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
   ! Loop over elements on a processor
@@ -791,32 +791,32 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     deallocate(density_bulk_vec)
   enddo
 
-  call VecRestoreArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%fluid_density_loc,fluid_density, &
+  call VecRestoreArray(field%press_loc,press,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%temp_loc,temp,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%fluid_density_loc,fluid_density, &
                           ierr);CHKERRQ(ierr)
 
-  call VecRestoreArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+  call VecRestoreArray(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%fluid_density_init_loc,fluid_density_init, &
                           ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecRestoreArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecRestoreArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%density_spatially_varying) then
-    call VecRestoreArrayF90(field%density,temp_density_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%density,temp_density_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
 #if 0
@@ -1779,33 +1779,33 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
   call VecZeroEntries(rhs,ierr);CHKERRQ(ierr)
 
   ! Get pressure and temperature from subsurface
-  call VecGetArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%press_loc,press,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_loc,temp,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%fluid_density_loc,fluid_density,ierr);CHKERRQ(ierr)
 
   ! Get geomech properties
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecGetArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecGetArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%density_spatially_varying) then
-    call VecGetArrayF90(field%density,temp_density_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%density,temp_density_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecGetArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecGetArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
   ! Get initial pressure and temperature
-  call VecGetArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+  call VecGetArray(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%fluid_density_init_loc,fluid_density_init, &
                       ierr);CHKERRQ(ierr)
 
   ! Loop over elements on a processor
@@ -1905,32 +1905,32 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
     deallocate(density_bulk_vec)
   enddo
 
-  call VecRestoreArrayF90(field%press_loc,press,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%temp_loc,temp,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%fluid_density_loc,fluid_density, &
+  call VecRestoreArray(field%press_loc,press,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%temp_loc,temp,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%porosity_loc,porosity,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%fluid_density_loc,fluid_density, &
                           ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecRestoreArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecRestoreArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%density_spatially_varying) then
-    call VecRestoreArrayF90(field%density,temp_density_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%density,temp_density_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%fluid_density_init_loc,fluid_density_init, &
+  call VecRestoreArray(field%press_init_loc,press_init,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%temp_init_loc,temp_init,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%fluid_density_init_loc,fluid_density_init, &
                           ierr);CHKERRQ(ierr)
 
 
@@ -2458,6 +2458,7 @@ subroutine GeomechForceAssembleCoeffMatrix(A,geomech_realization)
   use Grid_Unstructured_Cell_module
   use Geomechanics_Region_module
   use Geomechanics_Auxiliary_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -2508,13 +2509,13 @@ subroutine GeomechForceAssembleCoeffMatrix(A,geomech_realization)
   GeomechParam => patch%geomech_aux%GeomechParam
 
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecGetArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecGetArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
 
   ! Loop over elements on a processor
@@ -2574,7 +2575,7 @@ subroutine GeomechForceAssembleCoeffMatrix(A,geomech_realization)
                    option%ngeomechdof*(id2-1)+GEOMECH_DISP_X_DOF: &
                    option%ngeomechdof*(id2-1)+GEOMECH_DISP_Z_DOF)
 
-        call MatSetValuesBlocked(A,1,petsc_id1-1,1,petsc_id2-1,Jac_sub_mat, &
+        call PUMSetValuesBlocked(A,1,petsc_id1-1,1,petsc_id2-1,Jac_sub_mat, &
                                  ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
     enddo
@@ -2589,13 +2590,13 @@ subroutine GeomechForceAssembleCoeffMatrix(A,geomech_realization)
     deallocate(poissons_vec)
   enddo
 
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecRestoreArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecRestoreArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2731,14 +2732,14 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
 
 
   ! pressure
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(geomech_field%subsurf_vec_1dof,vec_p,ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     vec_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id-1)+1)
   enddo
-  call VecRestoreArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(geomech_field%subsurf_vec_1dof,vec_p,ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Scatter the data
   call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
@@ -2750,14 +2751,14 @@ subroutine GeomechUpdateFromSubsurf(realization,geomech_realization)
 
   ! temperature
   if (option%nflowdof > 1) then
-    call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
+    call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(geomech_field%subsurf_vec_1dof,vec_p,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       vec_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id-1)+2)
     enddo
-    call VecRestoreArrayF90(geomech_field%subsurf_vec_1dof,vec_p,ierr)
-    call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(geomech_field%subsurf_vec_1dof,vec_p,ierr)
+    call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
     ! Scatter the data
     call VecScatterBegin(dm_ptr%gmdm%scatter_subsurf_to_geomech_ndof, &
@@ -3049,26 +3050,26 @@ subroutine GeomechForceStressStrain(geomech_realization)
   call VecSet(field%stress,0.d0,ierr);CHKERRQ(ierr)
   call VecSet(field%stress_total,0.d0,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_loc,temp_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%temp_init_loc,temp_init_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%press_loc,press_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%press_init_loc,press_init_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_loc,temp_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%temp_init_loc,temp_init_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%press_loc,press_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%press_init_loc,press_init_loc_p,ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecGetArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecGetArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecGetArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecGetArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
   strain_loc_p = 0.d0
@@ -3178,22 +3179,22 @@ subroutine GeomechForceStressStrain(geomech_realization)
     deallocate(stress_total)
   enddo
 
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
 
   if (GeomechParam%youngs_modulus_spatially_varying) then
-    call VecRestoreArrayF90(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%youngs_modulus,temp_youngs_modulus_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%poissons_ratio_spatially_varying) then
-    call VecRestoreArrayF90(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%poissons_ratio,temp_poissons_ratio_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%biot_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%biot_coeff,temp_biot_coeff_p,ierr);CHKERRQ(ierr)
   endif
   if (GeomechParam%thermal_exp_coeff_spatially_varying) then
-    call VecRestoreArrayF90(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%thermal_exp_coeff,temp_thermal_exp_coeff_p,ierr);CHKERRQ(ierr)
   endif
 
   call GeomechDiscretizationLocalToGlobalAdd(geomech_discretization, &
@@ -3208,11 +3209,11 @@ subroutine GeomechForceStressStrain(geomech_realization)
                                              SIX_INTEGER)
 
 ! Now take the average at each node for elements sharing the node
-  call VecGetArrayF90(grid%no_elems_sharing_node,no_elems_p, &
+  call VecGetArray(grid%no_elems_sharing_node,no_elems_p, &
                       ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%strain,strain_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress,stress_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress_total,stress_total_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%strain,strain_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress,stress_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress_total,stress_total_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax_node
     do idof = 1, SIX_INTEGER
       strain_p(idof + (local_id-1)*SIX_INTEGER) = &
@@ -3223,10 +3224,10 @@ subroutine GeomechForceStressStrain(geomech_realization)
         stress_total_p(idof + (local_id-1)*SIX_INTEGER)/nint(no_elems_p(local_id))
     enddo
   enddo
-  call VecRestoreArrayF90(field%strain,strain_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress,stress_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress_total,stress_total_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(grid%no_elems_sharing_node,no_elems_p, &
+  call VecRestoreArray(field%strain,strain_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress,stress_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress_total,stress_total_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(grid%no_elems_sharing_node,no_elems_p, &
                           ierr);CHKERRQ(ierr)
 
 ! Now scatter back to local domains
@@ -3241,9 +3242,9 @@ subroutine GeomechForceStressStrain(geomech_realization)
                                           field%stress_total_loc, &
                                           SIX_INTEGER)
 
-  call VecGetArrayF90(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
 ! Copy them to global_aux_vars
   do ghosted_id = 1, grid%ngmax_node
     do idof = 1, SIX_INTEGER
@@ -3255,9 +3256,9 @@ subroutine GeomechForceStressStrain(geomech_realization)
         stress_total_loc_p(idof + (ghosted_id-1)*SIX_INTEGER)
     enddo
   enddo
-  call VecRestoreArrayF90(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%strain_loc,strain_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress_loc,stress_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%stress_total_loc,stress_total_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechForceStressStrain
 

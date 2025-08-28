@@ -1,7 +1,7 @@
 module SrcSink_Sandbox_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscmat.h"
+  use petscmat
 
   use SrcSink_Sandbox_Base_class
   use SrcSink_Sandbox_WIPP_Gas_class
@@ -242,12 +242,10 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   !
-
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Option_module
   use Grid_module
   use Material_Aux_module, only: material_auxvar_type
+  use Petsc_Utility_module
 
   implicit none
 
@@ -271,7 +269,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   call PrintErrMsg(option)
 
   if (.not.compute_derivative) then
-    call VecGetArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(residual,r_p,ierr);CHKERRQ(ierr)
   endif
 
   cur_srcsink => ss_sandbox_list
@@ -286,7 +284,8 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
                                 material_auxvars(ghosted_id), &
                                 aux_real,option)
       if (compute_derivative) then
-        call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1,ghosted_id-1, &
+        call PUMSetValuesBlockedLocal(Jacobian,1,ghosted_id-1, &
+                                      1,ghosted_id-1, &
                                       Jac,ADD_VALUES,ierr);CHKERRQ(ierr)
       else
         iend = local_id*option%nflowdof
@@ -298,7 +297,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   enddo
 
   if (.not.compute_derivative) then
-    call VecRestoreArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(residual,r_p,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine SSSandbox

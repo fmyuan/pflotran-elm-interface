@@ -94,10 +94,10 @@ subroutine InversionCoupledSolutionInit(aux)
 
   aux%time = UNINITIALIZED_DOUBLE
   aux%measured = PETSC_FALSE
-  aux%original_saturation_solution = PETSC_NULL_VEC
-  aux%perturbed_saturation_solution = PETSC_NULL_VEC
-  aux%original_solute_solution = PETSC_NULL_VEC
-  aux%perturbed_solute_solution = PETSC_NULL_VEC
+  PetscObjectNullify(aux%original_saturation_solution)
+  PetscObjectNullify(aux%perturbed_saturation_solution)
+  PetscObjectNullify(aux%original_solute_solution)
+  PetscObjectNullify(aux%perturbed_solute_solution)
   nullify(aux%dsaturation_dparameter)
   nullify(aux%dsolute_dparameter)
 
@@ -135,14 +135,14 @@ subroutine InvCoupledAllocateSolnVecs(aux,onedof_vec,num_parameters)
                         ierr);CHKERRQ(ierr)
     endif
     allocate(aux%solutions(i)%dsaturation_dparameter(num_parameters))
-    aux%solutions(i)%dsaturation_dparameter(:) = PETSC_NULL_VEC
-    call VecDuplicateVecsF90(onedof_vec,num_parameters, &
+    PetscObjectNullify(aux%solutions(i)%dsaturation_dparameter(:))
+    call VecDuplicateVecs(onedof_vec,num_parameters, &
                              aux%solutions(i)%dsaturation_dparameter, &
                              ierr);CHKERRQ(ierr)
     if (Initialized(zflow_sol_tran_eq)) then
       allocate(aux%solutions(i)%dsolute_dparameter(num_parameters))
-      aux%solutions(i)%dsolute_dparameter(:) = PETSC_NULL_VEC
-      call VecDuplicateVecsF90(onedof_vec,num_parameters, &
+      PetscObjectNullify(aux%solutions(i)%dsolute_dparameter(:))
+      call VecDuplicateVecs(onedof_vec,num_parameters, &
                               aux%solutions(i)%dsolute_dparameter, &
                               ierr);CHKERRQ(ierr)
     endif
@@ -252,7 +252,7 @@ subroutine InversionCoupledSolutionDestroy(solution)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-  deallocate_solute = solution%original_solute_solution /= PETSC_NULL_VEC
+  deallocate_solute = .not.PetscObjectIsNull(solution%original_solute_solution)
 
   call VecDestroy(solution%original_saturation_solution,ierr);CHKERRQ(ierr)
   call VecDestroy(solution%perturbed_saturation_solution,ierr);CHKERRQ(ierr)

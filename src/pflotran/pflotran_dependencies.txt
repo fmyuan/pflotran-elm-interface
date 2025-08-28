@@ -226,6 +226,7 @@ condition_control.o : \
   nw_transport_equilibrium.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
@@ -428,6 +429,7 @@ ert.o : \
   matrix_zeroing.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   string.o \
@@ -599,6 +601,7 @@ factory_subsurface_linkage.o : \
   logging.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_auxiliary.o \
   pm_base.o \
@@ -771,6 +774,7 @@ general.o : \
   output_aux.o \
   output_tecplot.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   saturation_function.o \
@@ -834,6 +838,7 @@ geomech_grid.o : \
   input_aux.o \
   logging.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   string.o \
   utility.o
@@ -899,6 +904,7 @@ geomechanics_force.o : \
   grid_unstructured_cell.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   shape_function.o \
@@ -1088,6 +1094,7 @@ grid_unstructured_aux.o : \
   geometry.o \
   grid_unstructured_cell.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   string.o \
   utility.o \
@@ -1167,6 +1174,7 @@ hydrate.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_well.o \
   realization_subsurface.o \
@@ -1279,6 +1287,7 @@ init_subsurface_flow.o : \
   hdf5.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o
 init_subsurface_geomechanics.o : \
@@ -1454,6 +1463,7 @@ inversion_subsurface.o : \
   option_inversion.o \
   output_hdf5.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_ert.o \
@@ -1493,6 +1503,7 @@ inversion_zflow.o : \
   material_aux.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   print.o \
   realization_base.o \
@@ -1548,6 +1559,7 @@ matrix_block_aux.o : \
 matrix_buffer.o : \
   grid.o \
   grid_structured.o \
+  petsc_utility.o \
   pflotran_constants.o
 matrix_zeroing.o : \
   pflotran_constants.o \
@@ -1574,6 +1586,7 @@ mphase.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   secondary_continuum.o \
@@ -1617,6 +1630,7 @@ nw_transport.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_well.o \
   realization_subsurface.o \
@@ -2031,6 +2045,7 @@ pm_ert.o : \
   option.o \
   parameter.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   reaction_aux.o \
@@ -2257,6 +2272,7 @@ pm_pnf.o : \
   material_aux.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_subsurface_flow.o \
   pnf.o \
@@ -2311,6 +2327,7 @@ pm_richards_ts.o : \
   material_aux.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_richards.o \
@@ -2454,6 +2471,7 @@ pm_th_ts.o : \
   material_aux.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
@@ -2579,6 +2597,7 @@ pm_well.o : \
   nw_transport_aux.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   reactive_transport_aux.o \
@@ -2615,6 +2634,7 @@ pm_wipp_flow.o : \
   material_aux.o \
   option.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
@@ -2646,6 +2666,7 @@ pm_wipp_srcsink.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   realization_base.o \
@@ -2686,6 +2707,7 @@ pmc_base.o : \
   option_checkpoint.o \
   output.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_base_pointer.o \
@@ -2843,8 +2865,10 @@ pnf_aux.o : \
   utility.o
 preconditioner_cpr.o : \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
-  string.o
+  string.o \
+  utility.o
 print.o : \
   communicator_aux.o \
   pflotran_constants.o \
@@ -3321,6 +3345,7 @@ reactive_transport.o : \
   output_aux.o \
   output_tecplot.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   reaction.o \
   reaction_aux.o \
@@ -3471,6 +3496,7 @@ richards.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_well.o \
   realization_base.o \
@@ -3529,6 +3555,7 @@ sco2.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_well.o \
   realization_subsurface.o \
@@ -3734,6 +3761,7 @@ srcsink_sandbox.o : \
   material_aux.o \
   option.o \
   output_aux.o \
+  petsc_utility.o \
   pflotran_constants.o \
   region.o \
   richards_aux.o \
@@ -3861,6 +3889,7 @@ th.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   realization_subsurface.o \
   region.o \
@@ -3908,6 +3937,7 @@ timestepper_SNES.o : \
   option.o \
   output.o \
   output_ekg.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_subsurface_flow.o \
@@ -4059,6 +4089,7 @@ wipp_flow.o : \
   option.o \
   output_aux.o \
   patch.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_well.o \
   pm_wipp_srcsink.o \
@@ -4116,6 +4147,7 @@ wipp_well.o : \
   material_aux.o \
   nw_transport_aux.o \
   option.o \
+  petsc_utility.o \
   pflotran_constants.o \
   pm_base.o \
   pm_well.o \

@@ -39,7 +39,7 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   5.7267148999756E-02
+   Time (seconds):   2.3297052998714E-02
    Time Steps:           90
    Newton Iterations:          136
    Linear Solver Iterations:          136
@@ -47,10 +47,10 @@
    Solution 2-Norm:   8.1093324845548E+06
    Residual 2-Norm:   1.3551999095955E-15
 -- SOLUTION: Transport --
-   Time (seconds):   2.4126700999886E-02
+   Time (seconds):   1.0740720000513E-02
    Time Steps:           90
    Newton Iterations:           90
    Linear Solver Iterations:           90
    Time Step Cuts:            0
    Solution 2-Norm:   6.6763154670416E-02
-   Residual 2-Norm:   2.4527199007760E-08
+   Residual 2-Norm:   2.4527199007761E-08

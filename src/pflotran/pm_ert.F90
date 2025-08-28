@@ -120,10 +120,10 @@ subroutine PMERTInit(pm_ert)
 
   pm_ert%linear_iterations_in_step = 0
   pm_ert%ksp_time = 0.d0
-  pm_ert%rhs = PETSC_NULL_VEC
-  pm_ert%dconductivity_dsaturation = PETSC_NULL_VEC
-  pm_ert%dconductivity_dconcentration = PETSC_NULL_VEC
-  pm_ert%dconductivity_dporosity = PETSC_NULL_VEC
+  PetscObjectNullify(pm_ert%rhs)
+  PetscObjectNullify(pm_ert%dconductivity_dsaturation)
+  PetscObjectNullify(pm_ert%dconductivity_dconcentration)
+  PetscObjectNullify(pm_ert%dconductivity_dporosity)
 
   ! Archie and Waxman-Smits default values
   pm_ert%conductivity_mapping_law = ARCHIE
@@ -721,7 +721,7 @@ recursive subroutine PMERTInitializeRun(this)
 
   ! Initialize field%work to zero
   call VecZeroEntries(this%realization%field%work,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! Loop over connections to set field%work to 1 at the local_id
   cur_coupler => patch%prescribed_condition_list%first
@@ -735,13 +735,13 @@ recursive subroutine PMERTInitializeRun(this)
     cur_coupler => cur_coupler%next
   enddo
 
-  call VecRestoreArrayF90(this%realization%field%work, &
+  call VecRestoreArray(this%realization%field%work, &
                           vec_ptr,ierr);CHKERRQ(ierr)
 
   ! ensure that electrodes are not placed in inactive cells or
   ! prescribed condition cells
   flag = PETSC_FALSE
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(this%survey%ipos_electrode)
     local_id = this%survey%ipos_electrode(i)
     if (local_id <= 0) cycle ! not on process
@@ -761,10 +761,10 @@ recursive subroutine PMERTInitializeRun(this)
       endif
     endif
   enddo
-  call VecRestoreArrayF90(this%realization%field%work, &
+  call VecRestoreArray(this%realization%field%work, &
                           vec_ptr,ierr);CHKERRQ(ierr)
 
-  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL,MPI_LOR, &
+  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_C_BOOL,MPI_LOR, &
                      option%mycomm,ierr);CHKERRQ(ierr)
   if (flag) then
     option%io_buffer = 'Electrodes in inactive or prescribed condition &
@@ -802,6 +802,7 @@ subroutine PMERTSetupSolvers(this)
 
   use Solver_module
   use Discretization_module
+  use Petsc_Utility_module, only : PUCast
 
   implicit none
 
@@ -829,8 +830,8 @@ subroutine PMERTSetupSolvers(this)
                                   ONEDOF, &
                                   solver%Mpre_mat_type, &
                                   solver%Mpre, &
-                                  associated(this%realization%patch% &
-                                    prescribed_condition_list%first), &
+                                  PUCast(associated(this%realization%patch% &
+                                    prescribed_condition_list%first)), &
                                   option)
 
   call MatSetOptionsPrefix(solver%Mpre,"geop_",ierr);CHKERRQ(ierr)
@@ -976,14 +977,14 @@ subroutine PMERTPreSolve(this)
   mat_elec_cond_cell_by_cell = (material_elec_conduct_index > 0)
 
   if (this%coupled_ert_flow_jacobian) then
-    call VecGetArrayF90(this%dconductivity_dsaturation, &
+    call VecGetArray(this%dconductivity_dsaturation, &
                         dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
-      call VecGetArrayF90(this%dconductivity_dconcentration, &
+      call VecGetArray(this%dconductivity_dconcentration, &
                           dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
     if (this%invert_for_porosity) then
-      call VecGetArrayF90(this%dconductivity_dporosity, &
+      call VecGetArray(this%dconductivity_dporosity, &
                           dcond_dpor_vec_ptr,ierr);CHKERRQ(ierr)
     endif
   endif
@@ -1085,14 +1086,14 @@ subroutine PMERTPreSolve(this)
   enddo
 
   if (this%coupled_ert_flow_jacobian) then
-    call VecRestoreArrayF90(this%dconductivity_dsaturation, &
+    call VecRestoreArray(this%dconductivity_dsaturation, &
                             dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (associated(rt_auxvars) .or. associated(zflow_auxvars)) then
-      call VecRestoreArrayF90(this%dconductivity_dconcentration, &
+      call VecRestoreArray(this%dconductivity_dconcentration, &
                              dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
     if (this%invert_for_porosity) then
-      call VecRestoreArrayF90(this%dconductivity_dporosity, &
+      call VecRestoreArray(this%dconductivity_dporosity, &
                               dcond_dpor_vec_ptr,ierr);CHKERRQ(ierr)
     endif
   endif
@@ -1189,13 +1190,13 @@ subroutine PMERTSolve(this,time,ierr)
       ! Get Analytical potential for a half-space
       call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
       ! assign analytic potential as initial solution
-      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (patch%imat(ghosted_id) <= 0) cycle
         vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
       enddo
-      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
     else
       ! zero initial solution
@@ -1204,7 +1205,7 @@ subroutine PMERTSolve(this,time,ierr)
 
     ! RHS
     call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
 
     ! Get the local-id of ielec
     elec_id = survey%ipos_electrode(ielec)
@@ -1226,7 +1227,7 @@ subroutine PMERTSolve(this,time,ierr)
         vec_ptr(ghost_elec_id) = val
       endif
     endif
-    call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
 
     if (realization%debug%vecview_residual) then
       string = 'ERTrhs_' // trim(adjustl(StringWrite(elec_id)))
@@ -1250,13 +1251,13 @@ subroutine PMERTSolve(this,time,ierr)
 
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
-    call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
     ! store potentials for each electrode
     do ghosted_id=1,grid%ngmax
       if (patch%imat(ghosted_id) <= 0) cycle
       ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(ghosted_id)
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations, &
                                ierr);CHKERRQ(ierr)
@@ -1538,6 +1539,7 @@ subroutine PMERTBuildCoupledJacobian(this)
   use Units_module
   use Utility_module
   use ZFlow_Aux_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -1588,14 +1590,14 @@ subroutine PMERTBuildCoupledJacobian(this)
     solutions => patch%aux%inversion_aux%coupled_aux%solutions
     parameters => patch%aux%inversion_aux%parameters
 
-    call VecGetArrayReadF90(this%dconductivity_dsaturation, &
+    call VecGetArrayRead(this%dconductivity_dsaturation, &
                             dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (Initialized(zflow_sol_tran_eq)) then
-      call VecGetArrayReadF90(this%dconductivity_dconcentration, &
+      call VecGetArrayRead(this%dconductivity_dconcentration, &
                               dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
     if (this%invert_for_porosity) then
-      call VecGetArrayReadF90(this%dconductivity_dporosity, &
+      call VecGetArrayRead(this%dconductivity_dporosity, &
                               dcond_dpor_vec_ptr,ierr);CHKERRQ(ierr)
     endif
     iflag = PETSC_FALSE
@@ -1603,11 +1605,11 @@ subroutine PMERTBuildCoupledJacobian(this)
       if (.not.Equal(solutions(isurvey)%time,option%time)) cycle
       iflag = PETSC_TRUE
       do iparam = 1, size(parameters)
-        call VecGetArrayReadF90(solutions(isurvey)% &
+        call VecGetArrayRead(solutions(isurvey)% &
                                 dsaturation_dparameter(iparam), &
                                 dsat_dparam_ptr,ierr);CHKERRQ(ierr)
         if (Initialized(zflow_sol_tran_eq)) then
-          call VecGetArrayReadF90(solutions(isurvey)% &
+          call VecGetArrayRead(solutions(isurvey)% &
                                   dsolute_dparameter(iparam), &
                                   dconc_dparam_ptr,ierr);CHKERRQ(ierr)
         endif
@@ -1707,15 +1709,15 @@ subroutine PMERTBuildCoupledJacobian(this)
                              MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm, &
                              ierr);CHKERRQ(ierr)
 
-          call MatSetValue(patch%aux%inversion_aux%JsensitivityT, &
+          call PUMSetValue(patch%aux%inversion_aux%JsensitivityT, &
                            iparam-1,imeasurement-1,coupled_jacob, &
                            INSERT_VALUES,ierr);CHKERRQ(ierr)
         enddo
-        call VecRestoreArrayReadF90(solutions(isurvey)% &
+        call VecRestoreArrayRead(solutions(isurvey)% &
                                     dsaturation_dparameter(iparam), &
                                     dsat_dparam_ptr,ierr);CHKERRQ(ierr)
         if (Initialized(zflow_sol_tran_eq)) then
-          call VecRestoreArrayReadF90(solutions(isurvey)% &
+          call VecRestoreArrayRead(solutions(isurvey)% &
                                       dsolute_dparameter(iparam), &
                                       dconc_dparam_ptr,ierr);CHKERRQ(ierr)
         endif
@@ -1733,14 +1735,14 @@ subroutine PMERTBuildCoupledJacobian(this)
       call PrintErrMsg(option)
     endif
 
-    call VecRestoreArrayReadF90(this%dconductivity_dsaturation, &
+    call VecRestoreArrayRead(this%dconductivity_dsaturation, &
                                 dcond_dsat_vec_ptr,ierr);CHKERRQ(ierr)
     if (Initialized(zflow_sol_tran_eq)) then
-      call VecRestoreArrayReadF90(this%dconductivity_dconcentration, &
+      call VecRestoreArrayRead(this%dconductivity_dconcentration, &
                                   dcond_dconc_vec_ptr,ierr);CHKERRQ(ierr)
     endif
     if (this%invert_for_porosity) then
-      call VecRestoreArrayReadF90(this%dconductivity_dporosity, &
+      call VecRestoreArrayRead(this%dconductivity_dporosity, &
                                   dcond_dpor_vec_ptr,ierr);CHKERRQ(ierr)
     endif
 
@@ -1873,16 +1875,16 @@ subroutine PMERTStrip(this)
   call WaypointListDestroy(this%waypoint_list)
 
   call DeallocateArray(this%species_conductivity_coef)
-  if (this%rhs /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%rhs)) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
   endif
-  if (this%dconductivity_dsaturation /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%dconductivity_dsaturation)) then
     call VecDestroy(this%dconductivity_dsaturation,ierr);CHKERRQ(ierr)
   endif
-  if (this%dconductivity_dconcentration /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%dconductivity_dconcentration)) then
     call VecDestroy(this%dconductivity_dconcentration,ierr);CHKERRQ(ierr)
   endif
-  if (this%dconductivity_dporosity /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%dconductivity_dporosity)) then
     call VecDestroy(this%dconductivity_dporosity,ierr);CHKERRQ(ierr)
   endif
 

@@ -1,6 +1,7 @@
 module PM_Ponded_Water_class
 
 #include "petsc/finclude/petscvec.h"
+  use petscsys
   use petscvec
   use PM_Base_class
   use Realization_Subsurface_class
@@ -37,6 +38,7 @@ module PM_Ponded_Water_class
   ! interface blocks
   interface
     subroutine PMPondedWaterUpdateDummy(this,time,ierr)
+      use petscsys
       import :: pm_ponded_water_type
       implicit none
       class(pm_ponded_water_type) :: this

@@ -1,7 +1,7 @@
 module Init_Subsurface_Flow_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
 
   use PFLOTRAN_Constants_module
 
@@ -22,9 +22,6 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Author: Glenn Hammond
   ! Date: 03/05/10, 12/04/14
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -32,6 +29,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use Patch_module
   use Discretization_module
   use HDF5_module
+  use Petsc_Utility_module, only : PUCast
 
   implicit none
 
@@ -66,16 +64,16 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   endif
 
     ! assign initial conditions values to domain
-  call VecGetArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
   ! Pressure for all modes
   offset = 1
   group_name = ''
   dataset_name = 'Pressure'
   call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                    filename,group_name, &
-                                    dataset_name,option%id>0)
-  call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+                                    filename,group_name,dataset_name, &
+                                    PUCast(option%id>0))
+  call VecGetArray(field%work,vec_p,ierr);CHKERRQ(ierr)
   do local_id=1, grid%nlmax
     if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
     if (dabs(vec_p(local_id)) < 1.d-40) then
@@ -85,9 +83,9 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     idx = (local_id-1)*option%nflowdof + offset
     xx_p(idx) = vec_p(local_id)
   enddo
-  call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%work,vec_p,ierr);CHKERRQ(ierr)
 
-  call VecRestoreArrayF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &

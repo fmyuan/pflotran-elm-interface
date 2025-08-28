@@ -100,8 +100,8 @@ subroutine PMBaseInit(this)
   nullify(this%output_option)
   nullify(this%realization_base)
   nullify(this%solver)
-  this%solution_vec = PETSC_NULL_VEC
-  this%residual_vec = PETSC_NULL_VEC
+  PetscObjectNullify(this%solution_vec)
+  PetscObjectNullify(this%residual_vec)
   this%print_ekg = PETSC_FALSE
   this%steady_state = PETSC_FALSE
   this%skip_restart = PETSC_FALSE
@@ -453,10 +453,8 @@ end subroutine PMBaseIJacobian
 
 subroutine PMBaseCheckpointBinary(this,viewer)
   implicit none
-#include "petsc/finclude/petscviewer.h"
   class(pm_base_type) :: this
   PetscViewer :: viewer
-!  call this%PrintErrMsg('PMBaseCheckpointBinary')
 end subroutine PMBaseCheckpointBinary
 
 ! ************************************************************************** !

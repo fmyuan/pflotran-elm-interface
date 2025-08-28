@@ -1,6 +1,7 @@
 module Shape_Function_module
 
 #include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use Gauss_module
   use Grid_Unstructured_Cell_module

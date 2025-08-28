@@ -1,7 +1,7 @@
 module Grid_Unstructured_Polyhedra_module
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use Geometry_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
@@ -713,7 +713,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   call MatCreateMPIAdj(option%mycomm,num_cells_local_old, &
                        pgrid%num_vertices_global,local_vertex_offset, &
-                       local_vertices,PETSC_NULL_INTEGER,Adj_mat, &
+                       local_vertices,PETSC_NULL_INTEGER_ARRAY,Adj_mat, &
                        ierr);CHKERRQ(ierr)
 
   ! do not free local_vertices; MatAdjDestroy will do it
@@ -761,7 +761,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   ! second argument of ZERO_INTEGER means to use 0-based indexing
   ! MagGetRowIJF90 returns row and column pointers for compressed matrix data
-  call MatGetRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
+  call MatGetRowIJ(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                       ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
 
   if (.not.success .or. num_rows /= num_cells_local_old) then
@@ -797,7 +797,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   call PrintMsg(option)
 #endif
 
-  call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+  call MatRestoreRowIJ(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                           num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
 
   ! in order to redistributed vertex/cell data among ranks, I package it
@@ -870,10 +870,10 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   ! 0 = 0-based indexing
   ! MagGetRowIJF90 returns row and column pointers for compressed matrix data
-  call MatGetRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
+  call MatGetRowIJ(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                       ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(elements_old,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_old,vec_ptr,ierr);CHKERRQ(ierr)
   count =  0
   face_count = 0
   do local_id = 1, num_cells_local_old
@@ -989,9 +989,9 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     vec_ptr(count) = -999999  ! help differentiate
 
   enddo
-  call VecRestoreArrayF90(elements_old,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_old,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+  call MatRestoreRowIJ(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                           num_rows,ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   call MatDestroy(Dual_mat,ierr);CHKERRQ(ierr)
 
@@ -1007,7 +1007,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   vertex_count = 0
   ! yep - load them all into a petsc vector
   ! note that the vertices are still in natural numbering
-  call VecGetArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
   do ghosted_id=1, ugrid%ngmax
     do ivertex = 1, ugrid%max_nvert_per_cell
       vertex_id = int(vec_ptr(ivertex + vertex_ids_offset + (ghosted_id-1)*cell_stride))
@@ -1020,7 +1020,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       int_array_pointer(vertex_count) = vertex_id
     enddo
   enddo
-  call VecRestoreArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! sort the vertex ids
   allocate(int_array(vertex_count))
@@ -1073,7 +1073,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   ! permute the local ids calculated earlier in the int_array4
   allocate(vert_n2g(ugrid%max_nvert_per_cell,2))
 
-  call VecGetArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
   do ghosted_id = 1, ugrid%ngmax
      vert_n2g = 0
     do ivertex = 1, ugrid%max_nvert_per_cell
@@ -1110,7 +1110,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     enddo
 
   enddo
-  call VecRestoreArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
   deallocate(int_array)
   deallocate(int_array2)
   deallocate(int_array3)
@@ -1154,7 +1154,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   pgrid%cell_faceids = 0
   pgrid%cell_vertids = 0
 
-  call VecGetArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
 
   num_faces_local = 0
   do ghosted_id = 1, ugrid%ngmax
@@ -1210,7 +1210,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     enddo
   enddo
 
-  call VecRestoreArrayF90(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(elements_local,vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecDestroy(elements_local,ierr);CHKERRQ(ierr)
 
@@ -1245,27 +1245,14 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   call VecSetBlockSize(vertices_new,3,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(vertices_new,ierr);CHKERRQ(ierr)
 
-  call VecCreate(option%mycomm,vertices_old,ierr);CHKERRQ(ierr)
-  call VecSetSizes(vertices_old,ugrid%num_vertices_local*3,PETSC_DECIDE, &
-                   ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(vertices_old,3,ierr);CHKERRQ(ierr)
-  call VecSetFromOptions(vertices_old,ierr);CHKERRQ(ierr)
-
-  ! create serial petsc vector with a stride of 3
-  call VecCreate(PETSC_COMM_SELF,vertices_new,ierr);CHKERRQ(ierr)
-  call VecSetSizes(vertices_new,vertex_count*3,PETSC_DECIDE, &
-                   ierr);CHKERRQ(ierr)
-  call VecSetBlockSize(vertices_new,3,ierr);CHKERRQ(ierr)
-  call VecSetFromOptions(vertices_new,ierr);CHKERRQ(ierr)
-
   ! load up the coordinates
-  call VecGetArrayF90(vertices_old,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vertices_old,vec_ptr,ierr);CHKERRQ(ierr)
   do ivertex = 1, pgrid%num_vertices_local
     vec_ptr((ivertex-1)*3+1) = pgrid%vertex_coordinates(ivertex)%x
     vec_ptr((ivertex-1)*3+2) = pgrid%vertex_coordinates(ivertex)%y
     vec_ptr((ivertex-1)*3+3) = pgrid%vertex_coordinates(ivertex)%z
   enddo
-  call VecRestoreArrayF90(vertices_old,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vertices_old,vec_ptr,ierr);CHKERRQ(ierr)
   deallocate(pgrid%vertex_coordinates)
   nullify(pgrid%vertex_coordinates)
 
@@ -1343,7 +1330,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 #endif
   call VecDestroy(vertices_old,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(vertices_new,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vertices_new,vec_ptr,ierr);CHKERRQ(ierr)
   do ivertex = 1, ugrid%num_vertices_local
     ugrid%vertices(ivertex)%id = needed_vertices_petsc(ivertex)
     ugrid%vertices(ivertex)%x = vec_ptr((ivertex-1)*3+1)
@@ -1353,7 +1340,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     pgrid%vertex_coordinates(ivertex)%y = vec_ptr((ivertex-1)*3+2)
     pgrid%vertex_coordinates(ivertex)%z = vec_ptr((ivertex-1)*3+3)
   enddo
-  call VecRestoreArrayF90(vertices_new,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vertices_new,vec_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
   write(string,*) option%myrank
@@ -2051,11 +2038,11 @@ subroutine UGridPolyhedraComputeVolumes(ugrid, option, volume)
 
   pgrid => ugrid%polyhedra_grid
 
-  call VecGetArrayF90(volume,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(volume,vec_ptr,ierr);CHKERRQ(ierr)
   do icell = 1, ugrid%nlmax
     vec_ptr(icell) = pgrid%cell_volumes(icell)
   enddo
-  call VecRestoreArrayF90(volume,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(volume,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine UGridPolyhedraComputeVolumes
 
@@ -2255,9 +2242,6 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   ! Author: Gautam Bisht, LBL
   ! Date: 12/29/13
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
 
   implicit none
@@ -2392,7 +2376,7 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
   pgrid%uface_left_natcellids = -1
   pgrid%uface_right_natcellids = -1
 
-  call VecGetArrayF90(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
   pgrid%num_ufaces_local = 0
   pgrid%uface_nverts = 0
   do iface = 1, pgrid%ugrid_num_faces_local
@@ -2432,7 +2416,7 @@ subroutine UGridPolyhedraComputeOutputInfo(ugrid, nL2G, nG2L, nG2A, option)
       endif
     endif
   enddo
-  call VecRestoreArrayF90(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(ghosted_cv_proc_rank,v_loc_p,ierr);CHKERRQ(ierr)
 
   call VecDestroy(ghosted_cv_proc_rank,ierr);CHKERRQ(ierr)
 

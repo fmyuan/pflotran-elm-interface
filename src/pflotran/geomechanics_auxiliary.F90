@@ -1,8 +1,6 @@
 module Geomechanics_Auxiliary_module
 
-#include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
-  use petscsys
   use petscvec
 
   use Geomechanics_Global_Aux_module

@@ -97,9 +97,9 @@ subroutine MatrixZeroingZeroVecEntries(matrix_zeroing,vec)
 
   if (.not.matrix_zeroing%zero_rows_exist) return
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call MatrixZeroingZeroArrayEntries(matrix_zeroing,vec_ptr)
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine MatrixZeroingZeroVecEntries
 

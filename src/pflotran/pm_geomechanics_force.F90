@@ -1,7 +1,7 @@
 module PM_Geomechanics_Force_class
 
-#include "petsc/finclude/petscts.h"
-  use petscts
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use PM_Base_class
   use Geomechanics_Realization_class
   use Realization_Subsurface_class
@@ -438,7 +438,6 @@ subroutine PMGeomechForceCheckpointBinary(this,viewer)
   use Checkpoint_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer
@@ -460,7 +459,6 @@ subroutine PMGeomechForceRestartBinary(this,viewer)
   use Checkpoint_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer

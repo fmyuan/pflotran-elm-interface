@@ -1,12 +1,12 @@
 module Timestepper_TS_class
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscts.h"
+  use petscts
+
+  use PFLOTRAN_Constants_module
   use Timestepper_Base_class
   use Solver_module
   use Waypoint_module
-
-  use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
 
   implicit none
@@ -47,6 +47,8 @@ module Timestepper_TS_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include "petsc/finclude/petscbag.h"
+      use petscbag
       import :: timestepper_TS_header_type
       implicit none
       PetscBag :: bag
@@ -180,9 +182,6 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
-
-#include "petsc/finclude/petscts.h"
-  use petscts
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use Option_module
@@ -246,7 +245,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations
   this%cumulative_linear_iterations = this%cumulative_linear_iterations + this%num_linear_iterations
 
-  if (ts_reason<0) then
+  if (ts_reason%v<0) then
      write(*,*)'TS failed to converge. Stopping execution!'
      stop
   endif
@@ -259,7 +258,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   this%steps = this%steps + 1
 
   call TimestepperBasePrintStepInfo(this,process_model%output_option, &
-                                    ts_reason,option)
+                                    ts_reason%v,option)
   write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
                          &" [",i10,"]")') &
            num_newton_iterations,this%cumulative_newton_iterations, &
@@ -299,13 +298,13 @@ subroutine TimestepperTSCheckpointBinary(this,viewer,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
+  use petscbag
 
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(timestepper_TS_type) :: this
   PetscViewer :: viewer
@@ -333,13 +332,13 @@ subroutine TimestepperTSRestartBinary(this,viewer,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
+  use petscbag
 
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(timestepper_TS_type) :: this
   PetscViewer :: viewer
@@ -367,6 +366,8 @@ subroutine TimestepperTSRegisterHeader(this,bag,header)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
+#include "petsc/finclude/petscbag.h"
+  use petscbag
 
   use Option_module
 
@@ -395,13 +396,12 @@ subroutine TimestepperTSSetHeader(this,bag,header)
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
+#include "petsc/finclude/petscbag.h"
+  use petscbag
 
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscviewer.h"
-#include "petsc/finclude/petscbag.h"
 
   class(timestepper_TS_type) :: this
   class(timestepper_TS_header_type) :: header
@@ -464,8 +464,6 @@ subroutine TimestepperTSPrintInfo(this,aux_string,option)
   use Option_module
 
   implicit none
-
-#include "petsc/finclude/petscts.h"
 
   class(timestepper_TS_type) :: this
   character(len=*) :: aux_string

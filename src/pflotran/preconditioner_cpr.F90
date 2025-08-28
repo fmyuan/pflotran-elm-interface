@@ -2,16 +2,9 @@ module CPR_Preconditioner_module
 ! Implements a CPR preconditioner using the PCSHELL
 ! funcitonality of PETSC.
 ! Daniel Stone and Sebastien Loisel
-#include <petsc/finclude/petscsys.h>
-#include "petsc/finclude/petscts.h"
-#include "petsc/finclude/petscmat.h"
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscpc.h"
-#include "petsc/finclude/petscviewer.h"
-  use petscmat
+#include "petsc/finclude/petscksp.h"
   use petscksp
-  use petscpc
-  use petscvec
+
   use PFLOTRAN_Constants_module
   use Option_module
   implicit none
@@ -39,10 +32,10 @@ module CPR_Preconditioner_module
                                     CPR_type
     ! following are buffers/workers for the pressure system extraction.
     ! 1d arrays:
-    PetscReal, dimension(:), allocatable :: vals, insert_vals, insert_vals2
-    PetscInt, dimension(:), allocatable :: colIdx, colIdx_keep, insert_colIdx
+    PetscReal, dimension(:), pointer :: vals, insert_vals, insert_vals2
+    PetscInt, dimension(:), pointer :: colIdx, colIdx_keep, insert_colIdx
     ! 2d arrays:
-    PetscReal, dimension(:,:), allocatable :: all_vals
+    PetscReal, dimension(:,:), pointer :: all_vals
     ! point at the option object, needed for error outputs
     type(option_type), pointer :: option
   end type cpr_pc_type
@@ -408,7 +401,6 @@ subroutine CPRSetupT2(ctx, ierr)
   ! Author:  Daniel Stone
   ! Date: Oct 2017 - March 2018
   !
-
   use String_module
 
   implicit none
@@ -444,7 +436,8 @@ subroutine CPRSetupT2(ctx, ierr)
     if (StringCompare(ctx%T2_type, 'PCASM')) then
 
       ! default should be preonly
-      call PCASMGetSubKSP(T2,nsub_ksp,first_sub_ksp,PETSC_NULL_KSP, &
+      call PCASMGetSubKSP(T2,nsub_ksp,first_sub_ksp, &
+                          PETSC_NULL_KSP_POINTER, &
                           ierr);CHKERRQ(ierr)
       !                         ksp array
       ! allocate ksp array now number known:
@@ -470,7 +463,8 @@ subroutine CPRSetupT2(ctx, ierr)
     elseif (StringCompare(ctx%T2_type, 'PCBJACOBI')) then
 
       ! default should be preonly
-      call PCBJacobiGetSubKSP(T2,nsub_ksp,first_sub_ksp,PETSC_NULL_KSP, &
+      call PCBJacobiGetSubKSP(T2,nsub_ksp,first_sub_ksp, &
+                              PETSC_NULL_KSP_POINTER, &
                               ierr);CHKERRQ(ierr)
       !                         ksp array
       ! allocate ksp array now number known:
@@ -905,19 +899,19 @@ subroutine DeallocateWorkersInCPRStash(ctx)
   ! Author:  Daniel Stone
   ! Date: Oct 2017 - March 2018
   !
+  use Utility_module
 
   implicit none
 
-
   type(cpr_pc_type) :: ctx
 
-  if (allocated(ctx%vals))deallocate(ctx%vals)
-  if (allocated(ctx%insert_vals))deallocate(ctx%insert_vals)
-  if (allocated(ctx%insert_vals2))deallocate(ctx%insert_vals2)
-  if (allocated(ctx%colIdx))deallocate(ctx%colIdx)
-  if (allocated(ctx%colIdx_keep))deallocate(ctx%colIdx_keep)
-  if (allocated(ctx%insert_colIdx))deallocate(ctx%insert_colIdx)
-  if (allocated(ctx%all_vals))deallocate(ctx%all_vals)
+  call DeallocateArray(ctx%vals)
+  call DeallocateArray(ctx%insert_vals)
+  call DeallocateArray(ctx%insert_vals2)
+  call DeallocateArray(ctx%colIdx)
+  call DeallocateArray(ctx%colIdx_keep)
+  call DeallocateArray(ctx%insert_colIdx)
+  call DeallocateArray(ctx%all_vals)
 
   !! also the pointers:
   nullify(ctx%option)
@@ -946,14 +940,16 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
   ! [j_pp j_ps]
   ! [j_sp j_ss]
 
+  use Petsc_Utility_module
 
   implicit none
-
 
   Mat :: A, App, Ass
   Vec :: factors1Vec, factors3Vec
   PetscErrorCode :: ierr
   type(cpr_pc_type) :: ctx
+  PetscInt, pointer :: col_ptr(:)
+  PetscReal, pointer ::val_ptr(:)
 
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
@@ -994,9 +990,11 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
 
     ! a) extract [j_pp j_ps] of the diagonal block
     !    and all the values of the first row
-    call MatGetRow(A,first_row,num_cols,ctx%colIdx,ctx%vals, &
+    call MatGetRow(A,first_row,num_cols,col_ptr,val_ptr, &
                    ierr);CHKERRQ(ierr)
     do j = 0,num_cols-1
+      ctx%colIdx(j) = col_ptr(j+1)
+      ctx%vals(j) = val_ptr(j+1)
       ! a.1) store all the values in the first row and their indices
       ctx%all_vals(0, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
@@ -1019,13 +1017,14 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     j_pp = ctx%vals(diag_row_index)
     j_ps = ctx%vals(diag_row_index+1)
 
-    call MatRestoreRow(A,first_row,num_cols,ctx%colIdx,ctx%vals, &
+    call MatRestoreRow(A,first_row,num_cols,col_ptr,val_ptr, &
                        ierr);CHKERRQ(ierr)
 
     ! b) extract second row
-    call MatGetRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER,ctx%vals, &
-                   ierr);CHKERRQ(ierr)
+    call MatGetRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER_POINTER, &
+                   val_ptr,ierr);CHKERRQ(ierr)
     do j = 0,num_cols-1
+      ctx%vals(j) = val_ptr(j+1)
       ctx%all_vals(1, j) = ctx%vals(j)
     end do
 
@@ -1069,8 +1068,8 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     end if
 
     num_col_blocks = num_cols/block_size
-    call MatRestoreRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER,ctx%vals, &
-                       ierr);CHKERRQ(ierr)
+    call MatRestoreRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER_POINTER, &
+                       val_ptr,ierr);CHKERRQ(ierr)
 
     ! d) prepare to set values
     insert_rows = i + row_start/block_size
@@ -1090,13 +1089,13 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     end do
 
     ! e) set values
-    call MatSetValues(App,1,insert_rows,num_col_blocks, &
+    call PUMSetValues(App,1,insert_rows,num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1),INSERT_VALUES, &
                       ierr);CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
-      call MatSetValues(Ass,1,insert_rows,num_col_blocks, &
+      call PUMSetValues(Ass,1,insert_rows,num_col_blocks, &
                         ctx%insert_colIdx(0:num_col_blocks-1), &
                         ctx%insert_vals2(0:num_col_blocks-1),INSERT_VALUES, &
                         ierr);CHKERRQ(ierr)
@@ -1136,15 +1135,17 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
   ! applies to 2x2 blocks ONLY (composed of Jacobian element, j)
   ! [j_pp j_ps]
   ! [j_sp j_ss]
-
+  use Petsc_Utility_module, only : PUMSetValues
 
   implicit none
-
 
   Mat :: A, App, Ass
   Vec :: factors1Vec, factors3Vec
   PetscErrorCode :: ierr
   type(cpr_pc_type) :: ctx
+  PetscInt, pointer :: col_ptr(:)
+  PetscReal, pointer ::val_ptr(:)
+
 
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
@@ -1183,9 +1184,11 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     first_row = i*block_size + row_start
 
     ! a) extract j_ps of the diagonal block and all the values of the first row
-    call MatGetRow(A,first_row,num_cols,ctx%colIdx,ctx%vals, &
+    call MatGetRow(A,first_row,num_cols,col_ptr,val_ptr, &
                    ierr);CHKERRQ(ierr)
     do j = 0,num_cols-1
+      ctx%colIdx(j) = col_ptr(j+1)
+      ctx%vals(j) = val_ptr(j+1)
       ! a.1) store all the values in the first row and their indices
       ctx%all_vals(0, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
@@ -1207,13 +1210,14 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     ! a.2) extract j_pp,j_ps
     j_pp = ctx%vals(diag_row_index)
     j_ps = ctx%vals(diag_row_index+1)
-    call MatRestoreRow(A,first_row,num_cols,ctx%colIdx,ctx%vals, &
+    call MatRestoreRow(A,first_row,num_cols,col_ptr,val_ptr, &
                        ierr);CHKERRQ(ierr)
 
     ! b) extract second row
-    call MatGetRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER,ctx%vals, &
-                   ierr);CHKERRQ(ierr)
+    call MatGetRow(A,first_row+1,num_cols,PETSC_NULL_INTEGER_POINTER, &
+                   val_ptr,ierr);CHKERRQ(ierr)
     do j = 0,num_cols-1
+      ctx%vals(j) = val_ptr(j+1)
       ctx%all_vals(1, j) = ctx%vals(j)
     end do
 
@@ -1228,8 +1232,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     end if
 
     num_col_blocks = num_cols/block_size
-    call MatRestoreRow(a,first_row+1,num_cols,PETSC_NULL_INTEGER,ctx%vals, &
-                       ierr);CHKERRQ(ierr)
+    call MatRestoreRow(a,first_row+1,num_cols,PETSC_NULL_INTEGER_POINTER, &
+                       val_ptr,ierr);CHKERRQ(ierr)
 
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
@@ -1275,12 +1279,12 @@ subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
     end do
 
     ! e) set values
-    call MatSetValues(App,1,insert_rows,num_col_blocks, &
+    call PUMSetValues(App,1,insert_rows,num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1),INSERT_VALUES, &
                       ierr);CHKERRQ(ierr)
     if (ctx%CPR_type == "ADDITIVE") then
-      call MatSetValues(Ass,1,insert_rows,num_col_blocks, &
+      call PUMSetValues(Ass,1,insert_rows,num_col_blocks, &
                         ctx%insert_colIdx(0:num_col_blocks-1), &
                         ctx%insert_vals2(0:num_col_blocks-1),INSERT_VALUES, &
                         ierr);CHKERRQ(ierr)
@@ -1316,8 +1320,9 @@ subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
 
   ! 3x3 blocks ONLY
 
-  implicit none
+  use Petsc_Utility_module
 
+  implicit none
 
   Mat :: a, ap
   Vec :: factors1Vec
@@ -1332,7 +1337,8 @@ subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
   PetscInt :: b, rws, cls, nblks, nblks_l, firstRow, cur_coldex, ncolblks, &
               firstrowdex, loopdex, i, j, numcols, numcols_keep
   PetscMPIInt :: rnk, r_st, r_nd
-
+  PetscInt, pointer :: col_ptr(:)
+  PetscReal, pointer ::val_ptr(:)
 
 
   ctx%vals = 0.d0
@@ -1362,10 +1368,12 @@ subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
     firstRow = i*b + r_st
 
     ! a) extract first row
-    call MatGetRow(a,firstRow,numcols,ctx%colIdx,ctx%vals,ierr);CHKERRQ(ierr)
+    call MatGetRow(a,firstRow,numcols,col_ptr,val_ptr,ierr);CHKERRQ(ierr)
     ! store vals since we have to put them back
     ! store colIdx this time as well
     do j = 0,numcols-1
+      ctx%colIdx(j) = col_ptr(j+1)
+      ctx%vals(j) = val_ptr(j+1)
       ctx%all_vals(0, j) = ctx%vals(j)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
@@ -1384,33 +1392,35 @@ subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
     bb = ctx%vals(firstrowdex+1)
     cc = ctx%vals(firstrowdex+2)
     ! restore
-    call MatRestoreRow(a,firstRow,numcols,ctx%colIdx,ctx%vals, &
+    call MatRestoreRow(a,firstRow,numcols,col_ptr,val_ptr, &
                        ierr);CHKERRQ(ierr)
 
     ! c) second row
-    call MatGetRow(a,firstRow+1,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                   ierr);CHKERRQ(ierr)
+    call MatGetRow(a,firstRow+1,numcols,PETSC_NULL_INTEGER_POINTER, &
+                   val_ptr,ierr);CHKERRQ(ierr)
     do j = 0,numcols-1
+      ctx%vals(j) = val_ptr(j+1)
       ctx%all_vals(1, j) = ctx%vals(j)
     end do
     dd = ctx%vals(firstrowdex)
     ee = ctx%vals(firstrowdex+1)
     ff = ctx%vals(firstrowdex+2)
-    call MatRestoreRow(a,firstRow+1,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                       ierr);CHKERRQ(ierr)
+    call MatRestoreRow(a,firstRow+1,numcols,PETSC_NULL_INTEGER_POINTER, &
+                       val_ptr,ierr);CHKERRQ(ierr)
 
     ! d) third row
-    call MatGetRow(a,firstRow+2,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                   ierr);CHKERRQ(ierr)
+    call MatGetRow(a,firstRow+2,numcols,PETSC_NULL_INTEGER_POINTER, &
+                   val_ptr,ierr);CHKERRQ(ierr)
     do j = 0,numcols-1
+      ctx%vals(j) = val_ptr(j+1)
       ctx%all_vals(2, j) =ctx%vals(j)
     end do
     gg = ctx%vals(firstrowdex)
     hh = ctx%vals(firstrowdex+1)
     ii = ctx%vals(firstrowdex+2)
     numcols_keep = numcols
-    call MatRestoreRow(a,firstRow+2,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                       ierr);CHKERRQ(ierr)
+    call MatRestoreRow(a,firstRow+2,numcols,PETSC_NULL_INTEGER_POINTER, &
+                       val_ptr,ierr);CHKERRQ(ierr)
 
     ! e) factors
     sm = abs(aa)+abs(dd)+abs(gg)
@@ -1441,7 +1451,7 @@ subroutine MatGetSubABFMiscible(a, ap, factors1Vec,  ierr, ctx)
     end do
 
     ! h) set values
-    call MatSetValues(ap,1,insert_rows,ncolblks, &
+    call PUMSetValues(ap,1,insert_rows,ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
                       ctx%insert_vals(0:ncolblks-1),INSERT_VALUES, &
                       ierr);CHKERRQ(ierr)
@@ -1470,6 +1480,8 @@ subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
 
   ! for arbitrary block size b
 
+  use Petsc_Utility_module
+
   implicit none
 
   Mat :: a, ap
@@ -1489,6 +1501,8 @@ subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
   integer, dimension(1:b) :: ipiv
   PetscReal, dimension(1:b) :: work
   PetscInt :: lwork, invinfo, luinfo
+  PetscInt, pointer :: col_ptr(:)
+  PetscReal, pointer ::val_ptr(:)
 
   lwork = b
 
@@ -1517,11 +1531,13 @@ subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
     firstRow = i*b + r_st
 
     ! first row special treatment
-    call MatGetRow(a,firstRow,numcols,ctx%colIdx,ctx%vals,ierr);CHKERRQ(ierr)
+    call MatGetRow(a,firstRow,numcols,col_ptr,val_ptr,ierr);CHKERRQ(ierr)
 
     ! store both values of row and the col indexs
     do k = 0,numcols-1
-      ctx%all_vals(0, k) = ctx% vals(k)
+      ctx%colIdx(k) = col_ptr(k+1)
+      ctx%vals(k) = val_ptr(k+1)
+      ctx%all_vals(0, k) = ctx%vals(k)
       ctx%colIdx_keep(k) = ctx%colIdx(k)
     end do
     ! get index of diagonal block
@@ -1537,19 +1553,20 @@ subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
     endif
     numcols_keep = numcols
     ! restore first row
-    call MatRestoreRow(a,firstRow,numcols,ctx%colIdx,ctx%vals, &
+    call MatRestoreRow(a,firstRow,numcols,col_ptr,val_ptr, &
                        ierr);CHKERRQ(ierr)
 
     ! loop over remaining rows
     do j = 1,b-1
-      call MatGetRow(a,firstRow+j,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                     ierr);CHKERRQ(ierr)
+      call MatGetRow(a,firstRow+j,numcols,PETSC_NULL_INTEGER_POINTER, &
+                     val_ptr,ierr);CHKERRQ(ierr)
       ! harvest values
       do k = 0,numcols-1
+        ctx%vals(k) = val_ptr(k+1)
         ctx%all_vals(j, k) = ctx%vals(k)
       end do
-      call MatRestoreRow(a,firstRow+j,numcols,PETSC_NULL_INTEGER,ctx%vals, &
-                         ierr);CHKERRQ(ierr)
+      call MatRestoreRow(a,firstRow+j,numcols,PETSC_NULL_INTEGER_POINTER, &
+                         val_ptr,ierr);CHKERRQ(ierr)
     enddo
 
     ! get inverse of block
@@ -1610,7 +1627,7 @@ subroutine MatGetSubABFGeneric(a, ap, factors1Vec,  ierr, &
 
 
     ! set values
-    call MatSetValues(ap,1,insert_rows,ncolblks, &
+    call PUMSetValues(ap,1,insert_rows,ncolblks, &
                       ctx%insert_colIdx(0:ncolblks-1), &
                       ctx%insert_vals(0:ncolblks-1),INSERT_VALUES, &
                       ierr);CHKERRQ(ierr)
@@ -1696,13 +1713,13 @@ subroutine MatGetMaxRowCount(a, mx, ierr)
   mx_loc = 0
 
   do i = r_st,r_nd-1
-    call MatGetRow(a,i,numcols,PETSC_NULL_INTEGER,PETSC_NULL_SCALAR, &
-                   ierr);CHKERRQ(ierr)
+    call MatGetRow(a,i,numcols,PETSC_NULL_INTEGER_POINTER, &
+                   PETSC_NULL_SCALAR_POINTER,ierr);CHKERRQ(ierr)
     if (numcols > mx_loc) then
       mx_loc = numcols
     endif
-    call MatRestoreRow(a,i,numcols,PETSC_NULL_INTEGER,PETSC_NULL_SCALAR, &
-                       ierr);CHKERRQ(ierr)
+    call MatRestoreRow(a,i,numcols,PETSC_NULL_INTEGER_POINTER, &
+                       PETSC_NULL_SCALAR_POINTER,ierr);CHKERRQ(ierr)
   end do
 
   call MPI_Allreduce(mx_loc,mx,ONE_INTEGER_MPI,MPI_INTEGER,MPI_MAX, &

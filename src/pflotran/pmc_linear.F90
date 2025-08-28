@@ -1,15 +1,13 @@
 module PMC_Linear_class
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
+  use PFLOTRAN_Constants_module
   use PMC_Subsurface_class
   use Realization_Subsurface_class
 
-  use PFLOTRAN_Constants_module
-
-#include "petsc/finclude/petscts.h"
-  use petscts
-
   implicit none
-
 
   private
 

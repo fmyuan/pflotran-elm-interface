@@ -12,8 +12,9 @@ module PM_WIPP_SrcSink_class
 ! source terms, respectively, in the flow process model.
 !=============================================================================
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   use PM_Base_class
   use Region_module
   use PFLOTRAN_Constants_module
@@ -2798,9 +2799,6 @@ subroutine PMWSSInitializeRun(this)
   ! Author: Jenn Frederick
   ! Date: 02/14/2017
   !
-
-#include "petsc/finclude/petscis.h"
-  use petscis
   use Data_Mediator_Vec_class
   use Realization_Base_class
   use Material_module
@@ -4458,10 +4456,9 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
   ! Author: Jenn Frederick
   ! Date: 10/19/2017
   !
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use WIPP_Flow_Aux_module
   use Material_Aux_module
+  use Petsc_Utility_module, only : PUMSetValuesBlockedLocal
 
   implicit none
 
@@ -4530,7 +4527,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
     call WIPPFloConvertUnitsToBRAGFlo(J_block,material_auxvars(ghosted_id), &
                                       this%option)
 
-    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_block, &
+    call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,J_block, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
 
   enddo
@@ -5544,7 +5541,7 @@ subroutine PMWSSReadVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_
                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecGetArray(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
 
   cwp => this%waste_panel_list
   j = 0
@@ -5596,7 +5593,7 @@ subroutine PMWSSReadVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_
     cwp => cwp%next
   enddo
 
-  call VecRestoreArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
   call ISDestroy(is,ierr);CHKERRQ(ierr)
   call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)
@@ -5953,7 +5950,7 @@ subroutine PMWSSReadVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_g
                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   !Convert the data to a Fortran array
-  call VecGetArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecGetArray(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
 
   cwp => this%waste_panel_list
   j = 0
@@ -6005,7 +6002,7 @@ subroutine PMWSSReadVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_g
     cwp => cwp%next
   enddo
 
-  call VecRestoreArrayF90(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(local_wp_vec,local_wp_array,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(scatter_ctx,ierr);CHKERRQ(ierr)
   call ISDestroy(is,ierr);CHKERRQ(ierr)
   call VecDestroy(global_wp_vec,ierr);CHKERRQ(ierr)

@@ -57,18 +57,18 @@ function SimAuxCreate()
   type (simulation_aux_type),pointer :: aux
 
   allocate(aux)
-  aux%subsurf_pres = PETSC_NULL_VEC
-  aux%subsurf_temp = PETSC_NULL_VEC
-  aux%subsurf_fluid_den = PETSC_NULL_VEC
-  aux%subsurf_por0 = PETSC_NULL_VEC
-  aux%subsurf_por = PETSC_NULL_VEC
-  aux%subsurf_perm0 = PETSC_NULL_VEC
-  aux%subsurf_perm = PETSC_NULL_VEC
-  aux%subsurf_strain = PETSC_NULL_VEC
-  aux%subsurf_stress = PETSC_NULL_VEC
+  PetscObjectNullify(aux%subsurf_pres)
+  PetscObjectNullify(aux%subsurf_temp)
+  PetscObjectNullify(aux%subsurf_fluid_den)
+  PetscObjectNullify(aux%subsurf_por0)
+  PetscObjectNullify(aux%subsurf_por)
+  PetscObjectNullify(aux%subsurf_perm0)
+  PetscObjectNullify(aux%subsurf_perm)
+  PetscObjectNullify(aux%subsurf_strain)
+  PetscObjectNullify(aux%subsurf_stress)
 
-  aux%subsurf_to_geomechanics = PETSC_NULL_VECSCATTER
-  aux%geomechanics_to_subsurf = PETSC_NULL_VECSCATTER
+  PetscObjectNullify(aux%subsurf_to_geomechanics)
+  PetscObjectNullify(aux%geomechanics_to_subsurf)
 
   SimAuxCreate => aux
 
@@ -171,38 +171,38 @@ subroutine SimAuxDestroy(aux)
 
   if (.not.associated(aux)) return
 
-  if (aux%subsurf_pres /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_pres)) then
     call VecDestroy(aux%subsurf_pres,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_temp /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_temp)) then
     call VecDestroy(aux%subsurf_temp,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_fluid_den /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_fluid_den)) then
     call VecDestroy(aux%subsurf_fluid_den,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_por0 /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_por0)) then
     call VecDestroy(aux%subsurf_por0,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_por /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_por)) then
     call VecDestroy(aux%subsurf_por,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_perm0 /= PETSC_NULL_VEC) then !DANNY
+  if (.not.PetscObjectIsNull(aux%subsurf_perm0)) then !DANNY
     call VecDestroy(aux%subsurf_perm0,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_perm /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_perm)) then
     call VecDestroy(aux%subsurf_perm,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_stress /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_stress)) then
     call VecDestroy(aux%subsurf_stress,ierr);CHKERRQ(ierr)
   endif
-  if (aux%subsurf_strain /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(aux%subsurf_strain)) then
     call VecDestroy(aux%subsurf_strain,ierr);CHKERRQ(ierr)
   endif
 
-  if (aux%subsurf_to_geomechanics /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(aux%subsurf_to_geomechanics)) then
     call VecScatterDestroy(aux%subsurf_to_geomechanics,ierr);CHKERRQ(ierr)
   endif
-  if (aux%geomechanics_to_subsurf /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(aux%geomechanics_to_subsurf)) then
     call VecScatterDestroy(aux%geomechanics_to_subsurf,ierr);CHKERRQ(ierr)
   endif
 

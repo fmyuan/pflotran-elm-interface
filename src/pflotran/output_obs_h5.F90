@@ -3,6 +3,7 @@ module Output_Obs_H5_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use hdf5
+
   use Logging_module
   use PFLOTRAN_Constants_module
   use Output_Aux_module

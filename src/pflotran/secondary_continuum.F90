@@ -4,9 +4,9 @@ module Secondary_Continuum_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
-  use Secondary_Continuum_Aux_module
 
   use PFLOTRAN_Constants_module
+  use Secondary_Continuum_Aux_module
   use Utility_module, only : Equal
 
   implicit none
@@ -2137,7 +2137,6 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   ! continuum cells. Similar to RealizationGetVariable, but now the "layer"
   ! of the cells needs to be specified.
 
-#include "petsc/finclude/petscvec.h"
   use Variables_module
   use Grid_module
   use Patch_module
@@ -2161,7 +2160,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   patch => realization%patch
   grid => patch%grid
 
-  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
@@ -2221,7 +2220,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
       enddo
   end select
 
-  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTGetVariable
 
@@ -2233,7 +2232,6 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
   ! continuum cells. Similar to RealizationSetVariable, but now the "layer"
   ! of the cells needs to be specified.
 
-#include "petsc/finclude/petscvec.h"
   use Variables_module
   use Grid_module
   use Patch_module
@@ -2264,7 +2262,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
                       &SecondaryRTSetVariable')
   endif
 
-  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SECONDARY_CONTINUUM_UPDATED_CONC)
@@ -2304,7 +2302,7 @@ subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, m
       enddo
   end select
 
-  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SecondaryRTSetVariable
 
