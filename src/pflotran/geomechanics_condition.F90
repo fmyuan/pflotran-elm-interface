@@ -40,6 +40,7 @@ module Geomechanics_Condition_module
     type(geomech_sub_condition_type), pointer :: force_x ! Added force conditions 09/19/2013, SK
     type(geomech_sub_condition_type), pointer :: force_y
     type(geomech_sub_condition_type), pointer :: force_z
+    type(geomech_sub_condition_type), pointer :: traction ! jaa testing
     type(geomech_sub_condition_ptr_type), pointer :: sub_condition_ptr(:)
     type(geomech_condition_type), pointer :: next ! pointer to next condition_type for linked-lists
   end type geomech_condition_type
@@ -108,6 +109,7 @@ function GeomechConditionCreate(option)
   nullify(condition%force_x)
   nullify(condition%force_y)
   nullify(condition%force_z)
+  nullify(condition%traction)
   nullify(condition%sub_condition_ptr)
   nullify(condition%itype)
   nullify(condition%next)
@@ -240,6 +242,7 @@ subroutine GeomechConditionRead(condition,input,option)
                                        displacement_x, displacement_y, &
                                        displacement_z
   type(geomech_sub_condition_type), pointer :: force_x, force_y, force_z
+  type(geomech_sub_condition_type), pointer :: traction
   PetscReal :: default_time
   PetscInt :: default_iphase
   character(len=MAXWORDLENGTH) :: default_ctype
@@ -273,12 +276,14 @@ subroutine GeomechConditionRead(condition,input,option)
   force_x => GeomechSubConditionCreate(ONE_INTEGER)
   force_y => GeomechSubConditionCreate(ONE_INTEGER)
   force_z => GeomechSubConditionCreate(ONE_INTEGER)
+  traction => GeomechSubConditionCreate(SIX_INTEGER)
   displacement_x%name = 'displacement_x'
   displacement_y%name = 'displacement_y'
   displacement_z%name = 'displacement_z'
   force_x%name = 'force_x'
   force_y%name = 'force_y'
   force_z%name = 'force_z'
+  traction%name = 'traction'
 
   condition%time_units = 'yr'
   condition%length_units = 'm'
@@ -292,6 +297,7 @@ subroutine GeomechConditionRead(condition,input,option)
   force_x%units = 'N'
   force_y%units = 'N'
   force_z%units = 'N'
+  traction%units = 'N/m^2'
 
   default_ctype = 'dirichlet'
   default_itype = DIRICHLET_BC
@@ -365,6 +371,8 @@ subroutine GeomechConditionRead(condition,input,option)
               sub_condition_ptr => force_y
             case('FORCE_Z')
               sub_condition_ptr => force_z
+            case('TRACTION')
+              sub_condition_ptr => traction
             case default
               call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition type',option)
@@ -425,6 +433,12 @@ subroutine GeomechConditionRead(condition,input,option)
                                  force_z%dataset, &
                                  force_z%units, &
                                  internal_units)
+      case('STRESS_TENSOR')! jaa traction bc
+        internal_units = 'N/m^2'
+        call ConditionReadValues(input,option,word, &
+                                 traction%dataset, &
+                                 traction%units, &
+                                 internal_units)
       case default
         call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition',option)
@@ -461,6 +475,10 @@ subroutine GeomechConditionRead(condition,input,option)
                                  default_time_storage, &
                                  PETSC_TRUE)
 
+  word = 'traction'
+  call GeomechSubConditionVerify(option,condition,word,traction, &
+                                 default_time_storage, &
+                                 PETSC_TRUE)
 
 
   num_sub_conditions = 0
@@ -498,6 +516,12 @@ subroutine GeomechConditionRead(condition,input,option)
     condition%force_z => force_z
     num_sub_conditions = num_sub_conditions + 1
     condition%force_z%isubtype = THREE_INTEGER
+  endif
+
+  if (associated(traction)) then
+    condition%traction => traction
+    num_sub_conditions = num_sub_conditions + 1
+    condition%traction%isubtype = THREE_INTEGER
   endif
 
   if (num_sub_conditions == 0) then
@@ -538,6 +562,10 @@ subroutine GeomechConditionRead(condition,input,option)
   if (associated(force_z)) then
     count = count + 1
     condition%sub_condition_ptr(count)%ptr => force_z
+  endif
+  if (associated(traction)) then
+    count = count + 1
+    condition%sub_condition_ptr(count)%ptr => traction
   endif
 
   condition%default_time_storage => default_time_storage
@@ -787,6 +815,9 @@ function GeomechConditionIsTransient(condition)
     GeomechConditionIsTransient = PETSC_TRUE
   endif
 
+  if (GeomechSubConditionIsTransient(condition%traction)) then
+    GeomechConditionIsTransient = PETSC_TRUE
+  endif
 
 end function GeomechConditionIsTransient
 

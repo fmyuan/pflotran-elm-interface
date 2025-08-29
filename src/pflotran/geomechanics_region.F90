@@ -4,6 +4,7 @@ module Geomechanics_Region_module
    use petscsys
   use Geometry_module
   use PFLOTRAN_Constants_module
+  use Region_module
 
   implicit none
 
@@ -17,6 +18,10 @@ module Geomechanics_Region_module
     PetscInt :: num_verts
     PetscInt, pointer :: vertex_ids(:)
     type(gm_region_type), pointer :: next
+    ! jaa testing
+    PetscInt :: def_type
+    type(region_sideset_type), pointer :: sideset
+    ! end jaa
   end type gm_region_type
 
   type, public :: gm_region_ptr_type
@@ -77,6 +82,8 @@ function GeomechRegionCreateWithNothing()
   nullify(region%coordinates)
   nullify(region%vertex_ids)
   nullify(region%next)
+  nullify(region%sideset)
+  region%def_type = 0
 
   GeomechRegionCreateWithNothing => region
 
@@ -104,6 +111,8 @@ function GeomechRegionCreateWithList(list)
   region%num_verts = size(list)
   allocate(region%vertex_ids(region%num_verts))
   region%vertex_ids = list
+  nullify(region%sideset)
+  region%def_type = 0
 
   GeomechRegionCreateWithList => region
 
@@ -143,10 +152,34 @@ function GeomechRegionCreateWithGeomechRegion(region)
     new_region%vertex_ids(1:new_region%num_verts) = &
     region%vertex_ids(1:new_region%num_verts)
   endif
+  ! jaa begin
+  if (associated(region%sideset)) then
+    new_region%def_type = region%def_type
+    new_region%sideset => region%sideset
+  endif
+  ! jaa end
 
   GeomechRegionCreateWithGeomechRegion => new_region
 
 end function GeomechRegionCreateWithGeomechRegion
+
+! ************************************************************************** !
+! jaa : copied from region_module
+function GeomechRegionCreateSideset()
+
+  implicit none
+
+  type(region_sideset_type), pointer :: GeomechRegionCreateSideset
+  type(region_sideset_type), pointer :: sideset
+
+  allocate(sideset)
+
+  sideset%nfaces = 0
+  nullify(sideset%face_vertices)
+
+  GeomechRegionCreateSideset => sideset
+
+end function GeomechRegionCreateSideset
 
 ! ************************************************************************** !
 
@@ -346,7 +379,15 @@ subroutine GeomechRegionReadFromFilename(region,option,filename)
   character(len=MAXSTRINGLENGTH) :: filename
 
   input => InputCreate(IUNIT_TEMP,filename,option)
-  call GeomechRegionReadFromFileId(region,input,option)
+  if (index(region%filename,'.ss') > 0) then ! sideset file
+    region%def_type = DEFINED_BY_SIDESET_UGRID
+    region%sideset => GeomechRegionCreateSideset()
+    call RegionReadFromFile(region%sideset,region%filename, &
+                            option)
+  else ! vset file
+    call GeomechRegionReadFromFileId(region,input,option)
+  endif
+
   call InputDestroy(input)
 
 end subroutine GeomechRegionReadFromFilename
