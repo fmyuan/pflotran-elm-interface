@@ -976,6 +976,7 @@ geomechanics_region.o : \
   logging.o \
   option.o \
   pflotran_constants.o \
+  region.o \
   string.o \
   utility.o
 geomechanics_regression.o : \
