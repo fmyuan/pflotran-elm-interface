@@ -18,7 +18,7 @@ module PMC_Geomechanics_class
   contains
     procedure, public :: Init => PMCGeomechanicsInit
     procedure, public :: SetupSolvers => PMCGeomechanicsSetupSolvers
-    procedure, public :: InitializeRun => PMCGeomechanicsInitializeRun
+    !procedure, public :: InitializeRun => PMCGeomechanicsInitializeRun
     procedure, public :: RunToTime => PMCGeomechanicsRunToTime
     procedure, public :: GetAuxData => PMCGeomechanicsGetAuxData
     procedure, public :: SetAuxData => PMCGeomechanicsSetAuxData
@@ -180,29 +180,29 @@ end subroutine PMCGeomechanicsSetupSolvers
 
 ! ************************************************************************** !
 
-recursive subroutine PMCGeomechanicsInitializeRun(this)
-  !
-  ! Initializes the geomechanics process model coupler
-  !
-  ! Author: Glenn Hammond
-  ! Date: 03/31/25
-
-  use Timestepper_Base_class
-
-  implicit none
-
-  class(pmc_geomechanics_type) :: this
-
-  PetscReal :: target_time
-  PetscInt :: local_stop_flag
-
-  call PMCBaseInitializeRun(this)
-
-  target_time = 0.d0
-  local_stop_flag = TS_CONTINUE
-  call this%RunToTime(target_time,local_stop_flag)
-
-end subroutine PMCGeomechanicsInitializeRun
+!recursive subroutine PMCGeomechanicsInitializeRun(this)
+!  !
+!  ! Initializes the geomechanics process model coupler
+!  !
+!  ! Author: Glenn Hammond
+!  ! Date: 03/31/25
+!
+!  use Timestepper_Base_class
+!
+!  implicit none
+!
+!  class(pmc_geomechanics_type) :: this
+!
+!  PetscReal :: target_time
+!  PetscInt :: local_stop_flag
+!
+!  call PMCBaseInitializeRun(this)
+!
+!  target_time = 0.d0
+!  local_stop_flag = TS_CONTINUE
+!  call this%RunToTime(target_time,local_stop_flag)
+!
+!end subroutine PMCGeomechanicsInitializeRun
 
 ! ************************************************************************** !
 
