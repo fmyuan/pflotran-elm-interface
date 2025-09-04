@@ -45,15 +45,11 @@ subroutine ShapeFunctionInitialize(shapefunction)
       allocate(shapefunction%DN(TWO_INTEGER,ONE_INTEGER))
       allocate(shapefunction%zeta(ONE_INTEGER))
       allocate(shapefunction%coord(TWO_INTEGER,ONE_INTEGER))
-    case(TRI_TYPE) ! jaa for applying traction on tetrahedral ele
-      ! should I rename to tri face? or should I create a new type for faces?
+    case(TRI_TYPE)
       allocate(shapefunction%N(THREE_INTEGER))
       allocate(shapefunction%DN(THREE_INTEGER,TWO_INTEGER))
-      ! testing this since we work with a face and there is a z coordinate
-      !allocate(shapefunction%DN(THREE_INTEGER,THREE_INTEGER))
       allocate(shapefunction%zeta(TWO_INTEGER))
       allocate(shapefunction%coord(THREE_INTEGER,TWO_INTEGER))
-      !allocate(shapefunction%coord(THREE_INTEGER,THREE_INTEGER))
     case(QUAD_TYPE)
       allocate(shapefunction%N(FOUR_INTEGER))
       allocate(shapefunction%DN(FOUR_INTEGER,TWO_INTEGER))
@@ -95,7 +91,7 @@ subroutine ShapeFunctionInitialize(shapefunction)
     case(LINE_TYPE)
       coord(1,1) = -1.d0
       coord(2,1) = 1.d0
-    case(TRI_TYPE) ! jaa
+    case(TRI_TYPE)
       coord(1,:) = (/0.d0,0.d0/)
       coord(2,:) = (/1.d0,0.d0/)
       coord(3,:) = (/0.d0,1.d0/)

@@ -1225,7 +1225,7 @@ end subroutine sort
 
 ! ************************************************************************** !
 
-function tri_face_unitnormal(v1, v2, v3) result(n)
+function face_unitnormal(v1, v2, v3) result(n)
 
   PetscReal :: v1(THREE_INTEGER), v2(THREE_INTEGER), v3(THREE_INTEGER)
   PetscReal :: n(THREE_INTEGER)
@@ -1237,7 +1237,7 @@ function tri_face_unitnormal(v1, v2, v3) result(n)
   n = cross_product(e1,e2)
   n = n/sqrt(dot_product(n,n))
 
-end function tri_face_unitnormal
+end function face_unitnormal
 
 ! ************************************************************************** !
 
@@ -1492,7 +1492,7 @@ subroutine GeomechForceApplyTractionBCtoResidual( local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  normal_vec = tri_face_unitnormal(local_coordinates(1,:), &
+  normal_vec = face_unitnormal(local_coordinates(1,:), &
                                    local_coordinates(2,:), &
                                    local_coordinates(3,:))
 
@@ -1554,7 +1554,7 @@ subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
   type(shapefunction_type) :: shapefunction
   PetscInt :: igpt
   PetscInt :: len_w
-  PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,TWO_INTEGER)
+  PetscReal, allocatable :: x(:), J_map(:,:)
   PetscReal :: xp_J(THREE_INTEGER)
   PetscReal :: boundary_stress(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: traction(THREE_INTEGER,ONE_INTEGER)
@@ -1564,9 +1564,16 @@ subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
 
   rhs_vec = 0.d0
   len_w = size(w)
-  size_facenodes = THREE_INTEGER
+  ! num_vertices
+
+  if (facetype == TRI_TYPE) &
+    size_facenodes = THREE_INTEGER
+  if (facetype == QUAD_TYPE) &
+    size_facenodes = FOUR_INTEGER
 
   allocate(force(size_facenodes*option%ngeomechdof))
+  allocate(x(size_facenodes))
+  allocate(J_map(size_facenodes,TWO_INTEGER))
 
   force = 0.d0
   boundary_stress = 0.d0
@@ -1583,9 +1590,16 @@ subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  normal_vec = tri_face_unitnormal(local_coordinates(1,:), &
-                                   local_coordinates(2,:), &
-                                   local_coordinates(3,:))
+  if (facetype == TRI_TYPE) then
+    normal_vec = face_unitnormal(local_coordinates(1,:), &
+                                 local_coordinates(2,:), &
+                                 local_coordinates(3,:))
+  endif
+  if (facetype == QUAD_TYPE) then
+    normal_vec = face_unitnormal(local_coordinates(1,:), &
+                                 local_coordinates(2,:), &
+                                 local_coordinates(4,:))
+  endif
 
   do igpt = 1, len_w
 
@@ -1689,7 +1703,7 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
   PetscInt :: facetype, nfaces
   PetscInt :: iface, num_vertices
   PetscReal :: stress_bc(SIX_INTEGER)
-  PetscInt :: face_vertices(THREE_INTEGER)
+  PetscInt, allocatable :: face_vertices(:)
 
   PetscReal, pointer :: temp_youngs_modulus_p(:)
   PetscReal, pointer :: temp_poissons_ratio_p(:)
@@ -2043,14 +2057,19 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
         case(NEUMANN_BC)
           stress_bc = boundary_condition%geomech_condition%traction%dataset%rarray
           nfaces = boundary_condition%region%sideset%nfaces
-          do iface = 1, nfaces ! change to number of tri faces
-            num_vertices = THREE_INTEGER
-            face_vertices = boundary_condition%region%sideset%face_vertices(1:3,iface)
+          do iface = 1, nfaces
+            num_vertices = size(boundary_condition%region%sideset%face_vertices(:,iface))
+            if (num_vertices == THREE_INTEGER) then
+              facetype = TRI_TYPE
+            else
+              facetype = QUAD_TYPE
+            endif
+            allocate(face_vertices(num_vertices))
+            face_vertices = boundary_condition%region%sideset%face_vertices(1:num_vertices,iface)
             allocate(local_coordinates(num_vertices,THREE_INTEGER))
             allocate(petsc_ids(num_vertices))
             allocate(ids(num_vertices*option%ngeomechdof))
             allocate(rhs_local_vec(num_vertices*option%ngeomechdof))
-            facetype = TRI_TYPE !TRI_FACE_TYPE
             do ivertex = 1, num_vertices
               ghosted_id = face_vertices(ivertex)
               local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -2069,6 +2088,7 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
                                               grid%surf_gauss_node(1)%w, &
                                               rhs_local_vec,option)
             call VecSetValues(rhs,size(ids),ids,rhs_local_vec,ADD_VALUES,ierr);CHKERRQ(ierr)
+            deallocate(face_vertices)
             deallocate(local_coordinates)
             deallocate(petsc_ids)
             deallocate(ids)

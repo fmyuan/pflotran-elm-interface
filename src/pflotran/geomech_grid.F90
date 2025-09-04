@@ -689,11 +689,15 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 
-  ! jaa: allocate with size 1 (all surfaces on boundary are using tri surf)
-  ! generalize later? based on surface types in sideset of geomech regions?
+  ! jaa: allocate with size 1 (all surfaces on boundary are using either
+  ! tri face or quad face) only works for a single face type in the model
+  ! need to be generalized later
   allocate(geomech_grid%surf_gauss_node(1))
   call GaussInitialize(geomech_grid%surf_gauss_node(1))
-  geomech_grid%surf_gauss_node(1)%element_type = TRI_TYPE
+  ! using tetrahedral elements as the default
+  geomech_grid%surf_gauss_node(1)%element_type = TRI_TYPE ! face type of tet
+  if (geomech_grid%gauss_node(1)%element_type == HEX_TYPE) &
+    geomech_grid%surf_gauss_node(1)%element_type = QUAD_TYPE ! face type of hex
   geomech_grid%surf_gauss_node(1)%dim = TWO_DIM_GRID
   geomech_grid%surf_gauss_node(1)%num_gauss_pts = ONE_INTEGER
   call GaussCalculatePoints(geomech_grid%surf_gauss_node(1))
@@ -807,30 +811,38 @@ end subroutine GeomechGridLocalizeRegions
 subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
                                              option)
 #include "petsc/finclude/petscmat.h"
+
   use petscmat
   use Option_module
   use Geomechanics_Region_module
+
   implicit none
+
   type(geomech_grid_type) :: geomech_grid
   type(gm_region_type) :: geomech_region
   type(option_type) :: option
+
   Mat :: Mat_region_vert_to_face
   Mat :: Mat_region_face_to_vert
   Mat :: Mat_face_to_vert
   Mat :: Mat_face
   Mat :: Mat_face_loc
-  PetscInt :: nvertices
+
   PetscInt, pointer :: nfaces
   PetscInt, allocatable :: face_vertices(:,:)
   PetscInt, allocatable :: elenodes(:)
+
   PetscInt :: offset, elem_offset
-  PetscInt :: n_vertex_per_face
+  !PetscInt :: n_vertex_per_face
   PetscInt :: iface, ivertex, ielem
+
   PetscErrorCode :: ierr
   PetscInt :: ghosted_id, natural_id
   PetscInt :: rows,cols
+
   PetscScalar, pointer :: aa_v(:)
   PetscInt, pointer :: ia_p(:),ja_p(:)
+
   PetscInt :: nrow
   PetscBool :: done
   PetscInt :: min_nverts
@@ -838,26 +850,52 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
   PetscReal :: max_value
   PetscInt :: ii, jj
   PetscInt :: face_id
-  PetscInt :: tet_faces_vert(4,3)
+  PetscInt :: tet_faces_vert(FOUR_INTEGER,THREE_INTEGER)
+  PetscInt :: quad_faces_vert(SIX_INTEGER,FOUR_INTEGER)
+
   PetscInt, allocatable :: loc_face_vertices(:,:)
   PetscInt, allocatable :: mapped_face_vertices(:,:)
+
   PetscInt :: global_face_offset
+  PetscInt :: face_type, num_faces_per_ele, num_vertices_per_face
+
+
   !print *, 'in GeomechGridLocalizeRegFromSideSet'
   ! jaa : need to add comments for limitations, future improvements.. etc
   ! and allow hexes
   ! deallocate all mat and others
   nullify(nfaces)
-  nvertices = FOUR_INTEGER
+
   face_count = 0
   global_face_offset = 0
+
   ! jaa: this order ensures correct outward pointing normal calculations
   tet_faces_vert(1,:) = (/ 2, 3, 4 /)! face opposite to v1
   tet_faces_vert(2,:) = (/ 1, 4, 3 /)! face opposite to v2
   tet_faces_vert(3,:) = (/ 1, 2, 4 /)! face opposite to v3
   tet_faces_vert(4,:) = (/ 1, 3, 2 /)! face opposite to v4
-  allocate(loc_face_vertices(geomech_grid%nlmax_elem*FOUR_INTEGER,THREE_INTEGER))
+
+  quad_faces_vert(1,:) = (/ 4,3,2,1 /)
+  quad_faces_vert(2,:) = (/ 8,7,6,5 /)
+  quad_faces_vert(3,:) = (/ 2,6,5,1 /)
+  quad_faces_vert(4,:) = (/ 8,7,3,4 /)
+  quad_faces_vert(5,:) = (/ 5,8,4,1 /)
+  quad_faces_vert(6,:) = (/ 3,7,6,2 /)
+
+  ! assume all element type are the same in the domain
+  face_type = TRI_TYPE
+  num_faces_per_ele = FOUR_INTEGER
+  num_vertices_per_face = THREE_INTEGER
+  if (geomech_grid%gauss_node(1)%element_type == HEX_TYPE) then
+    face_type = QUAD_TYPE
+    num_faces_per_ele = SIX_INTEGER
+    num_vertices_per_face = FOUR_INTEGER
+  endif
+
+  allocate(loc_face_vertices(geomech_grid%nlmax_elem*num_faces_per_ele, &
+                             num_vertices_per_face))
   ! create and populate Mat_face_to_vert (dim: all faces x all vertices)
-  call MatCreateAIJ(option%mycomm,geomech_grid%nlmax_elem*FOUR_INTEGER, &
+  call MatCreateAIJ(option%mycomm,geomech_grid%nlmax_elem*num_faces_per_ele, &
                    PETSC_DETERMINE,PETSC_DETERMINE, &
                    geomech_grid%nmax_node,4, &
                    PETSC_NULL_INTEGER,4,PETSC_NULL_INTEGER, &
@@ -866,18 +904,28 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
   !call MatGetSize(Mat_face_to_vert,rows,cols,ierr);CHKERRQ(ierr)
   !print *, 'mat size: ', rows, cols
   do ielem = 1, geomech_grid%nlmax_elem
+
     allocate(elenodes(geomech_grid%elem_nodes(0,ielem)))
     elenodes = geomech_grid%elem_nodes(1:geomech_grid%elem_nodes(0,ielem),ielem)
     !print *, 'rank, ielem, vert count: ', option%myrank,ielem,geomech_grid%elem_nodes(0,ielem)
     elem_offset = geomech_grid%global_offset_elem
-    do iface = 1,4
+
+    do iface = 1,num_faces_per_ele
+
       face_count = face_count + 1
-      do ivertex = 1, 3
-        ghosted_id = elenodes(tet_faces_vert(iface,ivertex))
-        natural_id = geomech_grid%nG2A(ghosted_id)
-        loc_face_vertices(face_count,ivertex) = elenodes(tet_faces_vert(iface,ivertex))
+
+      do ivertex = 1,num_vertices_per_face
+        if (face_type == TRI_TYPE) then
+          ghosted_id = elenodes(tet_faces_vert(iface,ivertex))
+          natural_id = geomech_grid%nG2A(ghosted_id)
+          loc_face_vertices(face_count,ivertex) = elenodes(tet_faces_vert(iface,ivertex))
+        else
+          ghosted_id = elenodes(quad_faces_vert(iface,ivertex))
+          natural_id = geomech_grid%nG2A(ghosted_id)
+          loc_face_vertices(face_count,ivertex) = elenodes(quad_faces_vert(iface,ivertex))
+        endif
         !  face_count,natural_id
-        call MatSetValue(Mat_face_to_vert,(elem_offset*FOUR_INTEGER)+face_count-1, &
+        call MatSetValue(Mat_face_to_vert,(elem_offset*num_faces_per_ele)+face_count-1, &
                          natural_id-1, &
                          1.d0,INSERT_VALUES, &
                          ierr);CHKERRQ(ierr)
@@ -885,18 +933,24 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
     enddo
     deallocate(elenodes)
   enddo
+
   global_face_offset = elem_offset*FOUR_INTEGER
+
   call MatAssemblyBegin(Mat_face_to_vert,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(Mat_face_to_vert,MAT_FINAL_ASSEMBLY, &
                       ierr);CHKERRQ(ierr)
+
   !print *, 'Mat_face_to_vert'
   !call MatView(Mat_face_to_vert,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+
+  !print *, 'stopping ..'; stop
+
   nullify(nfaces)
   nfaces => geomech_region%sideset%nfaces
   ! generalize later for any face type
-  n_vertex_per_face = THREE_INTEGER ! TRI_FACE
-  allocate(face_vertices(n_vertex_per_face,nfaces))
+  !n_vertex_per_face = THREE_INTEGER ! TRI_FACE
+  allocate(face_vertices(num_vertices_per_face,nfaces))
   ! face vertices here are natural ids
   face_vertices = geomech_region%sideset%face_vertices
   ! create and populate Mat_region_face_to_vert
@@ -908,6 +962,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
   offset=0
   call MPI_Exscan(nfaces,offset,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                   option%mycomm,ierr);CHKERRQ(ierr)
+
   do iface = 1, nfaces
     !print *, 'my rank,iface,vert:',option%myrank,iface,face_vertices(:,iface)
     do ivertex = 1, size(face_vertices,1)
@@ -925,9 +980,12 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
                         ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(Mat_region_face_to_vert,MAT_FINAL_ASSEMBLY, &
                       ierr);CHKERRQ(ierr)
+
   ! jaa .. looks ok
   !print *, 'Mat_region_face_to_vert'
   !call MatView(Mat_region_face_to_vert,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+  !print *, 'stopping ..'; stop
+
   call MatTranspose(Mat_region_face_to_vert,MAT_INITIAL_MATRIX, &
                     Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
   call MatGetSize(Mat_region_face_to_vert,rows,cols,ierr);CHKERRQ(ierr)
@@ -936,6 +994,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
                   PETSC_DEFAULT_REAL,Mat_face,ierr);CHKERRQ(ierr)
   print *, 'viewing Mat_face'
   call MatView(Mat_face,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+
   if (option%comm%size > 1) then
     ! From the MPI-Matrix get the local-matrix
     call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
@@ -952,8 +1011,9 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
     ! Get values stored in the local-matrix
     call MatSeqAIJGetArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
   endif
+
   ! for tri face .. generalize later!
-  min_nverts = 3
+  min_nverts = 3 ! 3 for tri, 4 for quad
   ! Determine the total number of faces mapped to each process
   mapped_face_count = 0
   do ii = 1,nrow ! all faces to a process
@@ -971,14 +1031,18 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
       !print *, 'rank,glo ii, face_id, vertices', option%myrank,ii+global_face_offset,face_id, loc_face_vertices(ii,:)
     endif
   enddo
-  allocate(mapped_face_vertices(mapped_face_count,THREE_INTEGER))
+
+  !print *, 'stopping ..'; stop
+
+  allocate(mapped_face_vertices(mapped_face_count,num_vertices_per_face))
   nullify(geomech_region%sideset)
   allocate(geomech_region%sideset)
   geomech_region%sideset%nfaces = 0
   nullify(geomech_region%sideset%face_vertices)
-  allocate(geomech_region%sideset%face_vertices(FOUR_INTEGER, &
+  allocate(geomech_region%sideset%face_vertices(num_vertices_per_face, &
                                  mapped_face_count))
   geomech_region%sideset%face_vertices = UNINITIALIZED_INTEGER
+
   ! repeat for assignment to where the face data reside locally
   if (mapped_face_count > 0) then
     mapped_face_count = 0
@@ -995,16 +1059,17 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid,geomech_region, &
       if (max_value >= min_nverts) then
         ! local to a process
         mapped_face_count = mapped_face_count + 1
-        !print *, 'reassign the sidesets'
         geomech_region%sideset%nfaces = mapped_face_count
-        geomech_region%sideset%face_vertices(1:3,mapped_face_count) = loc_face_vertices(ii,:)
+        geomech_region%sideset%face_vertices(:,mapped_face_count) = loc_face_vertices(ii,:)
         !print *, 'rank,glo ii, face_id, vertices', option%myrank,ii+global_face_offset,face_id, loc_face_vertices(ii,:)
       endif
     enddo
   endif
-  !print *, 'rank, new val',option%myrank,geomech_region%sideset%nfaces
-  !print *, 'rank, new val',option%myrank,geomech_region%sideset%face_vertices
+  print *, 'rank, new val',option%myrank,geomech_region%sideset%nfaces
+  print *, 'rank, new val',option%myrank,geomech_region%sideset%face_vertices
+
   deallocate(mapped_face_vertices)
+
 end subroutine GeomechGridLocalizeRegFromSideSet
 
 ! ************************************************************************** !

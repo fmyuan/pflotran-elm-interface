@@ -18,10 +18,7 @@ module Geomechanics_Region_module
     PetscInt :: num_verts
     PetscInt, pointer :: vertex_ids(:)
     type(gm_region_type), pointer :: next
-    ! jaa testing
-    PetscInt :: def_type
     type(region_sideset_type), pointer :: sideset
-    ! end jaa
   end type gm_region_type
 
   type, public :: gm_region_ptr_type
@@ -83,7 +80,6 @@ function GeomechRegionCreateWithNothing()
   nullify(region%vertex_ids)
   nullify(region%next)
   nullify(region%sideset)
-  region%def_type = 0
 
   GeomechRegionCreateWithNothing => region
 
@@ -112,7 +108,6 @@ function GeomechRegionCreateWithList(list)
   allocate(region%vertex_ids(region%num_verts))
   region%vertex_ids = list
   nullify(region%sideset)
-  region%def_type = 0
 
   GeomechRegionCreateWithList => region
 
@@ -152,21 +147,24 @@ function GeomechRegionCreateWithGeomechRegion(region)
     new_region%vertex_ids(1:new_region%num_verts) = &
     region%vertex_ids(1:new_region%num_verts)
   endif
-  ! jaa begin
   if (associated(region%sideset)) then
-    new_region%def_type = region%def_type
     new_region%sideset => region%sideset
   endif
-  ! jaa end
 
   GeomechRegionCreateWithGeomechRegion => new_region
 
 end function GeomechRegionCreateWithGeomechRegion
 
 ! ************************************************************************** !
-! jaa : copied from region_module
-function GeomechRegionCreateSideset()
 
+function GeomechRegionCreateSideset()
+  !
+  ! Creates a sideset
+  ! copied from region_module
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 09/02/25
+  !
   implicit none
 
   type(region_sideset_type), pointer :: GeomechRegionCreateSideset
@@ -380,10 +378,10 @@ subroutine GeomechRegionReadFromFilename(region,option,filename)
 
   input => InputCreate(IUNIT_TEMP,filename,option)
   if (index(region%filename,'.ss') > 0) then ! sideset file
-    region%def_type = DEFINED_BY_SIDESET_UGRID
     region%sideset => GeomechRegionCreateSideset()
-    call RegionReadFromFile(region%sideset,region%filename, &
-                            option)
+    call GeomechRegionReadSideSet(region%sideset, &
+                                  region%filename, &
+                                  option)
   else ! vset file
     call GeomechRegionReadFromFileId(region,input,option)
   endif
@@ -508,6 +506,171 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
 #endif
 
 end subroutine GeomechRegionReadFromFileId
+
+! ************************************************************************** !
+
+subroutine GeomechRegionReadSideSet(sideset,filename,option)
+  !
+  ! Reads a geomech grid sideset
+  ! slightly modifified from region_module
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 09/02/25
+  !
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(region_sideset_type) :: sideset
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: string, hint
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: num_faces_local_save
+  PetscInt :: num_faces_local
+  PetscInt :: num_to_read
+  PetscInt, parameter :: max_nvert_per_face = 4
+  PetscInt, allocatable :: temp_int_array(:,:)
+
+  PetscInt :: iface, ivertex, irank, num_vertices
+  PetscInt :: remainder
+  PetscErrorCode :: ierr
+  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE)
+  PetscMPIInt :: int_mpi
+  PetscInt :: fileid
+
+  fileid = 86
+  input => InputCreate(fileid,filename,option)
+
+! Format of sideset file
+! type: T=triangle, Q=quadrilateral
+! vertn(Q) = 4
+! vertn(T) = 3
+! -----------------------------------------------------------------
+! num_faces  (integer)
+! type vert1 vert2 ... vertn  ! for face 1 (integers)
+! type vert1 vert2 ... vertn  ! for face 2
+! ...
+! ...
+! type vert1 vert2 ... vertn  ! for face num_faces
+! -----------------------------------------------------------------
+
+  hint = 'Unstructured Sideset'
+
+  call InputReadPflotranString(input,option)
+  string = 'unstructured sideset'
+  call InputReadStringErrorMsg(input,option,hint)
+
+  ! read num_faces
+  call InputReadInt(input,option,sideset%nfaces)
+  call InputErrorMsg(input,option,'number of faces',hint)
+
+  ! divide faces across ranks
+  num_faces_local = sideset%nfaces/option%comm%size
+  num_faces_local_save = num_faces_local
+  remainder = sideset%nfaces - num_faces_local*option%comm%size
+  if (option%myrank < remainder) num_faces_local = &
+                                 num_faces_local + 1
+
+  ! allocate array to store vertices for each faces
+  allocate(sideset%face_vertices(max_nvert_per_face, &
+                                 num_faces_local))
+  sideset%face_vertices = UNINITIALIZED_INTEGER
+
+  ! for now, read all faces from ASCII file through io_rank and communicate
+  ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
+  if (OptionIsIORank(option)) then
+    allocate(temp_int_array(max_nvert_per_face, &
+                            num_faces_local_save+1))
+    ! read for other processors
+    do irank = 0, option%comm%size-1
+      temp_int_array = UNINITIALIZED_INTEGER
+      num_to_read = num_faces_local_save
+      if (irank < remainder) num_to_read = num_to_read + 1
+
+      do iface = 1, num_to_read
+        ! read in the vertices defining the cell face
+        call InputReadPflotranString(input,option)
+        call InputReadStringErrorMsg(input,option,hint)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'face type',hint)
+        call StringToUpper(word)
+        select case(word)
+          ! jaa need to implement quad face
+          case('Q')
+            num_vertices = 4
+          case('T')
+            num_vertices = 3
+          case default
+            option%io_buffer = 'Unknown face type "' // trim(word) // &
+              '" in sideset file "' // trim(filename) // '". &
+              &Current implementation can only accomodate for "T" (triangle).'
+            call PrintErrMsgByRank(option)
+            stop
+        end select
+        do ivertex = 1, num_vertices
+          call InputReadInt(input,option,temp_int_array(ivertex,iface))
+          call InputErrorMsg(input,option,'vertex id',hint)
+        enddo
+      enddo
+      ! if the faces reside on io_rank
+      if (OptionIsIORank(option,irank)) then
+#if UGRID_DEBUG
+        write(string,*) num_faces_local
+        string = trim(adjustl(string)) // ' faces stored on p0'
+        print *, trim(string)
+#endif
+        sideset%nfaces = num_faces_local
+        sideset%face_vertices(:,1:num_faces_local) = &
+          temp_int_array(:,1:num_faces_local)
+      else
+        ! otherwise communicate to other ranks
+#if UGRID_DEBUG
+        write(string,*) num_to_read
+        write(word,*) irank
+        string = trim(adjustl(string)) // ' faces sent from p0 to p' // &
+                 trim(adjustl(word))
+        print *, trim(string)
+#endif
+        int_mpi = num_to_read*max_nvert_per_face
+        call MPI_Send(temp_int_array,int_mpi,MPIU_INTEGER,irank,num_to_read, &
+                      option%mycomm,ierr);CHKERRQ(ierr)
+      endif
+    enddo
+    deallocate(temp_int_array)
+  else
+    ! other ranks post the recv
+#if UGRID_DEBUG
+        write(string,*) num_faces_local
+        write(word,*) option%myrank
+        string = trim(adjustl(string)) // ' faces received from p0 at p' // &
+                 trim(adjustl(word))
+        print *, trim(string)
+#endif
+    sideset%nfaces = num_faces_local
+    int_mpi = num_faces_local*max_nvert_per_face
+    call MPI_Recv(sideset%face_vertices,int_mpi,MPIU_INTEGER, &
+                  option%comm%io_rank,MPI_ANY_TAG,option%mycomm,status_mpi, &
+                  ierr);CHKERRQ(ierr)
+  endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
+
+!  unstructured_grid%nlmax = num_faces_local
+!  unstructured_grid%num_vertices_local = num_vertices_local
+
+  call InputDestroy(input)
+
+  print *, 'nfaces ', sideset%nfaces
+  print *, 'end of GeomechRegionReadSideSet'
+
+end subroutine GeomechRegionReadSideSet
 
 ! ************************************************************************** !
 
