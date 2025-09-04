@@ -627,7 +627,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
 
   PetscInt :: iface, num_vertices
   PetscReal :: stress_bc(SIX_INTEGER)
-  PetscInt :: face_vertices(THREE_INTEGER)
+  PetscInt, allocatable :: face_vertices(:)
 
   PetscReal, pointer :: temp_youngs_modulus_p(:)
   PetscReal, pointer :: temp_poissons_ratio_p(:)
@@ -985,7 +985,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   call VecAssemblyBegin(r,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(r,ierr);CHKERRQ(ierr)
 
-  ! jaa begin traction part here
   boundary_condition => patch%geomech_boundary_condition_list%first
   do
     if (.not.associated(boundary_condition)) exit
@@ -1001,14 +1000,19 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
         case(NEUMANN_BC)
           stress_bc = boundary_condition%geomech_condition%traction%dataset%rarray
           nfaces = boundary_condition%region%sideset%nfaces
-          do iface = 1, nfaces ! change to number of tri faces
-            num_vertices = THREE_INTEGER
-            face_vertices = boundary_condition%region%sideset%face_vertices(1:3,iface)
+          do iface = 1, nfaces
+            num_vertices = size(boundary_condition%region%sideset%face_vertices(:,iface))
+            if (num_vertices == THREE_INTEGER) then
+              facetype = TRI_TYPE
+            else
+              facetype = QUAD_TYPE
+            endif
+            allocate(face_vertices(num_vertices))
+            face_vertices = boundary_condition%region%sideset%face_vertices(1:num_vertices,iface)
             allocate(local_coordinates(num_vertices,THREE_INTEGER))
             allocate(petsc_ids(num_vertices))
             allocate(ids(num_vertices*option%ngeomechdof))
             allocate(res_vec(num_vertices*option%ngeomechdof))
-            facetype = TRI_TYPE !TRI_FACE_TYPE
             do ivertex = 1, num_vertices
               ghosted_id = face_vertices(ivertex)
               local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -1038,7 +1042,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   enddo
   call VecAssemblyBegin(r,ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(r,ierr);CHKERRQ(ierr)
-  ! jaa end traction
 
 end subroutine GeomechForceResidualPatch
 
@@ -1226,6 +1229,14 @@ end subroutine sort
 ! ************************************************************************** !
 
 function face_unitnormal(v1, v2, v3) result(n)
+  !
+  ! calculates the outward pointing normal vector
+  ! for tri face, pass coordinates in the same order
+  ! for quad face, pass (v1, v2, v4)
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 09/04/2025
+  !
 
   PetscReal :: v1(THREE_INTEGER), v2(THREE_INTEGER), v3(THREE_INTEGER)
   PetscReal :: n(THREE_INTEGER)
@@ -1443,7 +1454,7 @@ end subroutine GeomechForceLocalElemResidual
 
 ! ************************************************************************** !
 
-subroutine GeomechForceApplyTractionBCtoResidual( local_coordinates, &
+subroutine GeomechForceApplyTractionBCtoResidual(local_coordinates, &
                                         facetype, &
                                         stress_bc, &
                                         r,w,res_vec,option)
@@ -1463,7 +1474,7 @@ subroutine GeomechForceApplyTractionBCtoResidual( local_coordinates, &
   type(shapefunction_type) :: shapefunction
   PetscInt :: igpt
   PetscInt :: len_w
-  PetscReal :: x(THREE_INTEGER), J_map(THREE_INTEGER,TWO_INTEGER)
+  PetscReal, allocatable :: x(:), J_map(:,:)
   PetscReal :: xp_J(THREE_INTEGER)
   PetscReal :: boundary_stress(THREE_INTEGER,THREE_INTEGER)
   PetscReal :: traction(THREE_INTEGER,ONE_INTEGER)
@@ -1473,9 +1484,15 @@ subroutine GeomechForceApplyTractionBCtoResidual( local_coordinates, &
 
   res_vec = 0.d0
   len_w = size(w)
-  size_facenodes = THREE_INTEGER
+
+  if (facetype == TRI_TYPE) &
+    size_facenodes = THREE_INTEGER
+  if (facetype == QUAD_TYPE) &
+    size_facenodes = FOUR_INTEGER
 
   allocate(force(size_facenodes*option%ngeomechdof))
+  allocate(x(size_facenodes))
+  allocate(J_map(size_facenodes,TWO_INTEGER))
 
   force = 0.d0
   boundary_stress = 0.d0
@@ -1492,9 +1509,14 @@ subroutine GeomechForceApplyTractionBCtoResidual( local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  normal_vec = face_unitnormal(local_coordinates(1,:), &
-                                   local_coordinates(2,:), &
-                                   local_coordinates(3,:))
+  if (facetype == TRI_TYPE) &
+    normal_vec = face_unitnormal(local_coordinates(1,:), &
+                                 local_coordinates(2,:), &
+                                 local_coordinates(3,:))
+  if (facetype == QUAD_TYPE) &
+    normal_vec = face_unitnormal(local_coordinates(1,:), &
+                                 local_coordinates(2,:), &
+                                 local_coordinates(4,:))
 
   do igpt = 1, len_w
 
@@ -1534,10 +1556,10 @@ end subroutine GeomechForceApplyTractionBCtoResidual
 
 ! ************************************************************************** !
 
-subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
-                                        facetype, &
-                                        stress_bc, &
-                                        r,w,rhs_vec,option)
+subroutine GeomechForceApplyTractionBCtoRHS(local_coordinates, &
+                                            facetype, &
+                                            stress_bc, &
+                                            r,w,rhs_vec,option)
 
   use Grid_Unstructured_Cell_module
   use Shape_Function_module
@@ -1564,7 +1586,6 @@ subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
 
   rhs_vec = 0.d0
   len_w = size(w)
-  ! num_vertices
 
   if (facetype == TRI_TYPE) &
     size_facenodes = THREE_INTEGER
@@ -1590,16 +1611,14 @@ subroutine GeomechForceApplyTractionBCtoRHS( local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  if (facetype == TRI_TYPE) then
+  if (facetype == TRI_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(3,:))
-  endif
-  if (facetype == QUAD_TYPE) then
+  if (facetype == QUAD_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(4,:))
-  endif
 
   do igpt = 1, len_w
 

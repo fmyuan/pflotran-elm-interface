@@ -602,14 +602,13 @@ subroutine GeomechRegionReadSideSet(sideset,filename,option)
         call InputErrorMsg(input,option,'face type',hint)
         call StringToUpper(word)
         select case(word)
-          ! jaa need to implement quad face
           case('Q')
             num_vertices = 4
           case('T')
             num_vertices = 3
           case default
-            option%io_buffer = 'Unknown face type "' // trim(word) // &
-              '" in sideset file "' // trim(filename) // '". &
+            option%io_buffer = 'Unknown face type "' // trim(word) // '" in '&
+              'geomechanics region sideset file "' // trim(filename) // '". &
               &Current implementation can only accomodate for "T" (triangle).'
             call PrintErrMsgByRank(option)
             stop
@@ -662,13 +661,7 @@ subroutine GeomechRegionReadSideSet(sideset,filename,option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-!  unstructured_grid%nlmax = num_faces_local
-!  unstructured_grid%num_vertices_local = num_vertices_local
-
   call InputDestroy(input)
-
-  print *, 'nfaces ', sideset%nfaces
-  print *, 'end of GeomechRegionReadSideSet'
 
 end subroutine GeomechRegionReadSideSet
 
