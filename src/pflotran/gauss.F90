@@ -13,7 +13,7 @@ module Gauss_module
 
   type, public :: gauss_type
     PetscInt :: dim                 ! dimension
-    PetscInt :: element_type        ! Element type
+    PetscInt :: entity_type         ! Element or face type
     PetscInt :: num_gauss_pts       ! Number of gauss points
     PetscReal, pointer :: r(:,:)    ! location of points
     PetscReal, pointer :: w(:)      ! weights
@@ -36,7 +36,7 @@ subroutine GaussInitialize(gauss)
   type(gauss_type) :: gauss
 
   gauss%dim = 0
-  gauss%element_type = 0
+  gauss%entity_type = 0
   gauss%num_gauss_pts = 0
   nullify(gauss%r)
   nullify(gauss%w)
@@ -61,11 +61,11 @@ subroutine GaussCalculatePoints(gauss)
 
   select case(gauss%dim)
     case(ONE_DIM_GRID)
-      call Gauss1D(gauss%element_type,gauss%num_gauss_pts,r,w)
+      call Gauss1D(gauss%entity_type,gauss%num_gauss_pts,r,w)
     case(TWO_DIM_GRID)
-      call Gauss2D(gauss%element_type,gauss%num_gauss_pts,r,w)
+      call Gauss2D(gauss%entity_type,gauss%num_gauss_pts,r,w)
     case(THREE_DIM_GRID)
-      call Gauss3D(gauss%element_type,gauss%num_gauss_pts,r,w)
+      call Gauss3D(gauss%entity_type,gauss%num_gauss_pts,r,w)
     case default
       print *, 'Error: Invalid dimension for Gauss point calculation'
       stop
@@ -84,7 +84,7 @@ end subroutine GaussCalculatePoints
 
 ! ************************************************************************** !
 
-subroutine Gauss1D(element_type,num_gauss_pts,r,w)
+subroutine Gauss1D(entity_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 1D elements
   !
@@ -92,7 +92,7 @@ subroutine Gauss1D(element_type,num_gauss_pts,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: element_type
+  PetscInt :: entity_type
   PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
@@ -100,7 +100,7 @@ subroutine Gauss1D(element_type,num_gauss_pts,r,w)
   allocate(r(num_gauss_pts,1))
   allocate(w(num_gauss_pts))
 
-  if (element_type /= LINE_TYPE) then
+  if (entity_type /= LINE_TYPE) then
     print *, 'Error: in Element type. Only L2 ' // &
              '(line type) can be used for 1D Gauss quadrature.'
   endif
@@ -277,7 +277,7 @@ end subroutine Gauss1D
 
 ! ************************************************************************** !
 
-subroutine Gauss2D(element_type,num_gauss_pts,r,w)
+subroutine Gauss2D(entity_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 2D elements
   !
@@ -285,15 +285,15 @@ subroutine Gauss2D(element_type,num_gauss_pts,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: element_type
+  PetscInt :: entity_type
   PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  select case(element_type)
-    case(QUAD_TYPE)
+  select case(entity_type)
+    case(QUAD_TYPE, QUAD_FACE_TYPE)
       call GaussSquare(num_gauss_pts,r,w)
-    case(TRI_TYPE)
+    case(TRI_TYPE, TRI_FACE_TYPE)
       call GaussTriangle(num_gauss_pts,r,w)
     case default
       print *, 'Error: Only T3 and Q4 elements available for 2D.'
@@ -733,7 +733,7 @@ end subroutine GaussPyramid
 
 ! ************************************************************************** !
 
-subroutine Gauss3D(element_type,num_gauss_pts,r,w)
+subroutine Gauss3D(entity_type,num_gauss_pts,r,w)
   !
   ! Calculates Gauss points for 3D element
   !
@@ -741,12 +741,12 @@ subroutine Gauss3D(element_type,num_gauss_pts,r,w)
   ! Date: 5/17/2013
   !
 
-  PetscInt :: element_type
+  PetscInt :: entity_type
   PetscInt :: num_gauss_pts
   PetscReal, pointer :: r(:,:)
   PetscReal, pointer :: w(:)
 
-  select case(element_type)
+  select case(entity_type)
     case(HEX_TYPE)
       call GaussBrick(num_gauss_pts,r,w)
     case(WEDGE_TYPE)
@@ -862,5 +862,7 @@ subroutine GaussDestroy(gauss)
   nullify(gauss%w)
 
 end subroutine GaussDestroy
+
+! ************************************************************************** !
 
 end module Gauss_module

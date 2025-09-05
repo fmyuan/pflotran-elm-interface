@@ -81,7 +81,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   PetscInt, allocatable :: vertex_count_array(:)
   PetscInt, allocatable :: vertex_count_array2(:)
   PetscBool :: lflag
-
+  PetscInt :: face_type_id
 
 #ifdef GEOMECH_DEBUG
   character(len=MAXSTRINGLENGTH) :: string
@@ -676,31 +676,32 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   allocate(geomech_grid%gauss_node(geomech_grid%nlmax_elem))
   do local_id = 1, geomech_grid%nlmax_elem
     call GaussInitialize(geomech_grid%gauss_node(local_id))
-    geomech_grid%gauss_node(local_id)%element_type = &
+    geomech_grid%gauss_node(local_id)%entity_type = &
       geomech_grid%Elem_type(local_id)
     ! Set to 3D although we have gauss point calculations for 2D
     geomech_grid%gauss_node(local_id)%dim = THREE_DIM_GRID
     ! Three gauss points in each direction
     geomech_grid%gauss_node(local_id)%num_gauss_pts = THREE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%element_type == PYR_TYPE) &
+    if (geomech_grid%gauss_node(local_id)%entity_type == PYR_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FIVE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%element_type == TET_TYPE) &
+    if (geomech_grid%gauss_node(local_id)%entity_type == TET_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FOUR_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
   enddo
 
-  ! jaa: allocate with size 1 (all surfaces on boundary are using either
-  ! tri face or quad face) only works for a single face type in the model
-  ! need to be generalized later
-  allocate(geomech_grid%surf_gauss_node(1))
-  call GaussInitialize(geomech_grid%surf_gauss_node(1))
-  ! using tetrahedral elements as the default
-  geomech_grid%surf_gauss_node(1)%element_type = TRI_TYPE ! face type of tet
-  if (geomech_grid%gauss_node(1)%element_type == HEX_TYPE) &
-    geomech_grid%surf_gauss_node(1)%element_type = QUAD_TYPE ! face type of hex
-  geomech_grid%surf_gauss_node(1)%dim = TWO_DIM_GRID
-  geomech_grid%surf_gauss_node(1)%num_gauss_pts = ONE_INTEGER
-  call GaussCalculatePoints(geomech_grid%surf_gauss_node(1))
+  ! from grid_unstructured_cell.F90, we have
+  ! LINE_FACE_TYPE = 1
+  ! TRI_FACE_TYPE  = 2
+  ! QUAD_FACE_TYPE = 3
+  allocate(geomech_grid%gauss_surf_node(3))
+  do face_type_id = 1,3
+    call GaussInitialize(geomech_grid%gauss_surf_node(face_type_id))
+    if (face_type_id == 1) cycle 
+    geomech_grid%gauss_surf_node(face_type_id)%entity_type = face_type_id
+    geomech_grid%gauss_surf_node(face_type_id)%dim = TWO_DIM_GRID
+    geomech_grid%gauss_surf_node(face_type_id)%num_gauss_pts = ONE_INTEGER
+    call GaussCalculatePoints(geomech_grid%gauss_surf_node(face_type_id))
+  enddo
 
   ! Store petsc ids of the local and ghost nodes in the new re-ordered system on
   ! each rank
@@ -843,7 +844,6 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
 
   PetscErrorCode :: ierr
   PetscInt :: ghosted_id, natural_id
-  PetscInt :: rows,cols
 
   PetscScalar, pointer :: aa_v(:)
   PetscInt, pointer :: ia_p(:),ja_p(:)
@@ -881,7 +881,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   face_type = TRI_TYPE
   num_faces_per_ele = FOUR_INTEGER
   num_vertices_per_face = THREE_INTEGER
-  if (geomech_grid%gauss_node(1)%element_type == HEX_TYPE) then
+  if (geomech_grid%gauss_node(1)%entity_type == HEX_TYPE) then
     face_type = QUAD_TYPE
     num_faces_per_ele = SIX_INTEGER
     num_vertices_per_face = FOUR_INTEGER

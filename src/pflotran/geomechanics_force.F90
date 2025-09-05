@@ -701,7 +701,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
     allocate(porosity_vec(size(elenodes)))
     allocate(density_bulk_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%element_type
+    eletype = grid%gauss_node(ielem)%entity_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -1003,9 +1003,9 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
           do iface = 1, nfaces
             num_vertices = size(boundary_condition%region%sideset%face_vertices(:,iface))
             if (num_vertices == THREE_INTEGER) then
-              facetype = TRI_TYPE
+              facetype = TRI_FACE_TYPE
             else
-              facetype = QUAD_TYPE
+              facetype = QUAD_FACE_TYPE
             endif
             allocate(face_vertices(num_vertices))
             face_vertices = boundary_condition%region%sideset%face_vertices(1:num_vertices,iface)
@@ -1027,8 +1027,8 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
             call GeomechForceApplyTractionBCtoResidual( local_coordinates, &
                                               facetype, &
                                               stress_bc, &
-                                              grid%surf_gauss_node(1)%r, &
-                                              grid%surf_gauss_node(1)%w, &
+                                              grid%gauss_surf_node(facetype)%r, &
+                                              grid%gauss_surf_node(facetype)%w, &
                                               res_vec,option)
             call VecSetValues(r,size(ids),ids,res_vec,ADD_VALUES,ierr);CHKERRQ(ierr)
             deallocate(local_coordinates)
@@ -1481,14 +1481,19 @@ subroutine GeomechForceApplyTractionBCtoResidual(local_coordinates, &
   PetscReal :: surf_J
   PetscReal, allocatable :: N(:,:), force(:), kron_N_traction(:,:)
   PetscReal :: normal_vec(THREE_INTEGER)
+  PetscInt :: shapefunc_eletype
 
   res_vec = 0.d0
   len_w = size(w)
 
-  if (facetype == TRI_TYPE) &
+  if (facetype == TRI_FACE_TYPE) then
     size_facenodes = THREE_INTEGER
-  if (facetype == QUAD_TYPE) &
+    shapefunc_eletype = TRI_TYPE
+  endif
+  if (facetype == QUAD_FACE_TYPE) then
     size_facenodes = FOUR_INTEGER
+    shapefunc_eletype = QUAD_TYPE
+  endif
 
   allocate(force(size_facenodes*option%ngeomechdof))
   allocate(x(size_facenodes))
@@ -1509,18 +1514,18 @@ subroutine GeomechForceApplyTractionBCtoResidual(local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  if (facetype == TRI_TYPE) &
+  if (facetype == TRI_FACE_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(3,:))
-  if (facetype == QUAD_TYPE) &
+  if (facetype == QUAD_FACE_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(4,:))
 
   do igpt = 1, len_w
 
-    shapefunction%element_type = facetype
+    shapefunction%element_type = shapefunc_eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = r(igpt,:)
     call ShapeFunctionCalculate(shapefunction)
@@ -1583,14 +1588,19 @@ subroutine GeomechForceApplyTractionBCtoRHS(local_coordinates, &
   PetscReal :: surf_J
   PetscReal, allocatable :: N(:,:), force(:), kron_N_traction(:,:)
   PetscReal :: normal_vec(THREE_INTEGER)
+  PetscInt :: shapefunc_eletype
 
   rhs_vec = 0.d0
   len_w = size(w)
 
-  if (facetype == TRI_TYPE) &
+  if (facetype == TRI_FACE_TYPE) then
     size_facenodes = THREE_INTEGER
-  if (facetype == QUAD_TYPE) &
+    shapefunc_eletype = TRI_TYPE
+  endif
+  if (facetype == QUAD_FACE_TYPE) then
     size_facenodes = FOUR_INTEGER
+    shapefunc_eletype = QUAD_TYPE
+  endif
 
   allocate(force(size_facenodes*option%ngeomechdof))
   allocate(x(size_facenodes))
@@ -1611,18 +1621,18 @@ subroutine GeomechForceApplyTractionBCtoRHS(local_coordinates, &
   boundary_stress(3,2) = boundary_stress(2,3) ! sigma_zy
   boundary_stress(2,1) = boundary_stress(1,2) ! sigma_yx
 
-  if (facetype == TRI_TYPE) &
+  if (facetype == TRI_FACE_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(3,:))
-  if (facetype == QUAD_TYPE) &
+  if (facetype == QUAD_FACE_TYPE) &
     normal_vec = face_unitnormal(local_coordinates(1,:), &
                                  local_coordinates(2,:), &
                                  local_coordinates(4,:))
 
   do igpt = 1, len_w
 
-    shapefunction%element_type = facetype
+    shapefunction%element_type = shapefunc_eletype
     call ShapeFunctionInitialize(shapefunction)
     shapefunction%zeta = r(igpt,:)
     call ShapeFunctionCalculate(shapefunction)
@@ -1795,7 +1805,7 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
     allocate(porosity_vec(size(elenodes)))
     allocate(density_bulk_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%element_type
+    eletype = grid%gauss_node(ielem)%entity_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -2079,9 +2089,9 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
           do iface = 1, nfaces
             num_vertices = size(boundary_condition%region%sideset%face_vertices(:,iface))
             if (num_vertices == THREE_INTEGER) then
-              facetype = TRI_TYPE
+              facetype = TRI_FACE_TYPE
             else
-              facetype = QUAD_TYPE
+              facetype = QUAD_FACE_TYPE
             endif
             allocate(face_vertices(num_vertices))
             face_vertices = boundary_condition%region%sideset%face_vertices(1:num_vertices,iface)
@@ -2103,8 +2113,8 @@ subroutine GeomechForceSetupLinearSystem(A,solution,rhs,geomech_realization, &
             call GeomechForceApplyTractionBCtoRHS( local_coordinates, &
                                               facetype, &
                                               stress_bc, &
-                                              grid%surf_gauss_node(1)%r, &
-                                              grid%surf_gauss_node(1)%w, &
+                                              grid%gauss_surf_node(facetype)%r, &
+                                              grid%gauss_surf_node(facetype)%w, &
                                               rhs_local_vec,option)
             call VecSetValues(rhs,size(ids),ids,rhs_local_vec,ADD_VALUES,ierr);CHKERRQ(ierr)
             deallocate(face_vertices)
@@ -2492,7 +2502,7 @@ subroutine GeomechForceAssembleCoeffMatrix(A,geomech_realization)
     allocate(youngs_vec(size(elenodes)))
     allocate(poissons_vec(size(elenodes)))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%element_type
+    eletype = grid%gauss_node(ielem)%entity_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
@@ -3055,7 +3065,7 @@ subroutine GeomechForceStressStrain(geomech_realization)
     allocate(stress(size(elenodes),SIX_INTEGER))
     allocate(stress_total(size(elenodes),SIX_INTEGER))
     elenodes = grid%elem_nodes(1:grid%elem_nodes(0,ielem),ielem)
-    eletype = grid%gauss_node(ielem)%element_type
+    eletype = grid%gauss_node(ielem)%entity_type
     do ivertex = 1, grid%elem_nodes(0,ielem)
       ghosted_id = elenodes(ivertex)
       local_coordinates(ivertex,GEOMECH_DISP_X_DOF) = grid%nodes(ghosted_id)%x
