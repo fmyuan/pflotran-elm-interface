@@ -863,7 +863,7 @@ subroutine GMGridDestroy(geomech_grid)
 
   if (associated(geomech_grid%gauss_surf_node)) then
     do i = 1, size(geomech_grid%gauss_surf_node)
-      if (i == 1) cycle ! we don't currently use line_face_type
+      if (i == LINE_FACE_TYPE) cycle ! we don't currently support line_face_type
       call GaussDestroy(geomech_grid%gauss_surf_node(i))
     enddo
     deallocate(geomech_grid%gauss_surf_node)

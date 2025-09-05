@@ -560,10 +560,10 @@ subroutine GeomechRegionReadSideSet(sideset,filename,option)
 ! type vert1 vert2 ... vertn  ! for face num_faces
 ! -----------------------------------------------------------------
 
-  hint = 'Unstructured Sideset'
+  hint = 'Geomechanics Sideset'
 
   call InputReadPflotranString(input,option)
-  string = 'unstructured sideset'
+  string = 'geomechanics sideset'
   call InputReadStringErrorMsg(input,option,hint)
 
   ! read num_faces
@@ -607,9 +607,10 @@ subroutine GeomechRegionReadSideSet(sideset,filename,option)
           case('T')
             num_vertices = 3
           case default
-            option%io_buffer = 'Unknown face type "' // trim(word) // '" in '&
-              'geomechanics region sideset file "' // trim(filename) // '". &
-              &Current implementation can only accomodate for "T" (triangle).'
+            option%io_buffer = 'Unknown face type "' // trim(word) // '" in &
+              &geomechanics region sideset file "' // trim(filename) // '". &
+              &Current implementation can accomodate for "T" (triangle) &
+              & and "Q" (quadrilateral).'
             call PrintErrMsgByRank(option)
             stop
         end select

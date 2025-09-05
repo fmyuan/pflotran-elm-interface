@@ -696,7 +696,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   allocate(geomech_grid%gauss_surf_node(3))
   do face_type_id = 1,3
     call GaussInitialize(geomech_grid%gauss_surf_node(face_type_id))
-    if (face_type_id == 1) cycle 
+    if (face_type_id == LINE_FACE_TYPE) cycle
     geomech_grid%gauss_surf_node(face_type_id)%entity_type = face_type_id
     geomech_grid%gauss_surf_node(face_type_id)%dim = TWO_DIM_GRID
     geomech_grid%gauss_surf_node(face_type_id)%num_gauss_pts = ONE_INTEGER
@@ -877,12 +877,11 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   quad_faces_vert(5,:) = (/ 5, 8, 4, 1 /)
   quad_faces_vert(6,:) = (/ 3, 7, 6, 2 /)
 
-  ! assume all element type are the same in the domain
-  face_type = TRI_TYPE
+  face_type = TRI_FACE_TYPE
   num_faces_per_ele = FOUR_INTEGER
   num_vertices_per_face = THREE_INTEGER
   if (geomech_grid%gauss_node(1)%entity_type == HEX_TYPE) then
-    face_type = QUAD_TYPE
+    face_type = QUAD_FACE_TYPE
     num_faces_per_ele = SIX_INTEGER
     num_vertices_per_face = FOUR_INTEGER
   endif
@@ -917,12 +916,12 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
       face_count = face_count + 1
 
       do ivertex = 1,num_vertices_per_face
-        if (face_type == TRI_TYPE) then
+        if (face_type == TRI_FACE_TYPE) then
           ghosted_id = elenodes(tet_faces_vert(iface,ivertex))
           natural_id = geomech_grid%nG2A(ghosted_id)
           loc_face_vertices(face_count,ivertex) = &
             elenodes(tet_faces_vert(iface,ivertex))
-        else ! QUAD_TYPE
+        else ! QUAD_FACE_TYPE
           ghosted_id = elenodes(quad_faces_vert(iface,ivertex))
           natural_id = geomech_grid%nG2A(ghosted_id)
           loc_face_vertices(face_count,ivertex) = &
