@@ -1,7 +1,8 @@
 module Geomechanics_Region_module
 
 #include "petsc/finclude/petscsys.h"
-   use petscsys
+
+  use petscsys
   use Geometry_module
   use PFLOTRAN_Constants_module
   use Region_module
@@ -43,16 +44,16 @@ module Geomechanics_Region_module
     module procedure GeomechRegionReadFromFilename
   end interface GeomechRegionReadFromFile
 
-   public :: GeomechRegionCreate, &
-             GeomechRegionDestroy, &
-             GeomechRegionAddToList, &
-             GeomechRegionReadFromFile, &
-             GeomechRegionDestroyList, &
-             GeomechRegionRead, &
-             GeomechRegionInitList, &
-             GeomechRegionGetPtrFromList
+  public :: GeomechRegionCreate, &
+            GeomechRegionDestroy, &
+            GeomechRegionAddToList, &
+            GeomechRegionReadFromFile, &
+            GeomechRegionDestroyList, &
+            GeomechRegionRead, &
+            GeomechRegionInitList, &
+            GeomechRegionGetPtrFromList
 
- contains
+  contains
 
 ! ************************************************************************** !
 
@@ -609,7 +610,7 @@ subroutine GeomechRegionReadSideSet(sideset,filename,option)
           case default
             option%io_buffer = 'Unknown face type "' // trim(word) // '" in &
               &geomechanics region sideset file "' // trim(filename) // '". &
-              &Current implementation can accomodate for "T" (triangle) &
+              &Current implementation can accommodate for "T" (triangle) &
               & and "Q" (quadrilateral).'
             call PrintErrMsgByRank(option)
             stop

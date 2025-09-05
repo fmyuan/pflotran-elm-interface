@@ -1466,6 +1466,12 @@ subroutine GeomechForceApplyTractionBCtoResidual(local_coordinates, &
                                         facetype, &
                                         stress_bc, &
                                         r,w,res_vec,option)
+  !
+  ! Computes the traction contribution for residual
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 09/05/2025
+  !
 
   use Grid_Unstructured_Cell_module
   use Shape_Function_module
@@ -1573,6 +1579,13 @@ subroutine GeomechForceApplyTractionBCtoRHS(local_coordinates, &
                                             facetype, &
                                             stress_bc, &
                                             r,w,rhs_vec,option)
+  !
+  ! Computes the traction contribution for the linear system
+  !
+  ! Author: Jumanah Al Kubaisy
+  ! Date: 09/05/2025
+  !
+
 
   use Grid_Unstructured_Cell_module
   use Shape_Function_module
