@@ -94,6 +94,7 @@ module Utility_module
             LUBackSubstitution, &
             FileExists, &
             Equal, &
+            EqualTol, &
             InitToNaN, &
             BestFloat, &
             QuadraticPolynomialSetup, &
@@ -1647,6 +1648,31 @@ function Equal(value1, value2)
   if (2.d0*dabs(value1 - value2) < spacing(value2)) Equal = PETSC_TRUE
 
 end function Equal
+
+! ************************************************************************** !
+
+function EqualTol(value1, value2, tol)
+  !
+  ! Returns PETSC_TRUE if values are approximately equal within tolerance
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 09/02/25
+  !
+  implicit none
+
+
+  PetscBool :: EqualTol
+
+  PetscReal :: value1, value2
+  PetscReal :: tol     ! tolerance, e.g., 1.0d0
+
+  ! Default to false
+  EqualTol = PETSC_FALSE
+
+  ! Check absolute difference against tolerance
+  if (dabs(value1 - value2) <= tol) EqualTol = PETSC_TRUE
+
+end function EqualTol
 
 ! ************************************************************************** !
 
