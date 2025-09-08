@@ -1013,7 +1013,6 @@ subroutine PMRTDebugDerivatives(this,snes,xx,A,B,ierr)
   use Petsc_Utility_module
   use Debug_module
 
-#include "petsc/finclude/petscsys.h"
   implicit none
 
   class(pm_rt_type) :: this
@@ -1104,7 +1103,7 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   grid => this%realization%patch%grid
   reaction => this%realization%reaction
 
-  call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dC_p,ierr);CHKERRQ(ierr)
 
   if (reaction%use_log_formulation) then
     if (this%dampen_update) then
@@ -1118,25 +1117,25 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     ! time checking for changes and performing an allreduce for log
     ! formulation.
     if (Initialized(reaction%truncated_concentration)) then
-      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayRead(X,C_p,ierr);CHKERRQ(ierr)
       dC_p = min(C_p-log(reaction%truncated_concentration),dC_p)
-      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayRead(X,C_p,ierr);CHKERRQ(ierr)
     endif
     if (this%debug_update) then
-      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayRead(X,C_p,ierr);CHKERRQ(ierr)
       write(*,'("C: ",10es15.6)') exp(C_p(:))
       write(*,'("dC: ",10es15.6)') exp(C_p(:)-dC_p(:))-exp(C_p(:))
       write(*,'("dlnC: ",10es15.6)') -dC_p(:)
       write(*,'("dC/C: ",10es15.6)') &
         (exp(C_p(:)-dC_p(:))-exp(C_p(:)))/exp(C_p(:))
-      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayRead(X,C_p,ierr);CHKERRQ(ierr)
     endif
   else
     if (this%dampen_update) then
       dC_p(:) = this%dampening_factor*dC_p(:)
     endif
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(X,C_p,ierr);CHKERRQ(ierr)
     if (Initialized(reaction%truncated_concentration)) then
       dC_p = min(dC_p,C_p-reaction%truncated_concentration)
     else
@@ -1190,10 +1189,10 @@ subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
         write(*,'("dC/C: ",10es15.6)') -dC_p(:)/C_p(:)
       endif
     endif
-    call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(X,C_p,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(dX,dC_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMRTCheckUpdatePre
 
@@ -1259,10 +1258,10 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   if (this%check_post_convergence .or. this%print_ekg) then
     relative_change = 0.d0
     scaled_residual = 0.d0
-    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(X0,C0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       offset = (local_id-1)*option%ntrandof
       natural_id = grid%nG2A(grid%nL2G(local_id))
@@ -1294,10 +1293,10 @@ subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
         endif
       enddo
     enddo
-    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(X0,C0_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     mpi_int = option%ntrandof
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX, &
@@ -1357,6 +1356,7 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscReal, parameter :: tol = 1.d-2
   PetscReal, parameter :: pert = 1.d-40
   PetscBool :: found
+  PetscInt :: local_reason_flag
 
   option => this%option
 
@@ -1398,30 +1398,45 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
                               0,ierr);CHKERRQ(ierr)
 
-    if (option%convergence /= CONVERGENCE_CONVERGED .and. reason == -9) then
+    if (option%convergence /= CONVERGENCE_CONVERGED .and. &
+        reason == SNES_DIVERGED_DTOL) then
       write(out_string,'(i3," 2r:",es9.2," 2x:",es9.2," 2u:",es9.2, &
             & " -diverged")') it, fnorm, xnorm, unorm
       call PrintMsg(option,out_string)
       return
     endif
 
+    local_reason_flag = 0
+    if (reason == SNES_CONVERGED_FNORM_ABS) then
+      local_reason_flag = 2
+    endif
+    if (reason == SNES_CONVERGED_FNORM_RELATIVE) then
+      local_reason_flag = 3
+    endif
+    if (reason == SNES_CONVERGED_SNORM_RELATIVE) then
+      local_reason_flag = 4
+    endif
+
     if (Initialized(rt_itol_abs_update) .and. &
         this%converged_flag(ABS_UPDATE_INDEX)) then
-      reason = 13
+      local_reason_flag = 13
+      reason = SNES_CONVERGED_USER
     endif
 
     if (Initialized(rt_itol_scaled_res) .and. &
         this%converged_flag(SCALED_RESIDUAL_INDEX)) then
-      reason = 12
+      local_reason_flag = 12
+      reason = SNES_CONVERGED_USER
     endif
 
     if (Initialized(rt_itol_rel_update) .and. &
         this%converged_flag(REL_UPDATE_INDEX)) then
-      reason = 11
+      local_reason_flag = 11
+      reason = SNES_CONVERGED_USER
     endif
 
     if (it < this%solver%newton_min_iterations) then
-      reason = 0
+      reason = SNES_CONVERGED_ITERATING
     endif
 
     call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
@@ -1429,23 +1444,23 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     call VecNorm(residual_vec,NORM_INFINITY,inorm_residual, &
                  ierr);CHKERRQ(ierr)
 
-      icount = int(reason)
-      select case(icount)
-        case(2)
-          rsn_string = 'atol'
-        case(3)
-          rsn_string = 'rtol'
-        case(4)
-          rsn_string = 'stol'
-        case(11)
-          rsn_string = 'itol_rel_upd'
-        case(12)
-          rsn_string = 'itol_scl_res'
-        case(13)
-          rsn_string = 'itol_abs_upd'
-        case default
-          write(rsn_string,'(i3)') reason
-      end select
+    icount = int(local_reason_flag)
+    select case(icount)
+      case(2)
+        rsn_string = 'atol'
+      case(3)
+        rsn_string = 'rtol'
+      case(4)
+        rsn_string = 'stol'
+      case(11)
+        rsn_string = 'itol_rel_upd'
+      case(12)
+        rsn_string = 'itol_scl_res'
+      case(13)
+        rsn_string = 'itol_abs_upd'
+      case default
+        write(rsn_string,'(i3)') reason
+    end select
 
     write(out_string,'(i3)') it
     icount = 5
@@ -1751,6 +1766,9 @@ subroutine PMRTCheckpointBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
+
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1771,6 +1789,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+      use petscbag
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1805,7 +1824,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   grid => realization%patch%grid
   patch => realization%patch
 
-  global_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -1834,7 +1853,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   if (option%ntrandof > 0) then
     call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
     ! create a global vec for writing below
-    if (global_vec == PETSC_NULL_VEC) then
+    if (PetscObjectIsNull(global_vec)) then
       call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                       global_vec,GLOBAL,option)
     endif
@@ -1919,7 +1938,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
     endif
   endif
 
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
@@ -1934,6 +1953,9 @@ subroutine PMRTRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
+
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1955,6 +1977,7 @@ subroutine PMRTRestartBinary(this,viewer)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+      use petscbag
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1989,8 +2012,8 @@ subroutine PMRTRestartBinary(this,viewer)
   grid => realization%patch%grid
   patch => realization%patch
 
-  global_vec = PETSC_NULL_VEC
-  local_vec = PETSC_NULL_VEC
+  PetscObjectNullify(global_vec)
+  PetscObjectNullify(local_vec)
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
@@ -2007,7 +2030,7 @@ subroutine PMRTRestartBinary(this,viewer)
                                     field%tran_xx_loc,NTRANDOF)
   call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
-  if (global_vec == PETSC_NULL_VEC) then
+  if (PetscObjectIsNull(global_vec)) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                     global_vec,GLOBAL,option)
   endif
@@ -2101,10 +2124,10 @@ subroutine PMRTRestartBinary(this,viewer)
   endif
 
   ! We are finished, so clean up.
-  if (global_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(global_vec)) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
-  if (local_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(local_vec)) then
     call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
   endif
 

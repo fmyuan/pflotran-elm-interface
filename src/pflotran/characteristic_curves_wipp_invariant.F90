@@ -115,30 +115,35 @@ end type
 
 abstract interface
   function set_swj_type(this, Swj) result (error)
+    use petscsys
     import sf_wipp_type
     class(sf_wipp_type), intent(inout) :: this
     PetscReal, intent(in)  :: Swj
     PetscInt :: error
   end function
   pure subroutine calc_pc_type(this, Sw, Pc, dPc_dSw)
+    use petscsys
     import sf_wipp_type
     class(sf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Sw
     PetscReal, intent(out) :: Pc, dPc_dSw
   end subroutine
   pure subroutine calc_kr_type(this, Sw, Kr, dKr_dSw)
+    use petscsys
     import rpf_wipp_type
     class(rpf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Sw
     PetscReal, intent(out) :: Kr, dKr_dSw
   end subroutine
   pure subroutine calc_sw_type(this, Pc, Sw)
+    use petscsys
     import sf_wipp_type
     class(sf_wipp_type), intent(in) :: this
     PetscReal, intent(in)  :: Pc
     PetscReal, intent(out) :: Sw
   end subroutine
   subroutine set_k_type(this, k)
+    use petscsys
     import sf_wipp_type
     class(sf_wipp_type), intent(inout) :: this
     PetscReal, intent(in)  :: k

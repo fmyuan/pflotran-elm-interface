@@ -1,11 +1,15 @@
 module Output_HDF5_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use hdf5
+
+  use HDF5_Aux_module
+  use HDF5_module
+
   use Logging_module
   use Output_Aux_module
   use Output_Common_module
-
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
 
@@ -93,12 +97,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
 #else
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module
-  use HDF5_Aux_module
 
   implicit none
 
@@ -315,8 +313,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   ! first time the file has been opened.
   !
   use Option_module
-  use hdf5
-  use HDF5_Aux_module
 
   implicit none
 
@@ -389,8 +385,6 @@ end subroutine OutputHDF5OpenFile
 subroutine OutputHDF5CloseFile(option, file_id)
 
   use Option_module
-  use hdf5
-  use HDF5_Aux_module
 
   implicit none
 
@@ -427,12 +421,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 #else
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module, only : HDF5WriteDataSetFromVec
-  use HDF5_Aux_module
 
   implicit none
 
@@ -790,12 +778,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 #else
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module, only : HDF5WriteDataSetFromVec
-  use HDF5_Aux_module
 
   implicit none
 
@@ -1267,8 +1249,6 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   ! Date: 10/25/07
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -1276,8 +1256,6 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   use Field_module
   use Connection_module
   use Patch_module
-  use hdf5
-  use HDF5_module, only : HDF5WriteStructuredDataSet, trick_hdf5
 
   implicit none
 
@@ -1402,8 +1380,6 @@ subroutine OutputHDF5WriteStructCoordGroup(file_id,discretization,grid,option)
   ! Author: Glenn Hammond
   ! Date: 10/12/21
   !
-  use hdf5
-  use HDF5_Aux_module
   use Discretization_module
   use Option_module
   use Grid_module
@@ -1471,9 +1447,6 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -1538,15 +1511,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   ! Author: Gautam Bisht, ORNL
   ! Date: 05/31/12
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_Aux_module
   use Grid_module
   use Option_module
   use Grid_Unstructured_Aux_module
-  use HDF5_module, only : trick_hdf5
   use Variables_module
 
   implicit none
@@ -1601,9 +1568,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call OutputGetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
   call OutputGetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
 
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -1681,9 +1648,9 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
 
   call VecDestroy(global_x_vertex_vec,ierr);CHKERRQ(ierr)
@@ -1704,7 +1671,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
 
@@ -1793,7 +1760,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call UGridDMDestroy(ugdm_element)
@@ -1809,11 +1776,6 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   ! Author: Gautam Bisht, LBNL
   ! Date: 10/29/2012
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_Aux_module
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -1882,9 +1844,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call OutputGetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
   call OutputGetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
 
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -1956,9 +1918,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
 
   call VecDestroy(global_x_vertex_vec,ierr);CHKERRQ(ierr)
@@ -1978,7 +1940,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = grid%unstructured_grid%nlmax
 
@@ -2077,7 +2039,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call UGridDMDestroy(ugdm_element)
@@ -2124,9 +2086,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
                      natural_z_cell_vec,INSERT_VALUES,SCATTER_FORWARD, &
                      ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
   local_size = grid%unstructured_grid%nlmax
 
   ! XC
@@ -2298,9 +2260,9 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   call h5sclose_f(file_space_id,hdf5_err)
 
 
-  call VecRestoreArrayF90(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   call VecDestroy(global_x_cell_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_y_cell_vec,ierr);CHKERRQ(ierr)
@@ -2323,8 +2285,6 @@ subroutine DetermineNumVertices(realization_base,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/13/2015
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -2362,13 +2322,13 @@ subroutine DetermineNumVertices(realization_base,option)
 
   local_size = grid%unstructured_grid%nlmax
 
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   vert_count=0
   do i=1,local_size*EIGHT_INTEGER
     if (int(vec_ptr(i)) >0 ) vert_count=vert_count+1
   enddo
   vert_count=vert_count+grid%nlmax
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call MPI_Allreduce(vert_count,temp_int,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                      option%mycomm,ierr);CHKERRQ(ierr)
@@ -2392,10 +2352,6 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   ! Date: 07/17/2013
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_Aux_module
   use Realization_Base_class, only : realization_base_type
   use Grid_module
   use Option_module
@@ -2536,7 +2492,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   call VecSetFromOptions(natural_vec,ierr);CHKERRQ(ierr)
 
   call OutputGetCellVerticesExplicit(grid,natural_vec)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   vert_count=0
 
@@ -2630,7 +2586,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   call HDF5DatasetClose(data_set_id,option)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
 end subroutine WriteHDF5CoordinatesUGridXDMFExplicit
@@ -2645,10 +2601,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/19/2013
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -2658,7 +2610,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   use Variables_module
   use Connection_module
   use Coupler_module
-  use HDF5_Aux_module
   use Output_Aux_module
   use Field_module
 
@@ -2733,12 +2684,12 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
 
   select case (var_list_type)
     case (INSTANTANEOUS_VARS)
-      call VecGetArrayF90(field%flowrate_inst,vec_ptr1,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%flowrate_inst,vec_ptr1,ierr);CHKERRQ(ierr)
       mass_flowrate = output_option%print_hdf5_mass_flowrate
       energy_flowrate = output_option%print_hdf5_energy_flowrate
     case (AVERAGED_VARS)
-      call VecGetArrayF90(field%flowrate_inst,vec_ptr1,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(field%flowrate_aveg,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%flowrate_inst,vec_ptr1,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%flowrate_aveg,vec_ptr2,ierr);CHKERRQ(ierr)
       mass_flowrate = output_option%print_hdf5_aveg_mass_flowrate
       energy_flowrate = output_option%print_hdf5_aveg_energy_flowrate
   end select
@@ -2875,9 +2826,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   ! Date: 05/25/2014
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -2887,7 +2835,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   use Variables_module
   use Connection_module
   use Coupler_module
-  use HDF5_Aux_module
   use Output_Aux_module
   use Field_module
 
@@ -2955,13 +2902,13 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
     select case (idir)
       case (1)
         string_dir = 'X'
-        call VecGetArrayF90(field%vx_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
+        call VecGetArray(field%vx_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
       case (2)
         string_dir = 'Y'
-        call VecGetArrayF90(field%vy_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
+        call VecGetArray(field%vy_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
       case (3)
         string_dir = 'Z'
-        call VecGetArrayF90(field%vz_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
+        call VecGetArray(field%vz_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
     end select
 
     do iphase = 1,option%nphase
@@ -3056,13 +3003,13 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
 
     select case (idir)
       case (1)
-        call VecRestoreArrayF90(field%vx_face_inst,vec_ptr1, &
+        call VecRestoreArray(field%vx_face_inst,vec_ptr1, &
                                 ierr);CHKERRQ(ierr)
       case (2)
-        call VecRestoreArrayF90(field%vy_face_inst,vec_ptr1, &
+        call VecRestoreArray(field%vy_face_inst,vec_ptr1, &
                                 ierr);CHKERRQ(ierr)
       case (3)
-        call VecRestoreArrayF90(field%vz_face_inst,vec_ptr1, &
+        call VecRestoreArray(field%vz_face_inst,vec_ptr1, &
                                 ierr);CHKERRQ(ierr)
     end select
 
@@ -3084,9 +3031,6 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
   use Option_module, only : option_type
   use Output_Aux_module, only : output_option_type
   use PFLOTRAN_Provenance_module, only : provenance_max_str_len
-
-  use hdf5
-  use HDF5_Aux_module
 
   implicit none
 
@@ -3127,9 +3071,6 @@ subroutine OutputHDF5Provenance_PFLOTRAN(option, provenance_id, string_type)
 
   use Option_module, only : option_type
   use PFLOTRAN_Provenance_module
-
-  use hdf5
-  use HDF5_Aux_module
 
   implicit none
 
@@ -3200,7 +3141,6 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
   ! into a buffer, then write the buffer as a pflotran provenance
   ! group dataset.
   !
-  use hdf5
   use Input_Aux_module, only : input_type, InputCreate, InputDestroy, &
        InputGetLineCount, InputReadToBuffer
   use Option_module, only : option_type
@@ -3243,8 +3183,6 @@ subroutine OutputHDF5Provenance_PETSc(provenance_id, string_type, option)
   !
 
   use PFLOTRAN_Provenance_module
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -3293,8 +3231,6 @@ subroutine OutputHDF5AttributeStringArray(parent_id, type, name, length, data)
   ! create the dataspaces and attributes consisting of an array of
   ! strings, then write the data and cleanup
 
-  use hdf5
-
   implicit none
 
   integer(HID_T), intent(in) ::  parent_id, type
@@ -3326,8 +3262,6 @@ end subroutine OutputHDF5AttributeStringArray
 subroutine OutputHDF5DatasetStringArray(parent_id, type, name, length, data)
   ! create the dataspaces and dataset consisting of an array of
   ! strings, then write the data and cleanup
-
-  use hdf5
 
   implicit none
 
@@ -3364,7 +3298,6 @@ subroutine OutputHDF5WriteSnapShotAtts(parent_id,option)
   ! Author: Glenn Hammond
   ! Date: 07/31/19
   !
-  use hdf5
   use Option_module
 
   implicit none
@@ -3413,12 +3346,6 @@ subroutine OutputHDF5PrintRegionsStructured(realization_base)
   use Region_module
   use String_module
   use Variables_module, only : MATERIAL_ID
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module
-  use HDF5_Aux_module
 
   implicit none
 
@@ -3469,11 +3396,11 @@ subroutine OutputHDF5PrintRegionsStructured(realization_base)
   do
     if (.not.associated(cur_region)) exit
     call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     do i = 1, cur_region%num_cells
       vec_ptr(cur_region%cell_ids(i)) = vec_ptr(cur_region%cell_ids(i)) + 1.d0
     enddo
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     string = 'region_' // trim(cur_region%name)
     call HDF5WriteStructDataSetFromVec(string,realization_base, &
                                        field%work,grp_id, &
@@ -3495,10 +3422,6 @@ subroutine OutputHDF5PrintRegionsXMF(realization_base)
   ! Author: Glenn Hammond
   ! Date: 10/19/19
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use HDF5_module
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Option_module
@@ -3592,11 +3515,11 @@ subroutine OutputHDF5PrintRegionsXMF(realization_base)
   do
     if (.not.associated(cur_region)) exit
     call VecZeroEntries(one_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(one_vec,one_ptr,ierr);CHKERRQ(ierr)
     do i = 1, cur_region%num_cells
       one_ptr(cur_region%cell_ids(i)) = one_ptr(cur_region%cell_ids(i)) + 1.d0
     enddo
-    call VecRestoreArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(one_vec,one_ptr,ierr);CHKERRQ(ierr)
     call VecAXPY(all_vec,1.d0,one_vec,ierr);CHKERRQ(ierr)
 
     string = cur_region%name
@@ -3614,8 +3537,8 @@ subroutine OutputHDF5PrintRegionsXMF(realization_base)
     endif
     cur_region => cur_region%next
   enddo
-  call VecGetArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(all_vec,one_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(all_vec,one_ptr,ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToNatural(discretization,all_vec, &
                                      natural_vec,ONEDOF)
   string = 'All Regions'
@@ -3654,8 +3577,6 @@ subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
   ! Author: Glenn Hammond
   ! Date: 10/19/19
   !
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -3690,8 +3611,6 @@ subroutine OutputH5CloseFile(option, h5file, file_id)
   ! Author: Glenn Hammond
   ! Date: 10/19/19
   !
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -3739,8 +3658,6 @@ subroutine OutputH5OpenGroup(option, group_name, file_id, grp_id)
   ! Author: Glenn Hammond
   ! Date: 10/19/19
   !
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none
@@ -3763,8 +3680,6 @@ subroutine OutputH5CloseGroup(option,grp_id)
   ! Author: Glenn Hammond
   ! Date: 10/19/19
   !
-  use hdf5
-  use HDF5_Aux_module
   use Option_module
 
   implicit none

@@ -22,11 +22,36 @@ module Petsc_Utility_module
     module procedure PetUtilUnloadVecReal
   end interface
 
+  interface PUMSetValues
+    module procedure PUMSetValues1
+    module procedure PUMSetValues2
+    module procedure PUMSetValues3
+  end interface
+
+  interface PUMSetValuesLocal
+    module procedure PUMSetValuesLocal1
+    module procedure PUMSetValuesLocal2
+    module procedure PUMSetValuesLocal3
+  end interface
+
+  interface PUCast
+    module procedure PUCastBoolean
+  end interface
+
   public :: PetUtilMatSVBL, &
             PetUtilVecSVBL, &
             PetUtilLoadVec, &
             PetUtilUnloadVec, &
             PetscUtilCompareMatrices
+
+  public :: PUMSetValue, &
+            PUMSetValues, &
+            PUMSetValuesLocal, &
+            PUMSetValuesBlocked, &
+            PUMSetValuesBlockedLocal
+
+  public :: PetscTestFile, &
+            PUCast
 
 contains
 
@@ -52,8 +77,9 @@ subroutine PetUtilMatSVBL(A,irow,icol,matrix_block,ndof)
 
   ndof_mat = matrix_block(1:ndof,1:ndof)
 
-  call MatSetValuesBlockedLocal(A,1,irow-1,1,icol-1,ndof_mat,ADD_VALUES, &
-                                ierr);CHKERRQ(ierr)
+  call MatSetValuesBlockedLocal(A,1,[irow-1],1,[icol-1], &
+                                reshape(ndof_mat,(/size(ndof_mat)/)), &
+                                ADD_VALUES,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilMatSVBL
 
@@ -103,9 +129,9 @@ subroutine PetUtilLoadVecInt(vec,iarray)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = iarray(:)
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilLoadVecInt
 
@@ -126,9 +152,9 @@ subroutine PetUtilLoadVecReal(vec,rarray)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = rarray(:)
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilLoadVecReal
 
@@ -149,9 +175,9 @@ subroutine PetUtilUnloadVecInt(vec,iarray)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec,vec_ptr,ierr);CHKERRQ(ierr)
   iarray(:) = nint(vec_ptr(:))
-  call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecInt
 
@@ -172,9 +198,9 @@ subroutine PetUtilUnloadVecReal(vec,rarray)
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  call VecGetArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec,vec_ptr,ierr);CHKERRQ(ierr)
   rarray(:) = vec_ptr(:)
-  call VecRestoreArrayReadF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilUnloadVecReal
 
@@ -201,7 +227,7 @@ subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,rtol,row_rtol,option)
 
   PetscInt :: nrow, ncol
   PetscInt, pointer :: irow_ptr(:), icol_ptr(:)
-  PetscReal :: values_a(1,1000), values_b(1,1000)
+  PetscReal :: values_a(1000), values_b(1000)
   PetscReal :: value_a, value_b, scale, row_scale
   PetscBool :: success
   PetscInt :: i, j
@@ -213,8 +239,8 @@ subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,rtol,row_rtol,option)
   PetscInt :: block_size
   PetscErrorCode :: ierr
 
-  call MatGetRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
-                      nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+  call MatGetRowIJ(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                   nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
   if (.not.success) then
     option%io_buffer = 'Error returned from MatGetRowIJF90() in &
       &PetscUtilCompareMatrices. I believe that the type of matrix A is not &
@@ -230,17 +256,17 @@ subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,rtol,row_rtol,option)
     row_cell_natural = nG2A(nL2G(irow_cell_local))
     irow_natural = (row_cell_natural-1)*block_size+mod(i-1,block_size)+1
     ncol = irow_ptr(i+1)-irow_ptr(i)
-    call MatGetValuesLocal(A,ONE_INTEGER,irow,ncol, &
+    call MatGetValuesLocal(A,ONE_INTEGER,[irow],ncol, &
                            icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
                            values_a,ierr);CHKERRQ(ierr)
-    call MatGetValuesLocal(B,ONE_INTEGER,irow,ncol, &
+    call MatGetValuesLocal(B,ONE_INTEGER,[irow],ncol, &
                            icol_ptr(irow_ptr(i)+1:irow_ptr(i+1)), &
                            values_b,ierr);CHKERRQ(ierr)
     do j = 1, ncol
-      value_a = values_a(1,j)
-      value_b = values_b(1,j)
-      row_scale = max(maxval(dabs(values_a(1,1:ncol))), &
-                      maxval(dabs(values_b(1,1:ncol))))
+      value_a = values_a(j)
+      value_b = values_b(j)
+      row_scale = max(maxval(dabs(values_a(1:ncol))), &
+                      maxval(dabs(values_b(1:ncol))))
       scale = max(dabs(value_a),dabs(value_b))
       if (scale > 0.d0) then
         if (dabs(value_a - value_b)/scale > rtol .and. &
@@ -258,9 +284,273 @@ subroutine PetscUtilCompareMatrices(A,B,nL2G,nG2A,rtol,row_rtol,option)
       endif
     enddo
   enddo
-  call MatRestoreRowIJF90(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
-                          nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
+  call MatRestoreRowIJ(A,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
+                       nrow,irow_ptr,icol_ptr,success,ierr);CHKERRQ(ierr)
 
 end subroutine PetscUtilCompareMatrices
+
+! ************************************************************************** !
+
+subroutine PUMSetValue(A,irow,icol,scalar, &
+                       insert_mode,ierr)
+  !
+  ! Maps to MatSetValue()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: irow
+  PetscInt :: icol
+  PetscReal :: scalar
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValue(A,irow,icol,scalar,insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValue
+
+! ************************************************************************** !
+
+subroutine PUMSetValues1(A,nrow,irow,ncol,icol,scalar, &
+                         insert_mode,ierr)
+  !
+  ! Maps to MatSetValues()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol
+  PetscReal :: scalar
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValues(A,nrow,[irow],ncol,[icol],[scalar], &
+                    insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValues1
+
+! ************************************************************************** !
+
+subroutine PUMSetValues2(A,nrow,irow,ncol,icol,array1d, &
+                         insert_mode,ierr)
+  !
+  ! Maps to MatSetValues()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol(:)
+  PetscReal :: array1d(:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValues(A,nrow,[irow],ncol,icol,array1d, &
+                    insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValues2
+
+! ************************************************************************** !
+
+subroutine PUMSetValues3(A,nrow,irow,ncol,icol,array1d, &
+                         insert_mode,ierr)
+  !
+  ! Maps to MatSetValues()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow(:)
+  PetscInt :: ncol
+  PetscInt :: icol(:)
+  PetscReal :: array1d(:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValues(A,nrow,irow,ncol,icol,array1d, &
+                    insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValues3
+
+! ************************************************************************** !
+
+subroutine PUMSetValuesLocal1(A,nrow,irow,ncol,icol,scalar, &
+                              insert_mode,ierr)
+  !
+  ! Maps to MatSetValuesLocal()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol
+  PetscReal :: scalar
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValuesLocal(A,nrow,[irow],ncol,[icol],[scalar], &
+                         insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValuesLocal1
+
+! ************************************************************************** !
+
+subroutine PUMSetValuesLocal2(A,nrow,irow,ncol,icol,array2d, &
+                              insert_mode,ierr)
+  !
+  ! Maps to MatSetValuesLocal()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol
+  PetscReal :: array2d(:,:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValuesLocal(A,nrow,[irow],ncol,[icol], &
+                         reshape(array2d,(/size(array2d)/)), &
+                         insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValuesLocal2
+
+! ************************************************************************** !
+
+subroutine PUMSetValuesLocal3(A,nrow,irow,ncol,icol,array1d, &
+                              insert_mode,ierr)
+  !
+  ! Maps to MatSetValuesLocal()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol(:)
+  PetscReal :: array1d(:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValuesLocal(A,nrow,[irow],ncol,icol,array1d, &
+                         insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValuesLocal3
+
+! ************************************************************************** !
+
+subroutine PUMSetValuesBlocked(A,nrow,irow,ncol,icol,matrix_block, &
+                                    insert_mode,ierr)
+  !
+  ! Maps to MatSetValuesBlocked()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol
+  PetscReal :: matrix_block(:,:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValuesBlocked(A,nrow,[irow],ncol,[icol], &
+                           reshape(matrix_block,(/size(matrix_block)/)), &
+                           insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValuesBlocked
+
+! ************************************************************************** !
+
+subroutine PUMSetValuesBlockedLocal(A,nrow,irow,ncol,icol,matrix_block, &
+                                    insert_mode,ierr)
+  !
+  ! Maps to MatSetValuesBlockedLocal()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/06/25
+
+  implicit none
+
+  Mat :: A
+  PetscInt :: nrow
+  PetscInt :: irow
+  PetscInt :: ncol
+  PetscInt :: icol
+  PetscReal :: matrix_block(:,:)
+  type(einsertmode) :: insert_mode
+  PetscErrorCode :: ierr
+
+  call MatSetValuesBlockedLocal(A,nrow,[irow],ncol,[icol], &
+                                reshape(matrix_block,(/size(matrix_block)/)), &
+                                insert_mode,ierr);CHKERRQ(ierr)
+
+end subroutine PUMSetValuesBlockedLocal
+
+! ************************************************************************** !
+
+subroutine PetscTestFile(filename,char,flag,ierr)
+
+  implicit none
+
+  character(len=*) :: filename
+  character(len=*) :: char
+  PetscBool :: flag
+  PetscErrorCode :: ierr
+
+  inquire(file=trim(filename), exist=flag)
+  ierr = 0
+
+end subroutine PetscTestFile
+
+! ************************************************************************** !
+
+function PUCastBoolean(flag)
+
+  implicit none
+
+  logical :: flag
+
+  PetscBool :: PUCastBoolean
+
+  PUCastBoolean = flag
+
+end function PUCastBoolean
 
 end module Petsc_Utility_module

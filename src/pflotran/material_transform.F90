@@ -5,10 +5,8 @@ module Material_Transform_module
   ! Author: Alex Salazar III
   ! Date: 02/25/21
 
-#include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
-
-  use petscsys
+  use petscvec
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -2155,7 +2153,7 @@ subroutine MTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
   ! ----------------------------------
 
   m_transform_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
@@ -2169,7 +2167,7 @@ subroutine MTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
       enddo
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MTransformGetAuxVarVecLoc
 
@@ -2200,7 +2198,7 @@ subroutine MTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
   ! ----------------------------------
 
   m_transform_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
@@ -2212,7 +2210,7 @@ subroutine MTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
       enddo
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MTransformSetAuxVarVecLoc
 

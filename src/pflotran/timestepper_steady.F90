@@ -1,7 +1,8 @@
 module Timestepper_Steady_class
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
   use Solver_module
   use Convergence_module
   use Timestepper_SNES_class
@@ -194,8 +195,6 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   ! Author: Glenn Hammond
   ! Date: 03/19/21
   !
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use Option_module
@@ -260,12 +259,12 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   this%cumulative_linear_iterations = this%cumulative_linear_iterations + &
     num_linear_iterations
 
-  if (snes_reason <= SNES_CONVERGED_ITERATING .or. &
+  if (snes_reason%v <= SNES_CONVERGED_ITERATING%v .or. &
       .not. process_model%AcceptSolution()) then
     call SolverNewtonPrintFailedReason(solver,option)
     if (solver%verbose_logging) then
-      select case(snes_reason)
-        case(SNES_DIVERGED_FNORM_NAN)
+      select case(snes_reason%v)
+        PetscEnumCase(SNES_DIVERGED_FNORM_NAN)
           ! attempt to find cells with NaNs.
           call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
                                PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
@@ -283,7 +282,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
     call Output(process_model%realization_base,snapshot_plot_flag, &
                 observation_plot_flag,massbal_plot_flag)
     option%io_buffer = 'Newton solver failed to converge in steady-state &
-                       &solve: ' // trim(StringWrite(snes_reason))
+                       &solve: ' // trim(StringWrite(snes_reason%v))
     call PrintMsg(option)
     stop_flag = TS_STOP_FAILURE
     return
@@ -296,7 +295,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
 
   call TimestepperBasePrintStepInfo(this,process_model%output_option, &
-                                snes_reason,option)
+                                snes_reason%v,option)
   write(option%io_buffer,'("  newton = ",i3," [",i8,"]", " linear = ",i5, &
                          &" [",i10,"]")') &
            num_newton_iterations,this%cumulative_newton_iterations, &

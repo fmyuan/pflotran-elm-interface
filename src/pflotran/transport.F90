@@ -26,6 +26,8 @@ module Transport_module
   ! for flux limiters below
   interface
     function TFluxLimiterDummy(d)
+      use petscsys
+      implicit none
       PetscReal :: d
       PetscReal :: TFluxLimiterDummy
     end function TFluxLimiterDummy

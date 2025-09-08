@@ -1544,7 +1544,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
 
       sum_area(1:grid%nlmax) = 0.d0
       call VecSet(global_vec,0.d0,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
       ! interior velocities
       connection_set_list => grid%internal_connection_set_list
@@ -1589,7 +1589,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
         boundary_condition => boundary_condition%next
       enddo
 
-      call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
       call VecSum(global_vec,sum,ierr);CHKERRQ(ierr)
       average = sum/real(grid%nmax)
@@ -1700,7 +1700,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
     do direction = 1,3
 
       call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
       ! place interior velocities in a vector
       connection_set_list => grid%internal_connection_set_list
@@ -1720,7 +1720,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
         cur_connection_set => cur_connection_set%next
       enddo
 
-      call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
       ! compute stats
       call VecSum(global_vec,sum,ierr);CHKERRQ(ierr)
@@ -1880,7 +1880,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
       coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &
                                        option)
       call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       if (associated(coupler)) then
         cur_connection_set => coupler%connection_set
         do iconn = 1, cur_connection_set%num_connections
@@ -2083,7 +2083,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
       coupler => CouplerGetPtrFromList(word,patch%boundary_condition_list, &
                                        option)
       call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       if (associated(coupler)) then
         cur_connection_set => coupler%connection_set
         do iconn = 1, cur_connection_set%num_connections
@@ -2092,7 +2092,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
           vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvars(iaux),iconn)
         enddo
       endif
-      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
       if (istep > 0) then
         write(string,*) istep
@@ -2250,20 +2250,20 @@ subroutine OutputAvegVars(realization_base)
 
     ! Cumulatively add the variable*dtime
     ivar = ivar + 1
-    call VecGetArrayF90(field%work,ival_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%avg_vars_vec(ivar),aval_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,ival_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%avg_vars_vec(ivar),aval_p,ierr);CHKERRQ(ierr)
     aval_p = aval_p + ival_p*dtime
-    call VecRestoreArrayF90(field%work,ival_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%avg_vars_vec(ivar),aval_p, &
+    call VecRestoreArray(field%work,ival_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%avg_vars_vec(ivar),aval_p, &
                             ierr);CHKERRQ(ierr)
 
     ! Check if it is time to output the temporally average variable
     if (aveg_plot_flag) then
 
       ! Divide vector values by 'time'
-      call VecGetArrayF90(field%avg_vars_vec(ivar),aval_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%avg_vars_vec(ivar),aval_p,ierr);CHKERRQ(ierr)
       aval_p = aval_p/output_option%periodic_snap_output_time_incr
-      call VecRestoreArrayF90(field%avg_vars_vec(ivar),aval_p, &
+      call VecRestoreArray(field%avg_vars_vec(ivar),aval_p, &
                               ierr);CHKERRQ(ierr)
 
     endif
@@ -2328,7 +2328,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
   iarray = 0
   call VecGetLocalSize(vec,local_size,ierr);CHKERRQ(ierr)
   call VecGetBlockSize(vec,block_size,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec,vec_p,ierr);CHKERRQ(ierr)
   local_count = 0
   do i = 1, local_size
      if (PetscIsInfOrNanReal(vec_p(i))) then
@@ -2341,7 +2341,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
       iarray(2,local_count) = idof
     endif
   enddo
-  call VecRestoreArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec,vec_p,ierr);CHKERRQ(ierr)
 
   exscan_count = 0
   call MPI_Exscan(local_count,exscan_count,ONE_INTEGER_MPI,MPIU_INTEGER, &

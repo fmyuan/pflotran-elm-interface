@@ -1,6 +1,7 @@
 module Geomechanics_Attr_module
 
 #include "petsc/finclude/petscvec.h"
+  use petscvec
   use Geomechanics_Regression_module
   use PMC_Geomechanics_class
   use Geomechanics_Realization_class

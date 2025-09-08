@@ -48,7 +48,7 @@ function StructuredCommunicatorCreate()
   class(structured_communicator_type), pointer :: communicator
 
   allocate(communicator)
-  communicator%dm = PETSC_NULL_DM
+  PetscObjectNullify(communicator%dm)
 
   StructuredCommunicatorCreate => communicator
 
@@ -240,12 +240,12 @@ subroutine StructuredCommunicatorDestroy(this)
 
   class(structured_communicator_type) :: this
 
-  if (this%dm /= PETSC_NULL_DM) then
+  if (.not.PetscObjectIsNull(this%dm)) then
     !geh: all DMs are currently destroyed in realization.  This DM is solely
     !     a pointer.  This will need to change, but skip for now.
     !call DMDestroy(this%dm,ierr)
   endif
-  this%dm = PETSC_NULL_DM
+  PetscObjectNullify(this%dm)
 
 end subroutine StructuredCommunicatorDestroy
 

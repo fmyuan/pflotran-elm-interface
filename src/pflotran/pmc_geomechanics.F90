@@ -1,14 +1,13 @@
 module PMC_Geomechanics_class
 
-#include "petsc/finclude/petscts.h"
-  use petscts
+#include "petsc/finclude/petscmat.h"
+  use petscmat
   use PMC_Base_class
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use PFLOTRAN_Constants_module
 
   implicit none
-
 
   private
 
@@ -313,9 +312,6 @@ subroutine PMCGeomechanicsSetAuxData(this)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Grid_module
   use Discretization_module
@@ -452,16 +448,16 @@ subroutine PMCGeomechanicsSetAuxData(this)
 #endif
 
         ! Strain
-        call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_strain,strain_p, &
                             ierr);CHKERRQ(ierr)
         ! Stress
-        call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_stress,stress_p, &
                             ierr);CHKERRQ(ierr)
 
         if (this%option%geomechanics%geophysics_coupling == &
                                 GEOMECH_ERT_COUPLING) then
           ! stress
-          call VecGetArrayF90(pmc%subsurf_realization%field%work, &
+          call VecGetArray(pmc%subsurf_realization%field%work, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
             vec_ptr(local_id) = 0.d0
@@ -471,13 +467,13 @@ subroutine PMCGeomechanicsSetAuxData(this)
             enddo
             vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
-          call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
+          call VecRestoreArray(pmc%subsurf_realization%field%work, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
           call DiscretizationGlobalToLocal( &
                  pmc%subsurf_realization%discretization, &
                  pmc%subsurf_realization%field%work, &
                  pmc%subsurf_realization%field%work_loc,ONEDOF)
-          call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
+          call VecGetArray(pmc%subsurf_realization%field%work_loc, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           parameter_index = ParameterGetIDFromName('geomechanics_stress', &
                                              pmc%subsurf_realization%option)
@@ -486,10 +482,10 @@ subroutine PMCGeomechanicsSetAuxData(this)
               Global%auxvars(ghosted_id)%parameters(parameter_index) = &
                 vec_ptr(ghosted_id)
           enddo
-          call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
+          call VecRestoreArray(pmc%subsurf_realization%field%work_loc, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
           ! strain
-          call VecGetArrayF90(pmc%subsurf_realization%field%work, &
+          call VecGetArray(pmc%subsurf_realization%field%work, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
             vec_ptr(local_id) = 0.d0
@@ -499,13 +495,13 @@ subroutine PMCGeomechanicsSetAuxData(this)
             enddo
             !vec_ptr(local_id) = vec_ptr(local_id) / 3.d0
           enddo
-          call VecRestoreArrayF90(pmc%subsurf_realization%field%work, &
+          call VecRestoreArray(pmc%subsurf_realization%field%work, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
           call DiscretizationGlobalToLocal( &
                  pmc%subsurf_realization%discretization, &
                  pmc%subsurf_realization%field%work, &
                  pmc%subsurf_realization%field%work_loc,ONEDOF)
-          call VecGetArrayF90(pmc%subsurf_realization%field%work_loc, &
+          call VecGetArray(pmc%subsurf_realization%field%work_loc, &
                               vec_ptr,ierr);CHKERRQ(ierr)
           parameter_index = ParameterGetIDFromName('geomechanics_strain', &
                                              pmc%subsurf_realization%option)
@@ -514,7 +510,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
               Global%auxvars(ghosted_id)%parameters(parameter_index) = &
                 vec_ptr(ghosted_id)
           enddo
-          call VecRestoreArrayF90(pmc%subsurf_realization%field%work_loc, &
+          call VecRestoreArray(pmc%subsurf_realization%field%work_loc, &
                                   vec_ptr,ierr);CHKERRQ(ierr)
         endif
 
@@ -522,16 +518,16 @@ subroutine PMCGeomechanicsSetAuxData(this)
             GEOMECH_TWO_WAY_COUPLED) then
 
           ! Update porosity dataset in sim_aux%subsurf_por
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_por0,por0_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,ierr);CHKERRQ(ierr)
+          call VecGetArray(pmc%sim_aux%subsurf_por,por_p,ierr);CHKERRQ(ierr)
           ! Perm
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_perm0,perm0_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_perm,perm_p, &
                               ierr);CHKERRQ(ierr)
           ! Flow
-          call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
+          call VecGetArray(pmc%subsurf_realization%field%flow_xx,press_p, &
                               ierr);CHKERRQ(ierr)
 
 
@@ -557,22 +553,22 @@ subroutine PMCGeomechanicsSetAuxData(this)
             perm_p(local_id) = perm_new
           enddo
 
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_por0,por0_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_por,por_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx,press_p, &
+          call VecRestoreArray(pmc%subsurf_realization%field%flow_xx,press_p, &
                                   ierr);CHKERRQ(ierr)
 
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_perm0,perm0_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_perm,perm_p, &
                                   ierr);CHKERRQ(ierr)
         endif
 
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_stress,stress_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_strain,strain_p, &
                                 ierr);CHKERRQ(ierr)
 
         call VecDestroy(geomech_vec,ierr);CHKERRQ(ierr)
@@ -595,8 +591,6 @@ subroutine PMCGeomechanicsGetAuxData(this)
   ! Date: 01/01/14
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Geomechanics_Discretization_module
   use Geomechanics_Force_module

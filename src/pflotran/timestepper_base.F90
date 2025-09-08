@@ -939,6 +939,9 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 07/30/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
+
   use Option_module
 
   implicit none
@@ -978,6 +981,8 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 07/25/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Option_module
 

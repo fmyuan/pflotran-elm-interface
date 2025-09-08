@@ -191,7 +191,7 @@ subroutine PMWIPPFloInitObject(this)
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
   this%gas_sat_gov_switch_abs_to_rel = 0.01d0   ! [-]
   this%minimum_timestep_size = 8.64d-4  ! [sec]
-  this%stored_residual_vec = PETSC_NULL_VEC
+  PetscObjectNullify(this%stored_residual_vec)
   this%alpha_dataset_name = ''
   this%elevation_dataset_name = ''
   this%rotation_angle = UNINITIALIZED_DOUBLE
@@ -209,7 +209,7 @@ subroutine PMWIPPFloInitObject(this)
   this%scale_linear_system = PETSC_FALSE
   this%newtontrdc_inner_iter_num = 0
   this%newtontrdc_prev_iter_num = 0
-  this%scaling_vec = PETSC_NULL_VEC
+  PetscObjectNullify(this%scaling_vec)
   nullify(this%dirichlet_dofs_ghosted)
   nullify(this%dirichlet_dofs_ints)
   nullify(this%dirichlet_dofs_local)
@@ -746,7 +746,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   endif
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
+  call VecDuplicateVecs(field%work,SIX_INTEGER,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
   do i = 1, 3
@@ -785,13 +785,13 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
+        call VecGetArrayRead(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, grid%ngmax
           do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(field%work_loc,work_loc_p, &
+        call VecRestoreArrayRead(field%work_loc,work_loc_p, &
                                     ierr);CHKERRQ(ierr)
       class default
         option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
@@ -823,13 +823,13 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
+        call VecGetArrayRead(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, patch%grid%ngmax
           do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(field%work_loc,work_loc_p, &
+        call VecRestoreArrayRead(field%work_loc,work_loc_p, &
                                     ierr);CHKERRQ(ierr)
       class default
         option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
@@ -841,7 +841,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       option%io_buffer = 'An origin must be defined for dip rotation.'
       call PrintErrMsg(option)
     endif
-    call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,work_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
@@ -881,15 +881,15 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         enddo
       enddo
     endif
-    call VecRestoreArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,work_p,ierr);CHKERRQ(ierr)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-    call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
     enddo
-    call VecRestoreArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
@@ -922,7 +922,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
     zref2 = this%auto_press_shallow_origin(3)
     Phiref2 =  zref2 + 0  ! the second term is always zero because Pbref = Pb02
-    call VecGetArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     nmat_id = size(this%auto_pressure_material_ids)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -955,7 +955,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         flow_xx_p((local_id-1)*ndof+WIPPFLO_GAS_SATURATION_DOF) = 0.d0
       endif
     enddo
-    call VecRestoreArrayF90(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%flow_xx,flow_xx_p,ierr);CHKERRQ(ierr)
     ! have to ensure the auxvars are updated for initial condition output
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      field%flow_xx,field%flow_xx_loc,NFLOWDOF)
@@ -1317,11 +1317,11 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_local)) then
-    call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
     do i = 1, size(this%dirichlet_dofs_local)
       r_p(this%dirichlet_dofs_local(i)) = 0.d0
     enddo
-    call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
   endif
 
   call VecCopy(r,this%stored_residual_vec,ierr);CHKERRQ(ierr)
@@ -1355,6 +1355,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   use Debug_module
   use Option_module
   use Field_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -1390,11 +1391,11 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     call VecDuplicate(this%stored_residual_vec,diagonal_vec, &
                       ierr);CHKERRQ(ierr)
     call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
     do i = 1, size(this%dirichlet_dofs_local)
       diagonal_values(i) = vec_p(this%dirichlet_dofs_local(i)) * 1.d8 + 1.d8
     enddo
-    call VecRestoreArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
     call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
     i = size(this%dirichlet_dofs_ghosted)
     norm = 1.d0
@@ -1405,7 +1406,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     do i = 1, size(this%dirichlet_dofs_ghosted)
       irow = this%dirichlet_dofs_ghosted(i)
       array(1,1) = diagonal_values(i)
-      call MatSetValuesLocal(A,1,irow,1,irow,array,INSERT_VALUES, &
+      call PUMSetValuesLocal(A,1,irow,1,irow,array,INSERT_VALUES, &
                              ierr);CHKERRQ(ierr)
     enddo
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1425,12 +1426,12 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
 
   if (option%flow%scale_all_pressure) then
     call VecSet(field%flow_work_loc,1.d0,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%flow_work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%flow_work_loc,vec_p,ierr);CHKERRQ(ierr)
     do irow = 1, size(vec_p), 2
       vec_p(irow) = option%flow%pressure_scaling_factor  ! scale pressure
     ! vec_p(irow+1) = vec_p(irow+1)  ! keep saturation as is. -hdp
     enddo
-    call VecRestoreArrayF90(field%flow_work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%flow_work_loc,vec_p,ierr);CHKERRQ(ierr)
     !call MatDiagonalScaleLocal(A,field%flow_work_loc,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,PETSC_NULL_VEC,field%flow_work_loc, &
                           ierr);CHKERRQ(ierr)
@@ -1439,14 +1440,14 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   if (this%scale_linear_system) then
     call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
     call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
     do irow = 1, matsize, 2
       vec_p(irow) = this%linear_system_scaling_factor
     enddo
-    call VecRestoreArrayF90(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(this%scaling_vec,vec_p,ierr);CHKERRQ(ierr)
     call MatDiagonalScale(A,PETSC_NULL_VEC,this%scaling_vec, &
                           ierr);CHKERRQ(ierr)
-    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER, &
+    call MatGetRowMaxAbs(A,this%scaling_vec,PETSC_NULL_INTEGER_ARRAY, &
                          ierr);CHKERRQ(ierr)
 
     call VecReciprocal(this%scaling_vec,ierr);CHKERRQ(ierr)
@@ -1616,7 +1617,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_TRUE
   X1_changed = PETSC_TRUE
 
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_update) then
     open(IUNIT_TEMP,file='pf_update.txt')
     do i = 1, grid%nlmax*2
@@ -1624,7 +1625,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     enddo
     close(IUNIT_TEMP)
   endif
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_solution) then
     open(IUNIT_TEMP,file='pf_solution.txt')
     do i = 1, grid%nlmax*2
@@ -1632,7 +1633,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     enddo
     close(IUNIT_TEMP)
   endif
-  call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(X1,X1_p,ierr);CHKERRQ(ierr)
 
   ! if the solution is scaled, then it must be scaled back
   if (option%flow%scale_all_pressure) then
@@ -1645,9 +1646,9 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr, &
+  call VecGetArrayRead(field%max_change_vecs(1),press_ptr, &
                           ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%max_change_vecs(3),sat_ptr, &
+  call VecGetArrayRead(field%max_change_vecs(3),sat_ptr, &
                           ierr);CHKERRQ(ierr)
   converged_liquid_pressure = PETSC_TRUE
   converged_gas_saturation = PETSC_TRUE
@@ -1858,12 +1859,12 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     enddo
   endif
 
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
+  call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(X1,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%max_change_vecs(1),press_ptr, &
                               ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(3),sat_ptr, &
+  call VecRestoreArrayRead(field%max_change_vecs(3),sat_ptr, &
                               ierr);CHKERRQ(ierr)
 
 end subroutine PMWIPPFloCheckUpdatePost
@@ -1967,7 +1968,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   endif
 
   ! check residual terms
-  if (this%stored_residual_vec == PETSC_NULL_VEC) then
+  if (PetscObjectIsNull(this%stored_residual_vec)) then
     residual_vec = field%flow_r
   else
     ! this vector is to be used if linear system scaling is employed when
@@ -1975,7 +1976,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     ! residual.
     residual_vec = this%stored_residual_vec
   endif
-  call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(residual_vec,r_p,ierr);CHKERRQ(ierr)
   if (wippflo_print_residual) then
     open(IUNIT_TEMP,file='pf_residual.txt')
     do i = 1, grid%nlmax*2
@@ -1983,8 +1984,8 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
     enddo
     close(IUNIT_TEMP)
   endif
-  call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
   converged_liquid_equation = PETSC_TRUE
   converged_gas_equation = PETSC_TRUE
   max_normal_res_liq_ = 0.d0
@@ -2340,9 +2341,9 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   endif
   option%convergence = converged_flag
 
-  call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(residual_vec,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
@@ -2485,8 +2486,8 @@ subroutine PMWIPPFloMaxChange(this)
                                 this%max_change_ivar(i),ZERO_INTEGER)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
-    call VecGetArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+    call VecGetArray(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%max_change_vecs(i),vec_old_ptr, &
                         ierr);CHKERRQ(ierr)
     max_change = 0.d0
     do j = 1, grid%nlmax
@@ -2505,8 +2506,8 @@ subroutine PMWIPPFloMaxChange(this)
       endif
     enddo
     max_change_local(i) = max_change
-    call VecRestoreArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%max_change_vecs(i),vec_old_ptr, &
+    call VecRestoreArray(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%max_change_vecs(i),vec_old_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
@@ -2582,7 +2583,6 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
   use Global_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_wippflo_type) :: this
   PetscViewer :: viewer
@@ -2643,7 +2643,6 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
   use Option_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
@@ -2741,10 +2740,10 @@ subroutine PMWIPPFloDestroy(this)
   call DeallocateArray(this%max_change_ivar)
   call DeallocateArray(this%rotation_region_names)
   call DeallocateArray(this%auto_pressure_material_ids)
-  if (this%stored_residual_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%stored_residual_vec)) then
     call VecDestroy(this%stored_residual_vec,ierr);CHKERRQ(ierr)
   endif
-  if (this%scaling_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(this%scaling_vec)) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
   if (associated(this%dirichlet_dofs_ghosted)) then

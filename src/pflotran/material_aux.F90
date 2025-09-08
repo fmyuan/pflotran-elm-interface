@@ -113,6 +113,7 @@ module Material_Aux_module
   interface
     subroutine MaterialCompressSoilDummy(auxvar,pressure,compressed_porosity, &
                                          dcompressed_porosity_dp)
+    use petscsys
     import material_auxvar_type
     implicit none
     type(material_auxvar_type), intent(in) :: auxvar

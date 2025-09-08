@@ -954,7 +954,7 @@ recursive subroutine PMHydrateInitializeRun(this)
   PetscErrorCode :: ierr
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,NINE_INTEGER, &
+  call VecDuplicateVecs(this%realization%field%work,NINE_INTEGER, &
                            this%realization%field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
@@ -1318,9 +1318,9 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   sid = option%salt_id
 
   call VecCopy(dX,field%flow_dxx,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
+  call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X,X_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
 
   dX_p = -1.d0 * dX_p
   dX_p2 = -1.d0 * dX_p2
@@ -1928,9 +1928,9 @@ subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   dX_p = -1.d0 * dX_p
 
-  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X,X_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_dxx,dX_p2,ierr);CHKERRQ(ierr)
 
 end subroutine PMHydrateCheckUpdatePre
 
@@ -1994,8 +1994,8 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
   converged_abs_update_flag = PETSC_TRUE
   converged_rel_update_flag = PETSC_TRUE
   converged_abs_update_cell = ZERO_INTEGER
@@ -2052,8 +2052,8 @@ subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       enddo
     enddo
   endif
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
 
   this%converged_flag(:,:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:,:)
   this%converged_flag(:,:,REL_UPDATE_INDEX) = converged_rel_update_flag(:,:)
@@ -2208,9 +2208,9 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   converged_well = PETSC_TRUE
 
   if (this%check_post_convergence) then
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
     converged_abs_residual_flag = PETSC_TRUE
     converged_abs_residual_real = 0.d0
     converged_abs_residual_cell = ZERO_INTEGER
@@ -2917,10 +2917,10 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       enddo
     endif
 
-    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
+    call VecRestoreArrayRead(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%flow_accum2,accum2_p, &
                                 ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%flow_dxx,dX_p,ierr);CHKERRQ(ierr)
 
     this%converged_flag(:,:,RESIDUAL_INDEX) = converged_abs_residual_flag(:,:)
     this%converged_real(:,:,RESIDUAL_INDEX) = converged_abs_residual_real(:,:)
@@ -2938,7 +2938,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     mpi_int = 242
     ! do not perform an all reduce on cell id as this info is not printed
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_LOGICAL,MPI_LAND, &
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int,MPI_C_BOOL,MPI_LAND, &
                        option%mycomm,ierr);CHKERRQ(ierr)
     this%converged_flag = reshape(flags(1:60*MAX_INDEX),(/4,15,MAX_INDEX/))
     hydrate_high_temp_ts_cut = .not.flags(241)
@@ -3019,7 +3019,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
     endif
 
     call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
-                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+                       MPI_C_BOOL,MPI_LOR,option%mycomm,ierr)
     if (hydrate_force_iteration) then
       if (.not.hydrate_newtontrdc_hold_inner) then
         option%convergence = CONVERGENCE_BREAKOUT_INNER_ITER
@@ -3070,7 +3070,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       cur_well => this%pmwell_ptr
       do
         if (.not. associated(cur_well)) exit
-        call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_LOGICAL, &
+        call MPI_Bcast(cur_well%pressure_controlled,ONE_INTEGER,MPI_C_BOOL, &
                         cur_well%well_grid%h_rank_id( &
                           cur_well%well_grid%bottom_seg_index), &
                         cur_well%option%mycomm, &
@@ -3207,8 +3207,8 @@ subroutine PMHydrateMaxChange(this)
                                 this%max_change_isubvar(i))
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
     ! to customize
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
     max_change = 0.d0
     if (i==1 .and. hyd_chk_max_dpl_liq_state_only) then
       do j = 1,grid%nlmax
@@ -3227,8 +3227,8 @@ subroutine PMHydrateMaxChange(this)
     enddo
 
     max_change_local(i) = max_change
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+    call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%max_change_vecs(i),vec_ptr2, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
@@ -3320,7 +3320,6 @@ subroutine PMHydrateCheckpointBinary(this,viewer)
   use Global_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_hydrate_type) :: this
   PetscViewer :: viewer
@@ -3342,7 +3341,6 @@ subroutine PMHydrateRestartBinary(this,viewer)
   use Global_module
 
   implicit none
-#include "petsc/finclude/petscviewer.h"
 
   class(pm_hydrate_type) :: this
   PetscViewer :: viewer

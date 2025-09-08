@@ -52,10 +52,10 @@ function RegressionCreate()
   regression%num_cells_per_process = 0
   regression%all_cells = PETSC_FALSE
   nullify(regression%cells_per_process_natural_ids)
-  regression%natural_cell_id_vec = PETSC_NULL_VEC
-  regression%cells_per_process_vec =  PETSC_NULL_VEC
-  regression%scatter_natural_cell_id_gtos = PETSC_NULL_VECSCATTER
-  regression%scatter_cells_per_process_gtos = PETSC_NULL_VECSCATTER
+  PetscObjectNullify(regression%natural_cell_id_vec)
+  PetscObjectNullify(regression%cells_per_process_vec)
+  PetscObjectNullify(regression%scatter_natural_cell_id_gtos)
+  PetscObjectNullify(regression%scatter_cells_per_process_gtos)
   nullify(regression%next)
   RegressionCreate => regression
 
@@ -86,6 +86,7 @@ subroutine RegressionRead(regression,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: count, max_cells
   PetscInt, pointer :: int_array(:)
+  PetscCount :: sortcount
   PetscErrorCode :: ierr
 
   regression => RegressionCreate()
@@ -129,7 +130,8 @@ subroutine RegressionRead(regression,input,option)
         call InputPopBlock(input,option)
         allocate(regression%natural_cell_ids(count))
         regression%natural_cell_ids = int_array(1:count)
-        call PetscSortInt(count,regression%natural_cell_ids, &
+        sortcount = count
+        call PetscSortInt(sortcount,regression%natural_cell_ids, &
                           ierr);CHKERRQ(ierr)
         deallocate(int_array)
       case('CELLS_PER_PROCESS')
@@ -343,12 +345,12 @@ subroutine RegressionCreateMapping(regression,realization)
     call VecSetFromOptions(temp_vec,ierr);CHKERRQ(ierr)
 
     ! calculate interval
-    call VecGetArrayF90(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
     temp_int = grid%nlmax / regression%num_cells_per_process
     do i = 1, regression%num_cells_per_process
       vec_ptr(i) = temp_int*(i-1) + 1 + grid%global_offset
     enddo
-    call VecRestoreArrayF90(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     ! create temporary scatter to transfer values to io_rank
     if (OptionIsIORank(option)) then
@@ -383,12 +385,12 @@ subroutine RegressionCreateMapping(regression,realization)
     ! transfer cell ids into array for creating new scatter
     if (OptionIsIORank(option)) then
       count = option%comm%size*regression%num_cells_per_process
-      call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
+      call VecGetArray(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, count
         int_array(i) = nint(vec_ptr(i)) ! tolerance to ensure int value
       enddo
-      call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &
+      call VecRestoreArray(regression%cells_per_process_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
       ! convert to zero based
       int_array = int_array - 1
@@ -426,11 +428,11 @@ subroutine RegressionCreateMapping(regression,realization)
                regression%num_cells_per_process*option%comm%size))
     endif
 
-    call VecGetArrayF90(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
     enddo
-    call VecRestoreArrayF90(realization%field%work,vec_ptr, &
+    call VecRestoreArray(realization%field%work,vec_ptr, &
                             ierr);CHKERRQ(ierr)
 
     call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
@@ -443,10 +445,10 @@ subroutine RegressionCreateMapping(regression,realization)
                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
     if (OptionIsIORank(option)) then
-      call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
+      call VecGetArray(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       regression%cells_per_process_natural_ids(:) = nint(vec_ptr(:))
-      call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &
+      call VecRestoreArray(regression%cells_per_process_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
     endif
 
@@ -561,7 +563,7 @@ subroutine RegressionOutputData(fid_out,regression,realization)
       ! natural cell ids
       if (associated(regression%natural_cell_ids)) then
         if (size(regression%natural_cell_ids) > 0) then
-          call VecGetArrayF90(regression%natural_cell_id_vec,vec_ptr, &
+          call VecGetArray(regression%natural_cell_id_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
           if (cur_variable%iformat == 0) then
             do i = 1, size(regression%natural_cell_ids)
@@ -574,14 +576,14 @@ subroutine RegressionOutputData(fid_out,regression,realization)
                 regression%natural_cell_ids(i),nint(vec_ptr(i))
             enddo
           endif
-          call VecRestoreArrayF90(regression%natural_cell_id_vec,vec_ptr, &
+          call VecRestoreArray(regression%natural_cell_id_vec,vec_ptr, &
                                   ierr);CHKERRQ(ierr)
         endif
       endif
 
       ! cell ids per process
       if (regression%num_cells_per_process > 0) then
-        call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
+        call VecGetArray(regression%cells_per_process_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
         if (cur_variable%iformat == 0) then
           do i = 1, regression%num_cells_per_process*option%comm%size
@@ -594,7 +596,7 @@ subroutine RegressionOutputData(fid_out,regression,realization)
               regression%cells_per_process_natural_ids(i),nint(vec_ptr(i))
           enddo
         endif
-        call VecRestoreArrayF90(regression%cells_per_process_vec,vec_ptr, &
+        call VecRestoreArray(regression%cells_per_process_vec,vec_ptr, &
                                 ierr);CHKERRQ(ierr)
       endif
     endif
@@ -705,33 +707,33 @@ subroutine RegressionOutputData(fid_out,regression,realization)
         if (OptionIsIORank(option)) then
           if (associated(regression%natural_cell_ids)) then
             if (size(regression%natural_cell_ids) > 0) then
-              call VecGetArrayF90(x_vel_natural,vec_ptr,ierr);CHKERRQ(ierr)
-              call VecGetArrayF90(y_vel_natural,y_ptr,ierr);CHKERRQ(ierr)
-              call VecGetArrayF90(z_vel_natural,z_ptr,ierr);CHKERRQ(ierr)
+              call VecGetArray(x_vel_natural,vec_ptr,ierr);CHKERRQ(ierr)
+              call VecGetArray(y_vel_natural,y_ptr,ierr);CHKERRQ(ierr)
+              call VecGetArray(z_vel_natural,z_ptr,ierr);CHKERRQ(ierr)
               do i = 1, size(regression%natural_cell_ids)
                 write(fid_out,104) &
                   regression%natural_cell_ids(i),vec_ptr(i),y_ptr(i),z_ptr(i)
               enddo
-              call VecRestoreArrayF90(x_vel_natural,vec_ptr, &
+              call VecRestoreArray(x_vel_natural,vec_ptr, &
                                       ierr);CHKERRQ(ierr)
-              call VecRestoreArrayF90(y_vel_natural,y_ptr,ierr);CHKERRQ(ierr)
-              call VecRestoreArrayF90(z_vel_natural,z_ptr,ierr);CHKERRQ(ierr)
+              call VecRestoreArray(y_vel_natural,y_ptr,ierr);CHKERRQ(ierr)
+              call VecRestoreArray(z_vel_natural,z_ptr,ierr);CHKERRQ(ierr)
             endif
           endif
 
           ! cell ids per process
           if (regression%num_cells_per_process > 0) then
-            call VecGetArrayF90(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
-            call VecGetArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
-            call VecGetArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
+            call VecGetArray(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
+            call VecGetArray(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
+            call VecGetArray(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
             do i = 1, regression%num_cells_per_process*option%comm%size
               write(fid_out,104) &
                 regression%cells_per_process_natural_ids(i),vec_ptr(i), &
                   y_ptr(i),z_ptr(i)
             enddo
-            call VecRestoreArrayF90(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
-            call VecRestoreArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
-            call VecRestoreArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
+            call VecRestoreArray(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
+            call VecRestoreArray(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
+            call VecRestoreArray(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
           endif
         endif
       endif
@@ -920,17 +922,17 @@ subroutine RegressionDestroy(regression)
   call DeallocateArray(regression%natural_cell_ids)
   regression%num_cells_per_process = 0
   call DeallocateArray(regression%cells_per_process_natural_ids)
-  if (regression%natural_cell_id_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(regression%natural_cell_id_vec)) then
     call VecDestroy(regression%natural_cell_id_vec,ierr);CHKERRQ(ierr)
   endif
-  if (regression%cells_per_process_vec /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(regression%cells_per_process_vec)) then
     call VecDestroy(regression%cells_per_process_vec,ierr);CHKERRQ(ierr)
   endif
-  if (regression%scatter_natural_cell_id_gtos /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(regression%scatter_natural_cell_id_gtos)) then
     call VecScatterDestroy(regression%scatter_natural_cell_id_gtos, &
                            ierr);CHKERRQ(ierr)
   endif
-  if (regression%scatter_cells_per_process_gtos /= PETSC_NULL_VECSCATTER) then
+  if (.not.PetscObjectIsNull(regression%scatter_cells_per_process_gtos)) then
     call VecScatterDestroy(regression%scatter_cells_per_process_gtos, &
                            ierr);CHKERRQ(ierr)
   endif

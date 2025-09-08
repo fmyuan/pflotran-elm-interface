@@ -356,34 +356,34 @@ subroutine InitSubsurfAssignMatProperties(realization)
   patch => realization%patch
   grid => patch%grid
 
-  tort_yy = PETSC_NULL_VEC
-  tort_zz = PETSC_NULL_VEC
+  PetscObjectNullify(tort_yy)
+  PetscObjectNullify(tort_zz)
 
   ! set cell by cell material properties
   ! create null material property for inactive cells
   null_material_property => MaterialPropertyCreate(option)
   if (option%nflowdof > 0) then
-    call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
     if (option%flow%full_perm_tensor) then
-      call VecGetArrayF90(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
     endif
     if (soil_compressibility_index > 0) then
-      call VecGetArrayF90(field%compressibility0,compress_p, &
+      call VecGetArray(field%compressibility0,compress_p, &
                           ierr);CHKERRQ(ierr)
     endif
   endif
-  call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   if (option%transport%anisotropic_tortuosity) then
     call VecDuplicate(field%tortuosity0,tort_yy,ierr);CHKERRQ(ierr)
     call VecDuplicate(field%tortuosity0,tort_zz,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
   endif
-  call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
 
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
@@ -542,24 +542,24 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call MaterialPropertyDestroy(null_material_property)
 
   if (option%nflowdof > 0) then
-    call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
     if (option%flow%full_perm_tensor) then
-      call VecRestoreArrayF90(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
     endif
     if (soil_compressibility_index > 0) then
-      call VecRestoreArrayF90(field%compressibility0,compress_p, &
+      call VecRestoreArray(field%compressibility0,compress_p, &
                               ierr);CHKERRQ(ierr)
     endif
   endif
-  call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
   if (option%transport%anisotropic_tortuosity) then
-    call VecRestoreArrayF90(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(tort_yy,tort_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(tort_zz,tort_zz_p,ierr);CHKERRQ(ierr)
   endif
 
   ! read in any user-defined property fields
@@ -580,10 +580,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                     field%porosity0)
         ! if tortuosity is a function of porosity, we must calculate the
         ! the tortuosity on a cell to cell basis.
-        if (field%tortuosity0 /= PETSC_NULL_VEC .and. &
+        if (.not.PetscObjectIsNull(field%tortuosity0) .and. &
             material_property%tortuosity_function_of_porosity) then
-          call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+          call VecGetArray(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
+          call VecGetArray(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
           do local_id = 1, grid%nlmax
             ghosted_id = grid%nL2G(local_id)
             if (patch%imat(ghosted_id) == material_property%internal_id) then
@@ -591,8 +591,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
                 material_property%tortuosity_func_porosity_pwr
             endif
           enddo
-          call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(field%tortuosity0,tor0_p, &
+          call VecRestoreArray(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
+          call VecRestoreArray(field%tortuosity0,tor0_p, &
                                   ierr);CHKERRQ(ierr)
         endif
       endif
@@ -717,67 +717,67 @@ subroutine InitSubsurfAssignMatProperties(realization)
 
   ! copy rock properties to neighboring ghost cells
   do i = 1, max_material_index
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
           material_auxvars(patch%grid%nL2G(local_id))%soil_properties(i)
     enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
-    call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, patch%grid%ngmax
       material_auxvars(ghosted_id)%soil_properties(i) = &
          vec_p(ghosted_id)
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
 
   if (option%use_sc) then
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
           material_auxvars(patch%grid%nL2G(local_id))%secondary_prop%epsilon
     enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
-    call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, patch%grid%ngmax
       material_auxvars(ghosted_id)%secondary_prop%epsilon = &
          vec_p(ghosted_id)
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
           material_auxvars(patch%grid%nL2G(local_id))%secondary_prop%half_matrix_width
     enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
-    call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, patch%grid%ngmax
       material_auxvars(ghosted_id)%secondary_prop%half_matrix_width = &
          vec_p(ghosted_id)
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
 
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     do local_id = 1, patch%grid%nlmax
       vec_p(local_id) = &
           material_auxvars(patch%grid%nL2G(local_id))%secondary_prop%ncells
     enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work,vec_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
-    call VecGetArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, patch%grid%ngmax
       material_auxvars(ghosted_id)%secondary_prop%ncells = &
          int(vec_p(ghosted_id))
     enddo
-    call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   endif
 
   if (option%ngeomechdof > 0) then
@@ -1012,13 +1012,13 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   option => realization%option
   discretization => realization%discretization
 
-  call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
   if (option%flow%full_perm_tensor) then
-    call VecGetArrayF90(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
   endif
 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -1035,7 +1035,7 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
                                     material_property%permeability_dataset, &
                                     material_property%internal_id, &
                                     PETSC_FALSE,global_vec)
-    call VecGetArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(global_vec,vec_p,ierr);CHKERRQ(ierr)
     ratio = 1.d0
     scale = 1.d0
     !TODO(geh): fix so that ratio and scale work for perms outside
@@ -1059,7 +1059,7 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
         endif
       endif
     enddo
-    call VecRestoreArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(global_vec,vec_p,ierr);CHKERRQ(ierr)
   else
     if (material_property%full_permeability_tensor) then
       temp_int = YZ_DIRECTION
@@ -1102,25 +1102,25 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
                                            dataset_common_hdf5_ptr,&
                                            material_property%internal_id, &
                                            PETSC_FALSE,global_vec)
-      call VecGetArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(global_vec,vec_p,ierr);CHKERRQ(ierr)
       do local_id = 1, grid%nlmax
         if (patch%imat(grid%nL2G(local_id)) == &
             material_property%internal_id) then
           perm_ptr(local_id) = vec_p(local_id)
         endif
       enddo
-      call VecRestoreArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(global_vec,vec_p,ierr);CHKERRQ(ierr)
     enddo
   endif
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
 
-  call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
   if (option%flow%full_perm_tensor) then
-    call VecRestoreArrayF90(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_xy,perm_xy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_xz,perm_xz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(field%perm0_yz,perm_yz_p,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine SubsurfReadPermsFromFile
@@ -1175,7 +1175,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   grid => patch%grid
   option => realization%option
 
-  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
   if (index(dataset%filename,'.h5') > 0) then
     group_name = ''
@@ -1200,7 +1200,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
                                           dataset%filename, &
                                           group_name,dataset_name, &
                                           dataset%realization_dependent)
-        call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
+        call VecGetArray(field%work,work_p,ierr);CHKERRQ(ierr)
         if (read_all_values) then
           vec_p(:) = work_p(:)
         else
@@ -1210,7 +1210,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
             endif
           enddo
         endif
-        call VecRestoreArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
+        call VecRestoreArray(field%work,work_p,ierr);CHKERRQ(ierr)
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
           &wrong type for SubsurfReadDatasetToVecWithMask()'
@@ -1245,7 +1245,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
     call PetscLogEventEnd(logging%event_hash_map,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SubsurfReadDatasetToVecWithMask
 
@@ -1285,7 +1285,7 @@ subroutine SubsurfMapVecToMatAuxByMaterial(realization,vec,material_id,ivar)
 
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) == material_id) then
@@ -1293,7 +1293,7 @@ subroutine SubsurfMapVecToMatAuxByMaterial(realization,vec,material_id,ivar)
                                   ivar,vec_p(local_id))
     endif
   enddo
-  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_p,ierr);CHKERRQ(ierr)
 
 end subroutine SubsurfMapVecToMatAuxByMaterial
 

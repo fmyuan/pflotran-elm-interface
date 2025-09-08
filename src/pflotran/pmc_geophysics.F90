@@ -1,15 +1,14 @@
 module PMC_Geophysics_class
 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
+  use PFLOTRAN_Constants_module
   use Option_module
   use PMC_Base_class
   use PM_ERT_class
   use Realization_Subsurface_class
   use Waypoint_module
-
-  use PFLOTRAN_Constants_module
-
-#include "petsc/finclude/petscts.h"
-  use petscts
 
   implicit none
 

@@ -1,7 +1,8 @@
 module WIPP_Well_class
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   use PM_Well_class
   use PM_Base_class
   use Option_module
@@ -863,6 +864,7 @@ subroutine PMWellModifyFlowJacWIPPQI(this,Jac,ierr)
   !
 
   use Option_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -920,7 +922,7 @@ subroutine PMWellModifyFlowJacWIPPQI(this,Jac,ierr)
     call WIPPFloConvertUnitsToBRAGFlo(J_block,this%realization%patch%aux% &
                                   Material%auxvars(ghosted_id),this%option)
 
-    call MatSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
+    call PUMSetValuesBlockedLocal(Jac,1,ghosted_id-1,1,ghosted_id-1, &
                                   J_block,ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
@@ -2843,7 +2845,7 @@ subroutine PMWellCheckConvergenceTran(pm_well,n_iter,fixed_accum)
     all_cnvgd(4) = all_cnvgd_due_to_residual
   endif
 
-  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd,FOUR_INTEGER,MPI_LOGICAL, &
+  call MPI_Allreduce(MPI_IN_PLACE,all_cnvgd,FOUR_INTEGER,MPI_C_BOOL, &
                      MPI_LAND,pm_well%well_comm%comm,ierr)
   call MPI_Allreduce(MPI_IN_PLACE,max_criteria,THREE_INTEGER, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,pm_well%well_comm%comm,ierr)

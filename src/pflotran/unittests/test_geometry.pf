@@ -1,10 +1,11 @@
 module Test_Geometry_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use pFUnit_mod
 
   implicit none
-
-#include "petsc/finclude/petscsys.h"
 
   public :: Test_Geometry
 

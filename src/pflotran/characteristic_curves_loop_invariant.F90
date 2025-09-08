@@ -198,6 +198,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 
 abstract interface
   function set_pcmax_type(this, Pcmax) result (error)
+    use petscsys
     import :: sf_vg_extn_type
     class(sf_vg_extn_type), intent(inout) :: this
     PetscReal, intent(in) :: Pcmax
@@ -207,6 +208,7 @@ abstract interface
 ! **************************************************************************** !
 
   function set_sj_type(this, Sj) result (error)
+    use petscsys
     import :: sf_vg_extn_type
     class(sf_vg_extn_type), intent(inout) :: this
     PetscReal, intent(in) :: Sj
@@ -330,6 +332,7 @@ end type
 
 abstract interface
   function set_m_type(this, m) result (error)
+    use petscsys
     import :: rpf_vg_type
     class(rpf_vg_type), intent(inout) :: this
     PetscReal, intent(in) :: m
@@ -339,6 +342,7 @@ abstract interface
 ! **************************************************************************** !
 
   pure subroutine calc_kr_type(this, Sl, Kr, dKr_dSl)
+    use petscsys
     import :: rpf_vg_type
     class(rpf_vg_type), intent(in) :: this
     PetscReal, intent(in)  :: Sl

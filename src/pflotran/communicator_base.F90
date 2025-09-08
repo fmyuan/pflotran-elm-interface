@@ -2,6 +2,7 @@ module Communicator_Base_class
 
 #include "petsc/finclude/petscvec.h"
    use petscvec
+   use petscsys
 
    use PFLOTRAN_Constants_module
 
@@ -30,7 +31,6 @@ module Communicator_Base_class
       class(communicator_type) :: this
 #else
     subroutine SetDM(this,dm_ptr)
-#include "petsc/finclude/petscdm.h"
       use petscdm
       use DM_Custom_module
       import communicator_type
@@ -41,7 +41,6 @@ module Communicator_Base_class
     end subroutine
 
     subroutine VecToVec(this,source,destination)
-#include "petsc/finclude/petscvec.h"
       use petscvec
       import communicator_type
       implicit none
@@ -51,6 +50,7 @@ module Communicator_Base_class
     end subroutine VecToVec
 
     subroutine MapArray(this,array)
+      use petscvec
       import communicator_type
       implicit none
       class(communicator_type) :: this
@@ -58,6 +58,7 @@ module Communicator_Base_class
     end subroutine MapArray
 
     subroutine BaseDestroy(this)
+      use petscvec
       import communicator_type
       implicit none
       class(communicator_type) :: this

@@ -1,6 +1,7 @@
 module PM_Parameter_class
 
 #include "petsc/finclude/petscvec.h"
+  use petscsys
   use petscvec
   use PM_Base_class
   use Realization_Subsurface_class
@@ -36,6 +37,7 @@ module PM_Parameter_class
   ! interface blocks
   interface
     subroutine PMParameterUpdate(this,time,ierr)
+      use petscsys
       import :: pm_parameter_type
       implicit none
       class(pm_parameter_type) :: this

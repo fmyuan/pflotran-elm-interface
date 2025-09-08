@@ -607,8 +607,8 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
     changed = PETSC_TRUE
 
-    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(X,X_p,ierr);CHKERRQ(ierr)
 
     pert = dabs(this%saturation_change_limit)
     do local_id = 1, grid%nlmax
@@ -631,8 +631,8 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
       dX_p(local_id) = delP
     enddo
 
-    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(X,X_p,ierr);CHKERRQ(ierr)
 
   endif
 
@@ -642,9 +642,9 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
     P_R = option%flow%reference_pressure
     scale = this%pressure_dampening_factor
 
-    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(X,X_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       delP = dX_p(local_id)
       P0 = X_p(local_id)
@@ -755,9 +755,9 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
         enddo
       endif
     enddo
-    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(X,X_p,ierr);CHKERRQ(ierr)
+    call VecGetArray(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine PMRichardsCheckUpdatePre
@@ -813,8 +813,8 @@ subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
   converged_abs_update_flag = PETSC_TRUE
   converged_rel_update_flag = PETSC_TRUE
   converged_abs_update_cell = ZERO_INTEGER
@@ -857,8 +857,8 @@ subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       endif
     endif
   enddo
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(X0,X0_p,ierr);CHKERRQ(ierr)
 
   this%converged_flag(ABS_UPDATE_INDEX) = converged_abs_update_flag
   this%converged_flag(REL_UPDATE_INDEX) = converged_rel_update_flag
@@ -929,8 +929,8 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   grid => patch%grid
 
   if (this%check_post_convergence) then
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
     converged_abs_residual_flag = PETSC_TRUE
     converged_abs_residual_real = 0.d0
     converged_abs_residual_cell = ZERO_INTEGER
@@ -975,8 +975,8 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         endif
       endif
     enddo
-    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p, &
+    call VecRestoreArrayRead(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayRead(field%flow_accum2,accum2_p, &
                                 ierr);CHKERRQ(ierr)
 
     this%converged_flag(RESIDUAL_INDEX) = converged_abs_residual_flag

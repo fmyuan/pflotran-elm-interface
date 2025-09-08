@@ -199,13 +199,13 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
     option%io_buffer = 'Mismatched vector size in MassTransferUpdate.'
     call PrintErrMsg(option)
   endif
-  call VecGetArrayF90(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
   offset = this%idof
   do i = 1, this%dataset%local_size
     vec_ptr(offset) = vec_ptr(offset) + this%dataset%rarray(i)
     offset = offset + ndof_per_cell
   enddo
-  call VecRestoreArrayF90(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine DataMediatorDatasetUpdate
 

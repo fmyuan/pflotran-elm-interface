@@ -2109,7 +2109,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   PetscErrorCode :: ierr
 
   material_auxvars => Material%auxvars
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(VOLUME)
@@ -2193,7 +2193,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       enddo
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MaterialSetAuxVarVecLoc
 
@@ -2222,7 +2222,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   PetscErrorCode :: ierr
 
   material_auxvars => Material%auxvars
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(VOLUME)
@@ -2294,7 +2294,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       endif
   end select
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine MaterialGetAuxVarVecLoc
 
@@ -2452,7 +2452,7 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
 
   if (soil_compressibility_index > 0) then
     material_auxvars => Material%auxvars
-    call VecGetArrayReadF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayRead(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, Material%num_aux
       material_auxvars(ghosted_id)%porosity = porosity_loc_p(ghosted_id)
       call MaterialCompressSoil(material_auxvars(ghosted_id), &
@@ -2461,7 +2461,7 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
       material_auxvars(ghosted_id)%porosity = compressed_porosity
       material_auxvars(ghosted_id)%dporosity_dp = dcompressed_porosity_dp
     enddo
-    call VecRestoreArrayReadF90(porosity_loc,porosity_loc_p, &
+    call VecRestoreArrayRead(porosity_loc,porosity_loc_p, &
                                 ierr);CHKERRQ(ierr)
   endif
 

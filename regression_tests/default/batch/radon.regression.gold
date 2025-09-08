@@ -7,11 +7,11 @@
 -- VOLUME_FRACTION: Quartz VF --
         1:   1.0000000000000E+00
 -- RATE: Quartz Rate --
-        1:  -0.0000000000000E+00
+        1:   0.0000000000000E+00
 -- DISCRETE: Material ID --
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.8651707001936E-02
+   Time (seconds):   1.8055283000422E-02
    Time Steps:          108
    Newton Iterations:          187
    Linear Solver Iterations:          187

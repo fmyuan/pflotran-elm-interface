@@ -301,8 +301,8 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscMPIInt :: int_mpi
   PetscInt :: num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
-  PetscBool :: time_attribute_exists, time_group_exists
-  PetscBool :: time_interp_attribute_exists
+  logical :: time_attribute_exists, time_group_exists
+  logical :: time_interp_attribute_exists
   PetscInt :: time_interpolation_method
   PetscInt :: int_bcast(3)
   PetscErrorCode :: ierr

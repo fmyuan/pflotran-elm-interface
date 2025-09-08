@@ -120,6 +120,7 @@ module Lookup_Table_module
 
   abstract interface
     function LookupTableEvaluateDummy(this,lookup1,lookup2,lookup3)
+      use petscsys
       import lookup_table_base_type
       implicit none
       class(lookup_table_base_type) :: this
@@ -130,6 +131,7 @@ module Lookup_Table_module
     end function LookupTableEvaluateDummy
 
     subroutine LookupTableValAndGradDummy(this,var_iname,lookup1,lookup2,lookup3)
+      use petscsys
       import lookup_table_base_type
       implicit none
       class(lookup_table_base_type) :: this
@@ -140,6 +142,7 @@ module Lookup_Table_module
     end subroutine LookupTableValAndGradDummy
 
     subroutine LookupTableAxesAreSMIncDummy(this,AxisIsSMInc)
+      use petscsys
       import lookup_table_base_type
       implicit none
       class(lookup_table_base_type) :: this

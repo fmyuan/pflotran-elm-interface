@@ -237,6 +237,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -285,7 +286,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   if (associated(pm_waste_form)) &
     call FactSubLinkAddPMCWasteForm(simulation,pm_waste_form, &
                                     'PMC3PWasteForm',&
-                                    associated(pm_ufd_decay),input)
+                                    PUCast(associated(pm_ufd_decay)),input)
 
   if (associated(pm_ufd_decay)) then
     call FactSubLinkAddPMCUFDDecay(simulation,pm_ufd_decay, &
@@ -294,7 +295,7 @@ subroutine FactSubLinkSetupPMCLinkages(simulation,pm_flow,pm_tran, &
   if (associated(pm_ufd_biosphere)) then
     call FactSubLinkAddPMCUFDBiosphere(simulation,pm_ufd_biosphere, &
                                        'PMC3PUFDBiosphere',&
-                                       associated(pm_ufd_decay),input)
+                                       PUCast(associated(pm_ufd_decay)),input)
   endif
   if (associated(pm_auxiliary)) then
     call FactSubLinkAddPMCSalinity(simulation,pm_auxiliary,'SALINITY')
@@ -568,7 +569,7 @@ subroutine FactSubLinkAddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   class(simulation_subsurface_type) :: simulation
   class(pm_waste_form_type), pointer :: pm_waste_form
   character(len=*) :: pmc_name
-  logical :: pm_ufd_decay_present
+  PetscBool :: pm_ufd_decay_present
   type(input_type), pointer :: input
 
   class(pmc_third_party_type), pointer :: pmc_waste_form
@@ -713,7 +714,7 @@ subroutine FactSubLinkAddPMCUFDBiosphere(simulation,pm_ufd_biosphere, &
   class(simulation_subsurface_type) :: simulation
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
   character(len=*) :: pmc_name
-  logical :: pm_ufd_decay_present
+  PetscBool :: pm_ufd_decay_present
   type(input_type), pointer :: input
 
   class(pmc_third_party_type), pointer :: pmc_ufd_biosphere

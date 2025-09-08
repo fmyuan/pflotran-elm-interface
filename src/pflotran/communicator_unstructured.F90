@@ -52,7 +52,7 @@ function UnstructuredCommunicatorCreate()
 
   allocate(communicator)
   nullify(communicator%ugdm)
-  communicator%dm = PETSC_NULL_DM
+  PetscObjectNullify(communicator%dm)
 
   UnstructuredCommunicatorCreate => communicator
 
@@ -252,10 +252,10 @@ subroutine UnstructuredCommunicatorDestroy(this)
     !call UGridDMDestroy(this%ugdm)
   endif
   nullify(this%ugdm)
-  if (this%dm /= PETSC_NULL_DM) then
+  if (.not.PetscObjectIsNull(this%dm)) then
     !call DMDestroy(this%dm,ierr)
   endif
-  this%dm = PETSC_NULL_DM
+  PetscObjectNullify(this%dm)
 
 end subroutine UnstructuredCommunicatorDestroy
 

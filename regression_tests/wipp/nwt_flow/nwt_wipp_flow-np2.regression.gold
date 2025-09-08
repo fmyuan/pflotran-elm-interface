@@ -69,7 +69,7 @@
         3:   0.0000000000000E+00
         4:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. Am241 --
-      Max:   2.5040781661000E-06
+      Max:   2.5040781661001E-06
       Min:   2.4915081180444E-06
      Mean:   2.4977215226870E-06
         2:   2.5007614438283E-06
@@ -83,7 +83,7 @@
         3:         3
         4:         3
 -- SOLUTION: Flow --
-   Time (seconds):   5.8437254199725E-01
+   Time (seconds):   4.4076131000020E-01
    Time Steps:          150
    Newton Iterations:          200
    Linear Solver Iterations:          455
@@ -91,10 +91,10 @@
    Solution 2-Norm:   8.1094425005512E+06
    Residual 2-Norm:   1.5725369505892E-15
 -- SOLUTION: Transport --
-   Time (seconds):   2.7333643099701E-01
+   Time (seconds):   2.1412907200011E-01
    Time Steps:          163
    Newton Iterations:          163
    Linear Solver Iterations:          163
    Time Step Cuts:            0
    Solution 2-Norm:   6.6761940199300E-02
-   Residual 2-Norm:   8.9837870042166E-09
+   Residual 2-Norm:   8.9837870042172E-09

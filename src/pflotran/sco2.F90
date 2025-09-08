@@ -135,7 +135,7 @@ subroutine SCO2Setup(realization)
   enddo
 
   error_found = error_found .or. (maxval(flag) > 0)
-  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_C_BOOL, &
                      MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in SCO2Setup.'
@@ -875,7 +875,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
   gid = option%gas_phase
   co2_pressure_id = option%co2_pressure_id
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -1354,7 +1354,7 @@ subroutine SCO2UpdateAuxVars(realization,pm_well,update_state,update_state_bc)
       cur_well => cur_well%next_well
     enddo
   endif
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%SCO2%auxvars_up_to_date = PETSC_TRUE
 
@@ -1409,8 +1409,8 @@ subroutine SCO2UpdateFixedAccum(realization)
   material_auxvars => patch%aux%Material%auxvars
   material_parameter => patch%aux%Material%material_parameter
 
-  call VecGetArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -1439,8 +1439,8 @@ subroutine SCO2UpdateFixedAccum(realization)
   enddo
 
 
-  call VecRestoreArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 end subroutine SCO2UpdateFixedAccum
 
@@ -1469,14 +1469,14 @@ subroutine SCO2GetSlminVecLoc(SCO2, grid, vec_loc)
 
   sco2_auxvars => SCO2%auxvars
 
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     vec_loc_p(ghosted_id) = sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
   enddo
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine SCO2GetSlminVecLoc
 
@@ -1505,7 +1505,7 @@ subroutine SCO2SetSlminVecLoc(SCO2, grid, vec_loc)
 
   sco2_auxvars => SCO2%auxvars
 
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -1514,7 +1514,7 @@ subroutine SCO2SetSlminVecLoc(SCO2, grid, vec_loc)
                             sco2_auxvars(ZERO_INTEGER,ghosted_id)%sl_min(1)
   enddo
 
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine SCO2SetSlminVecLoc
 
@@ -1643,10 +1643,10 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
   patch%aux%SCO2%auxvars_up_to_date = PETSC_FALSE
 
   ! always assume variables have been swapped; therefore, must copy back
-  call VecLockPop(xx,ierr);CHKERRQ(ierr)
+  call VecLockReadPop(xx,ierr);CHKERRQ(ierr)
   call DiscretizationLocalToGlobal(discretization,field%flow_xx_loc,xx, &
                                    NFLOWDOF)
-  call VecLockPush(xx,ierr);CHKERRQ(ierr)
+  call VecLockReadPush(xx,ierr);CHKERRQ(ierr)
 
   if (option%compute_mass_balance_new) then
     call SCO2ZeroMassBalanceDelta(realization)
@@ -1654,16 +1654,16 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
 
   option%iflag = SCO2_UPDATE_FOR_ACCUM
   ! now assign access pointer to local variables
-  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
 
   ! Accumulation terms ------------------------------------
   ! accumulation at t(k) (doesn't change during Newton iteration)
-  call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
   r_p = -accum_p
-  call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
   ! accumulation at t(k+1)
-  call VecGetArrayF90(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_accum2,accum_p2,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id)
@@ -1700,7 +1700,7 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
       enddo
     endif
   endif
-  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -1952,12 +1952,12 @@ subroutine SCO2Residual(snes,xx,r,realization,pm_well,ierr)
     source_sink => source_sink%next
   enddo
 
-  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
 
   call MatrixZeroingZeroVecEntries(patch%aux%SCO2%matrix_zeroing,r)
 
   ! Mass Transfer
-  if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
+  if (.not.PetscObjectIsNull(field%flow_mass_transfer)) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
     ! indicates mass being added to system.
     call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
@@ -2006,6 +2006,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
   use Upwind_Direction_module
   use PM_Well_class
   use Matrix_Zeroing_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -2118,7 +2119,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
                               option,well_ndof,Jup)
-    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+    call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
@@ -2170,17 +2171,17 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                      patch%flow_upwind_direction(:,iconn), &
                      option,well_ndof,Jup,Jdn)
       if (local_id_up > 0) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                       Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
         Jup = -Jup
         Jdn = -Jdn
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
     enddo
@@ -2236,7 +2237,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                       option,well_ndof,Jdn)
 
       Jdn = -Jdn
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+      call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
     boundary_condition => boundary_condition%next
@@ -2292,7 +2293,7 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
                         material_auxvars(ghosted_id), &
                         scale,well_ndof,Jup)
 
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+      call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
@@ -2354,11 +2355,11 @@ subroutine SCO2Jacobian(snes,xx,A,B,realization,pm_well,ierr)
             deactivate_row = deactivate_row - 1
             if (cur_well%well_grid%h_rank_id( &
                 cur_well%well_grid%bottom_seg_index) == option%myrank) then
-              call MatZeroRowsLocal(A,ONE_INTEGER, deactivate_row, &
+              call MatZeroRowsLocal(A,ONE_INTEGER,[deactivate_row], &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
             else
-              call MatZeroRowsLocal(A,ZERO_INTEGER, deactivate_row, &
+              call MatZeroRowsLocal(A,ZERO_INTEGER,[deactivate_row], &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
             endif

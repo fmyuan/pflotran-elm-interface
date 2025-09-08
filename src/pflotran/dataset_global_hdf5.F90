@@ -230,7 +230,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
 
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
 
-  if (this%dm_wrapper%dm /= PETSC_NULL_DM) then
+  if (.not.PetscObjectIsNull(this%dm_wrapper%dm)) then
     call DMCreateGlobalVector(this%dm_wrapper%dm,global_vec, &
                               ierr);CHKERRQ(ierr)
     call DMDACreateNaturalVector(this%dm_wrapper%dm,natural_vec, &
@@ -373,9 +373,9 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
 
   istart = 0
   do i = 1, min(buffer_rank2_size,file_rank2_size-this%buffer_slice_offset)
-    call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
     vec_ptr(:) = this%rbuffer(istart+1:istart+this%local_size)
-    call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     !geh: for debugging purposes
     !write(string,*) i
@@ -390,9 +390,9 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
                                   ierr);CHKERRQ(ierr)
     call DMDANaturalToGlobalEnd(this%dm_wrapper%dm,natural_vec,INSERT_VALUES, &
                                 global_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
     this%rbuffer(istart+1:istart+this%local_size) = vec_ptr(:)
-    call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArray(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     !geh: for debugging purposes
     !write(string,*) i

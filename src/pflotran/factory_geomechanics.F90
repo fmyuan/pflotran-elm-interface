@@ -1,8 +1,8 @@
 
 module Factory_Geomechanics_module
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscmat.h"
+  use petscmat
 
   use Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module

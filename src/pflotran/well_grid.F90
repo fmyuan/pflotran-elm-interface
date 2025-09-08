@@ -1,7 +1,8 @@
 module Well_Grid_module
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   use Geometry_module
   use PFLOTRAN_Constants_module
   use Region_module

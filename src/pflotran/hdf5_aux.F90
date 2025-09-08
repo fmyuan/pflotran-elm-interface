@@ -1501,7 +1501,7 @@ subroutine HDF5AttributeReadBase(parent_id,attr_type,attr_name, &
   integer :: ndims
   integer :: i
   integer :: hdf5_err
-  PetscBool :: is_equal
+  logical :: is_equal
 
   dims = 0
   call h5aopen_f(parent_id,attr_name,attr_id,hdf5_err)
@@ -1724,7 +1724,7 @@ subroutine HDF5AttributeWriteBase(parent_id,attr_type,attr_name, &
   integer :: i
   integer :: hdf5_err
   integer :: hdf5_err2
-  PetscBool :: is_equal
+  logical :: is_equal
 
   dims = 0
   call h5eset_auto_f(OFF,hdf5_err2)
@@ -1913,7 +1913,7 @@ subroutine HDF5DatasetReadBase(parent_id,dset_name,dset_type_expected, &
   integer :: ndims_expected
   integer :: i
   integer :: hdf5_err
-  PetscBool :: is_equal
+  logical :: is_equal
 
   call h5dopen_f(parent_id,dset_name,dset_id,hdf5_err)
   if (hdf5_err /= 0) then

@@ -5682,9 +5682,8 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   ! Author: Glenn Hammond
   ! Date: 01/12/11
   !
-
-#include "petsc/finclude/petscdmda.h"
   use petscdmda
+
   use Option_module
   use Field_module
   use Coupler_module
@@ -5726,7 +5725,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   grid => patch%grid
 
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
   inactive_found = PETSC_FALSE
   cur_connection_set => source_sink%connection_set
@@ -5811,7 +5810,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       call PrintErrMsg(option)
   end select
 
-  call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
   call VecNorm(field%work,NORM_1,scale,ierr);CHKERRQ(ierr)
   if (scale < 1.d-40) then
     option%io_buffer = 'Zero infinity norm in PatchScaleSourceSink for ' // &
@@ -5821,7 +5820,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   scale = 1.d0/scale
   call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
   do iconn = 1, cur_connection_set%num_connections
     local_id = cur_connection_set%id_dn(iconn)
     select case(option%iflowmode)
@@ -5845,7 +5844,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         call PrintErrMsg(option)
     end select
   enddo
-  call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (inactive_found) then
     option%io_buffer = 'Inactive cells found in source/sink "' // &
@@ -5866,8 +5865,6 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
   ! Date: 10/03/2012
   !
 
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
   use Option_module
   use Field_module
   use Coupler_module
@@ -6036,11 +6033,11 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   call ISDestroy(is_from,ierr);CHKERRQ(ierr)
   call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
   do ii=1,dataset_map_hdf5%map_dims_local(2)
     vec_ptr(ii)=dataset_map_hdf5%mapping(1,ii)
   enddo
-  call VecRestoreArrayF90(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(vec_scatter,map_ids_1,map_ids_2,INSERT_VALUES, &
                        SCATTER_FORWARD,ierr);CHKERRQ(ierr)
@@ -6086,11 +6083,11 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
 
   ! Step-3: Save the datatocell_ids
   allocate(dataset_map_hdf5%datatocell_ids(ncells))
-  call VecGetArrayF90(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id=1,ncells
     dataset_map_hdf5%datatocell_ids(local_id) = int(vec_ptr(local_id))
   enddo
-  call VecRestoreArrayF90(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecDestroy(map_ids_1,ierr);CHKERRQ(ierr)
   call VecDestroy(map_ids_2,ierr);CHKERRQ(ierr)
@@ -6446,7 +6443,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   material_auxvars => patch%aux%Material%auxvars
   reaction => ReactionAuxCast(reaction_base)
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = UNINITIALIZED_DOUBLE
 
   iphase = 1
@@ -8197,10 +8194,10 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           patch%aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
       enddo
     case(RESIDUAL)
-      call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
     case(X_COORDINATE)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%x(grid%nL2G(local_id))
@@ -8409,7 +8406,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       call PatchUnsupportedVariable(ivar,option)
   end select
 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PatchGetVariable1
 
@@ -9605,9 +9602,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       endif
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
-      call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecGetArray(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2((local_id-1)*option%nflowdof+isubvar)
-      call VecRestoreArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
     case(X_COORDINATE)
       value = grid%x(ghosted_id)
     case(Y_COORDINATE)
@@ -9759,7 +9756,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (vec_format == NATURAL) then
     call PrintErrMsg(option,&
@@ -10637,7 +10634,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       call PrintErrMsg(option)
   end select
 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PatchSetVariable
 
@@ -10842,7 +10839,7 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
 
   grid => patch%grid
 
-  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   iphase = 1
 
@@ -12169,7 +12166,7 @@ subroutine PatchCheckError(flag,option)
   PetscErrorCode :: ierr
 
   call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI, &
-                     MPI_LOGICAL,MPI_LOR,option%mycomm, &
+                     MPI_C_BOOL,MPI_LOR,option%mycomm, &
                      ierr);CHKERRQ(ierr)
   if (flag) then
     option%io_buffer = 'Stopping due to error that occurred earlier &

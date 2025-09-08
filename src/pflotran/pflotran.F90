@@ -4,6 +4,7 @@
 program pflotran
 
 #include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use Driver_class
   use Simulation_Base_class

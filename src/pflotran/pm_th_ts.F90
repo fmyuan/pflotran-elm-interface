@@ -1,9 +1,7 @@
 module PM_TH_TS_class
 
 #include "petsc/finclude/petscts.h"
-#include "petsc/finclude/petscvec.h"
   use petscts
-  use petscvec
   use TH_module
   use TH_Aux_module
   use Global_Aux_module
@@ -143,8 +141,8 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
 
   ! 2. Update auxvars based on new value of dpressure_dtime, mass, and
   !    dmass_dtime
-  call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+  call VecGetArrayRead(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_xxdot_loc,xxdot_loc_p, &
                           ierr);CHKERRQ(ierr)
 
 
@@ -170,8 +168,8 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
                                   option)
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
+  call VecRestoreArrayRead(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_xxdot_loc,xxdot_loc_p, &
                               ierr);CHKERRQ(ierr)
 
 
@@ -279,7 +277,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
-  call VecGetArrayF90(F,f_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(F,f_p,ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -347,7 +345,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
   enddo
 
-  call VecRestoreArrayF90(F,f_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(F,f_p,ierr);CHKERRQ(ierr)
 
 end subroutine IFunctionAccumulation
 
@@ -429,6 +427,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   use Option_module
   use Material_Aux_module
   use Field_module
+  use Petsc_Utility_module, only : PUMSetValuesBlockedLocal
 
   implicit none
 
@@ -684,10 +683,8 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    d2energy_dPdt*th_auxvars(ghosted_id)%dpres_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
-    call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jlocal, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
-
-
+    call PUMSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1, &
+                                  Jlocal,ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -727,10 +724,6 @@ subroutine PMTHTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   ! Author: Satish Karra, LANL
   ! Date: 05/08/19
   !
-
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-
   implicit none
 
   SNES :: snes

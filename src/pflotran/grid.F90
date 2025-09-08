@@ -403,9 +403,8 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   !
-
-#include "petsc/finclude/petscdm.h"
-  use petscdm
+#include "petsc/finclude/petscdmda.h"
+  use petscdmda
 
   use Option_module
   use DM_Custom_module
@@ -414,7 +413,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
 
   type(grid_type) :: grid
   type(dm_ptr_type) :: dm_ptr
-  PetscEnum :: sgrid_stencil_type
+  DMDAStencilType :: sgrid_stencil_type
   type(option_type) :: option
 
 ! PetscInt, pointer :: int_tmp(:)
@@ -830,6 +829,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   PetscInt :: iface
   PetscInt :: tempfacearray(20)
   PetscInt :: facecount
+  PetscCount :: sortcount
   PetscReal :: tempreal, prevreal, facereal
   PetscReal, parameter :: offset = 0.1d0
   PetscReal, pointer :: v_loc_p(:)
@@ -912,7 +912,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
                      SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(vec_scat,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
   count = 0
   setup_faces = PETSC_FALSE
   do local_id=1, grid%nlmax
@@ -961,7 +961,8 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
           prevreal = tempreal
         enddo
         ! sort the faces
-        call PetscSortInt(facecount,tempfacearray,ierr);CHKERRQ(ierr)
+        sortcount = facecount
+        call PetscSortInt(sortcount,tempfacearray,ierr);CHKERRQ(ierr)
         region%cell_ids(count+1:count+facecount) = local_id
         region%faces(count+1:count+facecount) = tempfacearray(1:facecount)
         count = count + facecount
@@ -972,7 +973,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
     enddo
   endif
 
-  call VecRestoreArrayF90(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
 
   call VecDestroy(vec_cell_ids,ierr);CHKERRQ(ierr)
   call VecDestroy(vec_cell_ids_loc,ierr);CHKERRQ(ierr)
@@ -1340,7 +1341,7 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
   ! Author: Glenn Hammond
   ! Date: 01/28/11
   !
-
+  use petscdmda
   use Option_module
 
   implicit none
@@ -1348,7 +1349,7 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
   type(grid_type) :: grid
   type(option_type) :: option
   PetscInt :: ghosted_id
-  PetscEnum :: stencil_type
+  DMDAStencilType :: stencil_type
   PetscInt :: stencil_width_i
   PetscInt :: stencil_width_j
   PetscInt :: stencil_width_k
@@ -1386,6 +1387,7 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
   ! Author: Satish Karra, LANL
   ! Date: 02/19/12
   !
+  use petscdmda
   use Option_module
 
   implicit none
@@ -1393,7 +1395,7 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
   type(grid_type) :: grid
   type(option_type) :: option
   PetscInt :: ghosted_id
-  PetscEnum :: stencil_type
+  DMDAStencilType :: stencil_type
   PetscInt :: stencil_width_i
   PetscInt :: stencil_width_j
   PetscInt :: stencil_width_k

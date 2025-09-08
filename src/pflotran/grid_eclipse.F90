@@ -5128,6 +5128,7 @@ function MArea(fl, fu, idir)
   PetscReal :: alx, aly, aux, auy, &
                blx, bly, bux, buy, px, py, yll, yuu, x1, x2
   PetscBool :: qinter, qoverlap1, qoverlap2
+  PetscCount :: sortcount
 
   alx = 0.0
   aly = 0.0
@@ -5196,7 +5197,8 @@ function MArea(fl, fu, idir)
   !  Sort x-values into order
 
   ierr = 0
-  call PetscSortReal(nxv, xv, ierr)
+  sortcount = nxv
+  call PetscSortReal(sortcount, xv, ierr)
 
   !  Set up and count distinct depths
 

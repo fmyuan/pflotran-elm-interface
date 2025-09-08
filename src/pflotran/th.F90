@@ -2,6 +2,7 @@ module TH_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use TH_Aux_module
   use Global_Aux_module
   use Material_Aux_module
@@ -302,7 +303,7 @@ subroutine THSetup(realization)
 
   enddo
 
-  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_C_BOOL, &
                      MPI_LOR,option%mycomm,ierr);CHKERRQ(ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in THSetup.'
@@ -692,7 +693,7 @@ subroutine THUpdateAuxVars(realization)
   material_auxvars => patch%aux%Material%auxvars
   th_parameter => patch%aux%TH%th_parameter
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -850,7 +851,7 @@ subroutine THUpdateAuxVars(realization)
   enddo
   deallocate(xx)
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
@@ -1003,9 +1004,9 @@ subroutine THUpdateFixedAccumulation(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayRead(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 
   vol_frac_prim = 1.d0
@@ -1051,9 +1052,9 @@ subroutine THUpdateFixedAccumulation(realization)
                         option,vol_frac_prim,accum_p(istart:iend))
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayRead(field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
-  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 #if 0
    call THNumericalJacobianTest(field%flow_xx,realization)
@@ -1116,17 +1117,17 @@ subroutine THNumericalJacobianTest(xx,realization)
   call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
 
   call THResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
-  call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(res,vec2_p,ierr);CHKERRQ(ierr)
   do icell = 1,grid%nlmax
     if (patch%imat(icell) <= 0) cycle
     do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof
       call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(xx_pert,vec_p,ierr);CHKERRQ(ierr)
       perturbation = vec_p(idof)*perturbation_tolerance
       vec_p(idof) = vec_p(idof)+perturbation
-      call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(xx_pert,vec_p,ierr);CHKERRQ(ierr)
       call THResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
-      call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArray(res_pert,vec_p,ierr);CHKERRQ(ierr)
       do idof2 = 1, grid%nlmax*option%nflowdof
         derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
         if (dabs(derivative) > 1.d-30) then
@@ -1134,10 +1135,10 @@ subroutine THNumericalJacobianTest(xx,realization)
                            ierr);CHKERRQ(ierr)
         endif
       enddo
-      call VecRestoreArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArray(res_pert,vec_p,ierr);CHKERRQ(ierr)
     enddo
   enddo
-  call VecRestoreArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(res,vec2_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3586,7 +3587,7 @@ subroutine THApplyPrescribedConditions(realization)
 
   if (.not.associated(patch%prescribed_condition_list%first)) return
 
-  call VecGetArrayF90(realization%field%flow_xx, &
+  call VecGetArray(realization%field%flow_xx, &
                       vec_ptr,ierr);CHKERRQ(ierr)
 
   cur_coupler => patch%prescribed_condition_list%first
@@ -3603,7 +3604,7 @@ subroutine THApplyPrescribedConditions(realization)
     cur_coupler => cur_coupler%next
   enddo
 
-  call VecRestoreArrayF90(realization%field%flow_xx, &
+  call VecRestoreArray(realization%field%flow_xx, &
                           vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine THApplyPrescribedConditions
@@ -3782,7 +3783,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
 ! now assign access pointer to local variables
-  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
 
    ! Interior Flux Terms -----------------------------------
@@ -3890,7 +3891,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
 
 
 end subroutine THResidualInternalConn
@@ -3968,7 +3969,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
 ! now assign access pointer to local variables
-  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
 
 
@@ -4036,7 +4037,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
 
 end subroutine THResidualBoundaryConn
 
@@ -4105,9 +4106,9 @@ subroutine THResidualAccumulation(r,realization,ierr)
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
 ! now assign access pointer to local variables
-  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
 
   ! Calculating volume fractions for primary and secondary continua
@@ -4159,9 +4160,9 @@ subroutine THResidualAccumulation(r,realization,ierr)
     enddo
   endif
 
-  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
 
 
 end subroutine THResidualAccumulation
@@ -4235,9 +4236,9 @@ subroutine THResidualSourceSink(r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
 ! now assign access pointer to local variables
-  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -4310,9 +4311,9 @@ subroutine THResidualSourceSink(r,realization,ierr)
     enddo
   endif
 
-  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
 
 end subroutine THResidualSourceSink
 
@@ -4483,6 +4484,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
+  use Petsc_Utility_module
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -4539,7 +4541,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -4645,11 +4647,11 @@ subroutine THJacobianInternalConn(A,realization,ierr)
 !  scale by the volume of the cell
 
       if (local_id_up > 0) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup/material_auxvars(ghosted_id_up)% &
                                         volume, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                       Jdn/material_auxvars(ghosted_id_up)% &
                                         volume, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -4658,11 +4660,11 @@ subroutine THJacobianInternalConn(A,realization,ierr)
         Jup = -Jup
         Jdn = -Jdn
 
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       Jdn/material_auxvars(ghosted_id_dn)% &
                                         volume, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+        call PUMSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                       Jup/material_auxvars(ghosted_id_dn)% &
                                         volume, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -4707,6 +4709,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
+  use Petsc_Utility_module
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -4759,7 +4762,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
@@ -4823,7 +4826,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
       !  scale by the volume of the cell
       Jdn = Jdn/material_auxvars(ghosted_id)%volume
 
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+      call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
@@ -4839,7 +4842,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianBoundaryConn
 
@@ -4868,6 +4871,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
+  use Petsc_Utility_module
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -4921,7 +4925,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
   sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   vol_frac_prim = 1.d0
 
@@ -4972,7 +4976,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     ! scale by the volume of the cell
     Jup = Jup/material_auxvars(ghosted_id)%volume
 
-    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+    call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
@@ -4987,7 +4991,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   endif
 
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianAccumulation
 
@@ -5013,6 +5017,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Utility_module, only : Smoothstep
+  use Petsc_Utility_module
 
   Mat :: A
   class(realization_subsurface_type) :: realization
@@ -5056,7 +5061,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -5090,7 +5095,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
                         Rdummy,Jsrc, &
                         dummy_real, &
                         PETSC_TRUE,option)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
+      call PUMSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
@@ -5106,7 +5111,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArray(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5123,7 +5128,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     else
       ip2 = ip1
     endif
-    call MatSetValuesLocal(A,1,ip1,1,ip2,1.d0,INSERT_VALUES, &
+    call PUMSetValuesLocal(A,1,ip1,1,ip2,1.d0,INSERT_VALUES, &
                            ierr);CHKERRQ(ierr)
   enddo
 
@@ -5404,7 +5409,7 @@ subroutine THResidualToMass(realization)
 
   th_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
-  call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
+  call VecGetArray(field%flow_ts_mass_balance,mass_balance_p, &
                       ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
@@ -5417,7 +5422,7 @@ subroutine THResidualToMass(realization)
                               th_auxvars(ghosted_id)%den_kg
   enddo
 
-  call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p, &
+  call VecRestoreArray(field%flow_ts_mass_balance,mass_balance_p, &
                           ierr);CHKERRQ(ierr)
 
 end subroutine THResidualToMass

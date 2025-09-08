@@ -86,6 +86,8 @@ module PMC_Base_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
+#include <petsc/finclude/petscbag.h>
+      use petscbag
       import :: pmc_base_header_type
       implicit none
       PetscBag :: bag
@@ -984,6 +986,8 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Logging_module
   use Checkpoint_module, only : CheckpointOpenFileForWriteBinary, &
@@ -1043,7 +1047,7 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
 
   if (this%is_master) then
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    viewer = PETSC_NULL_VIEWER
+    PetscObjectNullify(viewer)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '(6x,"Seconds to write to checkpoint file: ", f10.2)') &
@@ -1064,6 +1068,8 @@ subroutine PMCBaseRegisterHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 12/02/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Option_module
 
@@ -1092,6 +1098,8 @@ subroutine PMCBaseSetHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 12/02/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
 
   use Option_module
 
@@ -1118,8 +1126,12 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
+#include <petsc/finclude/petscbag.h>
+  use petscbag
+
   use Logging_module
   use Checkpoint_module, only : CheckPointReadCompatibilityBinary
+  use Petsc_Utility_module, only : PetscTestFile
 
   implicit none
 

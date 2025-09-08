@@ -1,15 +1,13 @@
 module PMC_Subsurface_class
 
-  use PMC_Base_class
-  use Realization_Subsurface_class
-
-  use PFLOTRAN_Constants_module
-
 #include "petsc/finclude/petscts.h"
   use petscts
 
-  implicit none
+  use PFLOTRAN_Constants_module
+  use PMC_Base_class
+  use Realization_Subsurface_class
 
+  implicit none
 
   private
 
@@ -725,9 +723,9 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
         if (option%geomechanics%flow_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_por,sim_por_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p, &
+          call VecGetArray(subsurf_field%work_loc,work_loc_p, &
                               ierr);CHKERRQ(ierr)
 
           do local_id = 1, subsurf_grid%nlmax
@@ -735,9 +733,9 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
             work_loc_p(ghosted_id) = sim_por_p(local_id)
           enddo
 
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_por,sim_por_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p, &
+          call VecRestoreArray(subsurf_field%work_loc,work_loc_p, &
                                   ierr);CHKERRQ(ierr)
 
           call DiscretizationLocalToGlobal(pmc%realization%discretization, &
@@ -846,15 +844,15 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 
         ! Extract pressure, temperature, density, and porosity from
         ! subsurface realization
-        call VecGetArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
+        call VecGetArray(subsurf_field%flow_xx_loc,xx_loc_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_pres,pres_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_temp,temp_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+        call VecGetArray(pmc%sim_aux%subsurf_por,por_p, &
                             ierr);CHKERRQ(ierr)
 
         global_auxvars => pmc%realization%patch%aux%global%auxvars
@@ -877,21 +875,21 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           por_p(local_id) = material_auxvars(ghosted_id)%porosity
         enddo
 
-        call VecRestoreArrayF90(subsurf_field%flow_xx_loc,xx_loc_p, &
+        call VecRestoreArray(subsurf_field%flow_xx_loc,xx_loc_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres,pres_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_pres,pres_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp,temp_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_temp,temp_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_fluid_den,fluid_den_p, &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p, &
+        call VecRestoreArray(pmc%sim_aux%subsurf_por,por_p, &
                                 ierr);CHKERRQ(ierr)
 
         if (pmc%timestepper%steps == 0) then
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                               ierr);CHKERRQ(ierr)
-          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
+          call VecGetArray(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
                               ierr);CHKERRQ(ierr)
 
           ghosted_id = subsurf_grid%nL2G(1)
@@ -904,9 +902,9 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
             sim_perm0_p(local_id) = &
               material_auxvars(ghosted_id)%permeability(perm_xx_index)
           enddo
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,sim_por0_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_por0,sim_por0_p, &
                                   ierr);CHKERRQ(ierr)
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
+          call VecRestoreArray(pmc%sim_aux%subsurf_perm0,sim_perm0_p, &
                                   ierr);CHKERRQ(ierr)
         endif
     end select
