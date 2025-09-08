@@ -40,6 +40,7 @@ module Geomechanics_Grid_Aux_module
     PetscInt, pointer :: ghosted_node_ids_petsc(:)   ! Petsc ids of the ghost nodes only
     PetscInt, pointer :: nL2G(:),nG2L(:),nG2A(:)
     type(gauss_type), pointer :: gauss_node(:)
+    type(gauss_type), pointer :: gauss_surf_node(:) ! for traction bc
     character(len=MAXSTRINGLENGTH) :: mapping_filename ! mapping between subsurf and geomech meshes
     PetscInt :: mapping_num_cells
     PetscInt, pointer :: mapping_cell_ids_flow(:)
@@ -184,6 +185,7 @@ function GMGridCreate()
   nullify(geomech_grid%ghosted_node_ids_natural)
   nullify(geomech_grid%ghosted_node_ids_petsc)
   nullify(geomech_grid%gauss_node)
+  nullify(geomech_grid%gauss_surf_node)
   geomech_grid%no_elems_sharing_node_loc = PETSC_NULL_VEC
   geomech_grid%no_elems_sharing_node = PETSC_NULL_VEC
 
@@ -858,6 +860,15 @@ subroutine GMGridDestroy(geomech_grid)
   endif
 
   nullify(geomech_grid%gauss_node)
+
+  if (associated(geomech_grid%gauss_surf_node)) then
+    do i = 1, size(geomech_grid%gauss_surf_node)
+      if (i == LINE_FACE_TYPE) cycle ! we don't currently support line_face_type
+      call GaussDestroy(geomech_grid%gauss_surf_node(i))
+    enddo
+    deallocate(geomech_grid%gauss_surf_node)
+  endif
+  nullify(geomech_grid%gauss_surf_node)
 
   if (geomech_grid%no_elems_sharing_node_loc /= PETSC_NULL_VEC) then
     call VecDestroy(geomech_grid%no_elems_sharing_node_loc, &

@@ -81,7 +81,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   PetscInt, allocatable :: vertex_count_array(:)
   PetscInt, allocatable :: vertex_count_array2(:)
   PetscBool :: lflag
-
+  PetscInt :: face_type_id
 
 #ifdef GEOMECH_DEBUG
   character(len=MAXSTRINGLENGTH) :: string
@@ -676,17 +676,31 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   allocate(geomech_grid%gauss_node(geomech_grid%nlmax_elem))
   do local_id = 1, geomech_grid%nlmax_elem
     call GaussInitialize(geomech_grid%gauss_node(local_id))
-    geomech_grid%gauss_node(local_id)%element_type = &
+    geomech_grid%gauss_node(local_id)%entity_type = &
       geomech_grid%Elem_type(local_id)
     ! Set to 3D although we have gauss point calculations for 2D
     geomech_grid%gauss_node(local_id)%dim = THREE_DIM_GRID
     ! Three gauss points in each direction
     geomech_grid%gauss_node(local_id)%num_gauss_pts = THREE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%element_type == PYR_TYPE) &
+    if (geomech_grid%gauss_node(local_id)%entity_type == PYR_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FIVE_INTEGER
-    if (geomech_grid%gauss_node(local_id)%element_type == TET_TYPE) &
+    if (geomech_grid%gauss_node(local_id)%entity_type == TET_TYPE) &
       geomech_grid%gauss_node(local_id)%num_gauss_pts = FOUR_INTEGER
     call GaussCalculatePoints(geomech_grid%gauss_node(local_id))
+  enddo
+
+  ! from grid_unstructured_cell.F90, we have
+  ! LINE_FACE_TYPE = 1
+  ! TRI_FACE_TYPE  = 2
+  ! QUAD_FACE_TYPE = 3
+  allocate(geomech_grid%gauss_surf_node(3))
+  do face_type_id = 1,3
+    call GaussInitialize(geomech_grid%gauss_surf_node(face_type_id))
+    if (face_type_id == LINE_FACE_TYPE) cycle
+    geomech_grid%gauss_surf_node(face_type_id)%entity_type = face_type_id
+    geomech_grid%gauss_surf_node(face_type_id)%dim = TWO_DIM_GRID
+    geomech_grid%gauss_surf_node(face_type_id)%num_gauss_pts = ONE_INTEGER
+    call GaussCalculatePoints(geomech_grid%gauss_surf_node(face_type_id))
   enddo
 
   ! Store petsc ids of the local and ghost nodes in the new re-ordered system on
@@ -765,13 +779,19 @@ subroutine GeomechGridLocalizeRegions(grid,region_list,option)
   do
     if (.not.(associated(region))) exit
 
-    if (.not.(associated(region%vertex_ids))) then
-      option%io_buffer = 'GeomechGridLocalizeRegions: define region only ' // &
-                         'by list of vertices is currently implemented: ' //  &
+    if (.not.(associated(region%vertex_ids)) .and. &
+        .not.(associated(region%sideset))) then
+      option%io_buffer = 'GeomechGridLocalizeRegions: define region ' // &
+                         'by list of vertices or sideset are currently ' // &
+                         'implemented: ' //  &
                           trim(region%name)
       call PrintErrMsg(option)
     else
-      call GeomechGridLocalizeRegFromVertIDs(grid,region,option)
+      if (associated(region%sideset)) then
+        call GeomechGridLocalizeRegFromSideSet(grid,region,option)
+      else
+        call GeomechGridLocalizeRegFromVertIDs(grid,region,option)
+      endif
     endif
 
     if (region%num_verts == 0 .and. associated(region%vertex_ids)) then
@@ -783,8 +803,274 @@ subroutine GeomechGridLocalizeRegions(grid,region_list,option)
 
   enddo
 
-
 end subroutine GeomechGridLocalizeRegions
+
+! ************************************************************************** !
+!
+! jaa adaptation from UGridMapSideSet2
+!
+! author: Jumanah Al Kubaisy
+! date: 09/04/25
+!
+! ************************************************************************** !
+subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
+                                             geomech_region, &
+                                             option)
+
+#include "petsc/finclude/petscmat.h"
+
+  use petscmat
+  use Option_module
+  use Geomechanics_Region_module
+
+  implicit none
+
+  type(geomech_grid_type) :: geomech_grid
+  type(gm_region_type) :: geomech_region
+  type(option_type) :: option
+
+  Mat :: Mat_region_vert_to_face
+  Mat :: Mat_region_face_to_vert
+  Mat :: Mat_face_to_vert
+  Mat :: Mat_face
+  Mat :: Mat_face_loc
+
+  PetscInt, pointer :: nfaces
+  PetscInt, allocatable :: face_vertices(:,:)
+  PetscInt, allocatable :: elenodes(:)
+
+  PetscInt :: offset, elem_offset
+  PetscInt :: iface, ivertex, ielem
+
+  PetscErrorCode :: ierr
+  PetscInt :: ghosted_id, natural_id
+
+  PetscScalar, pointer :: aa_v(:)
+  PetscInt, pointer :: ia_p(:),ja_p(:)
+
+  PetscInt :: nrow
+  PetscBool :: done
+  PetscInt :: min_nverts
+  PetscInt :: mapped_face_count, face_count
+  PetscReal :: max_value
+  PetscInt :: ii, jj
+  PetscInt :: tet_faces_vert(FOUR_INTEGER,THREE_INTEGER)
+  PetscInt :: quad_faces_vert(SIX_INTEGER,FOUR_INTEGER)
+
+  PetscInt, allocatable :: loc_face_vertices(:,:)
+  PetscInt, allocatable :: mapped_face_vertices(:,:)
+
+  PetscInt :: face_type, num_faces_per_ele, num_vertices_per_face
+
+  ! jaa : add #ifdef GEOMECH_DEBUG .. etc in routine
+
+  ! jaa: this order ensures correct outward pointing normal calculations
+  tet_faces_vert(1,:) = (/ 2, 3, 4 /)! face opposite to v1
+  tet_faces_vert(2,:) = (/ 1, 4, 3 /)! face opposite to v2
+  tet_faces_vert(3,:) = (/ 1, 2, 4 /)! face opposite to v3
+  tet_faces_vert(4,:) = (/ 1, 3, 2 /)! face opposite to v4
+  ! jaa: my own experimentation shows this gives outward pointing normal
+  quad_faces_vert(1,:) = (/ 4, 3, 2, 1 /)
+  quad_faces_vert(2,:) = (/ 8, 7, 6, 5 /)
+  quad_faces_vert(3,:) = (/ 2, 6, 5, 1 /)
+  quad_faces_vert(4,:) = (/ 8, 7, 3, 4 /)
+  quad_faces_vert(5,:) = (/ 5, 8, 4, 1 /)
+  quad_faces_vert(6,:) = (/ 3, 7, 6, 2 /)
+
+  face_type = TRI_FACE_TYPE
+  num_faces_per_ele = FOUR_INTEGER
+  num_vertices_per_face = THREE_INTEGER
+  if (geomech_grid%gauss_node(1)%entity_type == HEX_TYPE) then
+    face_type = QUAD_FACE_TYPE
+    num_faces_per_ele = SIX_INTEGER
+    num_vertices_per_face = FOUR_INTEGER
+  endif
+
+  allocate(loc_face_vertices(geomech_grid%nlmax_elem* &
+                             num_faces_per_ele, &
+                             num_vertices_per_face))
+
+  ! create and populate Mat_face_to_vert (dim: all faces x all vertices)
+  call MatCreateAIJ(option%mycomm,geomech_grid%nlmax_elem* &
+                    num_faces_per_ele, &
+                    PETSC_DETERMINE,PETSC_DETERMINE, &
+                    geomech_grid%nmax_node,4, &
+                    PETSC_NULL_INTEGER,4,PETSC_NULL_INTEGER, &
+                    Mat_face_to_vert,ierr);CHKERRQ(ierr)
+
+  call MatZeroEntries(Mat_face_to_vert,ierr);CHKERRQ(ierr)
+
+  face_count = 0
+
+  do ielem = 1, geomech_grid%nlmax_elem
+
+    allocate(elenodes(geomech_grid%elem_nodes(0,ielem)))
+    elenodes = geomech_grid%elem_nodes(1:geomech_grid% &
+                                         elem_nodes(0,ielem), &
+                                       ielem)
+
+    elem_offset = geomech_grid%global_offset_elem
+
+    do iface = 1,num_faces_per_ele
+
+      face_count = face_count + 1
+
+      do ivertex = 1,num_vertices_per_face
+        if (face_type == TRI_FACE_TYPE) then
+          ghosted_id = elenodes(tet_faces_vert(iface,ivertex))
+          natural_id = geomech_grid%nG2A(ghosted_id)
+          loc_face_vertices(face_count,ivertex) = &
+            elenodes(tet_faces_vert(iface,ivertex))
+        else ! QUAD_FACE_TYPE
+          ghosted_id = elenodes(quad_faces_vert(iface,ivertex))
+          natural_id = geomech_grid%nG2A(ghosted_id)
+          loc_face_vertices(face_count,ivertex) = &
+            elenodes(quad_faces_vert(iface,ivertex))
+        endif
+
+        call MatSetValue(Mat_face_to_vert,(elem_offset* &
+                         num_faces_per_ele)+face_count-1, &
+                         natural_id-1, &
+                         1.d0,INSERT_VALUES, &
+                         ierr);CHKERRQ(ierr)
+      enddo
+    enddo
+    deallocate(elenodes)
+  enddo
+
+  call MatAssemblyBegin(Mat_face_to_vert,MAT_FINAL_ASSEMBLY, &
+                        ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(Mat_face_to_vert,MAT_FINAL_ASSEMBLY, &
+                      ierr);CHKERRQ(ierr)
+
+  nullify(nfaces)
+  nfaces => geomech_region%sideset%nfaces
+  allocate(face_vertices(num_vertices_per_face,nfaces))
+
+  ! face vertices read from sideset file are natural ids
+  face_vertices = geomech_region%sideset%face_vertices
+
+  ! create and populate Mat_region_face_to_vert
+  call MatCreateAIJ(option%mycomm,nfaces,PETSC_DETERMINE, &
+                    PETSC_DETERMINE, &
+                    geomech_grid%nmax_node,4, &
+                    PETSC_NULL_INTEGER,4,PETSC_NULL_INTEGER, &
+                    Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
+
+  call MatZeroEntries(Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
+
+  offset=0
+  call MPI_Exscan(nfaces,offset,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                  option%mycomm,ierr);CHKERRQ(ierr)
+
+  do iface = 1, nfaces
+    do ivertex = 1, size(face_vertices,1)
+      if (face_vertices(ivertex,iface) > 0) then
+        ! assigns value of 1.d0 to vertices of the face
+        ! iface-1+offset: 0-based and adds offset value of process
+        ! face_vertices(ivertex,iface)-1: for region, so only 0-based
+        call MatSetValue(Mat_region_face_to_vert,iface-1+offset, &
+                         face_vertices(ivertex,iface)-1,1.d0, &
+                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+      endif
+    enddo
+  enddo
+
+  call MatAssemblyBegin(Mat_region_face_to_vert,MAT_FINAL_ASSEMBLY, &
+                        ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(Mat_region_face_to_vert,MAT_FINAL_ASSEMBLY, &
+                      ierr);CHKERRQ(ierr)
+
+  call MatTranspose(Mat_region_face_to_vert,MAT_INITIAL_MATRIX, &
+                    Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
+
+  call MatMatMult(Mat_face_to_vert,Mat_region_vert_to_face, &
+                  MAT_INITIAL_MATRIX,PETSC_DEFAULT_REAL, &
+                  Mat_face,ierr);CHKERRQ(ierr)
+
+  if (option%comm%size > 1) then
+    ! From the MPI-Matrix get the local-matrix
+    call MatMPIAIJGetLocalMat(Mat_face,MAT_INITIAL_MATRIX,Mat_face_loc, &
+                              ierr);CHKERRQ(ierr)
+    ! Get i and j indices of the local-matrix
+    call MatGetRowIJF90(Mat_face_loc,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
+                        ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    ! Get values stored in the local-matrix
+    call MatSeqAIJGetArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+  else
+    ! Get i and j indices of the local-matrix
+    call MatGetRowIJF90(Mat_face,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE,nrow, &
+                        ia_p,ja_p,done,ierr);CHKERRQ(ierr)
+    ! Get values stored in the local-matrix
+    call MatSeqAIJGetArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+  endif
+
+  min_nverts = 3 ! 3 for tri, 4 for quad
+
+  ! Determine the total number of faces mapped to each process
+  mapped_face_count = 0
+  do ii = 1,nrow ! all faces in a process
+    max_value = 0.d0
+    do jj = ia_p(ii),ia_p(ii + 1) - 1
+      if (aa_v(jj) > max_value) then
+        max_value = aa_v(jj)
+      endif
+    enddo
+    if (max_value >= min_nverts) then
+      ! local to a process
+      mapped_face_count = mapped_face_count + 1
+    endif
+  enddo
+
+  allocate(mapped_face_vertices(mapped_face_count,num_vertices_per_face))
+
+  ! reset the sideset for localizing
+  nullify(geomech_region%sideset)
+  allocate(geomech_region%sideset)
+  geomech_region%sideset%nfaces = 0
+  nullify(geomech_region%sideset%face_vertices)
+  allocate(geomech_region%sideset%face_vertices( &
+           num_vertices_per_face, mapped_face_count))
+
+  geomech_region%sideset%face_vertices = UNINITIALIZED_INTEGER
+
+  ! repeat for assignment to where the face data reside locally
+  if (mapped_face_count > 0) then
+    mapped_face_count = 0
+    do ii = 1,nrow ! all faces to a process
+      max_value = 0.d0
+      do jj = ia_p(ii),ia_p(ii + 1) - 1
+        if (aa_v(jj) > max_value) then
+          max_value = aa_v(jj)
+        endif
+      enddo
+      if (max_value >= min_nverts) then
+        ! local to a process
+        mapped_face_count = mapped_face_count + 1
+        geomech_region%sideset%nfaces = mapped_face_count
+        geomech_region%sideset%face_vertices(:,mapped_face_count) = &
+          loc_face_vertices(ii,:)
+      endif
+    enddo
+  endif
+
+  if (option%comm%size>1) then
+    call MatSeqAIJRestoreArrayF90(Mat_face_loc,aa_v,ierr);CHKERRQ(ierr)
+    call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
+  else
+    call MatSeqAIJRestoreArrayF90(Mat_face,aa_v,ierr);CHKERRQ(ierr)
+  endif
+
+  call MatDestroy(Mat_region_vert_to_face,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_face_to_vert,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_face,ierr);CHKERRQ(ierr)
+  call MatDestroy(Mat_face_loc,ierr);CHKERRQ(ierr)
+  deallocate(mapped_face_vertices)
+  deallocate(loc_face_vertices)
+  deallocate(face_vertices)
+
+end subroutine GeomechGridLocalizeRegFromSideSet
 
 ! ************************************************************************** !
 !
