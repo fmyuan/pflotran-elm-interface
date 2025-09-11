@@ -862,6 +862,7 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   PetscInt :: ii, jj
   PetscInt :: tet_faces_vert(FOUR_INTEGER,THREE_INTEGER)
   PetscInt :: quad_faces_vert(SIX_INTEGER,FOUR_INTEGER)
+  PetscInt :: element_type
 
   PetscInt, allocatable :: loc_face_vertices(:,:)
   PetscInt, allocatable :: mapped_face_vertices(:,:)
@@ -886,16 +887,21 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   face_type = TRI_FACE_TYPE
   num_faces_per_ele = FOUR_INTEGER
   num_vertices_per_face = THREE_INTEGER
+  element_type = TET_TYPE
   if (geomech_grid%gauss_node(1)%entity_type == HEX_TYPE) then
     face_type = QUAD_FACE_TYPE
     num_faces_per_ele = SIX_INTEGER
     num_vertices_per_face = FOUR_INTEGER
+    element_type = HEX_TYPE
   endif
 
   allocate(loc_face_vertices(geomech_grid%nlmax_elem* &
                              num_faces_per_ele, &
                              num_vertices_per_face))
 
+  ! Here we loop over all element faces
+  ! This can be improved if we identify boundary faces earlier
+  ! when setting up the geomech grid object (similar to ugrid)
   ! create and populate Mat_face_to_vert (dim: all faces x all vertices)
   call MatCreateAIJ(option%mycomm,geomech_grid%nlmax_elem* &
                     num_faces_per_ele, &
@@ -909,6 +915,16 @@ subroutine GeomechGridLocalizeRegFromSideSet(geomech_grid, &
   face_count = 0
 
   do ielem = 1, geomech_grid%nlmax_elem
+
+    ! catch limitation for this routine
+    ! jaa: need to think about extending this implementation and allocating
+    ! petsc mat for different element types
+    if (element_type /= geomech_grid%gauss_node(ielem)%entity_type) then
+        option%io_buffer = 'ERROR while localizing the sideset ' // &
+          'file. Current implementation works only for a single ' // &
+          'element type in the model; either hexes or tets.'
+        call PrintErrMsg(option)
+    endif
 
     allocate(elenodes(geomech_grid%elem_nodes(0,ielem)))
     elenodes = geomech_grid%elem_nodes(1:geomech_grid% &
