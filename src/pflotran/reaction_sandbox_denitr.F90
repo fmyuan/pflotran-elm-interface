@@ -371,7 +371,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 #ifdef DEBUG
-  if( (option%print_file_flag) .and. &
+  if( (option%print_flags%print_to_file) .and. &
      rate_deni*option%tran_dt >= c_no3) then
 
     write(option%fid_out, *) '----------------------------------------------'
