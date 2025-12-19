@@ -220,7 +220,7 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
     call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
       
     select case(trim(word))
-
+#if 0
       case('CONC','CONCENTRATIONS')
 
         nwt_species_constraint => &
@@ -307,7 +307,7 @@ subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
         if (associated(constraint%nwt_species)) &
           call NWTSpeciesConstraintDestroy(constraint%nwt_species)
         constraint%nwt_species => nwt_species_constraint 
-               
+#endif
         
       case default
         call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
@@ -449,7 +449,7 @@ subroutine TranConstraintCouplerNWTStrip(this)
   
   call TranConstraintCouplerBaseStrip(this)
 
-  call NWTAuxVarDestroy(this%nwt_auxvar)
+  !call NWTAuxVarDestroy(this%nwt_auxvar)
   
 end subroutine TranConstraintCouplerNWTStrip
 
