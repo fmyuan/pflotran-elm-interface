@@ -1,43 +1,47 @@
 # README #
 
-This is repository for coupling PFLOTRAN into CLM in DOE sponsored NGEE-Arctic Project. It's keeping updates from PLOTRAN-Dev as soon as possible.
+This is repository for coupling PFLOTRAN into CLM/ELM in the DOE-sponsored NGEE-Arctic Project. It keeps updates from PFLOTRAN-Dev as soon as possible.
 
 The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N biogeochemistry and thermal-hydrology, i.e. PFLOTRAN.
 
-This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM repository, branch /fmyuan/lnd/elm-pflotran.
+This repository is the PFLOTRAN portion for coupling. The CLM/ELM portion lives in the E3SM repository (e.g. https://github.com/fmyuan/E3SM.git, branch `elm-pflotran-II`).
 
 ***UPDATE: (2019-04-05) The coupling with E3SM Land Model (ELM) now is working.***
 
+### Remotes ###
+
+This repository tracks several upstream/fork remotes:
+
+* `origin` — https://github.com/fmyuan/pflotran-elm-interface.git (this fork; default branch: `pflotran-elm-interface`)
+* `bsulman` — https://github.com/bsulman/pflotran-elm-interface.git (collaborator fork, active development)
+* `pflotran_bitbucket` — https://bitbucket.org/pflotran/pflotran.git (upstream PFLOTRAN-Dev)
+
 ### Branches and Versions ###
 
-* The repository contains master and FIVE(5) branches for different versions of PETSc:
+The repository carries `master` plus a number of long-lived branches for different coupling targets and PETSc/PFLOTRAN versions. The most actively maintained branches are:
 
-***master*** 
+***pflotran-v5.0.0-elm-bgc*** (most recent activity)
+ - Latest development branch, coupling against PFLOTRAN v5.0.0-era code for ELM BGC.
 
- - the most updated PFLOTRAN codes forked from https://bitbucket.org/pflotran/pflotran
- - only a few minor changes. 
- - NOT suggested to use coupling run, rather as a stand-alone PFLOTRAN. 
- - updated: **2019-04-01**
+***pflotran-elm-bgc***
+ - Development branch for ELM BGC coupling.
 
-***(1) pflotran-elm-interface*** 
+***pflotran-elm-interface*** (`origin`'s default branch)
+ - The long-standing development version of clm-pflotran, for testing thermal-hydrology (TH) and biogeochemistry (C/BGC).
+ - Keeps updating with `master` and with recent PETSc.
 
- - the current development version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (C) portion. 
- - **PFLOTRAN**: It's keeping updating with master, and with most recent ***PETSc-dev***
+***bsulman/pflotran-elm-interface***
+ - Collaborator (bsulman) fork/branch of the interface, used for active co-development.
 
-***(2)default-release-v3.7***
- - The current STABLE version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (BGC) portion. 
- - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
- - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
- - Target ELM Version: **ELM v1**.  *STATUS*: STABLE for ```BGC```. (2017-06-27); UNDER test for ```TH mode``` 
+***master***
+ - The most updated PFLOTRAN codes forked from https://bitbucket.org/pflotran/pflotran, with only a few minor changes.
+ - NOT suggested for coupled runs — use as a stand-alone PFLOTRAN instead.
 
-***(3)default-release-v3.8***
- - for BGC coupled PFLOTRAN, with PETSc 3.8.x. TH coupling is not available.
- - It's working with **ELM v1.1 above**. May not be working with CLM.
- 
-***(4)default-release-v3.9***
- - for BGC coupled PFLOTRAN, with PETSc 3.9.x. TH coupling is not available.
- - It's working with **ELM v1.1 above**. May not be working with CLM.
- 
+Older, less actively maintained release branches (kept for reference/reproducibility of past studies):
+`default-release-v2020`, `default-release-v2021`, `default-release-v2021a`, `default-release-v3.7`, `default-release-v3.8`, `default-release-v3.9`, `default-release-v3.10`, `default-release-v3.11`, `default-release-v3.12`, `simpleTH`, `THonly`, `Water3PhaseFlow`.
+
+Check `git log -1 <branch>` for a given branch's last update date, and its own `Readme.md`/`readme.rst` (where present) for version-specific notes, before using it.
+
 
 ### How do I get set up? ###
 
@@ -46,10 +50,10 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM
 git clone https://github.com/fmyuan/pflotran-elm-interface.git
 ```
 
-**(2)[OPTIONAL]** *git checkout your specific branch, e.g. 'default-release-v3.7'. The default is 'pflotran-elm-interface'*
+**(2)[OPTIONAL]** *git checkout your specific branch, e.g. 'pflotran-elm-bgc'. The default is 'pflotran-elm-interface'*
 ```
-cd pflotran-interface
-git checkout default-release-v3.7
+cd pflotran-elm-interface
+git checkout pflotran-elm-bgc
 ```
 
 **(3a)** *if not coupled with ELM, this repository should be a **stand-alone PFLOTRAN** model.*
@@ -161,4 +165,4 @@ If setting software environments (specifically PETSc library), the whole ELM bui
 
 
 
-***UPDATED: 2019-08-06***
+***UPDATED: 2026-09-18***
